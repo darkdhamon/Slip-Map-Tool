@@ -1,0 +1,22 @@
+﻿Version Major.Minor.Patch.Build
+
+Version 1.0.0.0
+ - Create Sector
+ - Create StarSystem
+ - Create SlipRoute
+ - Blind Jump
+ - Nav Jump
+ - Skill Roll
+ - Save to file
+ - Load from File
+ - Initial Release
+Version 1.0.1.0
+ - Manual Change System
+ - Fix Error on exit with no map loaded
+Version 1.0.2.0
+ - Fix Dice Roll
+ - Fix Random Start System
+ - Find Route
+ - Create Custom Slip Route
+Version 1.1.0.0
+ - Database Model

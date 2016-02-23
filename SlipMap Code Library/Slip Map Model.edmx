@@ -1,0 +1,144 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="3.0" xmlns:edmx="http://schemas.microsoft.com/ado/2009/11/edmx">
+  <!-- EF Runtime content -->
+  <edmx:Runtime>
+    <!-- SSDL content -->
+    <edmx:StorageModels>
+      <Schema xmlns="http://schemas.microsoft.com/ado/2009/11/edm/ssdl" Namespace="Slip_x0020_Map_x0020_Model.Store" Alias="Self" Provider="System.Data.SqlClient" ProviderManifestToken="2005">
+        <EntityContainer Name="Slip_x0020_Map_x0020_ModelTargetContainer" >
+        </EntityContainer>
+      </Schema>
+    </edmx:StorageModels>
+    <!-- CSDL content -->
+    <edmx:ConceptualModels>
+      <Schema xmlns="http://schemas.microsoft.com/ado/2009/11/edm" xmlns:cg="http://schemas.microsoft.com/ado/2006/04/codegeneration" xmlns:store="http://schemas.microsoft.com/ado/2007/12/edm/EntityStoreSchemaGenerator" Namespace="Slip_x0020_Map_x0020_Model" Alias="Self" xmlns:annotation="http://schemas.microsoft.com/ado/2009/02/edm/annotation" annotation:UseStrongSpatialTypes="false">
+        <EntityContainer Name="Slip_x0020_Map_x0020_ModelContainer" annotation:LazyLoadingEnabled="true">
+          <EntitySet Name="StarSystems" EntityType="Slip_x0020_Map_x0020_Model.StarSystem" />
+          <AssociationSet Name="StarSystemStarSystem" Association="Slip_x0020_Map_x0020_Model.StarSystemStarSystem">
+            <End Role="StarSystem" EntitySet="StarSystems" />
+            <End Role="StarSystem1" EntitySet="StarSystems" />
+          </AssociationSet>
+          <EntitySet Name="Sectors" EntityType="Slip_x0020_Map_x0020_Model.Sector" />
+          <EntitySet Name="Ships" EntityType="Slip_x0020_Map_x0020_Model.Ship" />
+          <AssociationSet Name="StarSystemSector" Association="Slip_x0020_Map_x0020_Model.StarSystemSector">
+            <End Role="StarSystem" EntitySet="StarSystems" />
+            <End Role="Sector" EntitySet="Sectors" />
+          </AssociationSet>
+          <AssociationSet Name="StarSystemShip" Association="Slip_x0020_Map_x0020_Model.StarSystemShip">
+            <End Role="StarSystem" EntitySet="StarSystems" />
+            <End Role="Ship" EntitySet="Ships" />
+          </AssociationSet>
+          <EntitySet Name="Pilots" EntityType="Slip_x0020_Map_x0020_Model.Pilot" />
+          <AssociationSet Name="ShipPilot" Association="Slip_x0020_Map_x0020_Model.ShipPilot">
+            <End Role="Ship" EntitySet="Ships" />
+            <End Role="Pilot" EntitySet="Pilots" />
+          </AssociationSet>
+        </EntityContainer>
+        <EntityType Name="StarSystem">
+          <Key>
+            <PropertyRef Name="Id" />
+          </Key>
+          <Property Name="Id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="Name" Type="String" Nullable="false" />
+          <Property Name="Description" Type="String" Nullable="false" />
+          <NavigationProperty Name="ConnectedStarSystems" Relationship="Slip_x0020_Map_x0020_Model.StarSystemStarSystem" FromRole="StarSystem" ToRole="StarSystem1" />
+          <NavigationProperty Name="Sector" Relationship="Slip_x0020_Map_x0020_Model.StarSystemSector" FromRole="StarSystem" ToRole="Sector" />
+          <Property Name="SectorId" Type="Int32" Nullable="false" />
+          <Property Name="GMNotes" Type="String" Nullable="false" />
+          <Property Name="LastEdited" Type="String" Nullable="false" />
+          <Property Name="LockedBy" Type="String" Nullable="false" />
+        </EntityType>
+        <Association Name="StarSystemStarSystem">
+          <End Type="Slip_x0020_Map_x0020_Model.StarSystem" Role="StarSystem" Multiplicity="*" />
+          <End Type="Slip_x0020_Map_x0020_Model.StarSystem" Role="StarSystem1" Multiplicity="*" />
+        </Association>
+        <EntityType Name="Sector">
+          <Key>
+            <PropertyRef Name="Id" />
+          </Key>
+          <Property Name="Id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="Name" Type="String" Nullable="false" />
+          <NavigationProperty Name="StarSystems" Relationship="Slip_x0020_Map_x0020_Model.StarSystemSector" FromRole="Sector" ToRole="StarSystem" />
+          <Property Name="LastSystemID" Type="String" Nullable="false" />
+          <Property Name="LastEdited" Type="String" Nullable="false" />
+          <Property Name="LockedBy" Type="String" Nullable="false" />
+        </EntityType>
+        <EntityType Name="Ship">
+          <Key>
+            <PropertyRef Name="Id" />
+          </Key>
+          <Property Name="Id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <NavigationProperty Name="CurrentStarSystem" Relationship="Slip_x0020_Map_x0020_Model.StarSystemShip" FromRole="Ship" ToRole="StarSystem" />
+          <Property Name="StarSystemId" Type="Int32" Nullable="false" />
+          <Property Name="LastEdited" Type="String" Nullable="false" />
+          <Property Name="LockedBy" Type="String" Nullable="false" />
+          <NavigationProperty Name="Pilot" Relationship="Slip_x0020_Map_x0020_Model.ShipPilot" FromRole="Ship" ToRole="Pilot" />
+        </EntityType>
+        <Association Name="StarSystemSector">
+          <End Type="Slip_x0020_Map_x0020_Model.StarSystem" Role="StarSystem" Multiplicity="*" />
+          <End Type="Slip_x0020_Map_x0020_Model.Sector" Role="Sector" Multiplicity="1" />
+          <ReferentialConstraint>
+            <Principal Role="Sector">
+              <PropertyRef Name="Id" />
+            </Principal>
+            <Dependent Role="StarSystem">
+              <PropertyRef Name="SectorId" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <Association Name="StarSystemShip">
+          <End Type="Slip_x0020_Map_x0020_Model.StarSystem" Role="StarSystem" Multiplicity="1" />
+          <End Type="Slip_x0020_Map_x0020_Model.Ship" Role="Ship" Multiplicity="*" />
+          <ReferentialConstraint>
+            <Principal Role="StarSystem">
+              <PropertyRef Name="Id" />
+            </Principal>
+            <Dependent Role="Ship">
+              <PropertyRef Name="StarSystemId" />
+            </Dependent>
+          </ReferentialConstraint>
+        </Association>
+        <EntityType Name="Pilot">
+          <Key>
+            <PropertyRef Name="Id" />
+          </Key>
+          <Property Name="Id" Type="Int32" Nullable="false" annotation:StoreGeneratedPattern="Identity" />
+          <Property Name="Name" Type="String" Nullable="false" />
+          <Property Name="PilotSkill" Type="String" Nullable="false" />
+          <NavigationProperty Name="Ship" Relationship="Slip_x0020_Map_x0020_Model.ShipPilot" FromRole="Pilot" ToRole="Ship" />
+        </EntityType>
+        <Association Name="ShipPilot">
+          <End Type="Slip_x0020_Map_x0020_Model.Ship" Role="Ship" Multiplicity="1" />
+          <End Type="Slip_x0020_Map_x0020_Model.Pilot" Role="Pilot" Multiplicity="1" />
+        </Association>
+      </Schema>
+    </edmx:ConceptualModels>
+    <!-- C-S mapping content -->
+    <edmx:Mappings>
+      <Mapping xmlns="http://schemas.microsoft.com/ado/2009/11/mapping/cs" Space="C-S">
+        <Alias Key="Model" Value="Slip_x0020_Map_x0020_Model" />
+        <Alias Key="Target" Value="Slip_x0020_Map_x0020_Model.Store" />
+        <EntityContainerMapping CdmEntityContainer="Slip_x0020_Map_x0020_ModelContainer" StorageEntityContainer="Slip_x0020_Map_x0020_ModelTargetContainer">
+        </EntityContainerMapping>
+      </Mapping>
+    </edmx:Mappings>
+  </edmx:Runtime>
+  <!-- EF Designer content (DO NOT EDIT MANUALLY BELOW HERE) -->
+  <edmx:Designer xmlns="http://schemas.microsoft.com/ado/2009/11/edmx">
+    <edmx:Connection>
+      <DesignerInfoPropertySet>
+        <DesignerProperty Name="MetadataArtifactProcessing" Value="EmbedInOutputAssembly" />
+      </DesignerInfoPropertySet>
+    </edmx:Connection>
+    <edmx:Options>
+      <DesignerInfoPropertySet>
+        <DesignerProperty Name="ValidateOnBuild" Value="true" />
+        <DesignerProperty Name="EnablePluralization" Value="True" />
+        <DesignerProperty Name="CodeGenerationStrategy" Value="None" />
+      </DesignerInfoPropertySet>
+    </edmx:Options>
+    <!-- Diagram content (shape and connector positions) -->
+    <edmx:Diagrams>
+    </edmx:Diagrams>
+  </edmx:Designer>
+</edmx:Edmx>

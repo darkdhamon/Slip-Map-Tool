@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="3.0" xmlns:edmx="http://schemas.microsoft.com/ado/2009/11/edmx">
+ <!-- EF Designer content (DO NOT EDIT MANUALLY BELOW HERE) -->
+  <edmx:Designer xmlns="http://schemas.microsoft.com/ado/2009/11/edmx">
+    <!-- Diagram content (shape and connector positions) -->
+    <edmx:Diagrams>
+      <Diagram DiagramId="6ce4b8e96bb84ecb9cc42573f6e236b3" Name="Diagram1" >
+        <EntityTypeShape EntityType="Slip_x0020_Map_x0020_Model.StarSystem" Width="1.5" PointX="3.75" PointY="0.875" />
+        <AssociationConnector Association="Slip_x0020_Map_x0020_Model.StarSystemStarSystem" />
+        <EntityTypeShape EntityType="Slip_x0020_Map_x0020_Model.Sector" Width="1.5" PointX="5.875" PointY="0.875" />
+        <EntityTypeShape EntityType="Slip_x0020_Map_x0020_Model.Ship" Width="1.5" PointX="1" PointY="0.875" />
+        <AssociationConnector Association="Slip_x0020_Map_x0020_Model.StarSystemSector" />
+        <AssociationConnector Association="Slip_x0020_Map_x0020_Model.StarSystemShip" />
+        <EntityTypeShape EntityType="Slip_x0020_Map_x0020_Model.Pilot" Width="1.5" PointX="8.625" PointY="3.125" />
+        <AssociationConnector Association="Slip_x0020_Map_x0020_Model.ShipPilot" />
+      </Diagram>
+    </edmx:Diagrams>
+  </edmx:Designer>
+</edmx:Edmx>
