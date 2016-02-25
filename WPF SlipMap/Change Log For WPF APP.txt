@@ -26,6 +26,7 @@ Version 1.1.0.0
 Version 1.2.0.0
  - Add Manual Sliproute Creation to GM Overrides
  - Move Manual System Override to GM Overrides Tab
+ - Add Organization Option to Application
 Version 1.3.0.0
  - Create UI For Course Plotting
 Version 1.3.0.1

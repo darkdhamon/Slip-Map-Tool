@@ -1,0 +1,6 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Mapping xmlns="http://schemas.microsoft.com/ado/2009/11/mapping/cs" Space="C-S">
+  <Alias Key="Model" Value="Slip_x0020_Map_x0020_Model" />
+  <Alias Key="Target" Value="Slip_x0020_Map_x0020_Model.Store" />
+  <EntityContainerMapping CdmEntityContainer="Slip_x0020_Map_x0020_ModelContainer" StorageEntityContainer="Slip_x0020_Map_x0020_ModelTargetContainer" />
+</Mapping>

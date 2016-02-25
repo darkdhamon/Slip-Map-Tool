@@ -17,8 +17,12 @@ namespace SlipMap_Code_Library
             return string.IsNullOrWhiteSpace(Name) ? $"System {ID}" : $"{Name}  ({ID})";
         }
 
-        public void Clean()
+        /// <summary>
+        /// Organize List
+        /// </summary>
+        public void Organize()
         {
+            // Sort all Connected systems by Name and ID
             _connectedSystems = ConnectedSystems.OrderBy(system => system.Name).ThenBy(system => system.ID).ToList();
         }
     }

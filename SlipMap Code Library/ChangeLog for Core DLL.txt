@@ -20,3 +20,8 @@ Version 1.0.2.0
  - Create Custom Slip Route
 Version 1.1.0.0
  - Database Model
+Version 1.1.0.1
+ - Added condition for normal fail on blind jump.
+ - Corrected hours to eliminate time travel back in time.
+ - Optimized private BlindJump.
+ - Stopped Skill roll on Computer Blind Jump.
