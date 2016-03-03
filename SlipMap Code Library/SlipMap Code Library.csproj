@@ -41,33 +41,20 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="RouteExistException.cs" />
+    <Compile Include="CustomExceptions\RouteExistException.cs" />
     <Compile Include="RouteNode.cs" />
-    <Compile Include="Slip Map Model.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>Slip Map Model.edmx</DependentUpon>
-    </Compile>
     <Compile Include="StarSystem.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SlipDrive.cs" />
     <Compile Include="SlipMap.cs" />
   </ItemGroup>
   <ItemGroup>
-    <EntityDeploy Include="Slip Map Model.edmx">
-      <Generator>EntityModelCodeGenerator</Generator>
-      <LastGenOutput>Slip Map Model.Designer.cs</LastGenOutput>
-    </EntityDeploy>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="App.Config" />
-    <None Include="Slip Map Model.edmx.diagram">
-      <DependentUpon>Slip Map Model.edmx</DependentUpon>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <Content Include="ChangeLog for Core DLL.txt" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

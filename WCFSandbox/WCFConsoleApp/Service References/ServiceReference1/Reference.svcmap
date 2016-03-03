@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ReferenceGroup xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ID="f1536d13-0662-4ecb-8cfe-8589a1980927" xmlns="urn:schemas-microsoft-com:xml-wcfservicemap">
+  <ClientOptions>
+    <GenerateAsynchronousMethods>false</GenerateAsynchronousMethods>
+    <GenerateTaskBasedAsynchronousMethod>true</GenerateTaskBasedAsynchronousMethod>
+    <EnableDataBinding>true</EnableDataBinding>
+    <ExcludedTypes />
+    <ImportXmlTypes>false</ImportXmlTypes>
+    <GenerateInternalTypes>false</GenerateInternalTypes>
+    <GenerateMessageContracts>false</GenerateMessageContracts>
+    <NamespaceMappings />
+    <CollectionMappings />
+    <GenerateSerializableTypes>true</GenerateSerializableTypes>
+    <Serializer>Auto</Serializer>
+    <UseSerializerForFaults>true</UseSerializerForFaults>
+    <ReferenceAllAssemblies>true</ReferenceAllAssemblies>
+    <ReferencedAssemblies />
+    <ReferencedDataContractTypes />
+    <ServiceContractMappings />
+  </ClientOptions>
+  <MetadataSources>
+    <MetadataSource Address="http://localhost:60541/SlipMapService.svc" Protocol="http" SourceId="1" />
+  </MetadataSources>
+  <Metadata>
+    <MetadataFile FileName="SlipMapService.disco" MetadataType="Disco" ID="144dd88c-f3bb-43d7-8e63-355d83075511" SourceId="1" SourceUrl="http://localhost:60541/SlipMapService.svc?disco" />
+    <MetadataFile FileName="SlipMapService.xsd" MetadataType="Schema" ID="eeb652e2-dbb3-4574-9ef8-529d43b36894" SourceId="1" SourceUrl="http://localhost:60541/SlipMapService.svc?xsd=xsd2" />
+    <MetadataFile FileName="SlipMapService1.xsd" MetadataType="Schema" ID="63c48220-0164-422b-b02f-7f956a484d2c" SourceId="1" SourceUrl="http://localhost:60541/SlipMapService.svc?xsd=xsd1" />
+    <MetadataFile FileName="SlipMapService2.xsd" MetadataType="Schema" ID="c0ff7929-7b7d-4871-b49b-e0517e3889f9" SourceId="1" SourceUrl="http://localhost:60541/SlipMapService.svc?xsd=xsd0" />
+    <MetadataFile FileName="SlipMapService.wsdl" MetadataType="Wsdl" ID="9ea2010f-442a-446f-95c0-5378623e27aa" SourceId="1" SourceUrl="http://localhost:60541/SlipMapService.svc?wsdl" />
+  </Metadata>
+  <Extensions>
+    <ExtensionFile FileName="configuration91.svcinfo" Name="configuration91.svcinfo" />
+    <ExtensionFile FileName="configuration.svcinfo" Name="configuration.svcinfo" />
+  </Extensions>
+</ReferenceGroup>
