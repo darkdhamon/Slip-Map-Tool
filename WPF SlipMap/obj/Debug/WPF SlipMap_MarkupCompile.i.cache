@@ -10,11 +10,11 @@ none
 false
 DEBUG;TRACE
 C:\Users\Bronze\OneDrive\Documents\Slipstream Map\WPF SlipMap\App.xaml
-4645639415
+7-79622034
 
-141854402671
+171584874094
 131176960335
-About.xaml;CreateSectorWindow.xaml;MainWindow.xaml;OpenSectorWindow.xaml;
+About.xaml;CreateSectorWindow.xaml;MainWindow.xaml;OpenSectorWindow.xaml;Tabs\About Tab.xaml;Tabs\Sector Tab.xaml;Tabs\Settings Tab.xaml;
 
-False
+True
 

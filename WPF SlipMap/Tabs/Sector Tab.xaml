@@ -1,0 +1,59 @@
+﻿<UserControl x:Class="WPF_SlipMap.Tabs.Sector_Tab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:WPF_SlipMap.Tabs"
+             mc:Ignorable="d" 
+             d:DesignHeight="300" d:DesignWidth="300">
+    <Grid>
+      <ScrollViewer>
+         <StackPanel>
+
+            <Expander Header="Load Sector">
+               <Grid>
+                  <Grid.ColumnDefinitions>
+                     <ColumnDefinition />
+                     <ColumnDefinition Width="Auto" />
+                  </Grid.ColumnDefinitions>
+                  <ComboBox Name="Sectors"/>
+                  <Button Name="LoadSector" Content="Load Sector" Grid.Column="1" Padding="10,1"/>
+               </Grid>
+            </Expander>
+            <Expander Header="Create Sector">
+               <Grid>
+                  <Grid.RowDefinitions>
+                     <RowDefinition />
+                     <RowDefinition />
+                     <RowDefinition />
+                     <RowDefinition />
+                     <RowDefinition />
+                  </Grid.RowDefinitions>
+                  <Grid.ColumnDefinitions>
+                     <ColumnDefinition Width="Auto" />
+                     <ColumnDefinition />
+                  </Grid.ColumnDefinitions>
+                  <Label>Sector Name:</Label>
+                  <TextBox Grid.Row="0" Grid.Column ="1" Name="CreateSectorName"/>
+                  <Label Grid.Column="0" Grid.Row="1">List System ID:</Label>
+                  <TextBox Grid.Row="0" Grid.Column ="1" Name="CreateLastID"/>
+                  <GroupBox Header="Starting System Selection" Grid.Row="2" Grid.ColumnSpan="2" Grid.Column="0">
+                     <StackPanel>
+                        <CheckBox Name="RandomSystem">Random Start System</CheckBox>
+                        <Grid>
+                           <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="Auto" />
+                              <ColumnDefinition />
+                           </Grid.ColumnDefinitions>
+                           <Label>Start System ID:</Label>
+                           <TextBox Name="CreateStartID" Grid.Column="1"></TextBox>
+                        </Grid>
+                     </StackPanel>
+                  </GroupBox>
+                  <Button Name="CreateSector"  Grid.Row="4" Grid.ColumnSpan="2" Grid.Column="0">Create Sector</Button>
+               </Grid>
+            </Expander>
+         </StackPanel>
+      </ScrollViewer>
+   </Grid>
+</UserControl>
