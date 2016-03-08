@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="WPF_SlipMap.Tabs.Settings_Tab"
+﻿<UserControl x:Class="WPF_SlipMap.Tabs.SettingsTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -45,7 +45,6 @@
                      <ComboBoxItem Content="20" />
                   </ComboBox>
                </WrapPanel>
-               <TextBlock Grid.Row="1" x:Name="PilotError" Foreground="Red" TextWrapping="Wrap" />
             </StackPanel>
          </Expander>
       </StackPanel>

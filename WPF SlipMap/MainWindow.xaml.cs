@@ -103,9 +103,11 @@ namespace WPF_SlipMap
          InitializeComponent();
          LoadLastSession();
          SettingsTab.Session = Session;
+         SettingsTab.MainWindow = this;
          SectorTab.Session = Session;
          SectorTab.SlipDrive = SlipDrive;
          SectorTab.MainWindow = this;
+
       }
 
       /// <summary>
@@ -247,7 +249,8 @@ namespace WPF_SlipMap
 
       private void RequestPilotSkill()
       {
-         MessageBox.Show("Set pilot skill and try again.", "Error", MessageBoxButton.OK, MessageBoxImage.Question);
+         Notification.Foreground=Brushes.Red;
+         Notification.Text = "Set pilot skill and try again.";
          var tabControl = SettingsTab.Parent as TabControl;
          if (tabControl != null) tabControl.SelectedItem = SettingsTab;
          SettingsTab.PilotSkill.Focus();
@@ -323,26 +326,25 @@ namespace WPF_SlipMap
       /// <summary>
       ///    Save the SlipMap
       /// </summary>
-      private bool SaveSlipMap()
+      private void SaveSlipMap()
       {
-         var success = true;
          try
          {
             SlipDrive.SaveSlipMap();
          }
          catch (Exception error)
          {
-            MessageBox.Show("There was an error saving the Slip Map. \n" + error.Message, "Save Error",
-               MessageBoxButton.OK, MessageBoxImage.Error);
-            success = false;
+            Notification.Text= $"There was an error saving the Slip Map. \n {error.Message}";
+            Notification.Foreground = Brushes.Red;
          }
-         return success;
       }
 
 
       private void CleanUp_Click(object sender, RoutedEventArgs e)
       {
          SlipDrive.Clean();
+         Notification.Text = "The Slip map has been organized.";
+         Notification.Foreground = Brushes.LawnGreen;
          Refresh();
       }
 
@@ -422,7 +424,8 @@ namespace WPF_SlipMap
          {
             DestinationSystem = null;
             PlotDestinationSystem.SelectedValue = null;
-            MessageBox.Show(error.Message);
+            Notification.Foreground=Brushes.Red;
+            Notification.Text = error.Message;
          }
       }
 
@@ -460,8 +463,10 @@ namespace WPF_SlipMap
       private void DisplayJumpMessage()
       {
          if (!string.IsNullOrWhiteSpace(SlipDrive.NavigationJumpMessage))
-            MessageBox.Show(SlipDrive.NavigationJumpMessage, "Result of Jump", MessageBoxButton.OK,
-               MessageBoxImage.Information);
+         {
+            Notification.Foreground = Brushes.Yellow;
+            Notification.Text = SlipDrive.NavigationJumpMessage;
+         }
          SlipDrive.NavigationJumpMessage = string.Empty;
       }
 

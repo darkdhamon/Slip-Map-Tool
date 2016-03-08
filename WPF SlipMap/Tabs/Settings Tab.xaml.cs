@@ -8,6 +8,7 @@
 
 using System;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 #endregion
 
@@ -16,11 +17,12 @@ namespace WPF_SlipMap.Tabs
    /// <summary>
    ///    Interaction logic for Settings_Tab.xaml
    /// </summary>
-   public partial class Settings_Tab : UserControl
+   public partial class SettingsTab
    {
+      public MainWindow MainWindow { get; set; }
       private Session _session;
 
-      public Settings_Tab()
+      public SettingsTab()
       {
          InitializeComponent();
       }
@@ -48,19 +50,23 @@ namespace WPF_SlipMap.Tabs
       {
          try
          {
-            if (PilotError != null) PilotError.Text = null;
             int pilotSkill;
             if (!int.TryParse(((ComboBox) sender).Text, out pilotSkill))
-               throw new InvalidInputException("This must be a valid number");
+               throw new InvalidInputException("This must be a valid number.");
             Session.PilotSkill = pilotSkill;
+            MainWindow.Notification.Foreground = Brushes.LawnGreen;
+            MainWindow.Notification.Text = "Pilot skill has been set.";
          }
          catch (InvalidInputException error)
          {
-            if (PilotError != null) PilotError.Text = error.Message;
+            MainWindow.Notification.Foreground = Brushes.Red;
+
+            MainWindow.Notification.Text = error.Message;
          }
          catch (Exception error)
          {
-            if (PilotError != null) PilotError.Text = error.Message + error.GetType();
+            MainWindow.Notification.Foreground = Brushes.Red;
+            MainWindow.Notification.Text = error.Message + error.GetType();
          }
       }
 

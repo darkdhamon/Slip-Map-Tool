@@ -139,7 +139,7 @@
             </TabControl>
          </TabItem>
          <TabItem Header="Settings">
-            <tabs:Settings_Tab x:Name="SettingsTab" />
+            <tabs:SettingsTab x:Name="SettingsTab" />
          </TabItem>
          <TabItem Header="About">
             <ScrollViewer>
