@@ -9,14 +9,14 @@
    <Grid>
       <ScrollViewer>
          <StackPanel>
-            <Expander Header="Load Sector">
+            <Expander Header="Load Sector" Expanded="Expander_OnExpanded">
                <Grid>
                   <Grid.ColumnDefinitions>
                      <ColumnDefinition />
                      <ColumnDefinition Width="Auto" />
                   </Grid.ColumnDefinitions>
                   <ComboBox Name="Sectors" />
-                  <Button Name="LoadSector" Content="Load Sector" Grid.Column="1" Padding="10,1" />
+                  <Button Name="LoadSector" Content="Load Sector" Grid.Column="1" Padding="10,1" Click="LoadSector_OnClick"/>
                </Grid>
             </Expander>
             <Expander Header="Create Sector">
@@ -54,7 +54,6 @@
                           Click="CreateSector_Click">
                      Create Sector
                   </Button>
-                  <Label Name="CreateSectorResult" Grid.Row="5" Grid.ColumnSpan="2" Grid.Column="0" />
                </Grid>
             </Expander>
          </StackPanel>

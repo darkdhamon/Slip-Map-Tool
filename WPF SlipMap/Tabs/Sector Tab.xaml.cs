@@ -57,14 +57,14 @@ namespace WPF_SlipMap.Tabs
 
       private void DisplaySectorResult(string message, bool success = false)
       {
-         CreateSectorResult.Content = message;
+         MainWindow.Notification.Text = message;
          switch (success)
          {
             case true:
-               CreateSectorResult.Foreground = Brushes.LawnGreen;
+               MainWindow.Notification.Foreground = Brushes.LawnGreen;
                break;
             default:
-               CreateSectorResult.Foreground = Brushes.Red;
+               MainWindow.Notification.Foreground = Brushes.Red;
                break;
          }
       }
@@ -77,6 +77,20 @@ namespace WPF_SlipMap.Tabs
       private void RandomSystem_OnUnchecked(object sender, RoutedEventArgs e)
       {
         SetSystem.Visibility = Visibility.Visible;
+      }
+
+      private void LoadSector_OnClick(object sender, RoutedEventArgs e)
+      {
+         SlipDrive.FileName = Sectors.SelectedItem.ToString();
+         SlipDrive.LoadSlipMap();
+         MainWindow.Refresh();
+         MainWindow.Notification.Foreground = Brushes.LawnGreen;
+         MainWindow.Notification.Text = "The Sector has been loaded";
+      }
+
+      private void Expander_OnExpanded(object sender, RoutedEventArgs e)
+      {
+         Sectors.ItemsSource = SlipDrive.ListSectors();
       }
    }
 }

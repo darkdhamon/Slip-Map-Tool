@@ -6,8 +6,9 @@
    x:Class="WPF_SlipMap.MainWindow"
    Title="Slip Map Tool" Height="350" Width="525" MinWidth="500" MinHeight="200" Closing="MainWindow_OnClosing">
    <DockPanel>
+      <TextBlock DockPanel.Dock="Bottom" Background="Black" TextWrapping="WrapWithOverflow" MaxHeight="50" Name="Notification" />
       <Menu DockPanel.Dock="Top">
-         <MenuItem Header="File">
+         <MenuItem Header="File" Visibility="Collapsed">
             <MenuItem x:Name="NewSector" Header="New" Click="NewSector_OnClick" />
             <MenuItem x:Name="OpenSector" Header="Open" Click="OpenSector_OnClick" />
             <MenuItem x:Name="SaveSector" Header="Save" Click="SaveSector_OnClick" />
