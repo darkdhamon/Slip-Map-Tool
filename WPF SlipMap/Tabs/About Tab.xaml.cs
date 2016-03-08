@@ -1,22 +1,19 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
+﻿// Slipstream Map WPF SlipMap About Tab.xaml.cs
+// Created: 2016-03-03 12:57 PM
+// Last Edited: 2016-03-04 12:14 PM
+// 
+// Author: Bronze Harold Brown
+
+#region Imports
+
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+
+#endregion
 
 namespace WPF_SlipMap.Tabs
 {
    /// <summary>
-   /// Interaction logic for About_Tab.xaml
+   ///    Interaction logic for About_Tab.xaml
    /// </summary>
    public partial class About_Tab : UserControl
    {

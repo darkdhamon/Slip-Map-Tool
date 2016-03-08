@@ -1,28 +1,82 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿// Slipstream Map WPF SlipMap Sector Tab.xaml.cs
+// Created: 2016-03-03 12:58 PM
+// Last Edited: 2016-03-04 12:14 PM
+// 
+// Author: Bronze Harold Brown
+
+#region Imports
+
+using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using SlipMap_Code_Library;
+
+#endregion
 
 namespace WPF_SlipMap.Tabs
 {
    /// <summary>
-   /// Interaction logic for Sector_Tab.xaml
+   ///    Interaction logic for Sector_Tab.xaml
    /// </summary>
-   public partial class Sector_Tab : UserControl
+   public partial class SectorTab
    {
-      public Sector_Tab()
+      public SectorTab()
       {
          InitializeComponent();
+      }
+
+      public SlipDrive SlipDrive { get; set; }
+      public Session Session { get; set; }
+      public MainWindow MainWindow { get; set; }
+
+      private void CreateSector_Click(object sender, RoutedEventArgs e)
+      {
+         try
+         {
+            int lastSystemID, startSystemID;
+            SlipDrive.FileName = CreateSectorName.Text + ".sm";
+            if (RandomSystem.IsChecked == true && int.TryParse(CreateLastID.Text, out lastSystemID))
+               SlipDrive.CreateSlipMap(lastSystemID);
+            else if (RandomSystem.IsChecked == false && int.TryParse(CreateLastID.Text, out lastSystemID) &&
+                     int.TryParse(CreateStartID.Text, out startSystemID))
+               SlipDrive.CreateSlipMap(lastSystemID, int.Parse(CreateStartID.Text));
+            else
+            {
+               DisplaySectorResult("Numeric Values only");
+               return;
+            }
+            DisplaySectorResult("New Sector has been created!", true);
+         }
+         catch (Exception error)
+         {
+            DisplaySectorResult(error.Message);
+         }
+         MainWindow.Refresh();
+      }
+
+      private void DisplaySectorResult(string message, bool success = false)
+      {
+         CreateSectorResult.Content = message;
+         switch (success)
+         {
+            case true:
+               CreateSectorResult.Foreground = Brushes.LawnGreen;
+               break;
+            default:
+               CreateSectorResult.Foreground = Brushes.Red;
+               break;
+         }
+      }
+
+      private void RandomSystem_Checked(object sender, RoutedEventArgs e)
+      {
+         SetSystem.Visibility = Visibility.Collapsed;
+      }
+
+      private void RandomSystem_OnUnchecked(object sender, RoutedEventArgs e)
+      {
+        SetSystem.Visibility = Visibility.Visible;
       }
    }
 }

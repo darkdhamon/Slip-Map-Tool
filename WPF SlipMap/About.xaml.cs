@@ -1,27 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿// Slipstream Map WPF SlipMap About.xaml.cs
+// Created: 2015-12-08 12:12 AM
+// Last Edited: 2016-03-04 12:14 PM
+// 
+// Author: Bronze Harold Brown
+
+#region Imports
+
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
+
+#endregion
 
 namespace WPF_SlipMap
 {
-    /// <summary>
-    /// Interaction logic for About.xaml
-    /// </summary>
-    public partial class About : Window
-    {
-        public About()
-        {
-            InitializeComponent();
-        }
-    }
+   /// <summary>
+   ///    Interaction logic for About.xaml
+   /// </summary>
+   public partial class About : Window
+   {
+      public About()
+      {
+         InitializeComponent();
+      }
+   }
 }

@@ -100,7 +100,7 @@
       <DependentUpon>CreateSectorWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="InvalidInputException.cs" />
-    <Compile Include="Application\LastSession.cs" />
+    <Compile Include="Application\Session.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>

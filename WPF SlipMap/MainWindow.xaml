@@ -21,35 +21,19 @@
       </Menu>
       <TabControl>
          <TabItem Header="File">
-            <tabs:Sector_Tab></tabs:Sector_Tab>
+            <tabs:SectorTab x:Name="SectorTab" />
          </TabItem>
          <TabItem Header="Game" IsSelected="True">
-            <TabControl TabStripPlacement="Left" >
+            <TabControl TabStripPlacement="Left">
                <TabItem Header="Current System" Height="22" VerticalAlignment="Top" IsSelected="True">
                   <DockPanel>
                      <WrapPanel DockPanel.Dock="Top">
                         <Label Content="Current System:" />
                         <Label x:Name="SysId" Content="SysID:" />
-                        <TextBox x:Name="SysName" Text="Unnamed System" HorizontalAlignment="Left" VerticalAlignment="Center"
-                           TextChanged="SysName_TextChanged" MinWidth="101" />
+                        <TextBox x:Name="SysName" Text="Unnamed System" HorizontalAlignment="Left"
+                                 VerticalAlignment="Center"
+                                 TextChanged="SysName_TextChanged" MinWidth="101" />
                      </WrapPanel>
-                     <Grid DockPanel.Dock="Left" Width="150">
-                        <Grid.RowDefinitions>
-                           <RowDefinition Height="auto" />
-                           <RowDefinition Height="Auto" />
-                           <RowDefinition />
-                           <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <Label Grid.Row="0" Content="Slip Routes" />
-                        <Button Grid.Row="1" x:Name="BlindJump" Content="Blind Jump" Click="BlindJump_Click" />
-
-                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-                           <ListBox x:Name="Routes">
-                              <system:String>No known slip routes</system:String>
-                           </ListBox>
-                        </ScrollViewer>
-                        <Button x:Name="NavJump" Grid.Row="3" Click="NavJump_Click" Content="Jump To Selected System" />
-                     </Grid>
 
                      <Grid>
                         <Grid.RowDefinitions>
@@ -59,8 +43,8 @@
                         <Label Grid.Row="0" Content="System Notes:" />
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                            <TextBox x:Name="GmNotes" TextWrapping="WrapWithOverflow" SpellCheck.IsEnabled="True"
-                              AcceptsReturn="True" AcceptsTab="True" AutoWordSelection="True" FontWeight="Medium"
-                              TextChanged="GMNotes_TextChanged" Text="GM notes on current star system." />
+                                    AcceptsReturn="True" AcceptsTab="True" AutoWordSelection="True" FontWeight="Medium"
+                                    TextChanged="GMNotes_TextChanged" Text="GM notes on current star system." />
                         </ScrollViewer>
 
                      </Grid>
@@ -86,12 +70,30 @@
                      <Label Grid.Row="0" Grid.Column="2">Course Route:</Label>
                      <Label Grid.Row="1" Grid.Column="0">Destination System:</Label>
                      <ComboBox Name="PlotDestinationSystem" Grid.Column="1" Grid.Row="1"
-                         SelectionChanged="PlotDestinationSystem_OnSelectionChanged" />
-                     <Label Grid.Row="2" Grid.Column="0">Jumps Required:</Label>
-                     <Label Grid.Row="2" Grid.Column="1" Name="Jumps" />
+                               SelectionChanged="PlotDestinationSystem_OnSelectionChanged" />
+                     <Label Grid.Row="2" Grid.Column="0">NumberOfJumps Required:</Label>
+                     <Label Grid.Row="2" Grid.Column="1" Name="NumberOfJumps" />
                      <ScrollViewer Grid.Row="1" Grid.Column="2" Grid.RowSpan="3">
                         <ListBox Name="RouteList">Select a destination to plot a course</ListBox>
                      </ScrollViewer>
+                     <Grid Grid.Row="3" Grid.ColumnSpan="2" Grid.Column="0">
+                        <Grid.RowDefinitions>
+                           <RowDefinition Height="auto" />
+                           <RowDefinition />
+                           <RowDefinition Height="Auto" />
+                           <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Label Grid.Row="0" Content="Slip Routes" />
+                        <Button Grid.Row="2" x:Name="BlindJump" Content="Blind Jump" Click="BlindJump_Click" />
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                           <ListBox x:Name="Routes">
+                              <system:String>No known slip routes</system:String>
+                           </ListBox>
+                        </ScrollViewer>
+                        <Button x:Name="NavJump" Grid.Row="3" Click="NavJump_Click" Content="Jump To Selected System" />
+                     </Grid>
+
                   </Grid>
                </TabItem>
                <TabItem Header="Systems Library">
@@ -121,8 +123,9 @@
                            <StackPanel>
                               <WrapPanel>
                                  <Label Content="System ID:" />
-                                 <TextBox x:Name="SystemOverride" TextChanged="SystemOverride_OnTextChanged_TextChanged"
-                                    Width="120" />
+                                 <TextBox x:Name="SystemOverride"
+                                          TextChanged="SystemOverride_OnTextChanged_TextChanged"
+                                          Width="120" />
                                  <Label />
                               </WrapPanel>
                               <Button Click="OverrideCurrentSystem_Click" Content="Override Star System" />
@@ -147,9 +150,9 @@
             </TabControl>
          </TabItem>
          <TabItem Header="Settings">
-            <tabs:Settings_Tab></tabs:Settings_Tab>
+            <tabs:Settings_Tab x:Name="SettingsTab" />
          </TabItem>
-         <TabItem Header="About"></TabItem>
+         <TabItem Header="About" />
 
       </TabControl>
 

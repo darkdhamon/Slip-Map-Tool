@@ -1,43 +1,51 @@
 ﻿<UserControl x:Class="WPF_SlipMap.Tabs.Settings_Tab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:local="clr-namespace:WPF_SlipMap.Tabs"
-             mc:Ignorable="d" 
+             mc:Ignorable="d"
              d:DesignHeight="300" d:DesignWidth="300">
-    <ScrollViewer>
+   <ScrollViewer>
       <StackPanel DockPanel.Dock="Right">
+         <Expander Header="User Settings">
+            <StackPanel>
+               <WrapPanel>
+                  <Label>DisplayName:</Label>
+                  <TextBox Name="DisplayName" IsEnabled="False" TextChanged="DisplayName_TextChanged" />
+               </WrapPanel>
+            </StackPanel>
+         </Expander>
          <Expander Header="Pilot Settings">
             <StackPanel>
-            <WrapPanel>
-               <Label Content="Pilot Skill:" />
-               <ComboBox x:Name="PilotSkill" SelectedIndex="0" IsEditable="True"
+               <WrapPanel>
+                  <Label Content="Pilot Skill:" />
+                  <ComboBox x:Name="PilotSkill" SelectedIndex="0" IsEditable="True"
                             TextBoxBase.TextChanged="PilotSkill_TextChanged">
-                  <ComboBoxItem Content="Unset" Foreground="Red" IsEnabled="False" />
-                  <ComboBoxItem Content="1" />
-                  <ComboBoxItem Content="2" />
-                  <ComboBoxItem Content="3" />
-                  <ComboBoxItem Content="4" />
-                  <ComboBoxItem Content="5" />
-                  <ComboBoxItem Content="6" />
-                  <ComboBoxItem Content="7" />
-                  <ComboBoxItem Content="8" />
-                  <ComboBoxItem Content="9" />
-                  <ComboBoxItem Content="10" />
-                  <ComboBoxItem Content="11" />
-                  <ComboBoxItem Content="12" />
-                  <ComboBoxItem Content="13" />
-                  <ComboBoxItem Content="14" />
-                  <ComboBoxItem Content="15" />
-                  <ComboBoxItem Content="16" />
-                  <ComboBoxItem Content="17" />
-                  <ComboBoxItem Content="18" />
-                  <ComboBoxItem Content="19" />
-                  <ComboBoxItem Content="20" />
-               </ComboBox>
-            </WrapPanel>
-            <TextBlock Grid.Row="1" x:Name="PilotError" Foreground="Red" TextWrapping="Wrap" />
+                     <ComboBoxItem Content="Unset" Foreground="Red" IsEnabled="False" />
+                     <ComboBoxItem Content="1" />
+                     <ComboBoxItem Content="2" />
+                     <ComboBoxItem Content="3" />
+                     <ComboBoxItem Content="4" />
+                     <ComboBoxItem Content="5" />
+                     <ComboBoxItem Content="6" />
+                     <ComboBoxItem Content="7" />
+                     <ComboBoxItem Content="8" />
+                     <ComboBoxItem Content="9" />
+                     <ComboBoxItem Content="10" />
+                     <ComboBoxItem Content="11" />
+                     <ComboBoxItem Content="12" />
+                     <ComboBoxItem Content="13" />
+                     <ComboBoxItem Content="14" />
+                     <ComboBoxItem Content="15" />
+                     <ComboBoxItem Content="16" />
+                     <ComboBoxItem Content="17" />
+                     <ComboBoxItem Content="18" />
+                     <ComboBoxItem Content="19" />
+                     <ComboBoxItem Content="20" />
+                  </ComboBox>
+               </WrapPanel>
+               <TextBlock Grid.Row="1" x:Name="PilotError" Foreground="Red" TextWrapping="Wrap" />
             </StackPanel>
          </Expander>
       </StackPanel>
