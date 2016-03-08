@@ -33,3 +33,23 @@ Version 1.3.0.1
  - Populate Data for Course Plotting
 Version 1.3.0.2
  - Invoke Course Calulation when Destination is selected.
+ - Rename Plot Course to Navigation
+Version 1.4.0.0
+ - Reorganize UI
+   - Removed Menus
+   - Created File Tab
+   - Created Game Tab
+   - Moved Jump operations from current system to Navigation Tab
+   - Moved Current System Tab under Game
+   - Moved Navigation under Game
+   - Moved System Library under Game
+   - Moved GM Overrides under Game
+   - Moved Load and Create Sector under Functionality
+   - Created About Tab (disabled)
+ - Added UserName to settings (disabled)
+Version 1.4.0.1
+ - Added data to about tab
+Version 1.4.1.0 (Working on this)
+ - Add formatting to GM Notes
+ - Add StarWinData to StarSystem
+  - With Formatting
