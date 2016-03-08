@@ -7,19 +7,6 @@
    Title="Slip Map Tool" Height="350" Width="525" MinWidth="500" MinHeight="200" Closing="MainWindow_OnClosing">
    <DockPanel>
       <TextBlock DockPanel.Dock="Bottom" Background="Black" TextWrapping="WrapWithOverflow" MaxHeight="50" Name="Notification" />
-      <Menu DockPanel.Dock="Top">
-         <MenuItem Header="File" Visibility="Collapsed">
-            <MenuItem x:Name="NewSector" Header="New" Click="NewSector_OnClick" />
-            <MenuItem x:Name="OpenSector" Header="Open" Click="OpenSector_OnClick" />
-            <MenuItem x:Name="SaveSector" Header="Save" Click="SaveSector_OnClick" />
-            <MenuItem x:Name="AutoSaveEnabled" Header="AutoSave Enabled" IsCheckable="True" IsChecked="True"
-                      IsEnabled="False" />
-         </MenuItem>
-         <MenuItem Header="Edit">
-            <MenuItem Header="Organize Up Slip Routes" Click="CleanUp_Click" />
-         </MenuItem>
-         <MenuItem Header="About" Click="About_Click" />
-      </Menu>
       <TabControl>
          <TabItem Header="File">
             <tabs:SectorTab x:Name="SectorTab" />
@@ -130,7 +117,6 @@
                                  <Label />
                               </WrapPanel>
                               <Button Click="OverrideCurrentSystem_Click" Content="Override Star System" />
-                              <TextBlock x:Name="SystemError" Foreground="Red" TextWrapping="Wrap" />
                            </StackPanel>
                         </GroupBox>
                         <GroupBox Header="Create Custom Slip Route">
@@ -142,8 +128,10 @@
                                  <ComboBox MinWidth="100" Name="CreateSlipRouteDestination" />
                               </WrapPanel>
                               <Button Name="CreateSlipRoute" Click="CreateSlipRoute_OnClick">Generate Custom Slip Route</Button>
-                              <TextBlock x:Name="AddSlipRouteResult" Foreground="Red" TextWrapping="Wrap" />
                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Slip Map Orgainization">
+                           <Button Name="CleanUp" ToolTip="Deletes extra slip routes and sorts systems alphabetically" Click="CleanUp_Click">Organize Slip Map</Button>
                         </GroupBox>
                      </StackPanel>
                   </ScrollViewer>
@@ -153,7 +141,7 @@
          <TabItem Header="Settings">
             <tabs:Settings_Tab x:Name="SettingsTab" />
          </TabItem>
-         <TabItem Header="About" />
+         <TabItem Header="About" IsEnabled="False"/>
 
       </TabControl>
 

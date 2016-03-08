@@ -165,13 +165,13 @@ namespace WPF_SlipMap
             SlipDrive.CreateSlipRoute(CreateSlipRouteOrigin.SelectedValue as StarSystem,
                CreateSlipRouteDestination.SelectedValue as StarSystem);
             RefreshCurrentSystem();
-            AddSlipRouteResult.Text = "Slip Route Added";
-            AddSlipRouteResult.Foreground = Brushes.LawnGreen;
+            Notification.Text = "Slip Route Added";
+            Notification.Foreground = Brushes.LawnGreen;
          }
          catch (Exception exception)
          {
-            AddSlipRouteResult.Text = exception.Message;
-            AddSlipRouteResult.Foreground = Brushes.Red;
+            Notification.Text = exception.Message;
+            Notification.Foreground = Brushes.Red;
          }
       }
 
@@ -185,14 +185,18 @@ namespace WPF_SlipMap
          try
          {
             int overrideSystemId;
-            if (SystemError != null) SystemError.Text = null;
+            if (Notification != null) Notification.Text = null;
             if (!int.TryParse(((TextBox) sender).Text, out overrideSystemId) &&
                 (overrideSystemId < 0 || overrideSystemId > SlipDrive.LastSystemId))
                throw new InvalidInputException("This must be a valid number");
          }
          catch (InvalidInputException error)
          {
-            if (SystemError != null) SystemError.Text = error.Message;
+            if (Notification != null)
+            {
+               Notification.Text = error.Message;
+               Notification.Foreground = Brushes.Red;
+            }
          }
       }
 
@@ -208,62 +212,13 @@ namespace WPF_SlipMap
          {
             SlipDrive.OverrideCurrentSystem(int.Parse(SystemOverride.Text));
             Refresh();
-            SystemError.Foreground = Brushes.LawnGreen;
-            SystemError.Text = "Updated Current System";
+            Notification.Foreground = Brushes.LawnGreen;
+            Notification.Text = "Updated Current System";
          }
          catch (Exception error)
          {
-            SystemError.Foreground = Brushes.Red;
-            SystemError.Text = error.Message;
-         }
-      }
-
-      #endregion
-
-      #region MenuOptions
-
-      /// <summary>
-      ///    Show About Window
-      /// </summary>
-      /// <param name="sender"></param>
-      /// <param name="e"></param>
-      private void About_Click(object sender, RoutedEventArgs e)
-      {
-         new About().Show();
-      }
-
-      /// <summary>
-      ///    opens the Create Sector Window
-      /// </summary>
-      /// <param name="sender"></param>
-      /// <param name="e"></param>
-      private void NewSector_OnClick(object sender, RoutedEventArgs e)
-      {
-         var createSectorWindow = new CreateSectorWindow(this);
-         createSectorWindow.Show();
-      }
-
-      /// <summary>
-      ///    Opens the open Sector window
-      /// </summary>
-      /// <param name="sender"></param>
-      /// <param name="e"></param>
-      private void OpenSector_OnClick(object sender, RoutedEventArgs e)
-      {
-         var openSectorWindow = new OpenSectorWindow(this);
-         openSectorWindow.Show();
-      }
-
-      /// <summary>
-      ///    Save Sector Click Event
-      /// </summary>
-      /// <param name="sender"></param>
-      /// <param name="e"></param>
-      private void SaveSector_OnClick(object sender, RoutedEventArgs e)
-      {
-         if (SaveSlipMap())
-         {
-            MessageBox.Show("Manual Save Successful", "Success");
+            Notification.Foreground = Brushes.Red;
+            Notification.Text = error.Message;
          }
       }
 
