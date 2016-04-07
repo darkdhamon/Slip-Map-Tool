@@ -69,5 +69,11 @@
     <Build Include="Tables\SlipMap\Sector.sql" />
     <Build Include="Tables\SlipMap\StarSystem.sql" />
     <Build Include="Tables\SlipMap\SlipRoute.sql" />
+    <Build Include="Tables\SlipMap\Colony.sql" />
+    <Build Include="Tables\SlipMap\TradeType.sql" />
+    <Build Include="Tables\SlipMap\World.sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <RefactorLog Include="Slip Map Database.refactorlog" />
   </ItemGroup>
 </Project>

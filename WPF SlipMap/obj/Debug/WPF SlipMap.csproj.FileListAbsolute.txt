@@ -44,3 +44,6 @@ C:\Users\Bronze\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF_Slip
 C:\Users\Bronze\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF SlipMap.csproj.GenerateResource.Cache
 C:\Users\Bronze\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF SlipMap.exe
 C:\Users\Bronze\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF SlipMap.pdb
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\bin\Debug\WPF SlipMap.exe.config
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF SlipMap.exe
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF SlipMap.pdb
