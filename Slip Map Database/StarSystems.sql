@@ -1,7 +1,0 @@
-﻿CREATE TABLE [dbo].[StarSystems]
-(
-  [Id] INT NOT NULL PRIMARY KEY, 
-    [Name] VARCHAR(50) NOT NULL DEFAULT '', 
-    [StarLog] VARCHAR(8000) NULL DEFAULT '', 
-    [GMNotes] VARCHAR(8000) NULL DEFAULT ''
-)

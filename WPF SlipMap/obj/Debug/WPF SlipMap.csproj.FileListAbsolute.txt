@@ -47,3 +47,24 @@ C:\Users\Bronze\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF Slip
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\bin\Debug\WPF SlipMap.exe.config
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF SlipMap.exe
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF SlipMap.pdb
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\bin\Debug\WPF SlipMap.exe
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\bin\Debug\WPF SlipMap.pdb
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\bin\Debug\SlipMap Code Library.dll
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\bin\Debug\SlipMap Code Library.pdb
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF SlipMap.csprojResolveAssemblyReference.cache
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\App.baml
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\MainWindow.g.cs
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\Tabs\About Tab.g.cs
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\Tabs\Sector Tab.g.cs
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\Tabs\Settings Tab.g.cs
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\App.g.cs
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\GeneratedInternalTypeHelper.g.cs
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF SlipMap_MarkupCompile.cache
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF SlipMap_MarkupCompile.lref
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\MainWindow.baml
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\Tabs\About Tab.baml
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\Tabs\Sector Tab.baml
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\Tabs\Settings Tab.baml
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF SlipMap.g.resources
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF_SlipMap.Properties.Resources.resources
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\WPF SlipMap\obj\Debug\WPF SlipMap.csproj.GenerateResource.Cache

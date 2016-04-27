@@ -1,1 +1,0 @@
-﻿<%@ ServiceHost Language="C#" Debug="true" Service="WCFServiceApp.SlipMapService" CodeBehind="SlipMapService.svc.cs" %>

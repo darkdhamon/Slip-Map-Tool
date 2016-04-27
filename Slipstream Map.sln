@@ -1,23 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.24720.0
+VisualStudioVersion = 14.0.25123.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Slipstream Map", "Slipstream Map\Slipstream Map.csproj", "{2BA0895C-71F5-4799-9444-B629F671A204}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMap Code Library", "SlipMap Code Library\SlipMap Code Library.csproj", "{D57338AC-C39B-4DB0-8D55-92C7D725FFE6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WPF SlipMap", "WPF SlipMap\WPF SlipMap.csproj", "{ED65DE54-E994-440B-BF2B-BD0F50280025}"
-EndProject
-Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "Slip Map Database", "Slip Map Database\Slip Map Database.sqlproj", "{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Slip Map Overhaul", "Slip Map Overhaul", "{A11B46B2-9B82-4F8E-883F-98457AF6A7B7}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Universe.Domain", "SlipMap.Domain\Universe.Domain.csproj", "{1AF812AB-99EA-434B-8D99-9DF97DCD64F5}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMap.Service", "SlipMap.Service\SlipMap.Service.csproj", "{5953484B-12D4-46FE-8FE8-DADB62F56915}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QueStarUniverse.Domain", "QueStarUniverse.Domain\QueStarUniverse.Domain.csproj", "{A90820B9-457A-4755-A96E-A0D46D3D0B53}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -25,10 +13,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{2BA0895C-71F5-4799-9444-B629F671A204}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2BA0895C-71F5-4799-9444-B629F671A204}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2BA0895C-71F5-4799-9444-B629F671A204}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2BA0895C-71F5-4799-9444-B629F671A204}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D57338AC-C39B-4DB0-8D55-92C7D725FFE6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D57338AC-C39B-4DB0-8D55-92C7D725FFE6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D57338AC-C39B-4DB0-8D55-92C7D725FFE6}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -37,32 +21,8 @@ Global
 		{ED65DE54-E994-440B-BF2B-BD0F50280025}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ED65DE54-E994-440B-BF2B-BD0F50280025}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ED65DE54-E994-440B-BF2B-BD0F50280025}.Release|Any CPU.Build.0 = Release|Any CPU
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}.Release|Any CPU.Deploy.0 = Release|Any CPU
-		{1AF812AB-99EA-434B-8D99-9DF97DCD64F5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1AF812AB-99EA-434B-8D99-9DF97DCD64F5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1AF812AB-99EA-434B-8D99-9DF97DCD64F5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1AF812AB-99EA-434B-8D99-9DF97DCD64F5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{5953484B-12D4-46FE-8FE8-DADB62F56915}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5953484B-12D4-46FE-8FE8-DADB62F56915}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5953484B-12D4-46FE-8FE8-DADB62F56915}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5953484B-12D4-46FE-8FE8-DADB62F56915}.Release|Any CPU.Build.0 = Release|Any CPU
-		{A90820B9-457A-4755-A96E-A0D46D3D0B53}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A90820B9-457A-4755-A96E-A0D46D3D0B53}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A90820B9-457A-4755-A96E-A0D46D3D0B53}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A90820B9-457A-4755-A96E-A0D46D3D0B53}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5} = {A11B46B2-9B82-4F8E-883F-98457AF6A7B7}
-		{1AF812AB-99EA-434B-8D99-9DF97DCD64F5} = {A11B46B2-9B82-4F8E-883F-98457AF6A7B7}
-		{5953484B-12D4-46FE-8FE8-DADB62F56915} = {A11B46B2-9B82-4F8E-883F-98457AF6A7B7}
-		{A90820B9-457A-4755-A96E-A0D46D3D0B53} = {A11B46B2-9B82-4F8E-883F-98457AF6A7B7}
 	EndGlobalSection
 EndGlobal
