@@ -1,0 +1,7 @@
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Model\bin\Debug\SlipMap.Model.dll
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Model\bin\Debug\SlipMap.Model.pdb
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Model\bin\Debug\Newtonsoft.Json.dll
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Model\bin\Debug\Newtonsoft.Json.xml
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Model\obj\Debug\SlipMap.Model.csprojResolveAssemblyReference.cache
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Model\obj\Debug\SlipMap.Model.dll
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Model\obj\Debug\SlipMap.Model.pdb
