@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMap.Domain", "SlipMap.D
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMapTest", "SlipMapTest\SlipMapTest.csproj", "{35A4F833-EA31-4B0E-A61A-3D22D9DC4E00}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMap Ver5", "SlipMap Ver5\SlipMap Ver5.csproj", "{86B3E2A4-9B37-49C9-A305-36B7106FDBEE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{35A4F833-EA31-4B0E-A61A-3D22D9DC4E00}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{35A4F833-EA31-4B0E-A61A-3D22D9DC4E00}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{35A4F833-EA31-4B0E-A61A-3D22D9DC4E00}.Release|Any CPU.Build.0 = Release|Any CPU
+		{86B3E2A4-9B37-49C9-A305-36B7106FDBEE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{86B3E2A4-9B37-49C9-A305-36B7106FDBEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{86B3E2A4-9B37-49C9-A305-36B7106FDBEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{86B3E2A4-9B37-49C9-A305-36B7106FDBEE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

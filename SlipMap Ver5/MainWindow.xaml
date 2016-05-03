@@ -1,0 +1,43 @@
+﻿<Window x:Class="SlipMap_Ver5.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:SlipMap_Ver5"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="350" Width="525">
+   <Grid>
+      <Grid.RowDefinitions>
+         <RowDefinition />
+         <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+      <TabControl>
+         <TabItem Header="File">
+
+         </TabItem>
+         <TabItem Header="Game">
+            <TabControl TabStripPlacement="Left">
+               <TabItem Header="Ship Selection"></TabItem>
+               <TabItem Name="Ship" Header="Select Ship">
+
+               </TabItem>
+               <TabItem Header="Systems Library">
+
+               </TabItem>
+               <TabItem Header="GM Overrides">
+
+               </TabItem>
+            </TabControl>
+         </TabItem>
+         <TabItem Header="Settings"></TabItem>
+         <TabItem Header="About">
+            <TabControl TabStripPlacement="Left">
+               <TabItem Header="Help"></TabItem>
+               <TabItem Header="Program"></TabItem>
+               <TabItem Header="Log"></TabItem>
+            </TabControl>
+         </TabItem>
+      </TabControl>
+      <TextBlock x:Name="Notification" Grid.Row="1" Background="Black" Foreground="White" TextWrapping="Wrap"/>
+   </Grid>
+</Window>
