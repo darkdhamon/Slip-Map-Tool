@@ -17,3 +17,6 @@ C:\Users\Bronze\SkyDrive\Downloads\Eclipse Downloads\Slipstream Map\Slipstream M
 C:\Users\Bronze\SkyDrive\Downloads\Eclipse Downloads\Slipstream Map\Slipstream Map\obj\Debug\Slipstream Map.csprojResolveAssemblyReference.cache
 C:\Users\Bronze\SkyDrive\Downloads\Eclipse Downloads\Slipstream Map\Slipstream Map\obj\Debug\Slipstream Map.exe
 C:\Users\Bronze\SkyDrive\Downloads\Eclipse Downloads\Slipstream Map\Slipstream Map\obj\Debug\Slipstream Map.pdb
+C:\Users\bronz\Source\Repos\SlipMap\Slipstream Map\bin\Debug\Slipstream Map.exe.config
+C:\Users\bronz\Source\Repos\SlipMap\Slipstream Map\obj\Debug\Slipstream Map.exe
+C:\Users\bronz\Source\Repos\SlipMap\Slipstream Map\obj\Debug\Slipstream Map.pdb

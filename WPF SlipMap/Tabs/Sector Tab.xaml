@@ -9,7 +9,21 @@
    <Grid>
       <ScrollViewer>
          <StackPanel>
-            <Expander Header="Load Sector" Expanded="Expander_OnExpanded">
+                <Expander Header="Save Sector" Expanded="Expander_OnExpanded">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Name="SectorName">
+                            <TextBox.BindingGroup>
+                                <BindingGroup/>
+                            </TextBox.BindingGroup>
+                        </TextBox>
+                        <Button Name="SaveSector" Content="Save Sector" Grid.Column="1" Padding="10,1" Click="SaveSector_OnClick"/>
+                    </Grid>
+                </Expander>
+                <Expander Header="Load Sector" Expanded="Expander_OnExpanded">
                <Grid>
                   <Grid.ColumnDefinitions>
                      <ColumnDefinition />

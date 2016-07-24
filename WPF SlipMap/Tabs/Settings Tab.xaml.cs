@@ -9,6 +9,7 @@
 using System;
 using System.Windows.Controls;
 using System.Windows.Media;
+using WPF_SlipMap.Application;
 
 #endregion
 
@@ -54,19 +55,17 @@ namespace WPF_SlipMap.Tabs
             if (!int.TryParse(((ComboBox) sender).Text, out pilotSkill))
                throw new InvalidInputException("This must be a valid number.");
             Session.PilotSkill = pilotSkill;
-            MainWindow.Notification.Foreground = Brushes.LawnGreen;
-            MainWindow.Notification.Text = "Pilot skill has been set.";
+            MainWindow.Notify("Pilot Skill Set");
          }
          catch (InvalidInputException error)
          {
-            MainWindow.Notification.Foreground = Brushes.Red;
 
-            MainWindow.Notification.Text = error.Message;
-         }
+                MainWindow.Notify(error.Message, NoteType.Failure);
+            }
          catch (Exception error)
          {
-            MainWindow.Notification.Foreground = Brushes.Red;
-            MainWindow.Notification.Text = error.Message + error.GetType();
+
+                MainWindow.Notify($"{error.Message} \n {error.GetType()}", NoteType.Failure);
          }
       }
 

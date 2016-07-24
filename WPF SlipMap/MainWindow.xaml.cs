@@ -8,6 +8,7 @@
 
 using System;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
@@ -15,6 +16,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using SlipMap_Code_Library;
+using WPF_SlipMap.Application;
+using WPF_SlipMap.Tabs;
 
 #endregion
 
@@ -164,16 +167,16 @@ namespace WPF_SlipMap
       {
          try
          {
-            SlipDrive.CreateSlipRoute(CreateSlipRouteOrigin.SelectedValue as StarSystem,
-               CreateSlipRouteDestination.SelectedValue as StarSystem);
+             var origin = CreateSlipRouteOrigin.SelectedValue as StarSystem;
+             var dest = CreateSlipRouteDestination.SelectedValue as StarSystem;
+            SlipDrive.CreateSlipRoute(origin,
+               dest);
             RefreshCurrentSystem();
-            Notification.Text = "Slip Route Added";
-            Notification.Foreground = Brushes.LawnGreen;
+           Notify($"Slip Route between {origin} and {dest} has been created.", NoteType.Success);
          }
          catch (Exception exception)
          {
-            Notification.Text = exception.Message;
-            Notification.Foreground = Brushes.Red;
+            Notify(exception.Message, NoteType.Failure);
          }
       }
 
@@ -196,8 +199,7 @@ namespace WPF_SlipMap
          {
             if (Notification != null)
             {
-               Notification.Text = error.Message;
-               Notification.Foreground = Brushes.Red;
+               Notify(error.Message,NoteType.Failure);
             }
          }
       }
@@ -214,13 +216,11 @@ namespace WPF_SlipMap
          {
             SlipDrive.OverrideCurrentSystem(int.Parse(SystemOverride.Text));
             Refresh();
-            Notification.Foreground = Brushes.LawnGreen;
-            Notification.Text = "Updated Current System";
+            Notify($"Current system set to {SlipDrive.CurrentSystem}",NoteType.Success);
          }
          catch (Exception error)
          {
-            Notification.Foreground = Brushes.Red;
-            Notification.Text = error.Message;
+            Notify(error.Message,NoteType.Failure);
          }
       }
 
@@ -249,8 +249,7 @@ namespace WPF_SlipMap
 
       private void RequestPilotSkill()
       {
-         Notification.Foreground=Brushes.Red;
-         Notification.Text = "Set pilot skill and try again.";
+         Notify("Please set pilot skill.");
          var tabControl = SettingsTab.Parent as TabControl;
          if (tabControl != null) tabControl.SelectedItem = SettingsTab;
          SettingsTab.PilotSkill.Focus();
@@ -326,16 +325,16 @@ namespace WPF_SlipMap
       /// <summary>
       ///    Save the SlipMap
       /// </summary>
-      private void SaveSlipMap()
+      public void SaveSlipMap()
       {
          try
          {
             SlipDrive.SaveSlipMap();
+                Notify($"Manually saved {SlipDrive.FileName}");
          }
          catch (Exception error)
          {
-            Notification.Text= $"There was an error saving the Slip Map. \n {error.Message}";
-            Notification.Foreground = Brushes.Red;
+            Notify($"There was an error saving the Slip Map. \n {error.Message}", NoteType.Failure);
          }
       }
 
@@ -343,8 +342,7 @@ namespace WPF_SlipMap
       private void CleanUp_Click(object sender, RoutedEventArgs e)
       {
          SlipDrive.Clean();
-         Notification.Text = "The Slip map has been organized.";
-         Notification.Foreground = Brushes.LawnGreen;
+         Notify("The Slip Map has been organised.", NoteType.Success);
          Refresh();
       }
 
@@ -359,6 +357,8 @@ namespace WPF_SlipMap
       {
          // if currentsystem is null then there is no sector loaded and this logic does no good.
          if (CurrentSystem == null) return;
+
+          Title = $"{SlipDrive.FileName.Replace(".sm","")} Sector Slip Map";
 
          RefreshCurrentSystem();
          RefreshSystemLibrary();
@@ -424,8 +424,7 @@ namespace WPF_SlipMap
          {
             DestinationSystem = null;
             PlotDestinationSystem.SelectedValue = null;
-            Notification.Foreground=Brushes.Red;
-            Notification.Text = error.Message;
+            Notify(error.Message, NoteType.Failure);
          }
       }
 
@@ -464,12 +463,31 @@ namespace WPF_SlipMap
       {
          if (!string.IsNullOrWhiteSpace(SlipDrive.NavigationJumpMessage))
          {
-            Notification.Foreground = Brushes.Yellow;
-            Notification.Text = SlipDrive.NavigationJumpMessage;
+            Notify(SlipDrive.NavigationJumpMessage);
          }
          SlipDrive.NavigationJumpMessage = string.Empty;
       }
 
       #endregion
+
+       public void Notify(string msg, NoteType noteType = NoteType.Information)
+       {
+           Notification.Text = $"{msg}\nLast Save: {SlipDrive.LastSave}";
+           switch (noteType)
+           {
+               case NoteType.Success:
+                    Notification.Foreground = Brushes.LawnGreen;
+                    break;
+               case NoteType.Failure:
+                    Notification.Foreground = Brushes.Red;
+                    break;
+               case NoteType.Information:
+                    Notification.Foreground = Brushes.Yellow;
+                    break;
+                    
+               default:
+                   throw new ArgumentOutOfRangeException(nameof(noteType), noteType, null);
+           }
+       }
    }
 }

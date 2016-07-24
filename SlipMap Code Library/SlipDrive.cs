@@ -404,6 +404,7 @@ namespace SlipMap_Code_Library
         try
         {
           formatter.Serialize(stream, Map);
+            LastSave = DateTime.Now;
         }
         catch (NullReferenceException)
         {
@@ -423,7 +424,9 @@ namespace SlipMap_Code_Library
 
     }
 
-    /// <summary>
+      public DateTime LastSave { get; set; }
+
+      /// <summary>
     /// Returns the list of save files in the save directory.
     /// </summary>
     /// <returns></returns>

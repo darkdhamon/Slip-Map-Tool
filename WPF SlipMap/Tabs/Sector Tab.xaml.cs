@@ -7,10 +7,12 @@
 #region Imports
 
 using System;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using SlipMap_Code_Library;
+using WPF_SlipMap.Application;
 
 #endregion
 
@@ -21,14 +23,31 @@ namespace WPF_SlipMap.Tabs
    /// </summary>
    public partial class SectorTab
    {
-      public SectorTab()
+       private SlipDrive _slipDrive;
+
+       public SectorTab()
       {
          InitializeComponent();
+            
       }
 
-      public SlipDrive SlipDrive { get; set; }
-      public Session Session { get; set; }
-      public MainWindow MainWindow { get; set; }
+       public SlipDrive SlipDrive
+       {
+           private get { return _slipDrive; }
+           set
+           {
+               _slipDrive = value;
+               UpdateView();
+           }
+       }
+
+       private void UpdateView()
+       {
+            SectorName.Text = Sectors.Text = SlipDrive.FileName;
+       }
+
+       public Session Session { get; set; }
+      public MainWindow MainWindow { private get; set; }
 
       private void CreateSector_Click(object sender, RoutedEventArgs e)
       {
@@ -43,30 +62,17 @@ namespace WPF_SlipMap.Tabs
                SlipDrive.CreateSlipMap(lastSystemID, int.Parse(CreateStartID.Text));
             else
             {
-               DisplaySectorResult("Numeric Values only");
+               MainWindow.Notify("Numeric Values only", NoteType.Failure);
                return;
             }
-            DisplaySectorResult("New Sector has been created!", true);
+            MainWindow.Notify("New Sector has been created!", NoteType.Success);
          }
          catch (Exception error)
          {
-            DisplaySectorResult(error.Message);
+            MainWindow.Notify(error.Message,NoteType.Failure);
          }
+          SectorName.Text = SlipDrive.FileName;
          MainWindow.Refresh();
-      }
-
-      private void DisplaySectorResult(string message, bool success = false)
-      {
-         MainWindow.Notification.Text = message;
-         switch (success)
-         {
-            case true:
-               MainWindow.Notification.Foreground = Brushes.LawnGreen;
-               break;
-            default:
-               MainWindow.Notification.Foreground = Brushes.Red;
-               break;
-         }
       }
 
       private void RandomSystem_Checked(object sender, RoutedEventArgs e)
@@ -83,14 +89,23 @@ namespace WPF_SlipMap.Tabs
       {
          SlipDrive.FileName = Sectors.SelectedItem.ToString();
          SlipDrive.LoadSlipMap();
+          SectorName.Text = SlipDrive.FileName;
          MainWindow.Refresh();
-         MainWindow.Notification.Foreground = Brushes.LawnGreen;
-         MainWindow.Notification.Text = "The Sector has been loaded";
+            MainWindow.Notify($"{SlipDrive.FileName} has been loaded",NoteType.Success);
       }
 
       private void Expander_OnExpanded(object sender, RoutedEventArgs e)
       {
          Sectors.ItemsSource = SlipDrive.ListSectors();
       }
+
+       private void SaveSector_OnClick(object sender, RoutedEventArgs e)
+       {
+           if (!SlipDrive.FileName.Equals(SectorName.Text) && !string.IsNullOrWhiteSpace(SectorName.Text))
+           {
+               SlipDrive.FileName = SectorName.Text.EndsWith(".sm") ? SectorName.Text : $"{SectorName.Text}.sm";
+           }
+           MainWindow.SaveSlipMap();
+       }
    }
 }

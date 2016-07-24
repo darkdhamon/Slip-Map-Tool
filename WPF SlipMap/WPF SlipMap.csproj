@@ -68,9 +68,11 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="Application\Session.cs" />
     <Compile Include="Tabs\About Tab.xaml.cs">
       <DependentUpon>About Tab.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Application\NoteType.cs" />
     <Compile Include="Tabs\Sector Tab.xaml.cs">
       <DependentUpon>Sector Tab.xaml</DependentUpon>
     </Compile>
@@ -86,7 +88,6 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="InvalidInputException.cs" />
-    <Compile Include="Application\Session.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
