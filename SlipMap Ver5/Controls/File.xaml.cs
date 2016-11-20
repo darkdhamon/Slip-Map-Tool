@@ -24,5 +24,20 @@ namespace SlipMap_Ver5.Controls
       {
          InitializeComponent();
       }
+
+      private void RandomSystem_OnUnchecked(object sender, RoutedEventArgs e)
+      {
+         throw new NotImplementedException();
+      }
+
+      private void RandomSystem_Checked(object sender, RoutedEventArgs e)
+      {
+         throw new NotImplementedException();
+      }
+
+      private void CreateSector_Click(object sender, RoutedEventArgs e)
+      {
+         
+      }
    }
 }

@@ -45,6 +45,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DataAccess\Database.cs" />
     <Compile Include="DataAccess\JsonSerialization.cs" />
     <Compile Include="DataAccess\Session.cs" />
     <Compile Include="DataAccess\LocalFiles.cs" />

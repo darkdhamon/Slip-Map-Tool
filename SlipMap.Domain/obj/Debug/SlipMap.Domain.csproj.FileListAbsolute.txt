@@ -3,9 +3,11 @@ C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Domain\bin\Debug\SlipMa
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Domain\bin\Debug\Newtonsoft.Json.dll
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Domain\bin\Debug\SlipMap Code Library.dll
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Domain\bin\Debug\SlipMap.Model.dll
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Domain\bin\Debug\EntityFramework.dll
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Domain\bin\Debug\SlipMap Code Library.pdb
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Domain\bin\Debug\SlipMap.Model.pdb
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Domain\bin\Debug\Newtonsoft.Json.xml
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Domain\bin\Debug\EntityFramework.xml
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Domain\obj\Debug\SlipMap.Domain.csprojResolveAssemblyReference.cache
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Domain\obj\Debug\SlipMap.Domain.dll
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap.Domain\obj\Debug\SlipMap.Domain.pdb

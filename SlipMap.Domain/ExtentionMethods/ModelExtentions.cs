@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using SlipMap.Domain.DataAccess;
 using SlipMap.Domain.ShortTermModel;
 using SlipMap.Model.Entities;
@@ -36,14 +37,12 @@ namespace SlipMap.Domain.ExtentionMethods
       public static List<StarSystem> FindShortestRoute(this Sector sector, Ship ship, StarSystem dest,
          bool avoidHostile = false)
       {
-         var orig = sector.System(ship.CurrentLocation.CurrentSystem.StarWinId);
+         var orig = sector.System(ship.CurrentLocation.StarWinId);
          if (orig.StarWinId == dest.StarWinId) return null;
          var ignoreSystems = new List<int>();
          if (avoidHostile)
          {
-            ignoreSystems.AddRange(
-               Enumerable.ToList(Enumerable.Select(Enumerable.ToList(Enumerable.Where(ship
-                  .HostileSystems, hs => hs.CurrentSector.Name == sector.Name)), hs => hs.CurrentSystem.StarWinId)));
+            ignoreSystems.AddRange(ship.HostileSystems.Select(s=>s.Id));
          }
          var possibleRoutes = new Queue<RouteNode>();
          possibleRoutes.Enqueue(new RouteNode {StarSystem = orig});

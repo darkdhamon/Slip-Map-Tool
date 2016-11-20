@@ -25,3 +25,9 @@ C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap Code Library\bin\Debug\
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap Code Library\obj\Debug\SlipMap Code Library.csprojResolveAssemblyReference.cache
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap Code Library\obj\Debug\SlipMap Code Library.dll
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMap Code Library\obj\Debug\SlipMap Code Library.pdb
+L:\OneDrive\Bronze Brown\OneDrive\Documents\Slipstream Map\SlipMap Code Library\bin\Debug\SlipMap Code Library.dll.config
+L:\OneDrive\Bronze Brown\OneDrive\Documents\Slipstream Map\SlipMap Code Library\bin\Debug\SlipMap Code Library.dll
+L:\OneDrive\Bronze Brown\OneDrive\Documents\Slipstream Map\SlipMap Code Library\bin\Debug\SlipMap Code Library.pdb
+L:\OneDrive\Bronze Brown\OneDrive\Documents\Slipstream Map\SlipMap Code Library\obj\Debug\SlipMap Code Library.csprojResolveAssemblyReference.cache
+L:\OneDrive\Bronze Brown\OneDrive\Documents\Slipstream Map\SlipMap Code Library\obj\Debug\SlipMap Code Library.dll
+L:\OneDrive\Bronze Brown\OneDrive\Documents\Slipstream Map\SlipMap Code Library\obj\Debug\SlipMap Code Library.pdb

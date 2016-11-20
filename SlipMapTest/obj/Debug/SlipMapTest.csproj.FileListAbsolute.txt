@@ -1,14 +1,18 @@
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\SlipMapTest.dll
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\SlipMapTest.pdb
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\Microsoft.VisualStudio.QualityTools.UnitTestFramework.dll
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\Moq.dll
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\SlipMap Code Library.dll
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\SlipMap.Domain.dll
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\SlipMap.Model.dll
-C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\SlipMap Code Library.dll
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\Newtonsoft.Json.dll
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\EntityFramework.dll
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\SlipMap Code Library.pdb
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\SlipMap.Domain.pdb
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\SlipMap.Model.pdb
-C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\SlipMap Code Library.pdb
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\Moq.xml
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\Newtonsoft.Json.xml
+C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\bin\Debug\EntityFramework.xml
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\obj\Debug\SlipMapTest.csprojResolveAssemblyReference.cache
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\obj\Debug\SlipMapTest.dll
 C:\Users\bronz\OneDrive\Documents\Slipstream Map\SlipMapTest\obj\Debug\SlipMapTest.pdb

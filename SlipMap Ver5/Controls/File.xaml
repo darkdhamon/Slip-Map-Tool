@@ -8,7 +8,49 @@
              d:DesignHeight="300" d:DesignWidth="300">
     <Grid>
             <TabControl TabStripPlacement="Left">
-               <TabItem Header="New"></TabItem>
+               <TabItem Header="New">
+                  <StackPanel>
+               <Expander Header="Campaign"></Expander>
+                     <Expander Header="Sector">
+                        <Grid>
+                           <Grid.ColumnDefinitions>
+                              <ColumnDefinition />
+                              <ColumnDefinition />
+                           </Grid.ColumnDefinitions>
+                           <Grid.RowDefinitions>
+                              <RowDefinition />
+                              <RowDefinition />
+                              <RowDefinition />
+                              <RowDefinition />
+                              <RowDefinition />
+                           </Grid.RowDefinitions>
+                           <Label>Sector Name:</Label>
+                     <TextBox Grid.Row="0" Grid.Column="1" Name="CreateSectorName" />
+                     <Label Grid.Column="0" Grid.Row="1">List System ID:</Label>
+                     <TextBox Grid.Row="1" Grid.Column="1" Name="CreateLastID" />
+                     <GroupBox Header="Starting System Selection" Grid.Row="2" Grid.ColumnSpan="2" Grid.Column="0">
+                        <StackPanel>
+                           <CheckBox Name="RandomSystem" Unchecked="RandomSystem_OnUnchecked" Checked="RandomSystem_Checked">Random Start System</CheckBox>
+                           <Grid Name="SetSystem">
+                              <Grid.ColumnDefinitions>
+                                 <ColumnDefinition Width="Auto" />
+                                 <ColumnDefinition />
+                              </Grid.ColumnDefinitions>
+                              <Label>Start System ID:</Label>
+                              <TextBox Name="CreateStartID" Grid.Column="1" />
+                           </Grid>
+                        </StackPanel>
+                     </GroupBox>
+                     <Button Name="CreateSector" Grid.Row="4" Grid.ColumnSpan="2" Grid.Column="0"
+                          Click="CreateSector_Click">
+                        Create Sector
+                     </Button>
+
+                  </Grid>
+                     </Expander>
+                     <Expander Header="Ship"></Expander>
+            </StackPanel>
+               </TabItem>
                <TabItem Header="Load"></TabItem>
                <TabItem Header="Save"></TabItem>
                <TabItem Header="Settings"></TabItem>

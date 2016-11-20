@@ -10,11 +10,12 @@ namespace SlipMap.Model.Entities
    {
       private List<int> _connectedSystemIds;
       private List<StarSystem> _connectedSystems;
-      
+      public int Id { get; set; }
       public int StarWinId { get; set; }
       public string Name { get; set; }
       public string GMNotes { get; set; }
       public string StarwinNotes { get; set; }
+      public List<Colony> Colonies { get; set; }
 
       [NotMapped]
       public List<int> ConnectedSystemIds

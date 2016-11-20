@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics.Eventing.Reader;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
 using SlipMap.Model.Entities;
 using SlipMap_Code_Library;
 using StarSystem = SlipMap.Model.Entities.StarSystem;
@@ -19,8 +14,8 @@ namespace SlipMap.Domain.DataAccess
          if (!Directory.Exists(CampaignDir)) Directory.CreateDirectory(CampaignDir);
          if (!Directory.Exists(ShipDir)) Directory.CreateDirectory(ShipDir);
          if (!Directory.Exists(SectorDir)) Directory.CreateDirectory(SectorDir);
+         
       }
-
       public const string CampaignDir = "Saves/Campaign/";
       public const string ShipDir = "Saves/Ships/";
       public const string SectorDir = "Saves/Sectors/";
@@ -49,23 +44,19 @@ namespace SlipMap.Domain.DataAccess
          var ship = new Ship
          {
             Name = "Unnamed Vessel",
-            CurrentLocation = new MapLocation
-            {
-               CurrentSystem = new StarSystem
+            CurrentLocation = new StarSystem
                {
                   Name = drive.CurrentSystem.Name,
                   ConnectedSystemIds = drive.CurrentSystem.ConnectedSystems.Select(s => s.ID).ToList(),
                   GMNotes = drive.CurrentSystem.Notes,
                   StarWinId = drive.CurrentSystem.ID
-               },
-               CurrentSector = sector
-            }
+               }
          };
          var campaign = new Campaign
          {
             Name = sector.Name,
-            TrackedShipNames = {ship.Name},
-            TrackedSectorNames = {sector.Name}
+            TrackedShipNames = {ship},
+            TrackedSectors = {sector}
          };
 
          Save(ship);

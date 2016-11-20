@@ -10,8 +10,8 @@ namespace SlipMap.Model.Entities
    public class Ship
    {
       public string Name { get; set; }
-      public MapLocation CurrentLocation { get; set; }
-      public List<MapLocation> HostileSystems { get; set; } 
+      public StarSystem CurrentLocation { get; set; }
+      public List<StarSystem> HostileSystems { get; set; } 
       public List<Pilot> Pilots { get; set; }
    }
 }
