@@ -25,3 +25,10 @@ C:\Users\bronz\Source\Repos\SlipMap\SlipMap Code Library\bin\Debug\SlipMap Code 
 C:\Users\bronz\Source\Repos\SlipMap\SlipMap Code Library\obj\Debug\SlipMap Code Library.csprojResolveAssemblyReference.cache
 C:\Users\bronz\Source\Repos\SlipMap\SlipMap Code Library\obj\Debug\SlipMap Code Library.dll
 C:\Users\bronz\Source\Repos\SlipMap\SlipMap Code Library\obj\Debug\SlipMap Code Library.pdb
+C:\Users\bronz\source\repos\Slip-Map-Tool\SlipMap Code Library\bin\Debug\SlipMap Code Library.dll.config
+C:\Users\bronz\source\repos\Slip-Map-Tool\SlipMap Code Library\bin\Debug\SlipMap Code Library.dll
+C:\Users\bronz\source\repos\Slip-Map-Tool\SlipMap Code Library\bin\Debug\SlipMap Code Library.pdb
+C:\Users\bronz\source\repos\Slip-Map-Tool\SlipMap Code Library\obj\Debug\SlipMap Code Library.csprojResolveAssemblyReference.cache
+C:\Users\bronz\source\repos\Slip-Map-Tool\SlipMap Code Library\obj\Debug\SlipMap Code Library.csproj.CoreCompileInputs.cache
+C:\Users\bronz\source\repos\Slip-Map-Tool\SlipMap Code Library\obj\Debug\SlipMap Code Library.dll
+C:\Users\bronz\source\repos\Slip-Map-Tool\SlipMap Code Library\obj\Debug\SlipMap Code Library.pdb

@@ -1,8 +1,0 @@
-C:\Users\Bronze\SkyDrive\To Sort\Visual Studio 2013\Projects\Slipstream Map\Slipstream Map\bin\Release\Slipstream Map.exe.config
-C:\Users\Bronze\SkyDrive\To Sort\Visual Studio 2013\Projects\Slipstream Map\Slipstream Map\bin\Release\Slipstream Map.exe
-C:\Users\Bronze\SkyDrive\To Sort\Visual Studio 2013\Projects\Slipstream Map\Slipstream Map\bin\Release\Slipstream Map.pdb
-C:\Users\Bronze\SkyDrive\To Sort\Visual Studio 2013\Projects\Slipstream Map\Slipstream Map\bin\Release\SlipMap Code Library.dll
-C:\Users\Bronze\SkyDrive\To Sort\Visual Studio 2013\Projects\Slipstream Map\Slipstream Map\bin\Release\SlipMap Code Library.pdb
-C:\Users\Bronze\SkyDrive\To Sort\Visual Studio 2013\Projects\Slipstream Map\Slipstream Map\obj\Release\Slipstream Map.csprojResolveAssemblyReference.cache
-C:\Users\Bronze\SkyDrive\To Sort\Visual Studio 2013\Projects\Slipstream Map\Slipstream Map\obj\Release\Slipstream Map.exe
-C:\Users\Bronze\SkyDrive\To Sort\Visual Studio 2013\Projects\Slipstream Map\Slipstream Map\obj\Release\Slipstream Map.pdb

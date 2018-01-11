@@ -1,19 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.27130.2010
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Slipstream Map", "Slipstream Map\Slipstream Map.csproj", "{2BA0895C-71F5-4799-9444-B629F671A204}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMap Code Library", "SlipMap Code Library\SlipMap Code Library.csproj", "{D57338AC-C39B-4DB0-8D55-92C7D725FFE6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WPF SlipMap", "WPF SlipMap\WPF SlipMap.csproj", "{ED65DE54-E994-440B-BF2B-BD0F50280025}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMap WCF Server", "SlipMap WCF Server\SlipMap WCF Server.csproj", "{0B5CC4E4-02C2-4889-B9DA-5C34A337DBE0}"
-EndProject
-Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B433612}") = "Slip Map Database", "Slip Map Database\Slip Map Database.sqlproj", "{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gurps Ship Library", "Gurps Ship Library\Gurps Ship Library.csproj", "{623C74EE-4EA1-43E0-A4A0-B5EEDBED6229}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,10 +13,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{2BA0895C-71F5-4799-9444-B629F671A204}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2BA0895C-71F5-4799-9444-B629F671A204}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2BA0895C-71F5-4799-9444-B629F671A204}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2BA0895C-71F5-4799-9444-B629F671A204}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D57338AC-C39B-4DB0-8D55-92C7D725FFE6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D57338AC-C39B-4DB0-8D55-92C7D725FFE6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D57338AC-C39B-4DB0-8D55-92C7D725FFE6}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -33,22 +21,11 @@ Global
 		{ED65DE54-E994-440B-BF2B-BD0F50280025}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ED65DE54-E994-440B-BF2B-BD0F50280025}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ED65DE54-E994-440B-BF2B-BD0F50280025}.Release|Any CPU.Build.0 = Release|Any CPU
-		{0B5CC4E4-02C2-4889-B9DA-5C34A337DBE0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{0B5CC4E4-02C2-4889-B9DA-5C34A337DBE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{0B5CC4E4-02C2-4889-B9DA-5C34A337DBE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{0B5CC4E4-02C2-4889-B9DA-5C34A337DBE0}.Release|Any CPU.Build.0 = Release|Any CPU
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{83167FCD-AB2F-4FFD-A6A6-C96642270DC5}.Release|Any CPU.Deploy.0 = Release|Any CPU
-		{623C74EE-4EA1-43E0-A4A0-B5EEDBED6229}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{623C74EE-4EA1-43E0-A4A0-B5EEDBED6229}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{623C74EE-4EA1-43E0-A4A0-B5EEDBED6229}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{623C74EE-4EA1-43E0-A4A0-B5EEDBED6229}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A54D86FA-4DC5-43C9-9BE8-0F07267C5672}
 	EndGlobalSection
 EndGlobal
