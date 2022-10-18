@@ -1,11 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27130.2010
+# Visual Studio Version 17
+VisualStudioVersion = 17.3.32929.385
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMap Code Library", "SlipMap Code Library\SlipMap Code Library.csproj", "{D57338AC-C39B-4DB0-8D55-92C7D725FFE6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WPF SlipMap", "WPF SlipMap\WPF SlipMap.csproj", "{ED65DE54-E994-440B-BF2B-BD0F50280025}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMap.Model", "SlipMap.Model\SlipMap.Model.csproj", "{3A4D24E1-EC0D-41F7-B783-EDA21B110155}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{ED65DE54-E994-440B-BF2B-BD0F50280025}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ED65DE54-E994-440B-BF2B-BD0F50280025}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ED65DE54-E994-440B-BF2B-BD0F50280025}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3A4D24E1-EC0D-41F7-B783-EDA21B110155}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A4D24E1-EC0D-41F7-B783-EDA21B110155}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A4D24E1-EC0D-41F7-B783-EDA21B110155}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A4D24E1-EC0D-41F7-B783-EDA21B110155}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
