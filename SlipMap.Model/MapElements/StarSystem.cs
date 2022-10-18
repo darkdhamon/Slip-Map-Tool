@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using DarkDhamon.Common.Extensions;
 
 namespace SlipMap.Model.MapElements
 {
@@ -10,18 +6,12 @@ namespace SlipMap.Model.MapElements
     {
         private List<StarSystem> _connectedSystems = null!;
         public int ID { get; set; }
-        public string Name { get; set; }
-        public string Notes { get; set; }
-
-        public List<StarSystem> ConnectedSystems
-        {
-            get => _connectedSystems??= new List<StarSystem>();
-            set => _connectedSystems = value;
-        }
+        public string? Name { get; set; }
+        public string? Notes { get; set; }
 
         public override string ToString()
         {
-            return $"{Name.IfNullOrWhiteSpace("Unnamed System")} ({ID})";
+            return $"{Name.IfNullOrWhitespace("Unnamed System")} ({ID})";
         }
     }
 }

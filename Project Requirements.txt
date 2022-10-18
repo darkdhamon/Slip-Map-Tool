@@ -1,0 +1,8 @@
+Slip Map Tool needs to be upgraded to .NET 6
+
+Slip Map Tool needs to updated to be able to track multiple ships on the 
+slip map
+
+Slip Map Tool needs each ship to track the known slip routes available 
+to that ship.
+

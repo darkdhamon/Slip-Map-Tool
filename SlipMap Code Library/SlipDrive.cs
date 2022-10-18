@@ -19,7 +19,7 @@ namespace SlipMap_Code_Library
   public class SlipDrive
   {
     /// <summary>
-    ///   Sets Save Directory to be SectorFiles. This is not somethingthin I want the user to change.
+    ///   Sets Save Directory to be SectorFiles. This is not something I want the user to change.
     /// </summary>
     public SlipDrive()
     {
