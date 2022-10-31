@@ -14,7 +14,7 @@ var galaxy = GalaxyGenerator.GenerateGalaxy(maxHeight:200, maxRadius:2000, initi
 Console.WriteLine("Galaxy data created");
 
 WindowsGalaxyImageGenerator galaxyImageGenerator = new WindowsGalaxyImageGenerator();
-var stream = galaxyImageGenerator.TopView(galaxy);
+var stream = galaxyImageGenerator.TopView(galaxy, 6);
 File.WriteAllBytes($"{galaxy.Name}-TOPTest.jpg", stream.ToArray());
 var galaxyMap = new Bitmap(2002, 2002);
 using (var graphics = Graphics.FromImage(galaxyMap))
