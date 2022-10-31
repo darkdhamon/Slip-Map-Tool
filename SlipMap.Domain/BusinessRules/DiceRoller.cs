@@ -4,10 +4,14 @@
     {
         static readonly Random Gen = Random.Shared;
 
-        public static int RollNSidedDie(int numSides)
+        public static int RollNSidedDie(int numSides, int numberOfDice = 1)
         {
-            
-            return Gen.Next(1, numSides + 1);
+            var total = 0;
+            for (var i = 0; i < numberOfDice; i++)
+            {
+                total += Gen.Next(1, numSides + 1);
+            }
+            return total;
         }
 
         public static bool CoinToss()
@@ -20,9 +24,9 @@
             return RollNSidedDie(4);
         }
 
-        public static int RollD6()
+        public static int RollD6(int numDice = 1)
         {
-            return RollNSidedDie(6);
+            return RollNSidedDie(6,numDice);
         }
 
         public static int RollD8()
@@ -45,10 +49,9 @@
         {
             return RollNSidedDie(100);
         }
-
         public static int Roll3D6()
         {
-            return RollD6() + RollD6() + RollD6();
+            return RollD6(3);
         }
     }
 }
