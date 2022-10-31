@@ -62,7 +62,7 @@ public class WindowsGalaxyImageGenerator : IGalaxyImageGenerator
                     (int)(starRadius * maxRadiusScale),
                     (int)(starRadius * maxRadiusScale));
 
-                starPen.Color = Color.White;
+                //starPen.Color = Color.White;
                 canvas.DrawLine(starPen,
                     (int)(starCordX - starRadius * maxRadiusScale),
                     starCordY,
