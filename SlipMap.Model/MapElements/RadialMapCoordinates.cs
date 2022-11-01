@@ -52,4 +52,10 @@ public struct RadialMapCoordinates
         Radius = deserializedCoordinates.Radius;
         Offset = deserializedCoordinates.Offset;
     }
+
+    public double DistanceFrom(RadialMapCoordinates target)
+    {
+        var distance = Math.Sqrt(Math.Pow(target.X - X,2) + Math.Pow(target.Y - Y,2) + Math.Pow(target.Z - Z,2));
+        return distance;
+    }
 }

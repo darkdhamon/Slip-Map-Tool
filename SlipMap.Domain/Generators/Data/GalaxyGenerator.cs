@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
@@ -26,7 +27,7 @@ namespace SlipMap.Domain.Generators.Data
         {
             var system = new StarSystem
             {
-                Name = $"",
+                Name = string.Empty,
                 Coordinates = GenerateGalacticCoordinates(maxRadius, maxHeight),
                 SpectralType = GenerateSpectralType(),
                 PlanetsGenerationCompleted = generatePlanets
@@ -46,7 +47,13 @@ namespace SlipMap.Domain.Generators.Data
             var numberOfPlanets = DiceRoller.RollD6(numberOfDice);
             for (var i = 0; i < numberOfPlanets; i++)
             {
-                system.Planets.Add(new Planet());
+                var planet = new Planet()
+                {
+                    Name = string.Empty,
+                    Class = PlanetClass.A
+                };
+                
+                system.Planets.Add(planet);
             }
         }
 
@@ -90,5 +97,13 @@ namespace SlipMap.Domain.Generators.Data
                 default: return SpectralType.M_Main;
             }
         }
+    }
+
+    public enum PlanetClass
+    {
+        
+        Terrestrial,
+        Eden,
+
     }
 }

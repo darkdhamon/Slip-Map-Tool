@@ -17,26 +17,51 @@ public class WindowsGalaxyImageGenerator : IGalaxyImageGenerator
     }
     public MemoryStream TopView(Galaxy galaxy, double scale = 1)
     {
-        GetImageDimensions(galaxy, Axis.Y, Axis.X, out var minX, out var minY, out var imageWidth, out var imageHeight, scale);
+        var galaxyImage = DrawGalaxy(galaxy, scale, verticalAxis: Axis.Y);
+        return SaveImageToMemoryStream(galaxyImage);
+    }
 
+    private static MemoryStream SaveImageToMemoryStream(Bitmap galaxyImage)
+    {
+        // Save and return Drawing
         var memoryStream = new MemoryStream();
-        var galaxyImage = new Bitmap((int)imageWidth+1, (int)imageHeight+1);
+        galaxyImage.Save(memoryStream, ImageFormat.Jpeg);
+        return memoryStream;
+    }
+
+    private static Bitmap DrawGalaxy(Galaxy galaxy, double scale, Axis verticalAxis)
+    {
+        GetImageDimensions(galaxy, verticalAxis, Axis.X, out var minX, out var minY, out var imageWidth,
+            out var imageHeight, scale);
+        var orderedSystems = galaxy.StarSystems.OrderBy(s => s.Coordinates.Z);
+        var galaxyImage = new Bitmap((int)imageWidth + 1, (int)imageHeight + 1);
         using var canvas = Graphics.FromImage(galaxyImage);
-        var backgroundPen = new Pen(Color.Black);
+        FillBackground(canvas, imageWidth, imageHeight);
+        DrawSystems(scale, orderedSystems, imageWidth, imageHeight, verticalAxis, canvas);
+
         var axisPen = new Pen(Color.Red);
-        canvas.DrawRectangle(backgroundPen, 0, 0, (int)imageWidth, (int)imageHeight);
-        foreach (var system in galaxy.StarSystems.OrderBy(system=>system.Coordinates.Z))
+        // Draw vertical Line
+        canvas.DrawLine(axisPen, (int)Math.Abs(minX), 0, (int)(Math.Abs(minX)), (int)imageHeight);
+        // Draw Horizontal Line
+        canvas.DrawLine(axisPen, 0, (int)Math.Abs(minY), (int)imageWidth, (int)Math.Abs(minY));
+        return galaxyImage;
+    }
+
+    private static void DrawSystems(double scale, IOrderedEnumerable<StarSystem> orderedSystems, double imageWidth, double imageHeight,
+        Axis verticalAxis, Graphics canvas)
+    {
+        foreach (var system in orderedSystems)
         {
             var starPen = new Pen(MapColorVariables.ColorFromSpectralType(system.SpectralType));
             var starRadius = GetStarRadius(system);
-            var (starCordX, starCordY) = GetStarPosition(system, imageWidth, imageHeight, scale);
+            var (starCordX, starCordY) = GetStarPosition(system, imageWidth, imageHeight, scale, verticalAxis);
             var maxRadiusScale = scale < 3 ? scale : 3;
             if (system.SpectralType is not SpectralType.BlackHole and not SpectralType.None)
             {
                 if (!system.SpectralType.HasFlag(SpectralType.Size_Dwarf))
                 {
                     canvas.DrawLine(starPen,
-                        (int)(starCordX - (starRadius+2) * maxRadiusScale),
+                        (int)(starCordX - (starRadius + 2) * maxRadiusScale),
                         starCordY,
                         (int)(starCordX + (starRadius + 2) * maxRadiusScale),
                         starCordY);
@@ -46,19 +71,20 @@ public class WindowsGalaxyImageGenerator : IGalaxyImageGenerator
                         starCordX,
                         (int)(starCordY + (starRadius + 2) * maxRadiusScale));
                 }
+
                 canvas.DrawEllipse(
                     starPen,
-                    (int)(starCordX - starRadius* maxRadiusScale),
-                    (int)(starCordY - starRadius* maxRadiusScale),
-                    (int)(starRadius*maxRadiusScale*2),
-                    (int)(starRadius*maxRadiusScale*2));
+                    (int)(starCordX - starRadius * maxRadiusScale),
+                    (int)(starCordY - starRadius * maxRadiusScale),
+                    (int)(starRadius * maxRadiusScale * 2),
+                    (int)(starRadius * maxRadiusScale * 2));
             }
             else if (system.SpectralType is SpectralType.BlackHole)
             {
                 canvas.FillEllipse(
                     Brushes.Black,
-                    (int)(starCordX - starRadius* maxRadiusScale/2),
-                    (int)(starCordY - starRadius * maxRadiusScale/2),
+                    (int)(starCordX - starRadius * maxRadiusScale / 2),
+                    (int)(starCordY - starRadius * maxRadiusScale / 2),
                     (int)(starRadius * maxRadiusScale),
                     (int)(starRadius * maxRadiusScale));
 
@@ -84,25 +110,36 @@ public class WindowsGalaxyImageGenerator : IGalaxyImageGenerator
                     (int)(starRadius * maxRadiusScale) * 2,
                     (int)(starRadius * maxRadiusScale) * 2);
             }
-
-            
         }
-
-        // Draw vertical Line
-        canvas.DrawLine(axisPen, (int)Math.Abs(minX), 0, (int)(Math.Abs(minX)), (int)imageHeight);
-        // Draw Horizontal Line
-        canvas.DrawLine(axisPen, 0, (int)Math.Abs(minY), (int)imageWidth, (int)Math.Abs(minY));
-        
-        // Save and return Drawing
-        galaxyImage.Save(memoryStream, ImageFormat.Jpeg);
-        return memoryStream;
     }
 
-    private static (int starCordX, int starCordY) GetStarPosition(StarSystem system, double imageWidth, double imageHeight, double scale)
+    private static void FillBackground(Graphics canvas, double imageWidth, double imageHeight)
     {
+        var backgroundPen = new Pen(Color.Black);
+        canvas.DrawRectangle(backgroundPen, 0, 0, (int)imageWidth, (int)imageHeight);
+    }
+
+    private static (int starCordX, int starCordY) GetStarPosition(StarSystem system, double imageWidth, double imageHeight, double scale, Axis verticalAxis)
+    {
+        var yCoordinate = 0d;
+        switch (verticalAxis)
+        {
+            case Axis.X:
+                throw new NotImplementedException();
+                break;
+            case Axis.Y:
+                yCoordinate = system.Coordinates.Y;
+                break;
+            case Axis.Z:
+                yCoordinate = system.Coordinates.Z;
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(verticalAxis), verticalAxis, null);
+        }
+
         var margin = 5 * scale;
         var starCordX = (int)(system.Coordinates.X*scale + imageWidth / 2 + margin);
-        var starCordY = (int)(system.Coordinates.Y*scale + imageHeight / 2 + margin);
+        var starCordY = (int)(yCoordinate*scale + imageHeight / 2 + margin);
         return (starCordX, starCordY);
     }
 
@@ -206,6 +243,7 @@ public class WindowsGalaxyImageGenerator : IGalaxyImageGenerator
 
     public MemoryStream SideView(Galaxy galaxy, double scale)
     {
-        throw new NotImplementedException();
+        var galaxyImage = DrawGalaxy(galaxy, scale, verticalAxis: Axis.Z);
+        return SaveImageToMemoryStream(galaxyImage);
     }
 }
