@@ -1,0 +1,636 @@
+<html>
+
+<head>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+<title>CivGen</title>
+<meta name="generator" content="Namo WebEditor v4.0">
+<meta name="namo-theme" content="Zero">
+<script language="JavaScript">
+<!--
+function na_change_img_src(name, nsdoc, rpath, preload)
+{ 
+  var img = eval((navigator.appName == 'Netscape') ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img) {
+    img.altsrc = img.src;
+    img.src    = rpath;
+  } 
+}
+
+function na_restore_img_src(name, nsdoc)
+{
+  var img = eval((navigator.appName == 'Netscape') ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img && img.altsrc) {
+    img.src    = img.altsrc;
+    img.altsrc = null;
+  } 
+}
+
+// -->
+</script>
+</head>
+
+<body>
+<table align="center" border="0" width="100%">
+    <tr>
+        <td valign="top">
+            <p align="center"><B><FONT color=#0000ff><u>CIVILIZATION GENERATOR</u></FONT></B>        </td>
+    </tr>
+    <tr>
+        <td valign="top" align="center">
+            <p>&nbsp;</p>
+            <!--NAMO_NAVBAR_START S h    -->
+<div>
+[<a href="stardoc1.htm">Index</a>]
+[<a href="stardoc2.htm">Star systems</a>]
+[<a href="stardoc3.htm">star generator</a>]
+[<a href="stardoc4.htm">alien races</a>]
+[<a href="stardoc5.htm">colonies</a>]
+[<a href="stardoc6.htm">miscleanous</a>]
+[CivGen]
+[<a href="stardoc8.htm">star browser</a>]
+</div>
+            <!--NAMO_NAVBAR_END-->
+            <p>&nbsp;</p>
+        </td>
+    </tr>
+    <tr>
+        <td height="58" valign="top">
+            <p align="center">&nbsp;</p>
+            <table align="center" border="0" width="85%">
+                <tr>
+                    <td>
+<P> Civilization Generator is an utility that simulates the space colonization of the 
+different alien races. <BR>To use it choose a Star file, I recommand you to copy 
+the sector files somewhere, in the case you <BR>didn't like the Empire Gen 
+results. 
+<P>Press the Go button to begin the process, Empire makes one pass for each 
+century before completing its job. 
+<P><B>What's new ?</B> 
+<P>CivGen 1.6 is now remplacing Empire Generator v1.57a as the main alien empire 
+                        expansion simulator.<br>New features of CivGen V1.6 : 
+                        <ul>
+                            <li>16 new random events.</li>
+                            <li>No more anachronic unusual abilities (like computer 
+                            skill bonus for TL 1 species).</li>
+                            <li>A RP report saved in a csv file.</li>
+                            <li>Events could be saved in a csv file.</li>
+                            <li>Mechanoid races are considered like extra sector 
+                            races, so they will appear only in the last centuries.</li>
+                            <li>The less evoluted race in a trade or non intercourse 
+                            relation gains RP.</li>
+                            <li>Wars and science bonus skill gives more RP each 
+                            centuries.</li>
+                            <li>Creation of an alien backup file (*.aln1), so 
+                            when civilizations are cleared, all the old aliens 
+                            attributes are restored.</li>
+                            <li>The big sector bug should be fixed now with 
+                            a new main procedure in the program, and it should 
+                            be quicker.</li>
+                        </ul>
+                        <p>&nbsp;</p>
+<P><B>What does Civilization Generator ?</B> 
+<P>First it populates planets with native alien races, second the races with an 
+adequate Tech Level will colonize near planets and systems. These races will 
+eventually meet each other, makes alliance (with some Tech Level benefit 
+sometimes) or even war (with conquest of opponent's colonies). <BR>Some 
+unsatisfied colonies could also choose to be independant. <br>&nbsp;
+                        <hr><P><B>Clear button</B> 
+<P>You don't like the empire results or you add new system to the sector after 
+creating empire colonies, you could clear all the results, and rerun again 
+Civilization Generator on a sector. Just click on the Clear button to erase any empire 
+informations. 
+<P><B>Insert Alien button</B> 
+<P>Well you want a race that rules an empire with a size of 1000 UA but don't 
+want to create a sector of this size because StarGen don't permit it, or you 
+don't have a GigaHz processor to generate it quickly or you don't have a disk 
+that could handle 50 Gigas of datas, well here's the Insert Alien function. With 
+this you could import an alien race of a sector to an another. Enter the 
+original race sector file, the alien race ID in the orginial sector,the first 
+colonized world ID and the colony age in centuries. Note that the colony age 
+can't be higher than the alien spacial age (how a race that discovered star 
+travel 5 centuries ago could colonized a planet 9 centuries ago ?), and of 
+course only TL 6+ race could be imported. 
+<P><B>Ins Relation button</B> 
+<P>Lets you choose the initial diplomatic relationship between two species. 
+<P><B>History logfile</B> 
+<P>If this option is checked, a &lt;sector filename&gt;.his textfile is created 
+that resumes all that happens in the sector during the empire generating 
+process. 
+<P><B>Quick Method</B> 
+                        <p>If this option is checked, the empire generating 
+process will be quicker but less accurate (for example subjugated colonies 
+couldn't be retaken). 
+                        </p>
+<P><B>Random events</B> 
+                        <p>If this option is checked random events could happen 
+during the empire generating process (mainly catastrophes for the generated 
+colonies) 
+                        </p>
+<P><B>Liberation of allied worlds</B> 
+                        <p>If this option is checked, subjugated 
+colonies could be liberated by allied races (this slows the program). 
+                        </p>
+<P><B>Parameters</B> 
+                        <p>Victory Value is the difference of military power 
+needed in order to conquer a planet. For example if Victory Value is set to 2, 
+the attacker need to a have a military power two times superior to the defender 
+to win the battle. <BR>Ranges represent the average expansion speed in AU of an 
+empire of a specific Tech Level. For example if TL8 is set to 3, this means a 
+TL8 empire expand at an average rate of 3 AU per century. <BR>If the Compact 
+Empires option is checked, there's less chance to see a new colony founded far 
+away from the other ones owned by this empire. <BR>Military Bonus is the 
+Military power bonus given in defence (30 % in attack) to an extra sector race, 
+this represents the reinforcements dispatched by the homeworld to this sector. 
+The standard bonus is set to 17500 because it's what I use for a 30 cubic 
+parsecs sector. If this bonus is too low, the extra sector races could be 
+quickly overhelmed, if it's too high, the native races could have difficulities 
+to match their power. It's with time that you'll find the adequate bonus. 
+<BR>These values have an important effect on Empire results, in a little sector 
+a race with a high Spacial age attribute could quickly colonize it entirely if 
+his TL Range is too high. 
+                        </p>
+<P><b>RP Log</b>
+                        <p>Checking this box will let CivGen creates a &lt;sector 
+                        filename&gt;_RP.csv file in which each RP gained by 
+                        a civilization each century is reported. This file could 
+                        be read by Excel or Star Office.</p>
+                        <p><b>Event Log</b></p>
+                        <p>Checking this box will let CivGen creates a &lt;sector 
+                        filename&gt;.csv file in whch every event is saved. 
+                        This&nbsp;file could be read by Excel or Star Office. 
+                        </p>
+                        <hr>
+                        <p><B>CivGen glossary</B> 
+                        </p>
+<P>Allegiance : the race Id that controls the colony. 
+<P>Captive planets : planets colonized by the alien race that is controlled by 
+an another one. 
+<P>Captive population : number of population of the alien race that lives in 
+colonies controlled by another race. 
+<P>GWP : Gross World Product, the economic colony budget in MegaCredits.
+                        <p>Trade bonus: the amount of MegaCredits earned in 
+                        interstellar commerce with other empires.</p>
+ 
+<P>Indep. Colonies : number of independant colonies inhabited by the alien race. 
+
+<P>Subjects population : number of people not of the same race that lives under 
+the alien race rules. 
+<P>Subjugated planets : planets conquered by the alien race. 
+<P><B>What's wrong with CivGen ?</B> 
+<P>Well the code is not perfect, and with time it could appear some bugs or 
+oddities. 
+<P>Some odd things that I found includes : 
+<P>- an empire with all his colonies conquered (even its homeworld) but a few 
+subjugated colonies. So the only free colonists are not the natives one ! Well 
+this happens for the French during WWII, so why not in space... 
+<P>- a sector entierly own by one race because it was the first race that 
+reached the stars. 
+<P>Colonies and empires generated by CivGen could be browsed with the 
+Star Browser v1.6. </P>                        <p>&nbsp;</p>
+                        <hr><P><U>Random event effects</U> </P>
+<P>Probability of a random event: </P>
+<BLOCKQUOTE>
+<P>Homeworld, Capital = 1/(Rand event factor*50) <BR>Other colonies&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; = 
+1/(Rand event factor*100)</P></BLOCKQUOTE>
+<TABLE border=1>
+<TBODY>
+<TR>
+<TD align=middle bgColor=#cccccc>
+<P>Event</P></TD>
+<TD align=middle bgColor=#cccccc>
+<P>Stabitlity</P></TD>
+<TD align=middle bgColor=#cccccc>
+<P>Notes</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Birthrate soars</P></TD>
+<TD align=middle>
+<P>0</P></TD>
+<TD align=middle>
+<P>Pop +1</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Natural catastrophe</P></TD>
+<TD align=middle>
+<P>-2</P></TD>
+<TD align=middle>
+<P>-</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Economic collapse</P></TD>
+<TD align=middle>
+<P>-2</P></TD>
+<TD align=middle>
+<P>-</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Agricultural disaster</P></TD>
+<TD align=middle>
+<P>-3</P></TD>
+<TD align=middle>
+<P>-</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Plague</P></TD>
+<TD align=middle>
+<P>-2</P></TD>
+<TD align=middle>
+<P>-</P></TD></TR>
+<TR>
+<TD align=left>
+<P>High rates of immigration #</P></TD>
+<TD align=middle>
+<P>0</P></TD>
+<TD align=middle>
+<P>Pop +2</P></TD></TR>
+<TR>
+<TD align=left>
+<P>TL collapse</P></TD>
+<TD align=middle>
+<P>-4</P></TD>
+<TD align=middle>
+<P>RP down to 0</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Integration of natives #</P></TD>
+<TD align=middle>
+<P>+1</P></TD>
+<TD align=middle>
+<P>Law -1</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Civil unrest</P></TD>
+<TD align=middle>
+<P>-3</P></TD>
+<TD align=middle>
+<P>-</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Research breakthrough @</P></TD>
+<TD align=middle>
+<P>0</P></TD>
+<TD align=middle>
+<P>+10 or 30 RP</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Civil rights progress</P></TD>
+<TD align=middle>
+<P>+1</P></TD>
+<TD align=middle>
+<P>Law -1</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Major space accident</P></TD>
+<TD align=middle>
+<P>-1</P></TD>
+<TD align=middle>
+<P>-</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Social trouble</P></TD>
+<TD align=middle>
+<P>-1</P></TD>
+<TD align=middle>
+<P>-</P></TD></TR>
+<TR>
+<TD align=left>
+<P>World wide war</P></TD>
+<TD align=middle>
+<P>-3</P></TD>
+<TD align=middle>
+<P>-</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Crime wave</P></TD>
+<TD align=middle>
+<P>-2</P></TD>
+<TD align=middle>
+<P>Crime +2</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Pirate raiding</P></TD>
+<TD align=middle>
+<P>-1</P></TD>
+<TD align=middle>
+<P>-</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Ecological disaster</P></TD>
+<TD align=middle>
+<P>-3</P></TD>
+<TD align=middle>
+<P>-</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Restoring order</P></TD>
+<TD align=middle>
+<P>+2</P></TD>
+<TD align=middle>
+<P>Law +2, Crime -2</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Major happy event</P></TD>
+<TD align=middle>
+<P>+1</P></TD>
+<TD align=middle>
+<P>-</P></TD></TR>
+<TR>
+<TD align=left>
+<P>Successful terrorist attempt</P></TD>
+<TD align=middle>
+<P>-2</P></TD>
+<TD align=middle>
+<P>-</P></TD></TR>
+                            <tr>
+<TD align=left>
+                                    <p>Nuclear world wide war</p>
+</TD>
+<TD align=middle>
+                                    <p>-3</p>
+</TD>
+<TD align=middle>
+                                    <p>Crime +2, Atmos. Contaminants</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Religious crisis @</p>
+</TD>
+<TD align=middle>
+                                    <p>&nbsp;-3</p>
+</TD>
+<TD align=middle>
+                                    <p>Change of religion</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Mineral resource crisis</p>
+</TD>
+<TD align=middle>
+                                    <p>-2</p>
+</TD>
+<TD align=middle>
+                                    <p>Mineral resources/2</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Major religious event</p>
+</TD>
+<TD align=middle>
+                                    <p>+(devotion/3)</p>
+</TD>
+<TD align=middle>
+                                    <p>-</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Anti-science demonstrations @</p>
+</TD>
+<TD align=middle>
+                                    <p>&nbsp;-2</p>
+</TD>
+<TD align=middle>
+                                    <p>RP/2, Progressivness -25%</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Pro-science demonstrations @</p>
+</TD>
+<TD align=middle>
+                                    <p>+1</p>
+</TD>
+<TD align=middle>
+                                    <p>RP + 1d5, Progressivness +3</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Xenophobic demonstrations @</p>
+</TD>
+<TD align=middle>
+                                    <p>-1</p>
+</TD>
+<TD align=middle>
+                                    <p>Racial tolerance -25%</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Pro-alien demonstrations @</p>
+</TD>
+<TD align=middle>
+                                    <p>&nbsp;0</p>
+</TD>
+<TD align=middle>
+                                    <p>Racial tolerance +3</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Militarist demonstrations @</p>
+</TD>
+<TD align=middle>
+                                    <p>&nbsp;+1</p>
+</TD>
+<TD align=middle>
+                                    <p>Militancy +3</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Pacifist demonstrations @</p>
+</TD>
+<TD align=middle>
+                                    <p>&nbsp;0</p>
+</TD>
+<TD align=middle>
+                                    <p>Militancy -25%</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Genetic manipulations @</p>
+</TD>
+<TD align=middle>
+                                    <p>0</p>
+</TD>
+<TD align=middle>
+                                    <p>One unusual ability gained</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Infertile plague @</p>
+</TD>
+<TD align=middle>
+                                    <p>-2</p>
+</TD>
+<TD align=middle>
+                                    <p>Infertility</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Charismatic leader</p>
+</TD>
+<TD align=middle>
+                                    <p>+2</p>
+</TD>
+<TD align=middle>
+                                    <p>&nbsp;</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Economic boon</p>
+</TD>
+<TD align=middle>
+                                    <p>+2</p>
+</TD>
+<TD align=middle>
+                                    <p>&nbsp;</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Terraformation</p>
+</TD>
+<TD align=middle>
+                                    <p>&nbsp;+1</p>
+</TD>
+<TD align=middle>
+                                    <p>Planet terraformed</p>
+</TD>
+                            </tr>
+                            <tr>
+<TD align=left>
+                                    <p>Infertility cured @</p>
+</TD>
+<TD align=middle>
+                                    <p>+1</p>
+</TD>
+<TD align=middle>
+                                    <p>&nbsp;</p>
+</TD>
+                            </tr>
+</TBODY></TABLE>
+                        <p># Colonies only<br>@ Homeworlds only</p>
+<P><U>Century number</U> </P>
+<P>This value is how many centuries should CivGen runs, it must be between 80 
+and 130. The higher the value, the higher the number of high tech races. </P>
+<P><U>Research Points (RP)</U> </P>
+<P>Each century, a race earns between one and ten RP, when the RP amount reaches 
+a certain value, the alien's TL is raised by one and the RP is set down to 0. 
+<BR>RP needed to reach new TL = Base RP x (5 - Progressivness/5) <BR>&nbsp; 
+<TABLE border=1>
+<TBODY>
+<TR>
+<TD align=middle bgColor=#cccccc>
+<P>Current TL</P></TD>
+<TD align=middle bgColor=#cccccc>
+<P>Base RP</P></TD></TR>
+<TR>
+<TD align=middle>
+<P>1</P></TD>
+<TD align=middle>
+<P>200</P></TD></TR>
+<TR>
+<TD align=middle>
+<P>2</P></TD>
+<TD align=middle>
+<P>50</P></TD></TR>
+<TR>
+<TD align=middle>
+<P>3</P></TD>
+<TD align=middle>
+<P>30</P></TD></TR>
+<TR>
+<TD align=middle>
+<P>4</P></TD>
+<TD align=middle>
+<P>30</P></TD></TR>
+<TR>
+<TD align=middle>
+<P>5</P></TD>
+<TD align=middle>
+<P>40</P></TD></TR>
+<TR>
+<TD align=middle>
+<P>6</P></TD>
+<TD align=middle>
+<P>15</P></TD></TR>
+<TR>
+<TD align=middle>
+<P>7</P></TD>
+<TD align=middle>
+<P>20</P></TD></TR>
+<TR>
+<TD align=middle>
+<P>8</P></TD>
+<TD align=middle>
+<P>50</P></TD></TR>
+<TR>
+<TD align=middle>
+<P>9</P></TD>
+<TD align=middle>
+<P>120</P></TD></TR></TBODY></TABLE>
+                        <p>Miscleanous RP bonus:</p>
+                        <table border="1">
+                            <tr>
+                                <td bgcolor="silver">
+                                    <p>Miscleanous bonus</p>
+                                </td>
+                                <td bgcolor="silver">
+                                    <p>Gains</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <p>Science bonus skill</p>
+                                </td>
+                                <td>
+                                    <p>+1 RP each century</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <p>Empire in war</p>
+                                </td>
+                                <td>
+                                    <p>+1d6 RP each century</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <p>Empire has a new non intercourse relation<br>with 
+                                    a higher TL empire and is not in war</p>
+                                </td>
+                                <td>
+                                    <p>+1d3 RP each century</p>
+                                </td>
+                            </tr>
+                        </table>
+                        <p>&nbsp;</p>
+<P><U>Secession</U> </P>
+<P>There will be a secession check for all colony with a stability of 2 or less. 
+</P>
+<P>Probability of secession = (3-stability) / (law+15) <BR></P>                        <p>&nbsp;</p>
+                        <p>&nbsp;</p>
+                    </td>
+                </tr>
+            </table>
+            <p align="center">&nbsp;</td>
+    </tr>
+</table>
+<p>&nbsp;</p>
+</body>
+
+</html>
