@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations.Schema;
 using DarkDhamon.Common.EntityFramework.Model;
 using DarkDhamon.Common.Extensions;
+using SlipMap.Model.Enums;
 
 namespace SlipMap.Model.MapElements
 {

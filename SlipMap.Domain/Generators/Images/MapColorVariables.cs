@@ -4,7 +4,7 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using SlipMap.Model.MapElements;
+using SlipMap.Model.Enums;
 
 namespace SlipMap.Domain.Generators.Images
 {

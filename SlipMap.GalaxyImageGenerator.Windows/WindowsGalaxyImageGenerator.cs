@@ -4,6 +4,7 @@ using SlipMap.Model.MapElements;
 using System.Drawing;
 using System.Drawing.Imaging;
 using Microsoft.EntityFrameworkCore.ValueGeneration;
+using SlipMap.Model.Enums;
 
 namespace SlipMap.GalaxyImageGenerator.Windows;
 

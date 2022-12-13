@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using SlipMap.Domain.BusinessRules;
+using SlipMap.Model.Enums;
 using SlipMap.Model.MapElements;
 
 namespace SlipMap.Domain.Generators.Data
@@ -50,9 +51,8 @@ namespace SlipMap.Domain.Generators.Data
                 var planet = new Planet()
                 {
                     Name = string.Empty,
-                    Class = PlanetClass.A
+                    Classification = PlanetClassification.Unknown
                 };
-                
                 system.Planets.Add(planet);
             }
         }
@@ -99,11 +99,5 @@ namespace SlipMap.Domain.Generators.Data
         }
     }
 
-    public enum PlanetClass
-    {
-        
-        Terrestrial,
-        Eden,
-
-    }
+    
 }

@@ -2,6 +2,7 @@
 
 using SlipMap.Domain.Generators.Data;
 using SlipMap.GalaxyImageGenerator.Windows;
+using SlipMap.Model.Enums;
 using SlipMap.Model.MapElements;
 
 var start = DateTime.Now;
