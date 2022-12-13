@@ -26,11 +26,19 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Backend", "Backend", "{4B2C
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Testing", "Testing", "{3F1A5DF6-4164-4B5B-AC72-AFFB3C7A6EAD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMap.WebAPI", "SlipMap.WebAPI\SlipMap.WebAPI.csproj", "{16B0F856-730E-439B-9C3D-B862E01669E9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SlipMap.WebAPI", "SlipMap.WebAPI\SlipMap.WebAPI.csproj", "{16B0F856-730E-439B-9C3D-B862E01669E9}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "FrontEnd", "FrontEnd", "{14DBDA6C-5051-4F64-A333-E9FF62D3FE62}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMap.GalaxyImageGenerator.Windows", "SlipMap.GalaxyImageGenerator.Windows\SlipMap.GalaxyImageGenerator.Windows.csproj", "{6E2D0E95-E3E7-4E70-B712-9E3BD8165EA5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SlipMap.GalaxyImageGenerator.Windows", "SlipMap.GalaxyImageGenerator.Windows\SlipMap.GalaxyImageGenerator.Windows.csproj", "{6E2D0E95-E3E7-4E70-B712-9E3BD8165EA5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMap.NetFramework.Rewrite.Model", "SlipMap.NetFramework.Rewrite.Model\SlipMap.NetFramework.Rewrite.Model.csproj", "{0A0BEC43-8DB7-4E33-BB8A-C24D4BAC6F0F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlipMap.NetFramework.Rewrite.Domain", "SlipMap.NetFramework.Rewrite.Domain\SlipMap.NetFramework.Rewrite.Domain.csproj", "{CA3AB2DA-5737-43B7-889A-9DF9231484FF}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Organizational Rewrite", "Organizational Rewrite", "{E20566ED-6B01-43C6-9CB6-342B0F9BB543}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeveloperRewriteLogicTesting", "DeveloperRewriteLogicTesting\DeveloperRewriteLogicTesting.csproj", "{7221994A-6FF6-4AB6-8BE6-9736953D2BEB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -66,6 +74,18 @@ Global
 		{6E2D0E95-E3E7-4E70-B712-9E3BD8165EA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6E2D0E95-E3E7-4E70-B712-9E3BD8165EA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6E2D0E95-E3E7-4E70-B712-9E3BD8165EA5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0A0BEC43-8DB7-4E33-BB8A-C24D4BAC6F0F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0A0BEC43-8DB7-4E33-BB8A-C24D4BAC6F0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0A0BEC43-8DB7-4E33-BB8A-C24D4BAC6F0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0A0BEC43-8DB7-4E33-BB8A-C24D4BAC6F0F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA3AB2DA-5737-43B7-889A-9DF9231484FF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA3AB2DA-5737-43B7-889A-9DF9231484FF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA3AB2DA-5737-43B7-889A-9DF9231484FF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA3AB2DA-5737-43B7-889A-9DF9231484FF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7221994A-6FF6-4AB6-8BE6-9736953D2BEB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7221994A-6FF6-4AB6-8BE6-9736953D2BEB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7221994A-6FF6-4AB6-8BE6-9736953D2BEB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7221994A-6FF6-4AB6-8BE6-9736953D2BEB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -81,6 +101,10 @@ Global
 		{16B0F856-730E-439B-9C3D-B862E01669E9} = {4B2C4EF2-B724-4DBB-9F6E-DA6541F7C1FC}
 		{14DBDA6C-5051-4F64-A333-E9FF62D3FE62} = {60C34A8D-B632-4801-9F12-809765C55959}
 		{6E2D0E95-E3E7-4E70-B712-9E3BD8165EA5} = {4B2C4EF2-B724-4DBB-9F6E-DA6541F7C1FC}
+		{0A0BEC43-8DB7-4E33-BB8A-C24D4BAC6F0F} = {E20566ED-6B01-43C6-9CB6-342B0F9BB543}
+		{CA3AB2DA-5737-43B7-889A-9DF9231484FF} = {E20566ED-6B01-43C6-9CB6-342B0F9BB543}
+		{E20566ED-6B01-43C6-9CB6-342B0F9BB543} = {2004A390-6566-4578-98A4-076C52B03E64}
+		{7221994A-6FF6-4AB6-8BE6-9736953D2BEB} = {E20566ED-6B01-43C6-9CB6-342B0F9BB543}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {A54D86FA-4DC5-43C9-9BE8-0F07267C5672}
