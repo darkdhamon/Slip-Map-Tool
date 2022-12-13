@@ -7,7 +7,7 @@ using Newtonsoft.Json;
 
 namespace SlipMap.NetFramework.Rewrite.Model
 {
-    public class SlipMap
+    public class SectorMap
     {
         public string SectorName { get; set; }
 

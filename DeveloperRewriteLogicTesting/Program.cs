@@ -8,7 +8,7 @@ namespace DeveloperRewriteLogicTesting
     {
         static void Main(string[] args)
         {
-            var map = new SlipMap.NetFramework.Rewrite.Model.SlipMap
+            var map = new SlipMap.NetFramework.Rewrite.Model.SectorMap
             {
                 SectorName = "Test",
                 StarSystems = new List<StarSystem>
@@ -26,7 +26,7 @@ namespace DeveloperRewriteLogicTesting
             };
             var manager = new SlipMapSaveFileManager();
             manager.SaveFile(map);
-            var map2 = manager.LoadFile("sectorfiles\\Test.SlipMap.json");
+            var map2 = manager.LoadFile("sectorfiles\\Test.SectorMap.json");
         }
     }
 }

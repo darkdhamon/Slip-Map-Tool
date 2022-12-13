@@ -4,9 +4,9 @@ using SlipMap.NetFramework.Rewrite.Model;
 
 namespace SlipMap.NetFramework.Rewrite.Domain
 {
-    public class SlipMapSaveFileManager:SaveFileManager<Model.SlipMap>
+    public class SlipMapSaveFileManager:SaveFileManager<Model.SectorMap>
     {
-        public override void SaveFile(Model.SlipMap saveObj)
+        public override void SaveFile(Model.SectorMap saveObj)
         {
             if (string.IsNullOrWhiteSpace(FileName))
             {
@@ -14,7 +14,7 @@ namespace SlipMap.NetFramework.Rewrite.Domain
                 {
                     throw new IOException("File Name is Required, and Default Name cannot be determined");
                 }
-                FileName = $"{saveObj.SectorName}.SlipMap.json";
+                FileName = $"{saveObj.SectorName}.SectorMap.json";
             }
             base.SaveFile(saveObj);
             VerifyDirExists($"{saveObj.SectorName}-Systems");
@@ -25,7 +25,7 @@ namespace SlipMap.NetFramework.Rewrite.Domain
             }
         }
 
-        public override Model.SlipMap LoadFile(string filePath)
+        public override Model.SectorMap LoadFile(string filePath)
         {
             var slipMap = base.LoadFile(filePath);
             var starSystemManager = new SaveFileManager<StarSystem>($"{slipMap.SectorName}-Systems");
