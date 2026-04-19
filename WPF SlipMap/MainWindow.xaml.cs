@@ -7,14 +7,18 @@
 #region Imports
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Web.Script.Serialization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Microsoft.Win32;
 using SlipMap_Code_Library;
 using WPF_SlipMap.Application;
 using WPF_SlipMap.Tabs;
@@ -28,6 +32,8 @@ namespace WPF_SlipMap
    /// </summary>
    public partial class MainWindow
    {
+      public const string ExportAllSectorsOption = "All Sectors";
+
       #region Library Tab
 
       /// <summary>
@@ -346,6 +352,166 @@ namespace WPF_SlipMap
          Refresh();
       }
 
+      public void ExportSlipMapToJson(string selectedSectorFileName)
+      {
+         try
+         {
+            var sectorFiles = SlipDrive.ListSectors().ToList();
+            if (!sectorFiles.Any())
+            {
+               Notify("No sector save files were found to export.", NoteType.Failure);
+               return;
+            }
+
+            var exportAllSectors = string.IsNullOrWhiteSpace(selectedSectorFileName) ||
+                                   selectedSectorFileName.Equals(ExportAllSectorsOption, StringComparison.OrdinalIgnoreCase);
+            var selectedSectorFiles = exportAllSectors
+               ? sectorFiles
+               : sectorFiles
+                  .Where(fileName => fileName.Equals(selectedSectorFileName, StringComparison.OrdinalIgnoreCase))
+                  .ToList();
+
+            if (!selectedSectorFiles.Any())
+            {
+               Notify("Select a valid sector save file to export.", NoteType.Failure);
+               return;
+            }
+
+            var exportDirectory = SlipDrive.SaveDirectory;
+            Directory.CreateDirectory(exportDirectory);
+
+            var exportDialog = new SaveFileDialog
+            {
+               AddExtension = true,
+               DefaultExt = ".json",
+               Filter = "JSON Slip Map (*.json)|*.json|All Files (*.*)|*.*",
+               FileName = exportAllSectors
+                  ? "SlipMap-Legacy-Export.json"
+                  : $"{Path.GetFileNameWithoutExtension(selectedSectorFiles.Single())}.json",
+               InitialDirectory = exportDirectory,
+               OverwritePrompt = true,
+               Title = exportAllSectors
+                  ? "Export All Legacy Slip Map Saves For New App"
+                  : "Export Legacy Slip Map Save For New App"
+            };
+
+            if (exportDialog.ShowDialog(this) != true)
+            {
+               return;
+            }
+
+            var json = BuildSlipMapJson(selectedSectorFiles);
+            File.WriteAllText(exportDialog.FileName, json);
+            Notify($"Exported {selectedSectorFiles.Count} save file(s) to JSON for the new app: {exportDialog.FileName}", NoteType.Success);
+         }
+         catch (Exception error)
+         {
+            Notify($"There was an error exporting JSON. \n {error.Message}", NoteType.Failure);
+         }
+      }
+
+      private string BuildSlipMapJson(List<string> sectorFiles)
+      {
+         var originalFileName = SlipDrive.FileName;
+         var originalDestinationSystem = DestinationSystem;
+         var maps = new List<SlipMapJsonDocument>();
+
+         foreach (var sectorFile in sectorFiles)
+         {
+            SlipDrive.FileName = sectorFile;
+            SlipDrive.LoadSlipMap();
+            if (CurrentSystem == null)
+            {
+               continue;
+            }
+
+            maps.Add(BuildCurrentSlipMapJsonDocument(sectorFile));
+         }
+
+         if (!string.IsNullOrWhiteSpace(originalFileName))
+         {
+            SlipDrive.FileName = originalFileName;
+            SlipDrive.LoadSlipMap();
+            DestinationSystem = originalDestinationSystem;
+            Refresh();
+         }
+
+         var document = new LegacyExportJsonDocument
+         {
+            schemaVersion = 1,
+            exportedAt = DateTime.Now,
+            legacySession = BuildLegacySessionJsonDocument(),
+            maps = maps
+         };
+
+         return new JavaScriptSerializer().Serialize(document);
+      }
+
+      private SlipMapJsonDocument BuildCurrentSlipMapJsonDocument(string sectorFileName)
+      {
+         var visitedSystems = SlipDrive.VisitedSystems?.ToList() ?? new List<StarSystem>();
+         var routeKeys = new HashSet<string>();
+         var routes = new List<SlipRouteJsonDocument>();
+
+         foreach (var system in visitedSystems.Where(system => system != null))
+         {
+            foreach (var connectedSystem in system.ConnectedSystems.Where(connectedSystem => connectedSystem != null))
+            {
+               if (system.ID == connectedSystem.ID)
+               {
+                  continue;
+               }
+
+               var firstSystemId = Math.Min(system.ID, connectedSystem.ID);
+               var secondSystemId = Math.Max(system.ID, connectedSystem.ID);
+               if (!routeKeys.Add($"{firstSystemId}:{secondSystemId}"))
+               {
+                  continue;
+               }
+
+               routes.Add(new SlipRouteJsonDocument
+               {
+                  firstSystemId = firstSystemId,
+                  secondSystemId = secondSystemId
+               });
+            }
+         }
+
+         routes = routes
+            .OrderBy(route => route.firstSystemId)
+            .ThenBy(route => route.secondSystemId)
+            .ToList();
+
+         return new SlipMapJsonDocument
+         {
+            schemaVersion = 1,
+            lastSystemId = SlipDrive.LastSystemId,
+            currentSystemId = CurrentSystem.ID,
+            sectorFileName = string.IsNullOrWhiteSpace(sectorFileName) ? null : sectorFileName,
+            starSystems = visitedSystems
+               .OrderBy(system => system.ID)
+               .Select(system => new StarSystemJsonDocument
+               {
+                  id = system.ID,
+                  name = string.IsNullOrWhiteSpace(system.Name) ? null : system.Name,
+                  notes = string.IsNullOrWhiteSpace(system.Notes) ? null : system.Notes
+               })
+               .ToList(),
+            routes = routes
+         };
+      }
+
+      private LegacySessionJsonDocument BuildLegacySessionJsonDocument()
+      {
+         return new LegacySessionJsonDocument
+         {
+            displayName = string.IsNullOrWhiteSpace(Session.DisplayName) ? null : Session.DisplayName,
+            pilotSkill = Session.PilotSkill,
+            sectorFileName = string.IsNullOrWhiteSpace(Session.FileName) ? null : Session.FileName,
+            destinationSystemId = Session.Destination?.ID
+         };
+      }
+
       #endregion
 
       #region refresh methods
@@ -488,6 +654,45 @@ namespace WPF_SlipMap
                default:
                    throw new ArgumentOutOfRangeException(nameof(noteType), noteType, null);
            }
+       }
+
+       private sealed class LegacyExportJsonDocument
+       {
+          public int schemaVersion { get; set; }
+          public DateTime exportedAt { get; set; }
+          public LegacySessionJsonDocument legacySession { get; set; }
+          public List<SlipMapJsonDocument> maps { get; set; }
+       }
+
+       private sealed class SlipMapJsonDocument
+       {
+          public int schemaVersion { get; set; }
+          public string sectorFileName { get; set; }
+          public int lastSystemId { get; set; }
+          public int currentSystemId { get; set; }
+          public List<StarSystemJsonDocument> starSystems { get; set; }
+          public List<SlipRouteJsonDocument> routes { get; set; }
+       }
+
+       private sealed class LegacySessionJsonDocument
+       {
+          public string displayName { get; set; }
+          public int pilotSkill { get; set; }
+          public string sectorFileName { get; set; }
+          public int? destinationSystemId { get; set; }
+       }
+
+       private sealed class StarSystemJsonDocument
+       {
+          public int id { get; set; }
+          public string name { get; set; }
+          public string notes { get; set; }
+       }
+
+       private sealed class SlipRouteJsonDocument
+       {
+          public int firstSystemId { get; set; }
+          public int secondSystemId { get; set; }
        }
    }
 }

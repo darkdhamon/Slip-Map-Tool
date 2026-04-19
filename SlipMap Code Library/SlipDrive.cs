@@ -23,7 +23,7 @@ namespace SlipMap_Code_Library
     /// </summary>
     public SlipDrive()
     {
-      SaveDir = "SectorFiles";
+      SaveDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SectorFiles");
     }
 
     /// <summary>
@@ -35,6 +35,11 @@ namespace SlipMap_Code_Library
     ///   SaveDir is set in the contructor this can not be changed
     /// </summary>
     private string SaveDir { get; }
+
+    /// <summary>
+    ///   Full path to the save directory used by the application.
+    /// </summary>
+    public string SaveDirectory => SaveDir;
 
     /// <summary>
     ///   This is the Model that gets saved to disk

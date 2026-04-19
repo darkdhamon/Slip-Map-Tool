@@ -1,0 +1,114 @@
+Format of the different files
+
+Here are the different file format for Star v1.57b
+
+Variable types:
+     byte    : 8-bits   0..255
+     smallint: 16-bits  -32768..32767
+     word    : 16-bits  0..65535
+     longint : 32-bits  -2147483648..2147483647
+     single  : 48-bits  2.9e-39..1.7e38
+
+     table=array[1..20] of string;
+     table_num=array[1..5] of byte;
+     table_single=array[1..18] of single;
+     table_0=array[1..2] of smallint;
+     table_1=array[1..3] of byte;
+     table_2=array[1..3] of single;  
+     table_3=array[1..3] of longint;
+     table_5=array[1..18,1..3] of smallint;
+     table_6=array[1..4] of longint;
+     table_index=array[1..4] of single;
+     table_byte=array[1..12] of byte;   (**changed in 1.57b**)
+     table_byte2=array[1..15] of byte;
+     table_bool=array[1..5] of byte;
+     table_bool2=array[1..12] of byte;
+     table_bool3=array[1..2] of byte;
+
+Star System file:   *.sun
+             spe_class: table_1;    Spectral type code of the star(s)
+             type_spec: table_1;    Decimal classification of the star(s)
+             planet_nbr: table_1;   Number of planets orbiting the star(s)
+             luminosity: table_2;   Luminosity of the star(s)
+             mass_star:table_2;     Mass of the star(s) (in sol mass)
+             age: byte;             Age of the star system in .1 billion years
+             companion_dist: table_0; Distance of the companion star(s) to the
+                                      primary one (in .1 A.U.)
+             astral_orbit: table_5; Astral orbit of the planets around their
+                                    star (in .1 A.U.)
+             star_nbr: byte;        Number of stars in the system
+             pln_id: table_3;       Id of the first planet around the star(s)
+             posX: smallint;        Co-ordinate of the star system
+             posY: smallint;        Co-ordinate of the star system
+             posZ: smallint;        Co-ordinate of the star system
+	       allegiance: word;      Id of the owner	
+             code: byte;            Internal used only
+
+Planet file:        *.pln
+             sun_id: longint;        Id of the planet star system
+             alien_id: integer;         Id of the alien race living on the
+                                     planet
+             moon_id: longint;       Id of the first satellite orbiting the
+                                     planet
+             allegiance: word;       Id of the owner
+             atmos_type: byte;       Atmosphere type
+             world_type: byte;       World type
+             water_type: byte;       Water type
+             atmos: byte;            Main atmospheric composant(s)
+             smwr: byte;             Smallest molecular weight retained 
+             axial_tilt: byte;       Axial tilt
+             inclination: byte;      Inclination
+             temp_avg: smallint;     Average temperature (in Celsius degrees)
+             satellites: byte;       Number of satellites 
+             hydrography: table_num; Hydrography/Ice/Clouds (in %)
+             rotation_period: longint; Rotation period (in hours)
+             diametre: longint;        Diameter (in km)/ Asteroid belt width
+             density: byte;            Density (in .1 earth density)
+             pressure: single;         Atmospheric pressure (in atm)
+             eccentricity: word;       Eccentricity (in .001)
+             orbit_radius: smallint;   Orbit radius (in .1 A.U.)
+             mine_ress: table_num;     Mineral ressources
+             misc_charac: byte;        (bit 1:icy_core, 2:resonance, 3:water_tainted) 
+             unusual: table_bool;      1/0 for each unusual characteristic
+                                         type
+
+Satellite file:     *.mon
+             pln_id: longint;        Id of the planet around which the
+                                     satellite is orbiting
+             atmos_type: byte;       Atmosphere type
+             world_type: byte;       World type
+             water_type: byte;       Water type
+             atmos: byte;            Main atmospheric composant(s) 
+             temp_avg: smallint;     Average temperature (in Celsius degrees)
+             hydrography: table_num; Hydrography/Ice/Clouds (in %)
+             diametre: longint;      Diameter (in km)
+             density: byte;          Density (in .1 earth density)
+             pressure: single;       Atmospheric pressure (in atm)
+             sat_orbit: word;        Orbit radius (in .1 A.U.)
+             mine_ress: table_num;   Mineral ressources
+             misc_charac: byte;      (bit 1:icy_core, 2:resonance, 3:water_tainted) 
+
+Alien file:         *.aln
+             pln_id: longint;         Id of the home planet of the alien race
+             environment_type: byte;  Environment in which the race lives
+             body_type: byte;         Body chemistry
+             limbs_number: byte;      Number of limbs pairs
+             diet_genre: byte;        Alien diet
+             repro_genre: byte;       Alien reproduction type
+             repro_meth_genre: byte;  Alien reproduction methode
+             gov_type: byte;          Alien government type
+             body_cover_type: byte;   Skin type
+             app_genre: byte;         Appearance type
+             mass: smallint;          Mass in kg
+             size_creat:smallint;     Size in cm
+             limbs_genre:table_byte;  Limbs genre for each pair
+             attrib:table_byte2;      Alien attributes (only change in v1.57b)
+             table_abil:table_bool2;  1/0 for each unusual characteristics
+             color_genre:table_bool3; 1/0 for each color skin bit
+             hair_color :table_bool3; 1/0 for each hair color bit
+             body_char  :table_bool3; 1/0 for each body characteristic bit
+             eye_color  :table_bool3; 1/0 for each eye color bit
+             eye_char   :table_bool3; 1/0 for each eye_char bit
+             hair_char  :byte;        Hair type 
+	       religion   :byte;        Religion type
+             devotion   :byte;        Faith devotion 

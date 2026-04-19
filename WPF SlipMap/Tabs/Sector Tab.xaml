@@ -5,7 +5,8 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:local="clr-namespace:WPF_SlipMap.Tabs"
              mc:Ignorable="d"
-             d:DesignHeight="300" d:DesignWidth="300">
+             d:DesignHeight="300" d:DesignWidth="300"
+             Loaded="SectorTab_OnLoaded">
    <Grid>
       <ScrollViewer>
          <StackPanel>
@@ -32,6 +33,21 @@
                   <ComboBox Name="Sectors" />
                   <Button Name="LoadSector" Content="Load Sector" Grid.Column="1" Padding="10,1" Click="LoadSector_OnClick"/>
                </Grid>
+            </Expander>
+            <Expander Header="Export Sector" Expanded="Expander_OnExpanded">
+               <StackPanel>
+                  <TextBlock TextWrapping="Wrap" Margin="0,0,0,6">
+                     Export selected legacy sector save files and session metadata into JSON so it can be imported into the new Slip Map application.
+                  </TextBlock>
+                  <Grid>
+                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="Auto" />
+                     </Grid.ColumnDefinitions>
+                     <ComboBox Name="ExportSectors" />
+                     <Button Name="ExportJson" Content="Export JSON For New App" Grid.Column="1" Padding="10,1" Click="ExportJson_OnClick" />
+                  </Grid>
+               </StackPanel>
             </Expander>
             <Expander Header="Create Sector">
                <Grid>

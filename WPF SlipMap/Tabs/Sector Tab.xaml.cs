@@ -7,6 +7,7 @@
 #region Imports
 
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
@@ -44,6 +45,7 @@ namespace WPF_SlipMap.Tabs
        private void UpdateView()
        {
             SectorName.Text = Sectors.Text = SlipDrive.FileName;
+            RefreshSectorLists();
        }
 
        public Session Session { get; set; }
@@ -96,8 +98,13 @@ namespace WPF_SlipMap.Tabs
 
       private void Expander_OnExpanded(object sender, RoutedEventArgs e)
       {
-         Sectors.ItemsSource = SlipDrive.ListSectors();
+         RefreshSectorLists();
       }
+
+       private void SectorTab_OnLoaded(object sender, RoutedEventArgs e)
+       {
+           RefreshSectorLists();
+       }
 
        private void SaveSector_OnClick(object sender, RoutedEventArgs e)
        {
@@ -106,6 +113,31 @@ namespace WPF_SlipMap.Tabs
                SlipDrive.FileName = SectorName.Text.EndsWith(".sm") ? SectorName.Text : $"{SectorName.Text}.sm";
            }
            MainWindow.SaveSlipMap();
+       }
+
+       private void ExportJson_OnClick(object sender, RoutedEventArgs e)
+       {
+           MainWindow.ExportSlipMapToJson(ExportSectors.SelectedItem as string);
+       }
+
+       private void RefreshSectorLists()
+       {
+           if (SlipDrive == null) return;
+
+           var selectedExportSector = ExportSectors.SelectedItem as string;
+           var sectors = SlipDrive.ListSectors().ToList();
+           var exportOptions = new[] { global::WPF_SlipMap.MainWindow.ExportAllSectorsOption }.Concat(sectors).ToList();
+
+           Sectors.ItemsSource = sectors;
+           ExportSectors.ItemsSource = exportOptions;
+           if (!string.IsNullOrWhiteSpace(selectedExportSector) && exportOptions.Contains(selectedExportSector))
+           {
+               ExportSectors.SelectedItem = selectedExportSector;
+           }
+           else
+           {
+               ExportSectors.SelectedItem = global::WPF_SlipMap.MainWindow.ExportAllSectorsOption;
+           }
        }
    }
 }
