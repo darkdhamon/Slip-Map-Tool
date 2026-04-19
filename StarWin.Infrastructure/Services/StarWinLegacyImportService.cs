@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using StarWin.Application.Services.LegacyImport;
 using StarWin.Domain.Model.Entity.Civilization;
@@ -13,6 +14,10 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     private const int StarRecordSize = 196;
     private const int PlanetRecordSize = 84;
     private const int MoonRecordSize = 60;
+    private const int AlienRecordSize = 92;
+    private const int ColonyRecordSize = 28;
+    private const int ContactRecordSize = 6;
+    private const int EmpireRecordSize = 52;
     private readonly StarWinClassificationCatalog classificationCatalog = new();
 
     private static readonly string[] AtmosphereTypes =
@@ -131,6 +136,225 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         "u40"
     ];
 
+    private static readonly string[] EnvironmentTypes =
+    [
+        "Land-dwelling",
+        "Burrowing",
+        "Amphibious",
+        "Aquatic",
+        "Flying"
+    ];
+
+    private static readonly string[] BodyChemistries =
+    [
+        "Carbon",
+        "Silicon non-crystalline",
+        "Sulfur",
+        "Exotic",
+        "Liquid",
+        "Silicon crystalline",
+        "Metallic crystalline",
+        "Gaseous",
+        "Energy"
+    ];
+
+    private static readonly string[] BodyCoverTypes =
+    [
+        "Soft-skinned",
+        "Thick-skinned",
+        "Furred",
+        "Feathered",
+        "Scaled",
+        "Spiny",
+        "Hard-shelled",
+        "Stone-skinned",
+        "Miscleanous",
+        "Metallic",
+        "Crystal-skinned",
+        "Cellulose-skinned"
+    ];
+
+    private static readonly string[] AppearanceTypes =
+    [
+        "Humanoid",
+        "Insectoid",
+        "Reptilian",
+        "Canine",
+        "Feline",
+        "Picthinine",
+        "Ursoid",
+        "Vegetal",
+        "Mineral",
+        "Avian",
+        "Amphibian",
+        "Animal",
+        "Totally alien",
+        "Centauroid",
+        "Amoebic",
+        "Serpentile",
+        "Energetic",
+        "Mechanoid",
+        "Geometric",
+        "Crustacean",
+        "Arachnid",
+        "Porcine",
+        "Rodent",
+        "Liquid",
+        "Gaseous",
+        "Radial"
+    ];
+
+    private static readonly string[] DietTypes =
+    [
+        "Herbivore",
+        "Omnivore",
+        "Carnivore",
+        "Special",
+        "Parasite",
+        "Solar Energy",
+        "Thermal Energy",
+        "No Feeding"
+    ];
+
+    private static readonly string[] ReproductionTypes =
+    [
+        "Asexual",
+        "Hermaphroditic",
+        "Two sexes",
+        "Three sexes",
+        "FMN"
+    ];
+
+    private static readonly string[] ReproductionMethodTypes =
+    [
+        "External budding",
+        "Egg-laying",
+        "Live-bearing",
+        "Parasitic"
+    ];
+
+    private static readonly string[] GovernmentTypes =
+    [
+        "Anarchy",
+        "Tribalism",
+        "Community",
+        "Democracy",
+        "Balkanization",
+        "Monarchy",
+        "Theocracy",
+        "Corporation",
+        "Oligarchy",
+        "Technocracy",
+        "Bureaucracy",
+        "Dictatorship",
+        "Republic",
+        "Imperialism",
+        "Matriarchy",
+        "Ploutocracy",
+        "Gerontocracy",
+        "Aristocracy",
+        "Meritocracy",
+        "Stochastic",
+        "Utopia",
+        "Federation",
+        "Syndicate",
+        "Computer Oligarchy",
+        "Gaming Oligarchy",
+        "Subjugated colony",
+        "Colony"
+    ];
+
+    private static readonly string[] ReligionTypes =
+    [
+        "Animism",
+        "Polytheism",
+        "Dualism",
+        "Monotheism",
+        "Deism",
+        "Pantheism",
+        "Agnosticism",
+        "Rational atheism",
+        "Philosophical atheism",
+        "Leader worship",
+        "Multiple monotheism"
+    ];
+
+    private static readonly string[] ColonyClasses =
+    [
+        "Agricultural",
+        "High population",
+        "Industrial",
+        "Mining",
+        "Fluid",
+        "Recreational",
+        "Capital",
+        "Homeworld",
+        "Settlement",
+        "Military",
+        "Research"
+    ];
+
+    private static readonly string[] StarportTypes =
+    [
+        "Excellent",
+        "Good",
+        "Fair",
+        "Primitive",
+        "None"
+    ];
+
+    private static readonly string[] FacilityTypes =
+    [
+        "Military Base",
+        "Naval Base",
+        "Prison Camp",
+        "Exile Camp",
+        "University",
+        "Military Academy",
+        "Arcology",
+        "Orbital tower",
+        "Ringworld",
+        "Planet shield",
+        "Space habitats",
+        "f12",
+        "f13",
+        "f14",
+        "f15",
+        "f16"
+    ];
+
+    private static readonly string[] EconomicResourceTypes =
+    [
+        "None",
+        "Agricultural resources",
+        "Mineral resources",
+        "Compounds",
+        "Agroproducts",
+        "Processed ores",
+        "Processed compounds",
+        "Weapons",
+        "Consumables",
+        "Pharmaceuticals",
+        "Durable goods",
+        "Hi-Tech goods",
+        "Artforms",
+        "Recordings",
+        "Software",
+        "Scientific datas",
+        "Exotic natural resource",
+        "Prototypes Mfd goods",
+        "Uniques"
+    ];
+
+    private static readonly string[] RelationTypes =
+    [
+        "War",
+        "No intercourse",
+        "Trade",
+        "Alliance",
+        "Unity"
+    ];
+
     private static readonly string[] RequiredExtensions =
     [
         ".sun",
@@ -239,9 +463,20 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         var sunFile = sectorPreview.Files.First(file => string.Equals(file.Extension, ".sun", StringComparison.OrdinalIgnoreCase));
         var planetFile = sectorPreview.Files.First(file => string.Equals(file.Extension, ".pln", StringComparison.OrdinalIgnoreCase));
         var moonFile = sectorPreview.Files.First(file => string.Equals(file.Extension, ".mon", StringComparison.OrdinalIgnoreCase));
+        var alienFile = sectorPreview.Files.First(file => string.Equals(file.Extension, ".aln", StringComparison.OrdinalIgnoreCase));
+        var colonyFile = sectorPreview.Files.First(file => string.Equals(file.Extension, ".col", StringComparison.OrdinalIgnoreCase));
+        var contactFile = sectorPreview.Files.First(file => string.Equals(file.Extension, ".con", StringComparison.OrdinalIgnoreCase));
+        var empireFile = sectorPreview.Files.First(file => string.Equals(file.Extension, ".emp", StringComparison.OrdinalIgnoreCase));
+        var historyFile = sectorPreview.Files.First(file => string.Equals(file.Extension, ".his", StringComparison.OrdinalIgnoreCase));
+        var historyCsvFile = sectorPreview.Files.FirstOrDefault(file => string.Equals(file.Extension, ".csv", StringComparison.OrdinalIgnoreCase));
         var sunEntry = archive.GetEntry(sunFile.EntryName);
         var planetEntry = archive.GetEntry(planetFile.EntryName);
         var moonEntry = archive.GetEntry(moonFile.EntryName);
+        var alienEntry = archive.GetEntry(alienFile.EntryName);
+        var colonyEntry = archive.GetEntry(colonyFile.EntryName);
+        var contactEntry = archive.GetEntry(contactFile.EntryName);
+        var empireEntry = archive.GetEntry(empireFile.EntryName);
+        var historyEntry = archive.GetEntry(historyCsvFile?.EntryName ?? historyFile.EntryName);
         if (sunEntry is null)
         {
             return new StarWinLegacyImportResult(false, null, preview, ["The .sun file could not be opened from the zip package."]);
@@ -255,6 +490,31 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         if (moonEntry is null)
         {
             return new StarWinLegacyImportResult(false, null, preview, ["The .mon file could not be opened from the zip package."]);
+        }
+
+        if (alienEntry is null)
+        {
+            return new StarWinLegacyImportResult(false, null, preview, ["The .aln file could not be opened from the zip package."]);
+        }
+
+        if (colonyEntry is null)
+        {
+            return new StarWinLegacyImportResult(false, null, preview, ["The .col file could not be opened from the zip package."]);
+        }
+
+        if (contactEntry is null)
+        {
+            return new StarWinLegacyImportResult(false, null, preview, ["The .con file could not be opened from the zip package."]);
+        }
+
+        if (empireEntry is null)
+        {
+            return new StarWinLegacyImportResult(false, null, preview, ["The .emp file could not be opened from the zip package."]);
+        }
+
+        if (historyEntry is null)
+        {
+            return new StarWinLegacyImportResult(false, null, preview, ["The history file could not be opened from the zip package."]);
         }
 
         var requestedSectorName = NormalizeSectorName(
@@ -301,17 +561,51 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 .ToDictionary(
                     group => group.Key,
                     group => group.Select(body => body.Role).ToHashSet());
+        var existingRaceIds = await dbContext.AlienRaces
+            .Select(race => race.Id)
+            .ToHashSetAsync(cancellationToken);
+        var existingEmpireIds = await dbContext.Empires
+            .Select(empire => empire.Id)
+            .ToHashSetAsync(cancellationToken);
+        var existingColonyWorldIds = await dbContext.Colonies
+            .Select(colony => colony.WorldId)
+            .ToHashSetAsync(cancellationToken);
+        var existingHistoryKeys = new HashSet<string>(StringComparer.Ordinal);
+        if (!isNewSector)
+        {
+            var existingHistory = await dbContext.HistoryEvents
+                .Where(history => history.SectorId == sectorId)
+                .ToListAsync(cancellationToken);
+            foreach (var history in existingHistory)
+            {
+                existingHistoryKeys.Add(BuildHistoryKey(history));
+            }
+        }
 
         var importedSystems = ReadStarSystems(sunEntry, sectorId, sectorPreview.StarSystemRecordCount)
             .ToList();
         var planets = ReadPlanetRecords(planetEntry).ToList();
         var moons = ReadMoonRecords(moonEntry).ToList();
+        var aliens = ReadAlienRecords(alienEntry).ToList();
+        var empires = ReadEmpireRecords(empireEntry).ToList();
+        var colonies = ReadColonyRecords(colonyEntry).ToList();
+        var contacts = ReadContactRecords(contactEntry).ToList();
+        var historyEvents = ReadHistoryEvents(historyEntry, sectorId, historyCsvFile is not null).ToList();
         var addedSystemCount = 0;
         var addedAstralBodyCount = 0;
         var addedWorldCount = 0;
         var addedMoonCount = 0;
+        var addedAlienCount = 0;
+        var addedEmpireCount = 0;
+        var addedColonyCount = 0;
+        var addedContactCount = 0;
+        var addedHistoryCount = 0;
         var skippedSystemCount = 0;
         var skippedWorldCount = 0;
+        var skippedAlienCount = 0;
+        var skippedEmpireCount = 0;
+        var skippedColonyCount = 0;
+        var skippedHistoryCount = 0;
 
         foreach (var systemImport in importedSystems)
         {
@@ -363,14 +657,66 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
         }
 
-        if (addedSystemCount > 0 || addedAstralBodyCount > 0 || addedWorldCount > 0)
+        foreach (var alienRecord in aliens)
+        {
+            if (!existingRaceIds.Add(alienRecord.LegacyId))
+            {
+                skippedAlienCount++;
+                continue;
+            }
+
+            dbContext.AlienRaces.Add(CreateAlienRace(alienRecord, sectorId));
+            addedAlienCount++;
+        }
+
+        foreach (var empireRecord in empires)
+        {
+            if (!existingEmpireIds.Add(empireRecord.LegacyId))
+            {
+                skippedEmpireCount++;
+                continue;
+            }
+
+            var empire = CreateEmpire(empireRecord, aliens, contacts, sectorId);
+            dbContext.Empires.Add(empire);
+            addedEmpireCount++;
+            addedContactCount += empire.Contacts.Count;
+        }
+
+        foreach (var colonyRecord in colonies)
+        {
+            var colony = CreateColony(colonyRecord, aliens, sectorId);
+            if (!existingWorldIds.Contains(colony.WorldId) || !existingColonyWorldIds.Add(colony.WorldId))
+            {
+                skippedColonyCount++;
+                continue;
+            }
+
+            dbContext.Colonies.Add(colony);
+            addedColonyCount++;
+        }
+
+        foreach (var historyEvent in historyEvents)
+        {
+            var historyKey = BuildHistoryKey(historyEvent);
+            if (!existingHistoryKeys.Add(historyKey))
+            {
+                skippedHistoryCount++;
+                continue;
+            }
+
+            dbContext.HistoryEvents.Add(historyEvent);
+            addedHistoryCount++;
+        }
+
+        if (addedSystemCount > 0 || addedAstralBodyCount > 0 || addedWorldCount > 0 || addedAlienCount > 0 || addedEmpireCount > 0 || addedColonyCount > 0 || addedHistoryCount > 0)
         {
             sector.History.Add(new HistoryEvent
             {
                 SectorId = sector.Id,
                 Century = 0,
                 EventType = "Legacy Import",
-                Description = $"Merged {addedSystemCount:N0} missing star systems, {addedAstralBodyCount:N0} missing astral bodies, and {addedWorldCount:N0} missing worlds from {packageName}. Existing records were not overwritten."
+                Description = $"Merged {addedSystemCount:N0} missing star systems, {addedAstralBodyCount:N0} missing astral bodies, {addedWorldCount:N0} missing worlds, {addedAlienCount:N0} alien races, {addedEmpireCount:N0} empires, {addedColonyCount:N0} colonies, and {addedHistoryCount:N0} history events from {packageName}. Existing records were not overwritten."
             });
         }
 
@@ -388,7 +734,8 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             [
                 $"{sector.Name} merged from {packageName}.",
                 $"Added {addedSystemCount:N0} star systems, {addedAstralBodyCount:N0} astral bodies, {addedWorldCount:N0} worlds, and {addedMoonCount:N0} moon satellites.",
-                $"Skipped {skippedSystemCount:N0} existing star systems and {skippedWorldCount:N0} existing worlds without overwriting."
+                $"Added {addedAlienCount:N0} alien races, {addedEmpireCount:N0} empires, {addedContactCount:N0} empire contacts, {addedColonyCount:N0} colonies, and {addedHistoryCount:N0} history events.",
+                $"Skipped {skippedSystemCount:N0} existing star systems, {skippedWorldCount:N0} existing worlds, {skippedAlienCount:N0} races, {skippedEmpireCount:N0} empires, {skippedColonyCount:N0} colonies, and {skippedHistoryCount:N0} history events without overwriting."
             ]);
     }
 
@@ -458,6 +805,12 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             messages.Add($"{starSystemRecordCount:N0} star system record(s) found in the .sun file.");
         }
 
+        AddRecordCountMessage(messages, files, ".aln", AlienRecordSize, "alien race");
+        AddRecordCountMessage(messages, files, ".emp", EmpireRecordSize, "empire");
+        AddRecordCountMessage(messages, files, ".col", ColonyRecordSize, "colony");
+        AddRecordCountMessage(messages, files, ".con", ContactRecordSize, "empire contact");
+        AddLineCountMessage(messages, archive, files, ".csv", "structured history event");
+
         return new StarWinLegacyImportSectorPreview(
             sectorFiles.Key,
             missingRequired.Count == 0,
@@ -467,6 +820,50 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             starSystemRecordCount,
             sampleStarSystems,
             messages);
+    }
+
+    private static void AddRecordCountMessage(
+        ICollection<string> messages,
+        IReadOnlyList<StarWinLegacyImportFileEntry> files,
+        string extension,
+        int recordSize,
+        string label)
+    {
+        var file = files.FirstOrDefault(file => string.Equals(file.Extension, extension, StringComparison.OrdinalIgnoreCase));
+        if (file is null || file.Length < recordSize)
+        {
+            return;
+        }
+
+        messages.Add($"{file.Length / recordSize:N0} {label} record(s) found in the {extension} file.");
+    }
+
+    private static void AddLineCountMessage(
+        ICollection<string> messages,
+        ZipArchive archive,
+        IReadOnlyList<StarWinLegacyImportFileEntry> files,
+        string extension,
+        string label)
+    {
+        var file = files.FirstOrDefault(file => string.Equals(file.Extension, extension, StringComparison.OrdinalIgnoreCase));
+        var entry = file is null ? null : archive.GetEntry(file.EntryName);
+        if (entry is null)
+        {
+            return;
+        }
+
+        using var stream = entry.Open();
+        using var reader = new StreamReader(stream, System.Text.Encoding.Latin1, detectEncodingFromByteOrderMarks: true);
+        var lineCount = 0;
+        while (reader.ReadLine() is not null)
+        {
+            lineCount++;
+        }
+
+        if (lineCount > 1)
+        {
+            messages.Add($"{lineCount - 1:N0} {label}(s) found in the {extension} file.");
+        }
     }
 
     private static IReadOnlyList<StarWinLegacyStarSystemPreview> ReadSampleStarSystems(
@@ -664,6 +1061,187 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         }
     }
 
+    private static IEnumerable<LegacyAlienImport> ReadAlienRecords(ZipArchiveEntry entry)
+    {
+        using var stream = entry.Open();
+        var buffer = new byte[AlienRecordSize];
+        var recordCount = (int)(entry.Length / AlienRecordSize);
+
+        for (var legacyId = 0; legacyId < recordCount; legacyId++)
+        {
+            if (!TryReadExact(stream, buffer))
+            {
+                yield break;
+            }
+
+            var attributes = buffer.Skip(30).Take(15).ToArray();
+            yield return new LegacyAlienImport(
+                legacyId,
+                BitConverter.ToInt32(buffer, 0),
+                buffer[4],
+                buffer[5],
+                buffer[6],
+                buffer[7],
+                buffer[8],
+                buffer[9],
+                buffer[10],
+                buffer[11],
+                buffer[12],
+                BitConverter.ToInt16(buffer, 14),
+                BitConverter.ToInt16(buffer, 16),
+                buffer.Skip(18).Take(12).ToArray(),
+                attributes,
+                buffer.Skip(45).Take(12).ToArray(),
+                buffer.Skip(57).Take(2).ToArray(),
+                buffer.Skip(59).Take(2).ToArray(),
+                buffer.Skip(61).Take(2).ToArray(),
+                buffer.Skip(63).Take(2).ToArray(),
+                buffer.Skip(65).Take(2).ToArray(),
+                buffer[67],
+                buffer[68],
+                buffer[69],
+                ReadDelphiShortString(buffer, 70, 20));
+        }
+    }
+
+    private static IEnumerable<LegacyColonyImport> ReadColonyRecords(ZipArchiveEntry entry)
+    {
+        using var stream = entry.Open();
+        var buffer = new byte[ColonyRecordSize];
+        var recordCount = (int)(entry.Length / ColonyRecordSize);
+
+        for (var legacyId = 0; legacyId < recordCount; legacyId++)
+        {
+            if (!TryReadExact(stream, buffer))
+            {
+                yield break;
+            }
+
+            yield return new LegacyColonyImport(
+                legacyId,
+                BitConverter.ToInt32(buffer, 0),
+                BitConverter.ToUInt16(buffer, 4),
+                BitConverter.ToUInt16(buffer, 6),
+                buffer[8],
+                buffer[9],
+                buffer[10],
+                buffer[11],
+                buffer[12],
+                buffer[13],
+                buffer[14],
+                buffer[15],
+                buffer[16],
+                BitConverter.ToUInt16(buffer, 18),
+                BitConverter.ToUInt16(buffer, 20),
+                buffer[22],
+                [buffer[23], buffer[24]],
+                buffer[25],
+                buffer[26]);
+        }
+    }
+
+    private static IEnumerable<LegacyEmpireImport> ReadEmpireRecords(ZipArchiveEntry entry)
+    {
+        using var stream = entry.Open();
+        var buffer = new byte[EmpireRecordSize];
+        var recordCount = (int)(entry.Length / EmpireRecordSize);
+
+        for (var legacyId = 0; legacyId < recordCount; legacyId++)
+        {
+            if (!TryReadExact(stream, buffer))
+            {
+                yield break;
+            }
+
+            var attributes = new int[13];
+            for (var index = 0; index < attributes.Length; index++)
+            {
+                attributes[index] = BitConverter.ToInt32(buffer, index * 4);
+            }
+
+            yield return new LegacyEmpireImport(legacyId, attributes);
+        }
+    }
+
+    private static IEnumerable<LegacyContactImport> ReadContactRecords(ZipArchiveEntry entry)
+    {
+        using var stream = entry.Open();
+        var buffer = new byte[ContactRecordSize];
+        var recordCount = (int)(entry.Length / ContactRecordSize);
+
+        for (var legacyId = 0; legacyId < recordCount; legacyId++)
+        {
+            if (!TryReadExact(stream, buffer))
+            {
+                yield break;
+            }
+
+            yield return new LegacyContactImport(
+                legacyId,
+                BitConverter.ToUInt16(buffer, 0),
+                BitConverter.ToUInt16(buffer, 2),
+                buffer[4],
+                buffer[5]);
+        }
+    }
+
+    private static IEnumerable<HistoryEvent> ReadHistoryEvents(ZipArchiveEntry entry, int sectorId, bool isCsv)
+    {
+        using var stream = entry.Open();
+        using var reader = new StreamReader(stream, System.Text.Encoding.Latin1, detectEncodingFromByteOrderMarks: true);
+
+        if (!isCsv)
+        {
+            while (reader.ReadLine() is { } line)
+            {
+                line = line.Trim();
+                if (line.Length == 0)
+                {
+                    continue;
+                }
+
+                yield return new HistoryEvent
+                {
+                    SectorId = sectorId,
+                    EventType = line.StartsWith("Info", StringComparison.OrdinalIgnoreCase) ? "Info" : "History",
+                    Description = Truncate(line, 1_200)
+                };
+            }
+
+            yield break;
+        }
+
+        _ = reader.ReadLine();
+        while (reader.ReadLine() is { } line)
+        {
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            var fields = SplitSemicolonCsvLine(line);
+            if (fields.Count < 7)
+            {
+                continue;
+            }
+
+            var legacyPlanetId = ParseNullableInt(fields[4]);
+            var legacySystemId = ParseNullableInt(fields[5]);
+            yield return new HistoryEvent
+            {
+                SectorId = sectorId,
+                Century = ParseInt(fields[0]),
+                EventType = string.IsNullOrWhiteSpace(fields[1]) ? "History" : fields[1].Trim(),
+                RaceId = ParseNullableInt(fields[2]),
+                OtherRaceId = ParseNullableInt(fields[3]),
+                EmpireId = ParseNullableInt(fields[2]),
+                PlanetId = legacyPlanetId is null ? null : BuildPlanetWorldId(sectorId, legacyPlanetId.Value),
+                StarSystemId = legacySystemId is null ? null : BuildStarSystemId(sectorId, legacySystemId.Value),
+                Description = Truncate(fields[6].Trim(), 1_200)
+            };
+        }
+    }
+
     private static List<World> BuildWorlds(
         LegacyStarSystemImport systemImport,
         IReadOnlyList<LegacyPlanetImport> planets,
@@ -714,6 +1292,185 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         }
 
         return worlds;
+    }
+
+    private static AlienRace CreateAlienRace(LegacyAlienImport record, int sectorId)
+    {
+        var name = string.IsNullOrWhiteSpace(record.Name)
+            ? $"Race {record.LegacyId}"
+            : record.Name;
+
+        return new AlienRace
+        {
+            Id = record.LegacyId,
+            HomePlanetId = BuildPlanetWorldId(sectorId, Math.Abs(record.HomePlanetId)),
+            Name = name,
+            EnvironmentType = Lookup(EnvironmentTypes, record.EnvironmentType, "Environment"),
+            BodyChemistry = Lookup(BodyChemistries, record.BodyType, "Body"),
+            GovernmentType = Lookup(GovernmentTypes, record.GovernmentType, "Government"),
+            BodyCoverType = Lookup(BodyCoverTypes, record.BodyCoverType, "Body cover"),
+            AppearanceType = Lookup(AppearanceTypes, record.AppearanceType, "Appearance"),
+            Diet = Lookup(DietTypes, record.DietType, "Diet"),
+            Reproduction = Lookup(ReproductionTypes, record.ReproductionType, "Reproduction"),
+            ReproductionMethod = Lookup(ReproductionMethodTypes, record.ReproductionMethodType, "Reproduction method"),
+            Religion = Lookup(ReligionTypes, record.ReligionType, "Religion"),
+            Devotion = record.Devotion,
+            DevotionLevel = record.Devotion switch
+            {
+                0 => AlienDevotionLevel.None,
+                <= 3 => AlienDevotionLevel.Poor,
+                <= 6 => AlienDevotionLevel.Fair,
+                <= 8 => AlienDevotionLevel.Good,
+                _ => AlienDevotionLevel.High
+            },
+            BiologyProfile = new AlienBiologyProfile
+            {
+                PsiPower = GetAttribute(record.Attributes, 7),
+                PsiRating = GetAttribute(record.Attributes, 7) switch
+                {
+                    0 => PsiPowerRating.None,
+                    <= 2 => PsiPowerRating.VeryPoor,
+                    <= 4 => PsiPowerRating.Poor,
+                    <= 6 => PsiPowerRating.Fair,
+                    <= 8 => PsiPowerRating.Good,
+                    _ => PsiPowerRating.Excellent
+                },
+                Body = GetAttribute(record.Attributes, 9),
+                Mind = GetAttribute(record.Attributes, 10),
+                Speed = GetAttribute(record.Attributes, 11),
+                Lifespan = GetAttribute(record.Attributes, 12)
+            },
+            MassKg = record.MassKg,
+            SizeCm = record.SizeCm,
+            LimbPairCount = record.LimbPairCount,
+            LegacyAttributes = record.Attributes
+        };
+    }
+
+    private static Empire CreateEmpire(
+        LegacyEmpireImport record,
+        IReadOnlyList<LegacyAlienImport> aliens,
+        IReadOnlyList<LegacyContactImport> contacts,
+        int sectorId)
+    {
+        var alien = aliens.FirstOrDefault(item => item.LegacyId == record.LegacyId);
+        var empire = new Empire
+        {
+            Id = record.LegacyId,
+            Name = string.IsNullOrWhiteSpace(alien?.Name) ? $"Empire {record.LegacyId}" : alien.Name,
+            LegacyRaceId = record.LegacyId,
+            CivilizationProfile = new CivilizationProfile
+            {
+                Militancy = GetAttribute(alien?.Attributes, 1),
+                Determination = GetAttribute(alien?.Attributes, 2),
+                RacialTolerance = GetAttribute(alien?.Attributes, 3),
+                Progressiveness = GetAttribute(alien?.Attributes, 4),
+                Loyalty = GetAttribute(alien?.Attributes, 5),
+                SocialCohesion = GetAttribute(alien?.Attributes, 6),
+                TechLevel = GetAttribute(alien?.Attributes, 8),
+                Art = GetAttribute(alien?.Attributes, 13),
+                Individualism = GetAttribute(alien?.Attributes, 14),
+                SpatialAge = GetAttribute(alien?.Attributes, 15)
+            },
+            EconomicPowerMcr = GetEmpireAttribute(record.Attributes, 1),
+            MilitaryPower = GetEmpireAttribute(record.Attributes, 2),
+            NativePopulationMillions = GetEmpireAttribute(record.Attributes, 3),
+            TradeBonusMcr = GetEmpireAttribute(record.Attributes, 4),
+            CaptivePopulationMillions = GetEmpireAttribute(record.Attributes, 5),
+            IndependentPopulationMillions = GetEmpireAttribute(record.Attributes, 6),
+            SubjectPopulationMillions = GetEmpireAttribute(record.Attributes, 7),
+            Planets = GetEmpireAttributeAsInt(record.Attributes, 8),
+            CaptivePlanets = GetEmpireAttributeAsInt(record.Attributes, 9),
+            SubjugatedPlanets = GetEmpireAttributeAsInt(record.Attributes, 10),
+            Moons = GetEmpireAttributeAsInt(record.Attributes, 11),
+            SubjugatedMoons = GetEmpireAttributeAsInt(record.Attributes, 12),
+            IndependentColonies = GetEmpireAttributeAsInt(record.Attributes, 13),
+            Founding = new EmpireFounding
+            {
+                Origin = EmpireOrigin.NativeHomeworld,
+                FoundingRaceId = record.LegacyId,
+                FoundingWorldId = alien is null ? null : BuildPlanetWorldId(sectorId, Math.Abs(alien.HomePlanetId))
+            }
+        };
+
+        empire.RaceMemberships.Add(new EmpireRaceMembership
+        {
+            EmpireId = empire.Id,
+            RaceId = record.LegacyId,
+            Role = EmpireRaceRole.Founder,
+            PopulationMillions = empire.NativePopulationMillions,
+            IsPrimary = true
+        });
+
+        foreach (var contact in contacts.Where(item => item.Empire1 == empire.Id || item.Empire2 == empire.Id))
+        {
+            empire.Contacts.Add(new EmpireContact
+            {
+                EmpireId = empire.Id,
+                OtherEmpireId = contact.Empire1 == empire.Id ? contact.Empire2 : contact.Empire1,
+                RelationCode = contact.Relation,
+                Relation = Lookup(RelationTypes, contact.Relation, "Relation"),
+                Age = contact.Age
+            });
+        }
+
+        return empire;
+    }
+
+    private static Colony CreateColony(LegacyColonyImport record, IReadOnlyList<LegacyAlienImport> aliens, int sectorId)
+    {
+        var worldKind = record.BodyType == 2 ? WorldKind.Moon : WorldKind.Planet;
+        var raceName = GetLegacyRaceName(aliens, record.RaceId);
+        var allegianceName = record.AllegianceId == ushort.MaxValue ? "Independent" : GetLegacyEmpireName(aliens, record.AllegianceId);
+        var colony = new Colony
+        {
+            Id = BuildColonyId(sectorId, record.LegacyId),
+            WorldId = worldKind == WorldKind.Moon
+                ? BuildMoonWorldId(sectorId, record.WorldId)
+                : BuildPlanetWorldId(sectorId, record.WorldId),
+            WorldKind = worldKind,
+            RaceId = record.RaceId,
+            ColonistRaceName = raceName,
+            AllegianceId = record.AllegianceId,
+            AllegianceName = allegianceName,
+            PoliticalStatus = GetColonyPoliticalStatus(record),
+            ControllingEmpireId = record.AllegianceId == ushort.MaxValue ? null : record.AllegianceId,
+            ParentEmpireId = record.RaceId,
+            FoundingEmpireId = record.RaceId,
+            EncodedPopulation = record.Population,
+            EstimatedPopulation = EstimatePopulation(record.Population),
+            NativePopulationPercent = record.PopulationComposition,
+            ColonyClassCode = record.ColonyClass,
+            ColonyClass = Lookup(ColonyClasses, record.ColonyClass, "Colony class"),
+            Crime = record.Crime,
+            Law = record.Law,
+            Stability = record.Stability,
+            AgeCenturies = record.Age,
+            StarportCode = record.Starport,
+            Starport = Lookup(StarportTypes, record.Starport, "Starport"),
+            GovernmentTypeCode = record.GovernmentType,
+            GovernmentType = Lookup(GovernmentTypes, record.GovernmentType, "Government"),
+            GrossWorldProductMcr = record.GrossWorldProductMcr,
+            MilitaryPower = record.MilitaryPower,
+            ExportResourceCode = record.ExportResource,
+            ExportResource = LookupZeroBased(EconomicResourceTypes, record.ExportResource, "Export"),
+            ImportResourceCode = record.ImportResource,
+            ImportResource = LookupZeroBased(EconomicResourceTypes, record.ImportResource, "Import")
+        };
+
+        colony.Demographics.Add(new ColonyDemographic
+        {
+            ColonyId = colony.Id,
+            RaceId = record.RaceId,
+            RaceName = raceName,
+            PopulationPercent = record.PopulationComposition,
+            Population = record.PopulationComposition <= 100
+                ? colony.EstimatedPopulation * record.PopulationComposition / 100
+                : colony.EstimatedPopulation
+        });
+
+        AddFacilities(colony.Facilities, record.FacilityFlags);
+        return colony;
     }
 
     private static World CreatePlanetWorld(
@@ -819,11 +1576,193 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         return sectorId * 1_000_000 + 500_000 + legacyMoonId + 1;
     }
 
+    private static int BuildStarSystemId(int sectorId, int legacySystemId)
+    {
+        return sectorId * 100_000 + legacySystemId + 1;
+    }
+
+    private static int BuildColonyId(int sectorId, int legacyColonyId)
+    {
+        return sectorId * 1_000_000 + 800_000 + legacyColonyId + 1;
+    }
+
     private static string Lookup(IReadOnlyList<string> values, byte legacyCode, string label)
     {
         return legacyCode >= 1 && legacyCode <= values.Count
             ? values[legacyCode - 1]
             : $"{label} {legacyCode}";
+    }
+
+    private static string LookupZeroBased(IReadOnlyList<string> values, byte legacyCode, string label)
+    {
+        return legacyCode < values.Count
+            ? values[legacyCode]
+            : $"{label} {legacyCode}";
+    }
+
+    private static byte GetAttribute(IReadOnlyList<byte>? attributes, int oneBasedIndex)
+    {
+        return attributes is not null && oneBasedIndex >= 1 && oneBasedIndex <= attributes.Count
+            ? attributes[oneBasedIndex - 1]
+            : (byte)0;
+    }
+
+    private static long GetEmpireAttribute(IReadOnlyList<int> attributes, int oneBasedIndex)
+    {
+        return oneBasedIndex >= 1 && oneBasedIndex <= attributes.Count
+            ? attributes[oneBasedIndex - 1]
+            : 0;
+    }
+
+    private static int GetEmpireAttributeAsInt(IReadOnlyList<int> attributes, int oneBasedIndex)
+    {
+        return (int)Math.Clamp(GetEmpireAttribute(attributes, oneBasedIndex), int.MinValue, int.MaxValue);
+    }
+
+    private static ColonyPoliticalStatus GetColonyPoliticalStatus(LegacyColonyImport record)
+    {
+        if (record.AllegianceId == ushort.MaxValue)
+        {
+            return ColonyPoliticalStatus.Independent;
+        }
+
+        if (record.AllegianceId == record.RaceId)
+        {
+            return ColonyPoliticalStatus.Controlled;
+        }
+
+        return ColonyPoliticalStatus.Subject;
+    }
+
+    private static long EstimatePopulation(byte encodedPopulation)
+    {
+        var factor = encodedPopulation / 10;
+        var multiplier = encodedPopulation - factor * 10;
+        var scale = factor switch
+        {
+            0 => 10_000L,
+            1 => 100_000L,
+            2 => 1_000_000L,
+            3 => 10_000_000L,
+            4 => 100_000_000L,
+            5 => 1_000_000_000L,
+            _ => 1_000_000_000L
+        };
+
+        var adjustedMultiplier = factor >= 6 ? (multiplier + 1) / 10m : multiplier + 1;
+        return (long)(adjustedMultiplier * scale);
+    }
+
+    private static void AddFacilities(IList<string> facilities, IReadOnlyList<byte> flags)
+    {
+        for (var byteIndex = 0; byteIndex < flags.Count; byteIndex++)
+        {
+            for (var bitIndex = 0; bitIndex < 8; bitIndex++)
+            {
+                if ((flags[byteIndex] & (1 << bitIndex)) == 0)
+                {
+                    continue;
+                }
+
+                var facilityIndex = byteIndex * 8 + bitIndex;
+                facilities.Add(facilityIndex < FacilityTypes.Length
+                    ? FacilityTypes[facilityIndex]
+                    : $"Facility {facilityIndex + 1}");
+            }
+        }
+    }
+
+    private static string GetLegacyRaceName(IReadOnlyList<LegacyAlienImport> aliens, int raceId)
+    {
+        var race = aliens.FirstOrDefault(item => item.LegacyId == raceId);
+        return race is not null && !string.IsNullOrWhiteSpace(race.Name)
+            ? race.Name
+            : $"Race {raceId}";
+    }
+
+    private static string GetLegacyEmpireName(IReadOnlyList<LegacyAlienImport> aliens, int empireId)
+    {
+        var race = aliens.FirstOrDefault(item => item.LegacyId == empireId);
+        return race is not null && !string.IsNullOrWhiteSpace(race.Name)
+            ? race.Name
+            : $"Empire {empireId}";
+    }
+
+    private static int ParseInt(string value)
+    {
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : 0;
+    }
+
+    private static int? ParseNullableInt(string value)
+    {
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static List<string> SplitSemicolonCsvLine(string line)
+    {
+        var fields = new List<string>();
+        var current = new System.Text.StringBuilder();
+        var inQuotes = false;
+
+        for (var index = 0; index < line.Length; index++)
+        {
+            var character = line[index];
+            if (character == '"')
+            {
+                if (inQuotes && index + 1 < line.Length && line[index + 1] == '"')
+                {
+                    current.Append('"');
+                    index++;
+                    continue;
+                }
+
+                inQuotes = !inQuotes;
+                continue;
+            }
+
+            if (character == ';' && !inQuotes)
+            {
+                fields.Add(current.ToString());
+                current.Clear();
+                continue;
+            }
+
+            current.Append(character);
+        }
+
+        fields.Add(current.ToString());
+        return fields;
+    }
+
+    private static string Truncate(string value, int maxLength)
+    {
+        return value.Length <= maxLength ? value : value[..maxLength];
+    }
+
+    private static string BuildHistoryKey(HistoryEvent history)
+    {
+        return string.Concat(
+            history.Century,
+            "|",
+            history.EventType,
+            "|",
+            history.RaceId,
+            "|",
+            history.OtherRaceId,
+            "|",
+            history.EmpireId,
+            "|",
+            history.ColonyId,
+            "|",
+            history.PlanetId,
+            "|",
+            history.StarSystemId,
+            "|",
+            history.Description);
     }
 
     private static string BuildWorldName(string legacyName, string fallback)
@@ -965,4 +1904,63 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         byte[] MineralResources,
         byte MiscellaneousFlags,
         string Name);
+
+    private sealed record LegacyAlienImport(
+        int LegacyId,
+        int HomePlanetId,
+        byte EnvironmentType,
+        byte BodyType,
+        byte LimbPairCount,
+        byte DietType,
+        byte ReproductionType,
+        byte ReproductionMethodType,
+        byte GovernmentType,
+        byte BodyCoverType,
+        byte AppearanceType,
+        short MassKg,
+        short SizeCm,
+        byte[] LimbTypes,
+        byte[] Attributes,
+        byte[] AbilityFlags,
+        byte[] ColorFlags,
+        byte[] HairColorFlags,
+        byte[] BodyCharacteristicFlags,
+        byte[] EyeColorFlags,
+        byte[] EyeCharacteristicFlags,
+        byte HairType,
+        byte ReligionType,
+        byte Devotion,
+        string Name);
+
+    private sealed record LegacyColonyImport(
+        int LegacyId,
+        int WorldId,
+        ushort RaceId,
+        ushort AllegianceId,
+        byte BodyType,
+        byte Population,
+        byte ColonyClass,
+        byte Crime,
+        byte Law,
+        byte Stability,
+        byte Age,
+        byte Starport,
+        byte GovernmentType,
+        ushort GrossWorldProductMcr,
+        ushort MilitaryPower,
+        byte PopulationComposition,
+        byte[] FacilityFlags,
+        byte ExportResource,
+        byte ImportResource);
+
+    private sealed record LegacyEmpireImport(
+        int LegacyId,
+        int[] Attributes);
+
+    private sealed record LegacyContactImport(
+        int LegacyId,
+        ushort Empire1,
+        ushort Empire2,
+        byte Relation,
+        byte Age);
 }
