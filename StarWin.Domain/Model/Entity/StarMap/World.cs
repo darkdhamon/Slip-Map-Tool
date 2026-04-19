@@ -6,6 +6,10 @@ public class World
 
     public WorldKind Kind { get; set; }
 
+    public int? LegacyPlanetId { get; set; }
+
+    public int? LegacyMoonId { get; set; }
+
     public int? StarSystemId { get; set; }
 
     public int? ParentWorldId { get; set; }

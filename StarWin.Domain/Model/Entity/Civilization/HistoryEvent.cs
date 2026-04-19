@@ -2,6 +2,8 @@ namespace StarWin.Domain.Model.Entity.Civilization;
 
 public sealed class HistoryEvent
 {
+    public int? SectorId { get; set; }
+
     public int Century { get; set; }
 
     public string EventType { get; set; } = string.Empty;
@@ -9,6 +11,10 @@ public sealed class HistoryEvent
     public int? RaceId { get; set; }
 
     public int? OtherRaceId { get; set; }
+
+    public int? EmpireId { get; set; }
+
+    public int? ColonyId { get; set; }
 
     public int? PlanetId { get; set; }
 

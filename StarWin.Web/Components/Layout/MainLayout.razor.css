@@ -1,0 +1,34 @@
+.page {
+    min-height: 100vh;
+}
+
+.site-main {
+    min-height: calc(100vh - 72px);
+}
+
+#blazor-error-ui {
+    color-scheme: dark;
+    background: #7f1d1d;
+    bottom: 0;
+    box-shadow: 0 -1px 16px rgba(0, 0, 0, 0.38);
+    box-sizing: border-box;
+    color: #fff;
+    display: none;
+    left: 0;
+    padding: 0.75rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui a {
+    color: #fff;
+    font-weight: 700;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.55rem;
+}

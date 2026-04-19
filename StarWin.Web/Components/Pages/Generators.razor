@@ -1,0 +1,46 @@
+@page "/generators"
+@rendermode InteractiveServer
+@inject IStarWinWorkspace Workspace
+
+<PageTitle>Generators - Starforged Atlas</PageTitle>
+
+<section class="explorer-page">
+    <header class="explorer-hero compact-hero">
+        <div class="hero-copy">
+            <p class="eyebrow">Generators</p>
+            <h1>Civilization and force planning tools.</h1>
+            <p class="hero-summary">Simulation settings and army generation controls live here apart from the sector archive.</p>
+        </div>
+    </header>
+
+    <section class="generator-layout">
+        <article class="detail-panel">
+            <span class="panel-kicker">Civilization generator</span>
+            <h2>Simulation settings</h2>
+            <div class="form-grid">
+                <label>Sector path <input @bind="Workspace.CivilizationSettings.SectorPath" /></label>
+                <label>Victory value <input type="number" step="0.01" @bind="Workspace.CivilizationSettings.VictoryValue" /></label>
+                <label>Military bonus <input type="number" @bind="Workspace.CivilizationSettings.MilitaryBonus" /></label>
+                <label>Century number <input type="number" @bind="Workspace.CivilizationSettings.CenturyNumber" /></label>
+                <label>Random event factor <input type="number" @bind="Workspace.CivilizationSettings.RandomEventFactor" /></label>
+            </div>
+            <div class="toggle-grid">
+                <label><input type="checkbox" @bind="Workspace.CivilizationSettings.EnableLowTechnologyPass" /> TL 1 pass</label>
+                <label><input type="checkbox" @bind="Workspace.CivilizationSettings.EnableRandomEvents" /> Random events</label>
+                <label><input type="checkbox" @bind="Workspace.CivilizationSettings.CompactEmpires" /> Compact empires</label>
+                <label><input type="checkbox" @bind="Workspace.CivilizationSettings.LiberateAlliedWorlds" /> Liberation</label>
+            </div>
+        </article>
+
+        <article class="detail-panel">
+            <span class="panel-kicker">Army generator</span>
+            <h2>Force planning</h2>
+            <div class="form-grid">
+                <label>Credits <input type="number" @bind="Workspace.ArmySettings.Credits" /></label>
+                <label>Militancy <input type="number" @bind="Workspace.ArmySettings.Militancy" /></label>
+                <label>Technology level <input type="number" @bind="Workspace.ArmySettings.TechnologyLevel" /></label>
+                <label>Colonies <input type="number" @bind="Workspace.ArmySettings.Colonies" /></label>
+            </div>
+        </article>
+    </section>
+</section>

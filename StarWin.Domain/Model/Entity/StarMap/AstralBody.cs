@@ -2,6 +2,8 @@ namespace StarWin.Domain.Model.Entity.StarMap;
 
 public class AstralBody
 {
+    public int Id { get; set; }
+
     public AstralBodyRole Role { get; set; }
 
     public AstralBodyKind Kind { get; set; } = AstralBodyKind.Unknown;

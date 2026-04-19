@@ -59,6 +59,8 @@ public sealed class Colony
 
     public byte NativePopulationPercent { get; set; }
 
+    public IList<ColonyDemographic> Demographics { get; } = new List<ColonyDemographic>();
+
     public string ColonyClass { get; set; } = string.Empty;
 
     public byte ColonyClassCode { get; set; }

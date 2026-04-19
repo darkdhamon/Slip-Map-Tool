@@ -1,0 +1,56 @@
+@page "/about"
+
+<PageTitle>About Starforged Atlas</PageTitle>
+
+<section class="about-page">
+    <header class="about-hero">
+        <p class="eyebrow">About</p>
+        <h1>Starforged Atlas is a modern RPG sector atlas built from the classic StarWin sector tools.</h1>
+        <p>
+            This application is being built to preserve and extend the data that StarWin could generate and browse:
+            star systems, worlds, moons, colonies, alien races, empires, military profiles, civilization history,
+            GURPS-ready campaign material, and eventually slip map data in the same project.
+        </p>
+    </header>
+
+    <section class="about-grid">
+        <article class="detail-panel">
+            <span class="panel-kicker">Purpose</span>
+            <h2>What this app is</h2>
+            <p>
+                Starforged Atlas is not a pixel-for-pixel clone of the original desktop interface. It is a domain-first
+                .NET and Blazor application designed to display the same kinds of information in a clearer, searchable,
+                database-backed website.
+            </p>
+            <p>
+                The current development version can browse seeded sectors, systems, worlds, colonies, races, and empires.
+                The project direction is to support importing StarWin 2 data and combine it with the Slip Map tool.
+            </p>
+        </article>
+
+        <article class="detail-panel">
+            <span class="panel-kicker">Original work</span>
+            <h2>StarWin attribution</h2>
+            <p>
+                The original StarWin application was <strong>Star Generator for Windows</strong>. The legacy source
+                included with this repository identifies the original author as <strong>Aina Rasolomalala</strong>,
+                with copyright years <strong>1996-2001</strong>.
+            </p>
+            <p>
+                This new application is a separate modernization effort that uses the original StarWin behavior and
+                file formats as reference material while building a new domain model, persistence layer, and web UI.
+            </p>
+        </article>
+
+        <article class="detail-panel">
+            <span class="panel-kicker">Architecture</span>
+            <h2>How it is being rebuilt</h2>
+            <dl class="data-list">
+                <div><dt>Domain</dt><dd>Star map, civilization, military, legacy import models</dd></div>
+                <div><dt>Application</dt><dd>Browsing and search contracts</dd></div>
+                <div><dt>Infrastructure</dt><dd>SQL LocalDB, EF Core, migrations, seed data</dd></div>
+                <div><dt>Web</dt><dd>Blazor presentation and navigation</dd></div>
+            </dl>
+        </article>
+    </section>
+</section>

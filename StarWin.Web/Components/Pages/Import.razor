@@ -1,0 +1,268 @@
+@page "/import"
+@rendermode InteractiveServer
+@inject IStarWinLegacyImportService LegacyImportService
+@inject NavigationManager Navigation
+
+<PageTitle>Import - Starforged Atlas</PageTitle>
+
+<section class="explorer-page">
+    <header class="explorer-hero compact-hero">
+        <div class="hero-copy">
+            <p class="eyebrow">Import</p>
+            <h1>Bring legacy sectors and slip maps into the new archive.</h1>
+            <p class="hero-summary">Load StarWin 2 sector data, legacy export packages, and Slip Map JSON into the shared Starforged Atlas workspace.</p>
+        </div>
+    </header>
+
+    <section class="import-layout">
+        <article class="detail-panel">
+            <span class="panel-kicker">Source</span>
+            <h2>Import package</h2>
+            <div class="segmented-control" role="group" aria-label="Import source">
+                @foreach (var source in importSources)
+                {
+                    <button type="button" class="@(selectedSource == source.Key ? "active" : null)" @onclick="() => selectedSource = source.Key">@source.Label</button>
+                }
+            </div>
+
+            <div class="import-dropzone">
+                <span>@SelectedSourceLabel</span>
+                <InputFile OnChange="CaptureSelectedFile" accept="@AcceptedFileTypes" />
+                @if (!string.IsNullOrWhiteSpace(selectedFileName))
+                {
+                    <strong>@selectedFileName</strong>
+                }
+            </div>
+
+            <div class="form-grid">
+                <label>Import name <input @bind="importName" /></label>
+                <label>Target sector <input @bind="targetSectorName" /></label>
+            </div>
+        </article>
+
+        <article class="detail-panel">
+            <span class="panel-kicker">Options</span>
+            <h2>Merge behavior</h2>
+            <div class="toggle-grid">
+                <label><input type="checkbox" @bind="createMissingSectors" /> Create missing sectors</label>
+                <label><input type="checkbox" @bind="preserveLegacyIds" /> Preserve legacy ids</label>
+                <label><input type="checkbox" @bind="previewOnly" /> Preview only</label>
+                <label><input type="checkbox" @bind="includeSlipMapLinks" /> Link slip map data</label>
+            </div>
+
+            <div class="parent-actions import-actions">
+                <button type="button" @onclick="PrepareImportPreview">Preview import</button>
+                <button type="button" @onclick="ImportPackage">Import</button>
+            </div>
+        </article>
+
+        <article class="detail-panel import-status-panel">
+            <span class="panel-kicker">Status</span>
+            <h2>@statusTitle</h2>
+            <dl class="field-grid">
+                <div><dt>Source</dt><dd>@SelectedSourceLabel</dd></div>
+                <div><dt>File</dt><dd>@(selectedFileName ?? "None selected")</dd></div>
+                <div><dt>Mode</dt><dd>@(previewOnly ? "Preview" : "Import")</dd></div>
+            </dl>
+            <p>@statusMessage</p>
+
+            @if (starWinPreview is not null)
+            {
+                <section class="relationship-section">
+                    <h3>Detected StarWin sectors</h3>
+                    @foreach (var sector in starWinPreview.Sectors)
+                    {
+                        <article class="import-preview-card">
+                            <div class="timeline-event-header">
+                                <strong>@sector.SectorName</strong>
+                                <span class="timeline-century">@(sector.CanImport ? "Ready" : "Needs files")</span>
+                            </div>
+                            @foreach (var message in sector.Messages)
+                            {
+                                <p>@message</p>
+                            }
+                            @if (sector.SampleStarSystems.Count > 0)
+                            {
+                                <section class="relationship-section">
+                                    <h3>Sample star systems</h3>
+                                    <div class="import-sample-grid">
+                                        @foreach (var system in sector.SampleStarSystems)
+                                        {
+                                            <article>
+                                                <span>#@system.LegacyId</span>
+                                                <strong>@system.Name</strong>
+                                                <dl class="data-list">
+                                                    <div><dt>Coordinates</dt><dd>@system.X, @system.Y, @system.Z</dd></div>
+                                                    <div><dt>Stars</dt><dd>@system.StarCount</dd></div>
+                                                    <div><dt>Planets</dt><dd>@string.Join(", ", system.PlanetCounts)</dd></div>
+                                                    <div><dt>Spectral codes</dt><dd>@string.Join(", ", system.SpectralClasses)</dd></div>
+                                                    <div><dt>Allegiance</dt><dd>@DisplayAllegiance(system.AllegianceId)</dd></div>
+                                                </dl>
+                                            </article>
+                                        }
+                                    </div>
+                                </section>
+                            }
+                            <div class="import-file-grid">
+                                @foreach (var file in sector.Files)
+                                {
+                                    <div>
+                                        <span>@file.Extension</span>
+                                        <strong>@file.FileName</strong>
+                                        <small>@DisplayBytes(file.Length)</small>
+                                    </div>
+                                }
+                            </div>
+                        </article>
+                    }
+                </section>
+
+                @if (starWinPreview.UnmatchedFiles.Count > 0)
+                {
+                    <section class="relationship-section">
+                        <h3>Unmatched files</h3>
+                        <div class="import-file-grid">
+                            @foreach (var file in starWinPreview.UnmatchedFiles)
+                            {
+                                <div>
+                                    <span>@(file.IsRecognized ? file.Extension : "Ignored")</span>
+                                    <strong>@file.FileName</strong>
+                                    <small>@DisplayBytes(file.Length)</small>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                }
+            }
+        </article>
+    </section>
+</section>
+
+@code {
+    private readonly ImportSource[] importSources =
+    [
+        new("starwin-files", "StarWin 2 files"),
+        new("starwin-json", "StarWin JSON"),
+        new("slipmap-json", "Slip Map JSON")
+    ];
+
+    private string selectedSource = "starwin-files";
+    private string importName = "Legacy sector import";
+    private string targetSectorName = string.Empty;
+    private string? selectedFileName;
+    private bool createMissingSectors = true;
+    private bool preserveLegacyIds = true;
+    private bool previewOnly = true;
+    private bool includeSlipMapLinks = true;
+    private string statusTitle = "Ready";
+    private string statusMessage = "Select an import package to prepare a validation preview.";
+    private StarWinLegacyImportPreview? starWinPreview;
+    private IBrowserFile? selectedFile;
+
+    private string SelectedSourceLabel => importSources.First(source => source.Key == selectedSource).Label;
+
+    private string AcceptedFileTypes => selectedSource switch
+    {
+        "starwin-files" => ".zip,application/zip,application/x-zip-compressed",
+        "starwin-json" or "slipmap-json" => ".json,application/json",
+        _ => string.Empty
+    };
+
+    private async Task CaptureSelectedFile(InputFileChangeEventArgs args)
+    {
+        var file = args.File;
+        selectedFile = file;
+        selectedFileName = file.Name;
+        starWinPreview = null;
+        statusTitle = "Package selected";
+        statusMessage = $"{file.Name} is ready for validation.";
+    }
+
+    private async Task PrepareImportPreview()
+    {
+        if (selectedFile is null)
+        {
+            statusTitle = previewOnly ? "Preview queued" : "Import queued";
+            statusMessage = "No package has been selected yet.";
+            return;
+        }
+
+        if (selectedSource == "starwin-files")
+        {
+            try
+            {
+                await using var stream = selectedFile.OpenReadStream(512 * 1024 * 1024);
+                starWinPreview = await LegacyImportService.PreviewStarWinZipAsync(stream, selectedFile.Name);
+                if (starWinPreview.Sectors.Count > 0 && string.IsNullOrWhiteSpace(targetSectorName))
+                {
+                    targetSectorName = starWinPreview.Sectors[0].SectorName;
+                }
+
+                statusTitle = starWinPreview.CanImport ? "StarWin preview ready" : "StarWin package needs review";
+                statusMessage = starWinPreview.Sectors.Count == 0
+                    ? string.Join(" ", starWinPreview.Messages)
+                    : $"{starWinPreview.Sectors.Count} sector file group(s) detected. Sample records are shown below.";
+            }
+            catch (Exception exception)
+            {
+                statusTitle = "Preview failed";
+                statusMessage = exception.Message;
+            }
+
+            return;
+        }
+
+        statusTitle = previewOnly ? "Preview queued" : "Import queued";
+        statusMessage = $"{SelectedSourceLabel} package '{selectedFile.Name}' is staged for the import pipeline.";
+    }
+
+    private async Task ImportPackage()
+    {
+        if (selectedFile is null)
+        {
+            statusTitle = "Import blocked";
+            statusMessage = "No package has been selected yet.";
+            return;
+        }
+
+        if (selectedSource != "starwin-files")
+        {
+            statusTitle = "Import blocked";
+            statusMessage = "Only StarWin 2 zip imports are wired for persistence right now.";
+            return;
+        }
+
+        try
+        {
+            await using var stream = selectedFile.OpenReadStream(512 * 1024 * 1024);
+            var result = await LegacyImportService.ImportStarWinZipAsync(stream, selectedFile.Name, targetSectorName);
+            starWinPreview = result.Preview;
+            statusTitle = result.Success ? "Import complete" : "Import failed";
+            statusMessage = string.Join(" ", result.Messages);
+
+            if (result.Success && result.SectorId is int sectorId)
+            {
+                Navigation.NavigateTo($"/?sectorId={sectorId}", forceLoad: true);
+            }
+        }
+        catch (Exception exception)
+        {
+            statusTitle = "Import failed";
+            statusMessage = exception.Message;
+        }
+    }
+
+    private static string DisplayBytes(long bytes)
+    {
+        return bytes >= 1024 * 1024
+            ? $"{bytes / 1024m / 1024m:0.#} MB"
+            : $"{bytes / 1024m:0.#} KB";
+    }
+
+    private static string DisplayAllegiance(ushort allegianceId)
+    {
+        return allegianceId == ushort.MaxValue ? "Independent" : allegianceId.ToString();
+    }
+
+    private sealed record ImportSource(string Key, string Label);
+}
