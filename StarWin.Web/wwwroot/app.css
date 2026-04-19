@@ -479,6 +479,29 @@ dd {
     line-height: 1.55;
 }
 
+.timeline-load-more {
+    display: flex;
+    justify-content: center;
+    min-height: 72px;
+    padding: 12px 0 24px;
+}
+
+.timeline-load-more button {
+    align-self: start;
+    border: 1px solid rgba(56, 189, 248, 0.42);
+    border-radius: 6px;
+    background: rgba(14, 165, 233, 0.18);
+    color: #ecfeff;
+    padding: 10px 14px;
+    font-weight: 900;
+    letter-spacing: 0;
+}
+
+.timeline-load-more button:hover {
+    border-color: var(--accent);
+    background: rgba(14, 165, 233, 0.32);
+}
+
 .timeline-event-header {
     display: flex;
     flex-wrap: wrap;
@@ -559,6 +582,34 @@ dd {
     background: #000;
     box-shadow: var(--shadow), var(--glow);
     touch-action: none;
+}
+
+.map-request-panel {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    display: grid;
+    gap: 12px;
+    width: min(460px, calc(100% - 40px));
+    transform: translate(-50%, -50%);
+    border: 1px solid rgba(125, 211, 252, 0.28);
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.82);
+    box-shadow: var(--shadow), var(--glow);
+    padding: 24px;
+    text-align: left;
+}
+
+.map-request-panel h2 {
+    margin: 0;
+    color: #f8fbff;
+    font-size: 1.5rem;
+}
+
+.map-request-panel p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.6;
 }
 
 .sector-map-three:fullscreen {
@@ -784,6 +835,42 @@ dd {
 .record-list {
     display: grid;
     gap: 12px;
+}
+
+.record-filter-panel {
+    display: grid;
+    gap: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(3, 10, 24, 0.72);
+    padding: 12px;
+}
+
+.record-filter-panel label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.record-filter-panel input,
+.record-filter-panel select {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 38px;
+    border: 1px solid rgba(125, 211, 252, 0.38);
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.76);
+    color: var(--ink);
+    padding: 8px 10px;
+    outline: none;
+}
+
+.record-filter-panel input:focus,
+.record-filter-panel select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
 }
 
 .feature-panel,

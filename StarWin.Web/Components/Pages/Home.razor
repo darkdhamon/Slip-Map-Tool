@@ -9,21 +9,24 @@
 
 @{
     var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+    var sectorCache = GetSectorCache(sector);
     var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
     var selectedHabitat = selectedSystem?.SpaceHabitats.FirstOrDefault(habitat => habitat.Id == selectedHabitatId);
     var selectedWorld = selectedHabitat is null
         ? selectedSystem?.Worlds.FirstOrDefault(world => world.Id == selectedWorldId) ?? selectedSystem?.Worlds.FirstOrDefault()
         : null;
-    var sectorWorlds = sector.Systems.SelectMany(system => system.Worlds).ToList();
-    var sectorColonies = sectorWorlds.Where(world => world.Colony is not null).Select(world => (World: world, Colony: world.Colony!)).ToList();
-    var sectorRaceIds = GetSectorRaceIds(sector, sectorWorlds, sectorColonies);
-    var sectorEmpireIds = GetSectorEmpireIds(sector, sectorWorlds, sectorColonies);
+    var sectorWorlds = sectorCache.Worlds;
+    var sectorColonies = sectorCache.Colonies;
+    var sectorRaceIds = sectorCache.RaceIds;
+    var sectorEmpireIds = sectorCache.EmpireIds;
     var sectorRaces = Workspace.AlienRaces.Where(race => sectorRaceIds.Contains(race.Id)).OrderBy(race => race.Name).ToList();
     var sectorEmpires = Workspace.Empires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
     var selectedRace = sectorRaces.FirstOrDefault(race => race.Id == selectedRaceId) ?? sectorRaces.FirstOrDefault();
     var selectedEmpire = sectorEmpires.FirstOrDefault(empire => empire.Id == selectedEmpireId) ?? sectorEmpires.FirstOrDefault();
     var selectedColony = selectedWorld?.Colony ?? sectorColonies.FirstOrDefault().Colony;
-    var selectedColonyWorld = selectedColony is null ? null : sectorWorlds.FirstOrDefault(world => world.Id == selectedColony.WorldId);
+    var selectedColonyWorld = selectedColony is null || !sectorCache.WorldsById.TryGetValue(selectedColony.WorldId, out var colonyWorld)
+        ? null
+        : colonyWorld;
 }
 
 <PageTitle>Starforged Atlas</PageTitle>
@@ -121,45 +124,57 @@
         case "Overview":
             <section class="overview-layout">
                 <div class="sector-map-three" @ref="sectorMapElement" aria-label="interactive 3D sector map">
-                    <div class="map-hud">
-                        <span>3D Sector Map</span>
-                        <strong>@sector.Name</strong>
-                        <small>@GetSectorMapSystemCount(sector, selectedSystem) of @sector.Systems.Count systems within @sectorMapViewDistanceParsecs parsecs@(IsSectorMapCapped(sector, selectedSystem) ? " (closest 1,000 shown)" : string.Empty)</small>
-                        <small>@GetSectorMapRouteCount(sector, selectedSystem) @GetHyperlaneTierName(sector) hyperlanes within @Format(GetHyperlaneRouteDistanceParsecs(sector)) parsecs</small>
-                        <label class="map-distance-control">
-                            <span>View distance</span>
-                            <input type="range"
-                                   min="@DefaultSectorMapViewDistanceParsecs"
-                                   max="@GetSectorMapMaximumViewDistance(sector)"
-                                   step="1"
-                                   @bind="sectorMapViewDistanceParsecs"
-                                   @bind:event="oninput" />
-                            <strong>@sectorMapViewDistanceParsecs pc</strong>
-                        </label>
-                    </div>
-                    <button type="button" class="map-fullscreen-button" @onclick="ToggleSectorMapFullscreen">
-                        <span class="enter-fullscreen">Full screen</span>
-                        <span class="exit-fullscreen">Exit full screen</span>
-                    </button>
-                    <div class="map-controls-hint">
-                        <span>Drag rotate</span>
-                        <span>WASD/QE rotate</span>
-                        <span>Wheel zoom</span>
-                        <span>Right-drag pan</span>
-                    </div>
-                    @if (selectedSystem is not null)
+                    @if (!sectorMapRequested)
                     {
-                        <article class="fullscreen-system-overlay">
-                            <span class="panel-kicker">Current system</span>
-                            <h2>@selectedSystem.Name</h2>
-                            <dl class="data-list">
-                                <div><dt>Coordinates</dt><dd>@DisplayCoordinates(selectedSystem.Coordinates)</dd></div>
-                                <div><dt>Allegiance</dt><dd>@DisplayAllegiance(selectedSystem.AllegianceId)</dd></div>
-                                <div><dt>Astral bodies</dt><dd>@selectedSystem.AstralBodies.Count</dd></div>
-                                <div><dt>Worlds</dt><dd>@selectedSystem.Worlds.Count</dd></div>
-                            </dl>
-                            <button type="button" class="overlay-action" @onclick="OpenSelectedSystemRecord">Open system record</button>
+                        <article class="map-request-panel">
+                            <span class="panel-kicker">3D Sector Map</span>
+                            <h2>@sector.Name</h2>
+                            <p>The interactive map is available on request so large imported sectors do not slow down the explorer while you browse records.</p>
+                            <button type="button" class="overlay-action" @onclick="LoadSectorMap">Load 3D map</button>
                         </article>
+                    }
+                    else
+                    {
+                        <div class="map-hud">
+                            <span>3D Sector Map</span>
+                            <strong>@sector.Name</strong>
+                            <small>@GetSectorMapSystemCount(sector, selectedSystem) of @sector.Systems.Count systems within @sectorMapViewDistanceParsecs parsecs@(IsSectorMapCapped(sector, selectedSystem) ? " (closest 1,000 shown)" : string.Empty)</small>
+                            <small>@GetSectorMapRouteCount(sector, selectedSystem) @GetHyperlaneTierName(sector) hyperlanes within @Format(GetHyperlaneRouteDistanceParsecs(sector)) parsecs</small>
+                            <label class="map-distance-control">
+                                <span>View distance</span>
+                                <input type="range"
+                                       min="@DefaultSectorMapViewDistanceParsecs"
+                                       max="@GetSectorMapMaximumViewDistance(sector)"
+                                       step="1"
+                                       @bind="sectorMapViewDistanceParsecs"
+                                       @bind:event="oninput" />
+                                <strong>@sectorMapViewDistanceParsecs pc</strong>
+                            </label>
+                        </div>
+                        <button type="button" class="map-fullscreen-button" @onclick="ToggleSectorMapFullscreen">
+                            <span class="enter-fullscreen">Full screen</span>
+                            <span class="exit-fullscreen">Exit full screen</span>
+                        </button>
+                        <div class="map-controls-hint">
+                            <span>Drag rotate</span>
+                            <span>WASD/QE rotate</span>
+                            <span>Wheel zoom</span>
+                            <span>Right-drag pan</span>
+                        </div>
+                        @if (selectedSystem is not null)
+                        {
+                            <article class="fullscreen-system-overlay">
+                                <span class="panel-kicker">Current system</span>
+                                <h2>@selectedSystem.Name</h2>
+                                <dl class="data-list">
+                                    <div><dt>Coordinates</dt><dd>@DisplayCoordinates(selectedSystem.Coordinates)</dd></div>
+                                    <div><dt>Allegiance</dt><dd>@DisplayAllegiance(selectedSystem.AllegianceId)</dd></div>
+                                    <div><dt>Astral bodies</dt><dd>@selectedSystem.AstralBodies.Count</dd></div>
+                                    <div><dt>Worlds</dt><dd>@selectedSystem.Worlds.Count</dd></div>
+                                </dl>
+                                <button type="button" class="overlay-action" @onclick="OpenSelectedSystemRecord">Open system record</button>
+                            </article>
+                        }
                     }
                 </div>
 
@@ -200,12 +215,13 @@
                         Search
                         <input placeholder="Event, system, race, colony..."
                                @bind="timelineQuery"
-                               @bind:event="oninput" />
+                               @bind:event="oninput"
+                               @bind:after="ResetTimelineWindow" />
                     </label>
                     <label>
                         Race
-                        <select @bind="timelineRaceId">
-                            <option value="0">All races</option>
+                        <select @bind="timelineRaceId" @bind:after="ResetTimelineWindow">
+                            <option value="@TimelineAllFilterId">All races</option>
                             @foreach (var race in sectorRaces)
                             {
                                 <option value="@race.Id">@race.Name</option>
@@ -214,8 +230,8 @@
                     </label>
                     <label>
                         Empire
-                        <select @bind="timelineEmpireId">
-                            <option value="0">All empires</option>
+                        <select @bind="timelineEmpireId" @bind:after="ResetTimelineWindow">
+                            <option value="@TimelineAllFilterId">All empires</option>
                             @foreach (var empire in sectorEmpires)
                             {
                                 <option value="@empire.Id">@empire.Name</option>
@@ -224,9 +240,9 @@
                     </label>
                     <label>
                         Colony
-                        <select @bind="timelineColonyId">
-                            <option value="0">All colonies</option>
-                            @foreach (var item in sectorColonies.OrderBy(item => item.World.Name))
+                        <select @bind="timelineColonyId" @bind:after="ResetTimelineWindow">
+                            <option value="@TimelineAllFilterId">All colonies</option>
+                            @foreach (var item in sectorCache.ColoniesByWorldName)
                             {
                                 <option value="@item.Colony.Id">@item.Colony.ColonyClass on @item.World.Name</option>
                             }
@@ -234,8 +250,8 @@
                     </label>
                     <label>
                         System
-                        <select @bind="timelineSystemId">
-                            <option value="0">All systems</option>
+                        <select @bind="timelineSystemId" @bind:after="ResetTimelineWindow">
+                            <option value="@TimelineAllFilterId">All systems</option>
                             @foreach (var system in sector.Systems.OrderBy(system => system.Name))
                             {
                                 <option value="@system.Id">@system.Name</option>
@@ -244,9 +260,9 @@
                     </label>
                     <label>
                         World
-                        <select @bind="timelineWorldId">
-                            <option value="0">All worlds</option>
-                            @foreach (var world in sectorWorlds.OrderBy(world => world.Name))
+                        <select @bind="timelineWorldId" @bind:after="ResetTimelineWindow">
+                            <option value="@TimelineAllFilterId">All worlds</option>
+                            @foreach (var world in sectorCache.WorldsByName)
                             {
                                 <option value="@world.Id">@world.Name</option>
                             }
@@ -254,9 +270,9 @@
                     </label>
                     <label>
                         Event type
-                        <select @bind="timelineEventType">
+                        <select @bind="timelineEventType" @bind:after="ResetTimelineWindow">
                             <option value="">All event types</option>
-                            @foreach (var eventType in sector.History.Select(history => history.EventType).Distinct().OrderBy(item => item))
+                            @foreach (var eventType in sectorCache.EventTypes)
                             {
                                 <option value="@eventType">@eventType</option>
                             }
@@ -267,9 +283,16 @@
 
                 <div class="timeline-list">
                     @{
-                        var timelineEvents = GetFilteredTimelineEvents(sector, sectorColonies).ToList();
+                        var timelineWindow = GetFilteredTimelineEvents(sector, sectorCache)
+                            .Take(timelineVisibleCount + 1)
+                            .ToList();
+                        var hasMoreTimelineEvents = timelineWindow.Count > timelineVisibleCount;
+                        var timelineEvents = timelineWindow
+                            .Take(timelineVisibleCount)
+                            .ToList();
+                        timelineHasMoreEvents = hasMoreTimelineEvents;
                     }
-                    <div class="timeline-count">@timelineEvents.Count event@(timelineEvents.Count == 1 ? string.Empty : "s")</div>
+                    <div class="timeline-count">Showing @timelineEvents.Count event@(timelineEvents.Count == 1 ? string.Empty : "s")@(hasMoreTimelineEvents ? "+" : string.Empty)</div>
                     @if (timelineEvents.Count == 0)
                     {
                         <article class="timeline-event-card">
@@ -279,9 +302,24 @@
                     }
                     @foreach (var history in timelineEvents)
                     {
-                        var eventSystem = sector.Systems.FirstOrDefault(system => system.Id == history.StarSystemId);
-                        var eventWorld = sectorWorlds.FirstOrDefault(world => world.Id == history.PlanetId);
-                        var eventColony = sectorColonies.FirstOrDefault(item => item.Colony.Id == history.ColonyId);
+                        StarSystem? eventSystem = null;
+                        if (history.StarSystemId is int historySystemId)
+                        {
+                            sectorCache.SystemsById.TryGetValue(historySystemId, out eventSystem);
+                        }
+
+                        World? eventWorld = null;
+                        if (history.PlanetId is int historyWorldId)
+                        {
+                            sectorCache.WorldsById.TryGetValue(historyWorldId, out eventWorld);
+                        }
+
+                        (World World, Colony Colony)? eventColony = null;
+                        if (history.ColonyId is int historyColonyId
+                            && sectorCache.ColoniesByColonyId.TryGetValue(historyColonyId, out var foundEventColony))
+                        {
+                            eventColony = foundEventColony;
+                        }
                         <article class="timeline-event-card">
                             <div class="timeline-event-header">
                                 <span class="timeline-century">Century @history.Century</span>
@@ -301,9 +339,9 @@
                                 {
                                     <button type="button" @onclick="() => SelectEmpire(empireId)">Empire: @DisplayEmpire(empireId)</button>
                                 }
-                                @if (eventColony.Colony is not null)
+                                @if (eventColony is not null)
                                 {
-                                    <button type="button" @onclick="() => SelectColony(eventColony.World.Id)">Colony: @eventColony.Colony.ColonyClass</button>
+                                    <button type="button" @onclick="() => SelectColony(eventColony.Value.World.Id)">Colony: @eventColony.Value.Colony.ColonyClass</button>
                                 }
                                 @if (eventWorld is not null)
                                 {
@@ -315,6 +353,12 @@
                                 }
                             </div>
                         </article>
+                    }
+                    @if (hasMoreTimelineEvents)
+                    {
+                        <div @ref="timelineLoadMoreElement" class="timeline-load-more">
+                            <button type="button" @onclick="LoadMoreTimelineEvents">Load more</button>
+                        </div>
                     }
                 </div>
             </section>
@@ -356,12 +400,54 @@
         case "Systems":
             <section class="content-grid">
                 <div class="record-list">
-                    @foreach (var system in sector.Systems)
+                    <section class="record-filter-panel">
+                        <label>
+                            Search
+                            <input placeholder="Name, ID, coordinates..."
+                                   @bind="systemQuery"
+                                   @bind:event="oninput"
+                                   @bind:after="ResetSystemWindow" />
+                        </label>
+                        <label>
+                            Allegiance
+                            <select @bind="systemEmpireId" @bind:after="ResetSystemWindow">
+                                <option value="@TimelineAllFilterId">All allegiances</option>
+                                @foreach (var empire in sectorEmpires)
+                                {
+                                    <option value="@empire.Id">@empire.Name</option>
+                                }
+                            </select>
+                        </label>
+                        <button type="button" class="timeline-clear-button" @onclick="ClearSystemFilters">Clear filters</button>
+                    </section>
+                    @{
+                        var systemWindow = GetFilteredSystems(sector.Systems)
+                            .Take(systemVisibleCount + 1)
+                            .ToList();
+                        var hasMoreSystems = systemWindow.Count > systemVisibleCount;
+                        var visibleSystems = systemWindow.Take(systemVisibleCount).ToList();
+                        systemHasMoreRecords = hasMoreSystems;
+                    }
+                    <div class="timeline-count">Showing @visibleSystems.Count system@(visibleSystems.Count == 1 ? string.Empty : "s")@(hasMoreSystems ? "+" : string.Empty)</div>
+                    @if (visibleSystems.Count == 0)
+                    {
+                        <article class="timeline-event-card">
+                            <span class="timeline-century">No matches</span>
+                            <p>Adjust the filters to widen the system list.</p>
+                        </article>
+                    }
+                    @foreach (var system in visibleSystems)
                     {
                         <button type="button" class="record-row @(selectedSystem?.Id == system.Id ? "active" : null)" @onclick="() => SelectSystem(system.Id)">
                             <strong>@system.Name</strong>
                             <span>@DisplayCoordinates(system.Coordinates)</span>
                         </button>
+                    }
+                    @if (hasMoreSystems)
+                    {
+                        <div @ref="systemLoadMoreElement" class="timeline-load-more">
+                            <button type="button" @onclick="LoadMoreSystems">Load more</button>
+                        </div>
                     }
                 </div>
 
@@ -421,19 +507,75 @@
         case "Worlds":
             <section class="content-grid">
                 <div class="record-list">
-                    @foreach (var world in selectedSystem?.Worlds ?? [])
-                    {
-                        <button type="button" class="record-row @(selectedWorld?.Id == world.Id ? "active" : null)" @onclick="() => SelectWorld(world.Id)">
-                            <strong>@world.Name</strong>
-                            <span>@world.Kind; @world.WorldType</span>
-                        </button>
+                    <section class="record-filter-panel">
+                        <label>
+                            Search
+                            <input placeholder="Name, type, atmosphere..."
+                                   @bind="worldQuery"
+                                   @bind:event="oninput"
+                                   @bind:after="ResetWorldWindow" />
+                        </label>
+                        <label>
+                            Kind
+                            <select @bind="worldKind" @bind:after="ResetWorldWindow">
+                                <option value="">All kinds</option>
+                                <option value="@WorldKind.Planet.ToString()">Planets</option>
+                                <option value="@WorldKind.Moon.ToString()">Moons</option>
+                                <option value="SpaceHabitat">Habitats</option>
+                            </select>
+                        </label>
+                        <label>
+                            Type
+                            <select @bind="worldType" @bind:after="ResetWorldWindow">
+                                <option value="">All types</option>
+                                @foreach (var itemType in (selectedSystem?.Worlds.Select(world => world.WorldType) ?? []).Distinct().OrderBy(item => item))
+                                {
+                                    <option value="@itemType">@itemType</option>
+                                }
+                            </select>
+                        </label>
+                        <button type="button" class="timeline-clear-button" @onclick="ClearWorldFilters">Clear filters</button>
+                    </section>
+                    @{
+                        var worldWindow = GetFilteredWorldRecords(selectedSystem)
+                            .Take(worldVisibleCount + 1)
+                            .ToList();
+                        var hasMoreWorlds = worldWindow.Count > worldVisibleCount;
+                        var visibleWorldRecords = worldWindow.Take(worldVisibleCount).ToList();
+                        worldHasMoreRecords = hasMoreWorlds;
                     }
-                    @foreach (var habitat in selectedSystem?.SpaceHabitats ?? [])
+                    <div class="timeline-count">Showing @visibleWorldRecords.Count world@(visibleWorldRecords.Count == 1 ? string.Empty : "s")@(hasMoreWorlds ? "+" : string.Empty)</div>
+                    @if (visibleWorldRecords.Count == 0)
                     {
-                        <button type="button" class="record-row @(selectedHabitat?.Id == habitat.Id ? "active" : null)" @onclick="() => SelectHabitat(habitat.Id)">
-                            <strong>@habitat.Name</strong>
-                            <span>Space Habitat; @DisplayPopulation(habitat.Population)</span>
-                        </button>
+                        <article class="timeline-event-card">
+                            <span class="timeline-century">No matches</span>
+                            <p>Adjust the filters to widen the world list.</p>
+                        </article>
+                    }
+                    @foreach (var record in visibleWorldRecords)
+                    {
+                        if (record.World is not null)
+                        {
+                            var world = record.World;
+                            <button type="button" class="record-row @(selectedWorld?.Id == world.Id ? "active" : null)" @onclick="() => SelectWorld(world.Id)">
+                                <strong>@world.Name</strong>
+                                <span>@world.Kind; @world.WorldType</span>
+                            </button>
+                        }
+                        else if (record.Habitat is not null)
+                        {
+                            var habitat = record.Habitat;
+                            <button type="button" class="record-row @(selectedHabitat?.Id == habitat.Id ? "active" : null)" @onclick="() => SelectHabitat(habitat.Id)">
+                                <strong>@habitat.Name</strong>
+                                <span>Space Habitat; @DisplayPopulation(habitat.Population)</span>
+                            </button>
+                        }
+                    }
+                    @if (hasMoreWorlds)
+                    {
+                        <div @ref="worldLoadMoreElement" class="timeline-load-more">
+                            <button type="button" @onclick="LoadMoreWorlds">Load more</button>
+                        </div>
                     }
                 </div>
 
@@ -543,13 +685,87 @@
             break;
         case "Colonies":
             <section class="content-grid">
-                <div class="record-list">
-                    @foreach (var item in sectorColonies)
+                <div class="record-list colony-record-list">
+                    <section class="record-filter-panel">
+                        <label>
+                            Search
+                            <input placeholder="World, class, race, empire..."
+                                   @bind="colonyQuery"
+                                   @bind:event="oninput"
+                                   @bind:after="ResetColonyWindow" />
+                        </label>
+                        <label>
+                            Race
+                            <select @bind="colonyRaceId" @bind:after="ResetColonyWindow">
+                                <option value="@TimelineAllFilterId">All races</option>
+                                @foreach (var race in sectorRaces)
+                                {
+                                    <option value="@race.Id">@race.Name</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            Allegiance
+                            <select @bind="colonyEmpireId" @bind:after="ResetColonyWindow">
+                                <option value="@TimelineAllFilterId">All allegiances</option>
+                                @foreach (var empire in sectorEmpires)
+                                {
+                                    <option value="@empire.Id">@empire.Name</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            Status
+                            <select @bind="colonyStatus" @bind:after="ResetColonyWindow">
+                                <option value="">All statuses</option>
+                                @foreach (var status in Enum.GetValues<ColonyPoliticalStatus>())
+                                {
+                                    <option value="@status.ToString()">@status</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            Class
+                            <select @bind="colonyClass" @bind:after="ResetColonyWindow">
+                                <option value="">All classes</option>
+                                @foreach (var itemClass in sectorColonies.Select(item => item.Colony.ColonyClass).Distinct().OrderBy(item => item))
+                                {
+                                    <option value="@itemClass">@itemClass</option>
+                                }
+                            </select>
+                        </label>
+                        <button type="button" class="timeline-clear-button" @onclick="ClearColonyFilters">Clear filters</button>
+                    </section>
+                    @{
+                        var colonyWindow = GetFilteredColonies(sectorColonies)
+                            .Take(colonyVisibleCount + 1)
+                            .ToList();
+                        var hasMoreColonies = colonyWindow.Count > colonyVisibleCount;
+                        var visibleColonies = colonyWindow
+                            .Take(colonyVisibleCount)
+                            .ToList();
+                        colonyHasMoreRecords = hasMoreColonies;
+                    }
+                    <div class="timeline-count">Showing @visibleColonies.Count colon@(visibleColonies.Count == 1 ? "y" : "ies")@(hasMoreColonies ? "+" : string.Empty)</div>
+                    @if (visibleColonies.Count == 0)
+                    {
+                        <article class="timeline-event-card">
+                            <span class="timeline-century">No matches</span>
+                            <p>Adjust the filters to widen the colony list.</p>
+                        </article>
+                    }
+                    @foreach (var item in visibleColonies)
                     {
                         <button type="button" class="record-row @(selectedColony?.Id == item.Colony.Id ? "active" : null)" @onclick="() => SelectColony(item.World.Id)">
                             <strong>@item.Colony.ColonyClass on @item.World.Name</strong>
-                            <span>@item.Colony.AllegianceName</span>
+                            <span>@item.Colony.AllegianceName; @DisplayPopulation(item.Colony.EstimatedPopulation)</span>
                         </button>
+                    }
+                    @if (hasMoreColonies)
+                    {
+                        <div @ref="colonyLoadMoreElement" class="timeline-load-more">
+                            <button type="button" @onclick="LoadMoreColonies">Load more</button>
+                        </div>
                     }
                 </div>
 
@@ -592,7 +808,7 @@
                                         <span>@demographic.RaceName</span>
                                         <strong>@($"{demographic.PopulationPercent:0.#}%")</strong>
                                         <em style="width: @($"{demographic.PopulationPercent:0.##}%")"></em>
-                                        <small>@DisplayPopulation(demographic.Population)</small>
+                                        <small>@DisplayPopulation(GetDemographicPopulation(selectedColony, demographic))</small>
                                     </button>
                                 }
                             </div>
@@ -604,12 +820,64 @@
         case "Aliens":
             <section class="content-grid">
                 <div class="record-list">
-                    @foreach (var race in sectorRaces)
+                    <section class="record-filter-panel">
+                        <label>
+                            Search
+                            <input placeholder="Name, biology, traits..."
+                                   @bind="raceQuery"
+                                   @bind:event="oninput"
+                                   @bind:after="ResetRaceWindow" />
+                        </label>
+                        <label>
+                            Environment
+                            <select @bind="raceEnvironment" @bind:after="ResetRaceWindow">
+                                <option value="">All environments</option>
+                                @foreach (var environment in sectorRaces.Select(race => race.EnvironmentType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value))
+                                {
+                                    <option value="@environment">@environment</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            Appearance
+                            <select @bind="raceAppearance" @bind:after="ResetRaceWindow">
+                                <option value="">All appearances</option>
+                                @foreach (var appearance in sectorRaces.Select(race => race.AppearanceType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value))
+                                {
+                                    <option value="@appearance">@appearance</option>
+                                }
+                            </select>
+                        </label>
+                        <button type="button" class="timeline-clear-button" @onclick="ClearRaceFilters">Clear filters</button>
+                    </section>
+                    @{
+                        var raceWindow = GetFilteredRaces(sectorRaces)
+                            .Take(raceVisibleCount + 1)
+                            .ToList();
+                        var hasMoreRaces = raceWindow.Count > raceVisibleCount;
+                        var visibleRaces = raceWindow.Take(raceVisibleCount).ToList();
+                        raceHasMoreRecords = hasMoreRaces;
+                    }
+                    <div class="timeline-count">Showing @visibleRaces.Count race@(visibleRaces.Count == 1 ? string.Empty : "s")@(hasMoreRaces ? "+" : string.Empty)</div>
+                    @if (visibleRaces.Count == 0)
+                    {
+                        <article class="timeline-event-card">
+                            <span class="timeline-century">No matches</span>
+                            <p>Adjust the filters to widen the race list.</p>
+                        </article>
+                    }
+                    @foreach (var race in visibleRaces)
                     {
                         <button type="button" class="record-row @(selectedRace?.Id == race.Id ? "active" : null)" @onclick="() => selectedRaceId = race.Id">
                             <strong>@race.Name</strong>
                             <span>@race.AppearanceType; @race.EnvironmentType</span>
                         </button>
+                    }
+                    @if (hasMoreRaces)
+                    {
+                        <div @ref="raceLoadMoreElement" class="timeline-load-more">
+                            <button type="button" @onclick="LoadMoreRaces">Load more</button>
+                        </div>
                     }
                 </div>
 
@@ -680,12 +948,54 @@
         case "Empires":
             <section class="content-grid">
                 <div class="record-list">
-                    @foreach (var empire in sectorEmpires)
+                    <section class="record-filter-panel">
+                        <label>
+                            Search
+                            <input placeholder="Name, policy, homeworld..."
+                                   @bind="empireQuery"
+                                   @bind:event="oninput"
+                                   @bind:after="ResetEmpireWindow" />
+                        </label>
+                        <label>
+                            Race
+                            <select @bind="empireRaceId" @bind:after="ResetEmpireWindow">
+                                <option value="@TimelineAllFilterId">All races</option>
+                                @foreach (var race in sectorRaces)
+                                {
+                                    <option value="@race.Id">@race.Name</option>
+                                }
+                            </select>
+                        </label>
+                        <button type="button" class="timeline-clear-button" @onclick="ClearEmpireFilters">Clear filters</button>
+                    </section>
+                    @{
+                        var empireWindow = GetFilteredEmpires(sectorEmpires)
+                            .Take(empireVisibleCount + 1)
+                            .ToList();
+                        var hasMoreEmpires = empireWindow.Count > empireVisibleCount;
+                        var visibleEmpires = empireWindow.Take(empireVisibleCount).ToList();
+                        empireHasMoreRecords = hasMoreEmpires;
+                    }
+                    <div class="timeline-count">Showing @visibleEmpires.Count empire@(visibleEmpires.Count == 1 ? string.Empty : "s")@(hasMoreEmpires ? "+" : string.Empty)</div>
+                    @if (visibleEmpires.Count == 0)
+                    {
+                        <article class="timeline-event-card">
+                            <span class="timeline-century">No matches</span>
+                            <p>Adjust the filters to widen the empire list.</p>
+                        </article>
+                    }
+                    @foreach (var empire in visibleEmpires)
                     {
                         <button type="button" class="record-row @(selectedEmpire?.Id == empire.Id ? "active" : null)" @onclick="() => selectedEmpireId = empire.Id">
                             <strong>@empire.Name</strong>
                             <span>TL @empire.CivilizationProfile.TechLevel; @empire.Planets planets</span>
                         </button>
+                    }
+                    @if (hasMoreEmpires)
+                    {
+                        <div @ref="empireLoadMoreElement" class="timeline-load-more">
+                            <button type="button" @onclick="LoadMoreEmpires">Load more</button>
+                        </div>
                     }
                 </div>
 
@@ -779,6 +1089,10 @@
 @code {
     private const int DefaultSectorMapViewDistanceParsecs = 5;
     private const int SectorMapMaximumRenderedSystems = 1_000;
+    private const int TimelineBatchSize = 80;
+    private const int ColonyBatchSize = 120;
+    private const int ExplorerListBatchSize = 120;
+    private const int TimelineAllFilterId = -1;
     private const double SectorMapMaximumLabelDistanceParsecs = 5;
     private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
 
@@ -786,6 +1100,7 @@
     public int? RequestedSectorId { get; set; }
 
     private readonly string[] sections = ["Overview", "Timeline", "Configuration", "Systems", "Worlds", "Colonies", "Aliens", "Empires"];
+    private readonly Dictionary<int, ExplorerSectorCache> sectorCaches = [];
     private string activeSection = "Overview";
     private int selectedSectorId;
     private int selectedSystemId;
@@ -796,28 +1111,73 @@
     private string searchQuery = string.Empty;
     private IReadOnlyList<StarWinSearchResult> searchResults = [];
     private ElementReference sectorMapElement;
+    private ElementReference timelineLoadMoreElement;
+    private ElementReference colonyLoadMoreElement;
+    private ElementReference systemLoadMoreElement;
+    private ElementReference worldLoadMoreElement;
+    private ElementReference raceLoadMoreElement;
+    private ElementReference empireLoadMoreElement;
     private DotNetObjectReference<Home>? dotNetReference;
     private IJSObjectReference? sectorMapModule;
+    private IJSObjectReference? timelineScrollModule;
     private int renderedSectorId;
     private int renderedSystemId;
     private int renderedViewDistanceParsecs;
     private double renderedRouteDistanceParsecs;
     private bool renderedOverview;
+    private bool sectorMapRequested;
     private bool browserSessionRestored;
     private bool browserSessionReady;
     private IReadOnlyList<EntityImage> entityImages = [];
     private string imageUploadStatus = string.Empty;
     private string timelineQuery = string.Empty;
-    private int timelineRaceId;
-    private int timelineEmpireId;
-    private int timelineColonyId;
-    private int timelineSystemId;
-    private int timelineWorldId;
+    private int timelineRaceId = TimelineAllFilterId;
+    private int timelineEmpireId = TimelineAllFilterId;
+    private int timelineColonyId = TimelineAllFilterId;
+    private int timelineSystemId = TimelineAllFilterId;
+    private int timelineWorldId = TimelineAllFilterId;
     private string timelineEventType = string.Empty;
+    private int timelineVisibleCount = TimelineBatchSize;
+    private bool timelineHasMoreEvents;
+    private bool timelineObserverConfigured;
+    private string colonyQuery = string.Empty;
+    private int colonyRaceId = TimelineAllFilterId;
+    private int colonyEmpireId = TimelineAllFilterId;
+    private string colonyStatus = string.Empty;
+    private string colonyClass = string.Empty;
+    private int colonyVisibleCount = ColonyBatchSize;
+    private bool colonyHasMoreRecords;
+    private bool colonyObserverConfigured;
+    private string systemQuery = string.Empty;
+    private int systemEmpireId = TimelineAllFilterId;
+    private int systemVisibleCount = ExplorerListBatchSize;
+    private bool systemHasMoreRecords;
+    private bool systemObserverConfigured;
+    private string worldQuery = string.Empty;
+    private string worldKind = string.Empty;
+    private string worldType = string.Empty;
+    private int worldVisibleCount = ExplorerListBatchSize;
+    private bool worldHasMoreRecords;
+    private bool worldObserverConfigured;
+    private string raceQuery = string.Empty;
+    private string raceEnvironment = string.Empty;
+    private string raceAppearance = string.Empty;
+    private int raceVisibleCount = ExplorerListBatchSize;
+    private bool raceHasMoreRecords;
+    private bool raceObserverConfigured;
+    private string empireQuery = string.Empty;
+    private int empireRaceId = TimelineAllFilterId;
+    private int empireVisibleCount = ExplorerListBatchSize;
+    private bool empireHasMoreRecords;
+    private bool empireObserverConfigured;
     private string basicHyperlaneTierName = "Basic";
     private decimal basicHyperlaneMaximumLengthParsecs = 1m;
     private string sectorConfigurationStatus = string.Empty;
     private int sectorMapViewDistanceParsecs = DefaultSectorMapViewDistanceParsecs;
+
+    private IReadOnlyDictionary<int, AlienRace>? alienRacesById;
+    private IReadOnlyDictionary<int, Empire>? empiresById;
+    private IReadOnlyDictionary<int, World>? worldsById;
 
     protected override void OnInitialized()
     {
@@ -847,7 +1207,61 @@
             return;
         }
 
+        if (activeSection == "Timeline")
+        {
+            renderedOverview = false;
+            await ConfigureTimelineObserverAsync();
+            return;
+        }
+
+        timelineObserverConfigured = false;
+        if (activeSection == "Colonies")
+        {
+            renderedOverview = false;
+            await ConfigureColonyObserverAsync();
+            return;
+        }
+
+        colonyObserverConfigured = false;
+        if (activeSection == "Systems")
+        {
+            renderedOverview = false;
+            await ConfigureRecordObserverAsync("system", systemHasMoreRecords, () => systemObserverConfigured, value => systemObserverConfigured = value, systemLoadMoreElement, "LoadMoreSystems");
+            return;
+        }
+
+        systemObserverConfigured = false;
+        if (activeSection == "Worlds")
+        {
+            renderedOverview = false;
+            await ConfigureRecordObserverAsync("world", worldHasMoreRecords, () => worldObserverConfigured, value => worldObserverConfigured = value, worldLoadMoreElement, "LoadMoreWorlds");
+            return;
+        }
+
+        worldObserverConfigured = false;
+        if (activeSection == "Aliens")
+        {
+            renderedOverview = false;
+            await ConfigureRecordObserverAsync("race", raceHasMoreRecords, () => raceObserverConfigured, value => raceObserverConfigured = value, raceLoadMoreElement, "LoadMoreRaces");
+            return;
+        }
+
+        raceObserverConfigured = false;
+        if (activeSection == "Empires")
+        {
+            renderedOverview = false;
+            await ConfigureRecordObserverAsync("empire", empireHasMoreRecords, () => empireObserverConfigured, value => empireObserverConfigured = value, empireLoadMoreElement, "LoadMoreEmpires");
+            return;
+        }
+
+        empireObserverConfigured = false;
         if (activeSection != "Overview")
+        {
+            renderedOverview = false;
+            return;
+        }
+
+        if (!sectorMapRequested)
         {
             renderedOverview = false;
             return;
@@ -881,6 +1295,12 @@
         renderedOverview = true;
     }
 
+    private void LoadSectorMap()
+    {
+        sectorMapRequested = true;
+        renderedOverview = false;
+    }
+
     private void SelectSystem(int systemId)
     {
         selectedSystemId = systemId;
@@ -896,6 +1316,12 @@
 
     private async Task ToggleSectorMapFullscreen()
     {
+        if (!sectorMapRequested)
+        {
+            LoadSectorMap();
+            return;
+        }
+
         sectorMapModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/sectorMap3d.js");
         await sectorMapModule.InvokeVoidAsync("toggleMapFullscreen", sectorMapElement);
     }
@@ -1001,6 +1427,222 @@
         selectedWorldId = system?.Worlds.FirstOrDefault()?.Id ?? 0;
         selectedHabitatId = 0;
         _ = PersistExplorerSessionAsync();
+    }
+
+    private async Task ConfigureTimelineObserverAsync()
+    {
+        if (!timelineHasMoreEvents)
+        {
+            timelineObserverConfigured = false;
+            if (timelineScrollModule is not null)
+            {
+                await timelineScrollModule.InvokeVoidAsync("disconnectTimelineLoadMore");
+            }
+
+            return;
+        }
+
+        if (timelineObserverConfigured)
+        {
+            return;
+        }
+
+        timelineScrollModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/timelineInfiniteScroll.js");
+        dotNetReference ??= DotNetObjectReference.Create(this);
+        await timelineScrollModule.InvokeVoidAsync("observeTimelineLoadMore", timelineLoadMoreElement, dotNetReference);
+        timelineObserverConfigured = true;
+    }
+
+    private async Task ConfigureColonyObserverAsync()
+    {
+        if (!colonyHasMoreRecords)
+        {
+            colonyObserverConfigured = false;
+            if (timelineScrollModule is not null)
+            {
+                await timelineScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
+            }
+
+            return;
+        }
+
+        if (colonyObserverConfigured)
+        {
+            return;
+        }
+
+        timelineScrollModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/timelineInfiniteScroll.js");
+        dotNetReference ??= DotNetObjectReference.Create(this);
+        await timelineScrollModule.InvokeVoidAsync("observeColonyLoadMore", colonyLoadMoreElement, dotNetReference);
+        colonyObserverConfigured = true;
+    }
+
+    private async Task ConfigureRecordObserverAsync(
+        string key,
+        bool hasMoreRecords,
+        Func<bool> isConfigured,
+        Action<bool> setConfigured,
+        ElementReference loadMoreElement,
+        string loadMoreMethodName)
+    {
+        if (!hasMoreRecords)
+        {
+            setConfigured(false);
+            if (timelineScrollModule is not null)
+            {
+                await timelineScrollModule.InvokeVoidAsync("disconnectLoadMore", key);
+            }
+
+            return;
+        }
+
+        if (isConfigured())
+        {
+            return;
+        }
+
+        timelineScrollModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/timelineInfiniteScroll.js");
+        dotNetReference ??= DotNetObjectReference.Create(this);
+        await timelineScrollModule.InvokeVoidAsync("observeLoadMore", key, loadMoreElement, dotNetReference, loadMoreMethodName);
+        setConfigured(true);
+    }
+
+    [JSInvokable]
+    public async Task LoadMoreTimelineEvents()
+    {
+        if (timelineScrollModule is not null)
+        {
+            await timelineScrollModule.InvokeVoidAsync("disconnectTimelineLoadMore");
+        }
+
+        timelineVisibleCount += TimelineBatchSize;
+        timelineObserverConfigured = false;
+        StateHasChanged();
+    }
+
+    private void ResetTimelineWindow()
+    {
+        timelineVisibleCount = TimelineBatchSize;
+        timelineObserverConfigured = false;
+    }
+
+    [JSInvokable]
+    public async Task LoadMoreColonies()
+    {
+        if (timelineScrollModule is not null)
+        {
+            await timelineScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
+        }
+
+        colonyVisibleCount += ColonyBatchSize;
+        colonyObserverConfigured = false;
+        StateHasChanged();
+    }
+
+    private void ResetColonyWindow()
+    {
+        colonyVisibleCount = ColonyBatchSize;
+        colonyObserverConfigured = false;
+    }
+
+    private void ClearColonyFilters()
+    {
+        colonyQuery = string.Empty;
+        colonyRaceId = TimelineAllFilterId;
+        colonyEmpireId = TimelineAllFilterId;
+        colonyStatus = string.Empty;
+        colonyClass = string.Empty;
+        ResetColonyWindow();
+    }
+
+    [JSInvokable]
+    public Task LoadMoreSystems()
+    {
+        systemVisibleCount += ExplorerListBatchSize;
+        systemObserverConfigured = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task LoadMoreWorlds()
+    {
+        worldVisibleCount += ExplorerListBatchSize;
+        worldObserverConfigured = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task LoadMoreRaces()
+    {
+        raceVisibleCount += ExplorerListBatchSize;
+        raceObserverConfigured = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task LoadMoreEmpires()
+    {
+        empireVisibleCount += ExplorerListBatchSize;
+        empireObserverConfigured = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void ResetSystemWindow()
+    {
+        systemVisibleCount = ExplorerListBatchSize;
+        systemObserverConfigured = false;
+    }
+
+    private void ResetWorldWindow()
+    {
+        worldVisibleCount = ExplorerListBatchSize;
+        worldObserverConfigured = false;
+    }
+
+    private void ResetRaceWindow()
+    {
+        raceVisibleCount = ExplorerListBatchSize;
+        raceObserverConfigured = false;
+    }
+
+    private void ResetEmpireWindow()
+    {
+        empireVisibleCount = ExplorerListBatchSize;
+        empireObserverConfigured = false;
+    }
+
+    private void ClearSystemFilters()
+    {
+        systemQuery = string.Empty;
+        systemEmpireId = TimelineAllFilterId;
+        ResetSystemWindow();
+    }
+
+    private void ClearWorldFilters()
+    {
+        worldQuery = string.Empty;
+        worldKind = string.Empty;
+        worldType = string.Empty;
+        ResetWorldWindow();
+    }
+
+    private void ClearRaceFilters()
+    {
+        raceQuery = string.Empty;
+        raceEnvironment = string.Empty;
+        raceAppearance = string.Empty;
+        ResetRaceWindow();
+    }
+
+    private void ClearEmpireFilters()
+    {
+        empireQuery = string.Empty;
+        empireRaceId = TimelineAllFilterId;
+        ResetEmpireWindow();
     }
 
     private async Task RestoreExplorerSessionAsync()
@@ -1199,7 +1841,8 @@
         return sector.History
             .Where(history => TimelineMatches(history, sector, sectorColonies))
             .OrderBy(history => history.Century)
-            .ThenBy(history => history.EventType);
+            .ThenBy(history => history.EventType)
+            .ThenBy(history => history.Description);
     }
 
     private bool TimelineMatches(
@@ -1207,27 +1850,27 @@
         StarWinSector sector,
         IReadOnlyList<(World World, Colony Colony)> sectorColonies)
     {
-        if (timelineRaceId != 0 && history.RaceId != timelineRaceId && history.OtherRaceId != timelineRaceId)
+        if (timelineRaceId != TimelineAllFilterId && history.RaceId != timelineRaceId && history.OtherRaceId != timelineRaceId)
         {
             return false;
         }
 
-        if (timelineEmpireId != 0 && history.EmpireId != timelineEmpireId)
+        if (timelineEmpireId != TimelineAllFilterId && history.EmpireId != timelineEmpireId)
         {
             return false;
         }
 
-        if (timelineColonyId != 0 && history.ColonyId != timelineColonyId)
+        if (timelineColonyId != TimelineAllFilterId && history.ColonyId != timelineColonyId)
         {
             return false;
         }
 
-        if (timelineSystemId != 0 && history.StarSystemId != timelineSystemId)
+        if (timelineSystemId != TimelineAllFilterId && history.StarSystemId != timelineSystemId)
         {
             return false;
         }
 
-        if (timelineWorldId != 0 && history.PlanetId != timelineWorldId)
+        if (timelineWorldId != TimelineAllFilterId && history.PlanetId != timelineWorldId)
         {
             return false;
         }
@@ -1267,17 +1910,256 @@
     private void ClearTimelineFilters()
     {
         timelineQuery = string.Empty;
-        timelineRaceId = 0;
-        timelineEmpireId = 0;
-        timelineColonyId = 0;
-        timelineSystemId = 0;
-        timelineWorldId = 0;
+        timelineRaceId = TimelineAllFilterId;
+        timelineEmpireId = TimelineAllFilterId;
+        timelineColonyId = TimelineAllFilterId;
+        timelineSystemId = TimelineAllFilterId;
+        timelineWorldId = TimelineAllFilterId;
         timelineEventType = string.Empty;
+        ResetTimelineWindow();
     }
 
     private static bool ContainsTimelineQuery(string? value, string query)
     {
         return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private IEnumerable<(World World, Colony Colony)> GetFilteredColonies(
+        IReadOnlyList<(World World, Colony Colony)> sectorColonies)
+    {
+        return sectorColonies
+            .Where(ColonyMatches)
+            .OrderByDescending(item => item.Colony.EstimatedPopulation)
+            .ThenBy(item => item.World.Name);
+    }
+
+    private bool ColonyMatches((World World, Colony Colony) item)
+    {
+        if (colonyRaceId != TimelineAllFilterId
+            && item.Colony.RaceId != colonyRaceId
+            && !item.Colony.Demographics.Any(demographic => demographic.RaceId == colonyRaceId))
+        {
+            return false;
+        }
+
+        if (colonyEmpireId != TimelineAllFilterId
+            && item.Colony.AllegianceId != colonyEmpireId
+            && item.Colony.ControllingEmpireId != colonyEmpireId
+            && item.Colony.FoundingEmpireId != colonyEmpireId
+            && item.Colony.ParentEmpireId != colonyEmpireId)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(colonyStatus)
+            && !string.Equals(item.Colony.PoliticalStatus.ToString(), colonyStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(colonyClass)
+            && !string.Equals(item.Colony.ColonyClass, colonyClass, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(colonyQuery))
+        {
+            return true;
+        }
+
+        var query = colonyQuery.Trim();
+        return ContainsTimelineQuery(item.World.Name, query)
+            || ContainsTimelineQuery(item.World.WorldType, query)
+            || ContainsTimelineQuery(item.Colony.Id.ToString(), query)
+            || ContainsTimelineQuery(item.Colony.WorldId.ToString(), query)
+            || ContainsTimelineQuery(item.Colony.ColonyClass, query)
+            || ContainsTimelineQuery(item.Colony.ColonistRaceName, query)
+            || ContainsTimelineQuery(item.Colony.AllegianceName, query)
+            || ContainsTimelineQuery(item.Colony.Starport, query)
+            || ContainsTimelineQuery(item.Colony.GovernmentType, query)
+            || ContainsTimelineQuery(item.Colony.ExportResource, query)
+            || ContainsTimelineQuery(item.Colony.ImportResource, query)
+            || item.Colony.Demographics.Any(demographic => ContainsTimelineQuery(demographic.RaceName, query));
+    }
+
+    private IEnumerable<StarSystem> GetFilteredSystems(IEnumerable<StarSystem> systems)
+    {
+        return systems
+            .Where(SystemMatches)
+            .OrderBy(system => system.Name)
+            .ThenBy(system => system.Id);
+    }
+
+    private bool SystemMatches(StarSystem system)
+    {
+        if (systemEmpireId != TimelineAllFilterId && system.AllegianceId != systemEmpireId)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(systemQuery))
+        {
+            return true;
+        }
+
+        var query = systemQuery.Trim();
+        return ContainsTimelineQuery(system.Name, query)
+            || ContainsTimelineQuery(system.Id.ToString(), query)
+            || ContainsTimelineQuery(system.LegacySystemId?.ToString(), query)
+            || ContainsTimelineQuery(DisplayCoordinates(system.Coordinates), query)
+            || ContainsTimelineQuery(DisplayAllegiance(system.AllegianceId), query)
+            || system.AstralBodies.Any(body =>
+                ContainsTimelineQuery(body.Kind.ToString(), query)
+                || ContainsTimelineQuery(body.Classification, query)
+                || ContainsTimelineQuery(body.Role.ToString(), query))
+            || system.Worlds.Any(world =>
+                ContainsTimelineQuery(world.Name, query)
+                || ContainsTimelineQuery(world.WorldType, query));
+    }
+
+    private IEnumerable<WorldRecord> GetFilteredWorldRecords(StarSystem? system)
+    {
+        if (system is null)
+        {
+            return [];
+        }
+
+        return GetWorldRecords(system)
+            .Where(WorldRecordMatches)
+            .OrderBy(record => record.KindSort)
+            .ThenBy(record => record.OrbitSort)
+            .ThenBy(record => record.Name);
+    }
+
+    private static IEnumerable<WorldRecord> GetWorldRecords(StarSystem system)
+    {
+        foreach (var world in system.Worlds)
+        {
+            yield return WorldRecord.FromWorld(system, world);
+        }
+
+        foreach (var habitat in system.SpaceHabitats)
+        {
+            yield return WorldRecord.FromHabitat(system, habitat);
+        }
+    }
+
+    private bool WorldRecordMatches(WorldRecord record)
+    {
+        if (!string.IsNullOrWhiteSpace(worldKind)
+            && !string.Equals(record.Kind, worldKind, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(worldType)
+            && !string.Equals(record.Type, worldType, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(worldQuery))
+        {
+            return true;
+        }
+
+        var query = worldQuery.Trim();
+        return ContainsTimelineQuery(record.Name, query)
+            || ContainsTimelineQuery(record.Kind, query)
+            || ContainsTimelineQuery(record.Type, query)
+            || ContainsTimelineQuery(record.System.Name, query)
+            || ContainsTimelineQuery(record.World?.Id.ToString(), query)
+            || ContainsTimelineQuery(record.Habitat?.Id.ToString(), query)
+            || ContainsTimelineQuery(record.World?.LegacyPlanetId?.ToString(), query)
+            || ContainsTimelineQuery(record.World?.LegacyMoonId?.ToString(), query)
+            || ContainsTimelineQuery(record.World?.AtmosphereType, query)
+            || ContainsTimelineQuery(record.World?.AtmosphereComposition, query)
+            || ContainsTimelineQuery(record.World?.WaterType, query)
+            || ContainsTimelineQuery(record.World?.Colony?.ColonyClass, query)
+            || ContainsTimelineQuery(record.World?.Colony?.AllegianceName, query)
+            || ContainsTimelineQuery(DisplayEmpire(record.Habitat?.ControlledByEmpireId), query);
+    }
+
+    private IEnumerable<AlienRace> GetFilteredRaces(IReadOnlyList<AlienRace> races)
+    {
+        return races
+            .Where(RaceMatches)
+            .OrderBy(race => race.Name)
+            .ThenBy(race => race.Id);
+    }
+
+    private bool RaceMatches(AlienRace race)
+    {
+        if (!string.IsNullOrWhiteSpace(raceEnvironment)
+            && !string.Equals(race.EnvironmentType, raceEnvironment, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(raceAppearance)
+            && !string.Equals(race.AppearanceType, raceAppearance, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(raceQuery))
+        {
+            return true;
+        }
+
+        var query = raceQuery.Trim();
+        var homeWorld = FindWorld(race.HomePlanetId);
+        return ContainsTimelineQuery(race.Name, query)
+            || ContainsTimelineQuery(race.Id.ToString(), query)
+            || ContainsTimelineQuery(race.AppearanceType, query)
+            || ContainsTimelineQuery(race.BodyChemistry, query)
+            || ContainsTimelineQuery(race.EnvironmentType, query)
+            || ContainsTimelineQuery(race.GovernmentType, query)
+            || ContainsTimelineQuery(race.ReproductionMethod, query)
+            || ContainsTimelineQuery(race.Diet, query)
+            || ContainsTimelineQuery(race.Religion, query)
+            || ContainsTimelineQuery(race.BiologyProfile.Body.ToString(), query)
+            || ContainsTimelineQuery(race.BiologyProfile.Mind.ToString(), query)
+            || ContainsTimelineQuery(race.BiologyProfile.Speed.ToString(), query)
+            || ContainsTimelineQuery(race.BiologyProfile.PsiRating.ToString(), query)
+            || ContainsTimelineQuery(homeWorld?.Name, query);
+    }
+
+    private IEnumerable<Empire> GetFilteredEmpires(IReadOnlyList<Empire> empires)
+    {
+        return empires
+            .Where(EmpireMatches)
+            .OrderBy(empire => empire.Name)
+            .ThenBy(empire => empire.Id);
+    }
+
+    private bool EmpireMatches(Empire empire)
+    {
+        if (empireRaceId != TimelineAllFilterId
+            && !empire.RaceMemberships.Any(membership => membership.RaceId == empireRaceId))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(empireQuery))
+        {
+            return true;
+        }
+
+        var query = empireQuery.Trim();
+        var homeWorld = FindWorld(empire.Founding.FoundingWorldId);
+        return ContainsTimelineQuery(empire.Name, query)
+            || ContainsTimelineQuery(empire.Id.ToString(), query)
+            || ContainsTimelineQuery(empire.LegacyRaceId?.ToString(), query)
+            || ContainsTimelineQuery(empire.ExpansionPolicy.ToString(), query)
+            || ContainsTimelineQuery(homeWorld?.Name, query)
+            || empire.RaceMemberships.Any(membership =>
+                ContainsTimelineQuery(DisplayRace(membership.RaceId), query)
+                || ContainsTimelineQuery(membership.Role.ToString(), query))
+            || empire.Contacts.Any(contact =>
+                ContainsTimelineQuery(contact.Relation, query)
+                || ContainsTimelineQuery(DisplayEmpire(contact.OtherEmpireId), query));
     }
 
     private World? FindWorld(int? worldId)
@@ -1684,6 +2566,18 @@
             : $"{population / 1_000_000m:0.#} million";
     }
 
+    private static long GetDemographicPopulation(Colony colony, ColonyDemographic demographic)
+    {
+        if (demographic.Population > 0)
+        {
+            return demographic.Population;
+        }
+
+        return demographic.PopulationPercent <= 0
+            ? 0
+            : (long)Math.Round(colony.EstimatedPopulation * demographic.PopulationPercent / 100m);
+    }
+
     private static string Format(double? value)
     {
         return value is null ? "N/A" : $"{value:0.###}";
@@ -1965,6 +2859,47 @@
         }
     }
 
+    private sealed record WorldRecord(
+        StarSystem System,
+        string Name,
+        string Kind,
+        string Type,
+        double OrbitSort,
+        int KindSort,
+        World? World,
+        SpaceHabitat? Habitat)
+    {
+        public static WorldRecord FromWorld(StarSystem system, World world)
+        {
+            var orbitSort = world.ParentWorldId is null
+                ? world.OrbitRadiusAu ?? double.MaxValue
+                : world.OrbitRadiusKm ?? double.MaxValue;
+
+            return new WorldRecord(
+                system,
+                world.Name,
+                world.Kind.ToString(),
+                world.WorldType,
+                orbitSort,
+                world.Kind == WorldKind.Planet ? 0 : 1,
+                world,
+                null);
+        }
+
+        public static WorldRecord FromHabitat(StarSystem system, SpaceHabitat habitat)
+        {
+            return new WorldRecord(
+                system,
+                habitat.Name,
+                "SpaceHabitat",
+                "Space Habitat",
+                habitat.OrbitRadiusKm ?? double.MaxValue,
+                2,
+                null,
+                habitat);
+        }
+    }
+
     private sealed record RaceEmpireMembership(Empire Empire, EmpireRaceMembership Membership);
 
     private sealed record ColonyListing(StarWinSector Sector, StarSystem System, World World, Colony Colony);
@@ -1979,6 +2914,20 @@
             {
                 await sectorMapModule.InvokeVoidAsync("disposeSectorMap", sectorMapElement);
                 await sectorMapModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        if (timelineScrollModule is not null)
+        {
+            try
+            {
+                await timelineScrollModule.InvokeVoidAsync("disconnectAllLoadMore");
+                await timelineScrollModule.InvokeVoidAsync("disconnectTimelineLoadMore");
+                await timelineScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
+                await timelineScrollModule.DisposeAsync();
             }
             catch (JSDisconnectedException)
             {
