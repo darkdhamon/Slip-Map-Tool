@@ -39,40 +39,16 @@
 <PageTitle>Starforged Atlas</PageTitle>
 
 <section class="explorer-page">
-    <header class="explorer-hero">
-        <div class="hero-copy">
-            <p class="eyebrow">Starforged Atlas</p>
-            <h1>Sector command, civilization records, and RPG world survey data.</h1>
-            <p class="hero-summary">Browse sectors, inspect systems, find colonies, compare empires, and prepare science-fiction campaign material from StarWin and Slip Map data.</p>
-        </div>
-
-        <div class="hero-search">
-            <label for="global-search-input">Search the archive</label>
-            <input id="global-search-input"
-                   placeholder="Try Lincolnshire, Desert, Arachnoid, capital..."
-                   @bind="searchQuery"
-                   @bind:event="oninput"
-                   @bind:after="RunSearch" />
-
-            @if (searchResults.Count > 0)
-            {
-                <div class="search-results">
-                    @foreach (var result in searchResults)
-                    {
-                        <button type="button" class="search-result" @onclick="() => NavigateToSearchResult(result)">
-                            <span>@DisplayResultType(result.Type)</span>
-                            <strong>@result.Title</strong>
-                            <small>@result.Subtitle</small>
-                        </button>
-                    }
-                </div>
-            }
-            else if (!string.IsNullOrWhiteSpace(searchQuery))
-            {
-                <p class="search-empty">No matching systems, worlds, races, colonies, or empires.</p>
-            }
-        </div>
-    </header>
+    @if (activeSection == "Overview")
+    {
+        <header class="explorer-hero">
+            <div class="hero-copy">
+                <p class="eyebrow">Starforged Atlas</p>
+                <h1>Sector command, civilization records, and RPG world survey data.</h1>
+                <p class="hero-summary">Browse sectors, inspect systems, find colonies, compare empires, and prepare science-fiction campaign material from StarWin and Slip Map data.</p>
+            </div>
+        </header>
+    }
 
     <section class="control-strip">
         <label class="control-field sector-field">
@@ -99,6 +75,33 @@
             </datalist>
         </label>
 
+        <div class="archive-search">
+            <label for="archive-search-input">Archive search</label>
+            <input id="archive-search-input"
+                   placeholder="System, world, colony, race, empire..."
+                   @bind="searchQuery"
+                   @bind:event="oninput"
+                   @bind:after="RunSearch" />
+
+            @if (searchResults.Count > 0)
+            {
+                <div class="search-results">
+                    @foreach (var result in searchResults)
+                    {
+                        <button type="button" class="search-result" @onclick="() => NavigateToSearchResult(result)">
+                            <span>@DisplayResultType(result.Type)</span>
+                            <strong>@result.Title</strong>
+                            <small>@result.Subtitle</small>
+                        </button>
+                    }
+                </div>
+            }
+            else if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                <p class="search-empty">No matching systems, worlds, races, colonies, empires, habitats, or history.</p>
+            }
+        </div>
+
         <ExplorerSectionTabs Sections="sections"
                              ActiveSection="@activeSection"
                              IsLoading="@sectionLoadingVisible"
@@ -107,11 +110,14 @@
                              SectionSelected="SelectSectionAsync" />
     </section>
 
-    <ExplorerMetricsBand SystemCount="@sectorSummary.SystemCount"
-                         WorldCount="@sectorSummary.WorldCount"
-                         ColonyCount="@sectorSummary.ColonyCount"
-                         EmpireCount="@sectorSummary.EmpireIds.Count"
-                         RaceCount="@sectorSummary.RaceIds.Count" />
+    @if (activeSection == "Overview")
+    {
+        <ExplorerMetricsBand SystemCount="@sectorSummary.SystemCount"
+                             WorldCount="@sectorSummary.WorldCount"
+                             ColonyCount="@sectorSummary.ColonyCount"
+                             EmpireCount="@sectorSummary.EmpireIds.Count"
+                             RaceCount="@sectorSummary.RaceIds.Count" />
+    }
 
     @switch (activeSection)
     {
@@ -2310,6 +2316,13 @@
             selectedEmpireId = empireId;
         }
 
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        if (sector.Systems.All(system => system.Id != selectedSystemId))
+        {
+            selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
+        }
+
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         searchQuery = result.Title;
         searchResults = [];
         _ = PersistExplorerSessionAsync();

@@ -95,14 +95,14 @@ dd {
 .explorer-hero {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(320px, 1.2fr) minmax(320px, 0.8fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 28px;
-    align-items: end;
-    min-height: 290px;
+    align-items: center;
+    min-height: 190px;
     overflow: visible;
     border: 1px solid rgba(56, 189, 248, 0.32);
     border-radius: 8px;
-    padding: 34px;
+    padding: 28px 32px;
     color: #fff;
     background:
         radial-gradient(circle at 16% 28%, rgba(34, 211, 238, 0.26), transparent 24%),
@@ -178,7 +178,15 @@ dd {
     gap: 8px;
 }
 
+.archive-search {
+    position: relative;
+    display: grid;
+    min-width: 0;
+    gap: 6px;
+}
+
 .hero-search label,
+.archive-search label,
 .control-strip label,
 .form-grid label {
     color: var(--muted);
@@ -191,6 +199,7 @@ dd {
 }
 
 .hero-search input,
+.archive-search input,
 .control-strip input,
 .control-strip select,
 .form-grid input,
@@ -207,6 +216,7 @@ dd {
 }
 
 .hero-search input:focus,
+.archive-search input:focus,
 .control-strip input:focus,
 .control-strip select:focus,
 .form-grid input:focus,
@@ -216,6 +226,10 @@ dd {
 }
 
 .hero-search input::placeholder {
+    color: #6f879f;
+}
+
+.archive-search input::placeholder {
     color: #6f879f;
 }
 
@@ -233,6 +247,11 @@ dd {
     background: rgba(4, 13, 28, 0.98);
     color: var(--ink);
     box-shadow: var(--shadow), var(--glow);
+}
+
+.archive-search .search-results,
+.archive-search .search-empty {
+    top: 64px;
 }
 
 .search-result {
@@ -272,7 +291,7 @@ dd {
 
 .control-strip {
     display: grid;
-    grid-template-columns: minmax(210px, 280px) minmax(320px, 520px) 1fr;
+    grid-template-columns: minmax(180px, 240px) minmax(260px, 420px) minmax(260px, 460px) 1fr;
     gap: 14px;
     align-items: end;
     border: 1px solid var(--line);
