@@ -225,6 +225,64 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         "WorldId"
     ];
 
+    private static readonly string[] ColonyColumns =
+    [
+        "Id",
+        "WorldId",
+        "Name",
+        "WorldKind",
+        "RaceId",
+        "ColonistRaceName",
+        "AllegianceId",
+        "AllegianceName",
+        "PoliticalStatus",
+        "ControllingEmpireId",
+        "ParentEmpireId",
+        "FoundingEmpireId",
+        "EncodedPopulation",
+        "EstimatedPopulation",
+        "NativePopulationPercent",
+        "ColonyClass",
+        "ColonyClassCode",
+        "Crime",
+        "Law",
+        "Stability",
+        "AgeCenturies",
+        "Starport",
+        "StarportCode",
+        "GovernmentType",
+        "GovernmentTypeCode",
+        "GrossWorldProductMcr",
+        "MilitaryPower",
+        "ExportResource",
+        "ExportResourceCode",
+        "ImportResource",
+        "ImportResourceCode"
+    ];
+
+    private static readonly string[] ColonyDemographicColumns =
+    [
+        "ColonyId",
+        "RaceId",
+        "RaceName",
+        "PopulationPercent",
+        "Population"
+    ];
+
+    private static readonly string[] HistoryEventColumns =
+    [
+        "SectorId",
+        "Century",
+        "EventType",
+        "RaceId",
+        "OtherRaceId",
+        "EmpireId",
+        "ColonyId",
+        "PlanetId",
+        "StarSystemId",
+        "Description"
+    ];
+
     private static readonly string[] EnvironmentTypes =
     [
         "Land-dwelling",
@@ -865,9 +923,11 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 cancellationToken);
 
             var importedColonies = new List<Colony>();
+            var importedHistoryEvents = new List<HistoryEvent>();
             await ReportImportProgressAsync(progress, 72, "Writing colonies...", $"Preparing {colonies.Count:N0} colony record(s).");
-            foreach (var colonyRecord in colonies)
+            for (var colonyIndex = 0; colonyIndex < colonies.Count; colonyIndex++)
             {
+                var colonyRecord = colonies[colonyIndex];
                 var colony = CreateColony(colonyRecord, aliens, sectorId);
                 if (!existingWorldIds.Contains(colony.WorldId) || !existingColonyWorldIds.Add(colony.WorldId))
                 {
@@ -875,14 +935,21 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                     continue;
                 }
 
-                dbContext.Colonies.Add(colony);
                 importedColonies.Add(colony);
                 addedColonyCount++;
+
+                var processedColonyCount = colonyIndex + 1;
+                if (processedColonyCount == 1 || processedColonyCount % 1_000 == 0 || processedColonyCount == colonies.Count)
+                {
+                    var colonyPercent = CalculatePhasePercent(72, 77, processedColonyCount, colonies.Count);
+                    await ReportImportProgressAsync(progress, colonyPercent, "Writing colonies...", $"Prepared {processedColonyCount:N0} of {colonies.Count:N0} colony record(s).");
+                }
             }
 
             await ReportImportProgressAsync(progress, 78, "Writing history events...", $"Preparing {historyEvents.Count:N0} history event record(s).");
-            foreach (var historyEvent in historyEvents)
+            for (var historyIndex = 0; historyIndex < historyEvents.Count; historyIndex++)
             {
+                var historyEvent = historyEvents[historyIndex];
                 var historyKey = BuildHistoryKey(historyEvent);
                 if (!existingHistoryKeys.Add(historyKey))
                 {
@@ -890,15 +957,23 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                     continue;
                 }
 
-                dbContext.HistoryEvents.Add(historyEvent);
+                importedHistoryEvents.Add(historyEvent);
                 addedHistoryCount++;
+
+                var processedHistoryCount = historyIndex + 1;
+                if (processedHistoryCount == 1 || processedHistoryCount % 5_000 == 0 || processedHistoryCount == historyEvents.Count)
+                {
+                    var historyPercent = CalculatePhasePercent(78, 82, processedHistoryCount, historyEvents.Count);
+                    await ReportImportProgressAsync(progress, historyPercent, "Writing history events...", $"Prepared {processedHistoryCount:N0} of {historyEvents.Count:N0} history event record(s).");
+                }
             }
 
-            await FlushImportChangesAsync(
+            await BulkInsertCivilizationBatchAsync(
                 progress,
                 83,
-                "Saving colonies and history...",
-                $"Committing {addedColonyCount:N0} colonie(s) and {addedHistoryCount:N0} history event(s).",
+                $"Committing {addedColonyCount:N0} colonie(s), {importedColonies.Sum(colony => colony.Demographics.Count):N0} demographic row(s), and {addedHistoryCount:N0} history event(s).",
+                importedColonies,
+                importedHistoryEvents,
                 cancellationToken);
 
             await ReportImportProgressAsync(progress, 84, "Deriving colony state...", "Loading sector colonies, worlds, and history for independent colony analysis.");
@@ -1110,6 +1185,44 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         await ReportImportProgressAsync(progress, percentComplete, "Saving star systems and worlds...", "Bulk database batch committed.");
     }
 
+    private async Task BulkInsertCivilizationBatchAsync(
+        IProgress<StarWinLegacyImportProgress>? progress,
+        int percentComplete,
+        string detail,
+        IReadOnlyList<Colony> colonies,
+        IReadOnlyList<HistoryEvent> historyEvents,
+        CancellationToken cancellationToken)
+    {
+        await ReportImportProgressAsync(
+            progress,
+            Math.Clamp(percentComplete - 1, 0, 100),
+            "Saving colonies and history...",
+            $"{detail} Using bulk database inserts.");
+
+        if (colonies.Count > 0)
+        {
+            await ReportImportProgressAsync(progress, 82, "Saving colonies and history...", $"Bulk inserting {colonies.Count:N0} colony row(s).");
+            await BulkInsertAsync("Colonies", ColonyColumns, colonies.Select(BuildColonyValues), cancellationToken);
+        }
+
+        var demographics = colonies
+            .SelectMany(colony => colony.Demographics)
+            .ToList();
+        if (demographics.Count > 0)
+        {
+            await ReportImportProgressAsync(progress, 82, "Saving colonies and history...", $"Bulk inserting {demographics.Count:N0} colony demographic row(s).");
+            await BulkInsertAsync("ColonyDemographics", ColonyDemographicColumns, demographics.Select(BuildColonyDemographicValues), cancellationToken);
+        }
+
+        if (historyEvents.Count > 0)
+        {
+            await ReportImportProgressAsync(progress, 82, "Saving colonies and history...", $"Bulk inserting {historyEvents.Count:N0} history event row(s).");
+            await BulkInsertAsync("HistoryEvents", HistoryEventColumns, historyEvents.Select(BuildHistoryEventValues), cancellationToken);
+        }
+
+        await ReportImportProgressAsync(progress, percentComplete, "Saving colonies and history...", "Bulk database batch committed.");
+    }
+
     private async Task BulkInsertAsync(
         string tableName,
         IReadOnlyList<string> columns,
@@ -1299,6 +1412,64 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         row.Characteristic.Name,
         row.Characteristic.Notes,
         row.WorldId
+    ];
+
+    private static object?[] BuildColonyValues(Colony colony) =>
+    [
+        colony.Id,
+        colony.WorldId,
+        colony.Name,
+        colony.WorldKind.ToString(),
+        (int)colony.RaceId,
+        colony.ColonistRaceName,
+        (int)colony.AllegianceId,
+        colony.AllegianceName,
+        colony.PoliticalStatus.ToString(),
+        colony.ControllingEmpireId,
+        colony.ParentEmpireId,
+        colony.FoundingEmpireId,
+        colony.EncodedPopulation,
+        colony.EstimatedPopulation,
+        colony.NativePopulationPercent,
+        colony.ColonyClass,
+        colony.ColonyClassCode,
+        colony.Crime,
+        colony.Law,
+        colony.Stability,
+        colony.AgeCenturies,
+        colony.Starport,
+        colony.StarportCode,
+        colony.GovernmentType,
+        colony.GovernmentTypeCode,
+        colony.GrossWorldProductMcr,
+        colony.MilitaryPower,
+        colony.ExportResource,
+        colony.ExportResourceCode,
+        colony.ImportResource,
+        colony.ImportResourceCode
+    ];
+
+    private static object?[] BuildColonyDemographicValues(ColonyDemographic demographic) =>
+    [
+        demographic.ColonyId,
+        demographic.RaceId,
+        demographic.RaceName,
+        demographic.PopulationPercent,
+        demographic.Population
+    ];
+
+    private static object?[] BuildHistoryEventValues(HistoryEvent historyEvent) =>
+    [
+        historyEvent.SectorId,
+        historyEvent.Century,
+        historyEvent.EventType,
+        historyEvent.RaceId,
+        historyEvent.OtherRaceId,
+        historyEvent.EmpireId,
+        historyEvent.ColonyId,
+        historyEvent.PlanetId,
+        historyEvent.StarSystemId,
+        historyEvent.Description
     ];
 
     private static string FormatCoordinates(Coordinates coordinates) => $"{coordinates.X},{coordinates.Y},{coordinates.Z}";
