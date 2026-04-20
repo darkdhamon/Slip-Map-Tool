@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using StarWin.Application.Services.LegacyImport;
@@ -14,11 +15,32 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        var provider = configuration["StarWin:DatabaseProvider"] ?? "SqlServer";
+        var connectionString = configuration.GetConnectionString("StarWin")
+            ?? throw new InvalidOperationException("The StarWin connection string is not configured.");
+
+        void ConfigureDatabase(DbContextOptionsBuilder options)
+        {
+            if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+            {
+                EnsureSqliteDirectoryExists(connectionString);
+                options.UseSqlite(connectionString);
+                return;
+            }
+
+            if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+            {
+                options.UseSqlServer(connectionString);
+                return;
+            }
+
+            throw new InvalidOperationException($"Unsupported StarWin database provider '{provider}'.");
+        }
+
         services.AddDbContext<StarWinDbContext>(
-            options => options.UseSqlServer(configuration.GetConnectionString("StarWin")),
+            ConfigureDatabase,
             optionsLifetime: ServiceLifetime.Singleton);
-        services.AddDbContextFactory<StarWinDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("StarWin")));
+        services.AddDbContextFactory<StarWinDbContext>(ConfigureDatabase);
 
         services.AddSingleton<IStarWinWorkspace, StarWinDatabaseWorkspace>();
         services.AddScoped<IStarWinSearchService, StarWinSearchService>();
@@ -38,5 +60,36 @@ public static class DependencyInjection
         await using var scope = serviceProvider.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<StarWinDbContext>();
         await StarWinDevelopmentSeeder.SeedAsync(dbContext);
+    }
+
+    public static async Task MigrateStarWinDatabaseAsync(this IServiceProvider serviceProvider)
+    {
+        await using var scope = serviceProvider.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<StarWinDbContext>();
+
+        if (dbContext.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            await dbContext.Database.EnsureCreatedAsync();
+            return;
+        }
+
+        await dbContext.Database.MigrateAsync();
+    }
+
+    private static void EnsureSqliteDirectoryExists(string connectionString)
+    {
+        var builder = new SqliteConnectionStringBuilder(connectionString);
+        if (string.IsNullOrWhiteSpace(builder.DataSource) ||
+            builder.DataSource.Equals(":memory:", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var databasePath = Path.GetFullPath(builder.DataSource);
+        var databaseDirectory = Path.GetDirectoryName(databasePath);
+        if (!string.IsNullOrEmpty(databaseDirectory))
+        {
+            Directory.CreateDirectory(databaseDirectory);
+        }
     }
 }
