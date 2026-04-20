@@ -1,0 +1,40 @@
+<Project>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'StarWin.Domain'
+      Or '$(MSBuildProjectName)' == 'StarWin.Application'
+      Or '$(MSBuildProjectName)' == 'StarWin.Infrastructure'
+      Or '$(MSBuildProjectName)' == 'StarWin.Web'
+      Or '$(MSBuildProjectName)' == 'StarWin.Desktop'
+      Or '$(MSBuildProjectName)' == 'SlipMap.Domain'">
+    <IsStarforgedAtlasProject>true</IsStarforgedAtlasProject>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <RepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)'))</RepositoryRoot>
+    <LegacySourceRoot>$(RepositoryRoot)Legacy\</LegacySourceRoot>
+    <LegacyWpfRoot>$(RepositoryRoot)WPF SlipMap\</LegacyWpfRoot>
+    <LegacySlipMapLibraryRoot>$(RepositoryRoot)SlipMap Code Library\</LegacySlipMapLibraryRoot>
+  </PropertyGroup>
+
+  <Target Name="PreventLegacySourceCoupling" BeforeTargets="ResolveReferences;CoreCompile" Condition="'$(IsStarforgedAtlasProject)' == 'true'">
+    <ItemGroup>
+      <ForbiddenLegacyProjectReference Include="@(ProjectReference)"
+          Condition="$([System.String]::Copy('%(ProjectReference.Identity)').Contains('WPF SlipMap'))
+              Or $([System.String]::Copy('%(ProjectReference.Identity)').Contains('SlipMap Code Library'))" />
+      <ForbiddenLegacyCompile Include="@(Compile)"
+          Condition="$([System.String]::Copy('%(Compile.FullPath)').StartsWith('$(LegacySourceRoot)'))
+              Or $([System.String]::Copy('%(Compile.FullPath)').StartsWith('$(LegacyWpfRoot)'))
+              Or $([System.String]::Copy('%(Compile.FullPath)').StartsWith('$(LegacySlipMapLibraryRoot)'))" />
+      <ForbiddenLegacyContent Include="@(Content);@(None)"
+          Condition="$([System.String]::Copy('%(FullPath)').StartsWith('$(LegacySourceRoot)'))
+              Or $([System.String]::Copy('%(FullPath)').StartsWith('$(LegacyWpfRoot)'))
+              Or $([System.String]::Copy('%(FullPath)').StartsWith('$(LegacySlipMapLibraryRoot)'))" />
+    </ItemGroup>
+
+    <Error Condition="'@(ForbiddenLegacyProjectReference)' != ''"
+        Text="Starforged Atlas projects must not reference legacy app projects directly: @(ForbiddenLegacyProjectReference)." />
+    <Error Condition="'@(ForbiddenLegacyCompile)' != ''"
+        Text="Starforged Atlas projects must not compile files from legacy source folders: @(ForbiddenLegacyCompile)." />
+    <Error Condition="'@(ForbiddenLegacyContent)' != ''"
+        Text="Starforged Atlas projects must not include files from legacy source folders: @(ForbiddenLegacyContent)." />
+  </Target>
+</Project>
