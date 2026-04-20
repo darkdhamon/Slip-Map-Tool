@@ -40,8 +40,15 @@ try
     var window = new PhotinoWindow()
         .SetTitle("Starforged Atlas")
         .SetUseOsDefaultSize(false)
-        .SetSize(1280, 840)
-        .Load(localUrl);
+        .SetSize(1280, 840);
+
+    var iconPath = StarWinDesktopPaths.GetIconPath();
+    if (File.Exists(iconPath))
+    {
+        window.SetIconFile(iconPath);
+    }
+
+    window.Load(localUrl);
 
     window.WaitForClose();
 }
@@ -74,6 +81,11 @@ internal static class StarWinDesktopPaths
         return FindWebContentRoot(AppContext.BaseDirectory)
             ?? FindWebContentRoot(Environment.CurrentDirectory)
             ?? AppContext.BaseDirectory;
+    }
+
+    public static string GetIconPath()
+    {
+        return Path.Combine(AppContext.BaseDirectory, "Assets", "StarforgedAtlasLogo.ico");
     }
 
     private static string? FindWebContentRoot(string startDirectory)
