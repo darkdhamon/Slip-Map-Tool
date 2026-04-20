@@ -698,6 +698,30 @@ dd {
     line-height: 1.6;
 }
 
+.switch-field {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    color: #d9e8f5;
+    font-weight: 800;
+}
+
+.switch-field input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+}
+
+.switch-field.compact {
+    gap: 8px;
+    margin-top: 5px;
+}
+
+.switch-field.compact span {
+    color: #d9e8f5;
+    font-size: 0.75rem;
+}
+
 .sector-map-three:fullscreen {
     width: 100vw;
     height: 100vh;

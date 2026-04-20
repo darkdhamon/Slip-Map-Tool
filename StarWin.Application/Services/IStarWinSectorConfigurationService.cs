@@ -4,6 +4,11 @@ namespace StarWin.Application.Services;
 
 public interface IStarWinSectorConfigurationService
 {
+    Task<string> SaveSectorNameAsync(
+        int sectorId,
+        string name,
+        CancellationToken cancellationToken = default);
+
     Task<SectorConfiguration> SaveHyperlaneSettingsAsync(
         int sectorId,
         decimal basicMaximumLengthParsecs,

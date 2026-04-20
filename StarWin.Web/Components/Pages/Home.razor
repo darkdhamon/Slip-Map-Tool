@@ -122,6 +122,12 @@
                             <span class="panel-kicker">3D Sector Map</span>
                             <h2>@sector.Name</h2>
                             <p>The interactive map is available on request so large imported sectors do not slow down the explorer while you browse records.</p>
+                            <label class="switch-field">
+                                <input type="checkbox"
+                                       checked="@autoLoadSectorMap"
+                                       @onchange="ToggleAutoLoadSectorMap" />
+                                <span>Auto-load map this session</span>
+                            </label>
                             <button type="button" class="overlay-action" @onclick="LoadSectorMap">Load 3D map</button>
                         </article>
                     }
@@ -136,6 +142,12 @@
                             {
                                 <small>@hudRoutePlan.Legs.Count route legs from @hudRoutePlan.Origin.Name to @hudRoutePlan.Destination.Name; @hudRoutePlan.OffHyperlaneLegCount off-lane</small>
                             }
+                            <label class="switch-field compact">
+                                <input type="checkbox"
+                                       checked="@autoLoadSectorMap"
+                                       @onchange="ToggleAutoLoadSectorMap" />
+                                <span>Auto-load</span>
+                            </label>
                             <label class="map-distance-control">
                                 <span>View distance</span>
                                 <input type="range"
@@ -254,6 +266,10 @@
                 <h2>@sector.Name</h2>
                 <p class="panel-note">Configure sector-level travel assumptions used by the map and future civilization systems.</p>
                 <div class="form-grid">
+                    <label>
+                        Sector name
+                        <input maxlength="160" @bind="sectorName" />
+                    </label>
                     <label>
                         Basic hyperlane
                         <input value="Basic Hyperlane" readonly />
@@ -1066,6 +1082,7 @@
     private int renderedRouteDestinationSystemId;
     private bool renderedOverview;
     private bool sectorMapRequested;
+    private bool autoLoadSectorMap;
     private SectorMapRoutePlan? plottedRoutePlan;
     private int plottedRouteSectorId;
     private int plottedRouteOriginSystemId;
@@ -1114,6 +1131,7 @@
     private bool empireHasMoreRecords;
     private bool empireObserverConfigured;
     private bool showEmpireFilters;
+    private string sectorName = string.Empty;
     private decimal basicHyperlaneMaximumLengthParsecs = 1m;
     private decimal ownedHyperlaneBaseMaximumLengthParsecs = 1.2m;
     private string sectorConfigurationStatus = string.Empty;
@@ -1241,6 +1259,14 @@
 
         if (!sectorMapRequested)
         {
+            if (autoLoadSectorMap)
+            {
+                sectorMapRequested = true;
+                renderedOverview = false;
+                StateHasChanged();
+                return;
+            }
+
             renderedOverview = false;
             await CompleteSectionLoadingIfReadyAsync();
             return;
@@ -1337,6 +1363,18 @@
     {
         sectorMapRequested = true;
         renderedOverview = false;
+    }
+
+    private async Task ToggleAutoLoadSectorMap(ChangeEventArgs args)
+    {
+        autoLoadSectorMap = args.Value is bool value && value;
+        if (autoLoadSectorMap)
+        {
+            sectorMapRequested = true;
+            renderedOverview = false;
+        }
+
+        await PersistExplorerSessionAsync();
     }
 
     private void SelectSystem(int systemId)
@@ -1462,6 +1500,7 @@
         SelectDefaultCivilizationRecords(sector);
         LoadSectorConfigurationForm(sector);
         ClearSelectedRoute();
+        sectorMapRequested = autoLoadSectorMap;
         _ = PersistExplorerSessionAsync();
     }
 
@@ -1863,6 +1902,8 @@
         }
 
         selectedSectorId = sector.Id;
+        autoLoadSectorMap = storedSelection.AutoLoadSectorMap;
+        sectorMapRequested = autoLoadSectorMap;
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;
@@ -1885,7 +1926,7 @@
             return;
         }
 
-        var selection = new ExplorerSessionSelection(selectedSectorId, selectedSystemId);
+        var selection = new ExplorerSessionSelection(selectedSectorId, selectedSystemId, autoLoadSectorMap);
         var value = System.Text.Json.JsonSerializer.Serialize(selection);
         try
         {
@@ -1898,6 +1939,7 @@
 
     private void LoadSectorConfigurationForm(StarWinSector sector)
     {
+        sectorName = sector.Name;
         basicHyperlaneMaximumLengthParsecs = Math.Round(sector.Configuration.BasicHyperlaneMaximumLengthParsecs, 3);
         ownedHyperlaneBaseMaximumLengthParsecs = Math.Round((decimal)GetOwnedHyperlaneBaseLengthParsecs(sector), 3);
         sectorConfigurationStatus = string.Empty;
@@ -1906,16 +1948,28 @@
     private async Task SaveSectorConfiguration()
     {
         var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        string savedSectorName;
+        try
+        {
+            savedSectorName = await SectorConfigurationService.SaveSectorNameAsync(sector.Id, sectorName);
+        }
+        catch (InvalidOperationException exception)
+        {
+            sectorConfigurationStatus = exception.Message;
+            return;
+        }
+
         var configuration = await SectorConfigurationService.SaveHyperlaneSettingsAsync(
             sector.Id,
             basicHyperlaneMaximumLengthParsecs,
             ownedHyperlaneBaseMaximumLengthParsecs);
 
+        sector.Name = savedSectorName;
         sector.Configuration.BasicHyperlaneMaximumLengthParsecs = configuration.BasicHyperlaneMaximumLengthParsecs;
         sector.Configuration.OwnedHyperlaneBaseMaximumLengthParsecs = configuration.OwnedHyperlaneBaseMaximumLengthParsecs;
         sector.Configuration.UpdatedAtUtc = configuration.UpdatedAtUtc;
         LoadSectorConfigurationForm(sector);
-        sectorConfigurationStatus = $"Basic hyperlanes now connect systems up to {configuration.BasicHyperlaneMaximumLengthParsecs:0.###} parsecs; owned hyperlanes start at {configuration.OwnedHyperlaneBaseMaximumLengthParsecs:0.###} parsecs before tech-level bonuses.";
+        sectorConfigurationStatus = $"{savedSectorName} saved. Basic hyperlanes now connect systems up to {configuration.BasicHyperlaneMaximumLengthParsecs:0.###} parsecs; owned hyperlanes start at {configuration.OwnedHyperlaneBaseMaximumLengthParsecs:0.###} parsecs before tech-level bonuses.";
         routeGraphCaches.Clear();
         ClearPlottedRoutePlan();
         renderedOverview = false;
@@ -3391,7 +3445,7 @@
         IReadOnlyDictionary<int, double> Costs,
         IReadOnlyDictionary<int, SectorMapRouteLeg> PreviousLegs);
 
-    private sealed record ExplorerSessionSelection(int SectorId, int SystemId);
+    private sealed record ExplorerSessionSelection(int SectorId, int SystemId, bool AutoLoadSectorMap = false);
 
     public async ValueTask DisposeAsync()
     {
