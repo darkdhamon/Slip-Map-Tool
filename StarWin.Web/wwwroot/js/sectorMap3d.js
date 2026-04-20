@@ -2,10 +2,12 @@ let threePromise;
 const maps = new WeakMap();
 const performanceSampleSize = 150;
 const performanceWarmupFrames = 45;
-const slowFrameMilliseconds = 34;
-const slowAverageMilliseconds = 28;
+const slowFrameMilliseconds = 100;
+const slowAverageMilliseconds = 100;
 const slowFrameRatio = 0.32;
 const minimumAdaptiveSystemLimit = 150;
+const systemShrinkStartParsecs = 1;
+const systemShrinkEndParsecs = 5;
 
 async function loadThree() {
     if (!threePromise) {
@@ -120,6 +122,8 @@ function createMap(host, THREE) {
         dotNetReference: null,
         systems: [],
         systemPositions: new Map(),
+        systemClusters: new Map(),
+        hoverLabel: null,
         performance: createPerformanceMonitor(),
         target: new THREE.Vector3(36, 18, 36),
         cameraOffset: new THREE.Vector3(84, 70, 82),
@@ -143,6 +147,10 @@ function createMap(host, THREE) {
     });
 
     canvas.addEventListener("pointermove", event => handlePointerMove(state, event));
+    canvas.addEventListener("pointerleave", () => {
+        setHoveredLabel(state, null);
+        canvas.style.cursor = "";
+    });
     canvas.addEventListener("pointerup", event => handlePointerUp(state, event));
     canvas.addEventListener("wheel", event => handleWheel(state, event), { passive: false });
     canvas.addEventListener("keydown", event => handleKeyDown(state, event));
@@ -159,10 +167,11 @@ function rebuildScene(state, sector, selectedSystemId) {
     state.routeGroup.clear();
     state.clickable.length = 0;
     state.systemPositions.clear();
+    state.systemClusters.clear();
+    state.hoverLabel = null;
 
     const viewDistance = Number(sector.viewDistanceParsecs ?? 20);
     const fadeStart = Number(sector.fadeStartParsecs ?? Math.max(0, viewDistance - 1));
-    const shrinkStart = Math.max(0, Math.min(fadeStart, viewDistance * 0.55));
     const routeActive = Boolean(sector.routeActive);
     const routeSystemIds = new Set(sector.routeSystemIds ?? []);
 
@@ -171,10 +180,11 @@ function rebuildScene(state, sector, selectedSystemId) {
         cluster.position.set(system.x * 8, system.z * 6, system.y * 12);
         cluster.userData = { systemId: system.id, systemName: system.name };
         state.systemPositions.set(system.id, cluster.position.clone());
+        state.systemClusters.set(system.id, cluster);
         const isRouteSystem = routeSystemIds.has(system.id) || Boolean(system.isRouteSystem);
         const focusOpacity = isRouteSystem ? 1 : getFocusDistanceOpacity(system.distanceFromFocus, fadeStart, viewDistance);
         const systemOpacity = routeActive && !isRouteSystem ? Math.min(focusOpacity, 0.16) : focusOpacity;
-        const focusScale = isRouteSystem ? 1 : getFocusDistanceScale(system.distanceFromFocus, shrinkStart, viewDistance);
+        const focusScale = getFocusDistanceScale(system.distanceFromFocus);
 
         const bodies = (system.bodies?.length ? system.bodies : [{ kind: "Unknown" }]).slice(0, 3);
         const bodyRadii = bodies.map(body => getAstralBodyVisualRadius(body, system.id === selectedSystemId));
@@ -195,6 +205,11 @@ function rebuildScene(state, sector, selectedSystemId) {
         if (system.showLabel) {
             const label = createLabelSprite(THREE, system.name, system.id === selectedSystemId);
             label.position.set(0, 3.45, 0);
+            label.userData = {
+                ...label.userData,
+                systemId: system.id,
+                persistentLabel: true
+            };
             cluster.add(label);
         }
 
@@ -401,13 +416,13 @@ function getFocusDistanceOpacity(distanceFromFocus, fadeStart, viewDistance) {
     return 1 - fadeProgress * 0.75;
 }
 
-function getFocusDistanceScale(distanceFromFocus, shrinkStart, viewDistance) {
+function getFocusDistanceScale(distanceFromFocus) {
     const distance = Number(distanceFromFocus ?? 0);
-    if (distance <= shrinkStart || viewDistance <= shrinkStart) {
+    if (distance <= systemShrinkStartParsecs) {
         return 1;
     }
 
-    const shrinkProgress = Math.min(1, Math.max(0, (distance - shrinkStart) / (viewDistance - shrinkStart)));
+    const shrinkProgress = Math.min(1, Math.max(0, (distance - systemShrinkStartParsecs) / (systemShrinkEndParsecs - systemShrinkStartParsecs)));
     return 1 - shrinkProgress * 0.62;
 }
 
@@ -854,6 +869,7 @@ function focusSystem(state, systemId) {
 
 function handlePointerMove(state, event) {
     if (!state.drag) {
+        updateHoveredLabel(state, event);
         return;
     }
 
@@ -875,6 +891,57 @@ function handlePointerMove(state, event) {
     }
 
     updateCamera(state);
+}
+
+function updateHoveredLabel(state, event) {
+    const rect = state.renderer.domElement.getBoundingClientRect();
+    state.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    state.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    state.raycaster.setFromCamera(state.pointer, state.camera);
+
+    const hit = state.raycaster.intersectObjects(state.clickable, true)
+        .find(item => item.object.userData?.systemId);
+    const hoveredSystemId = hit?.object.userData.systemId ?? null;
+    setHoveredLabel(state, hoveredSystemId);
+    state.renderer.domElement.style.cursor = hoveredSystemId === null ? "" : "pointer";
+}
+
+function setHoveredLabel(state, systemId) {
+    if (state.hoverLabel?.userData?.persistentLabel === false && state.hoverLabel.parent) {
+        state.hoverLabel.parent.remove(state.hoverLabel);
+        disposeLabelSprite(state.hoverLabel);
+    }
+
+    state.hoverLabel = null;
+    if (systemId === null || systemId === undefined) {
+        return;
+    }
+
+    const cluster = state.systemClusters.get(systemId);
+    if (!cluster) {
+        return;
+    }
+
+    const existingLabel = cluster.children.find(child => child.userData?.persistentLabel === true);
+    if (existingLabel) {
+        state.hoverLabel = existingLabel;
+        return;
+    }
+
+    const label = createLabelSprite(state.THREE, cluster.userData.systemName, false);
+    label.position.set(0, 3.45, 0);
+    label.userData = {
+        ...label.userData,
+        systemId,
+        persistentLabel: false
+    };
+    cluster.add(label);
+    state.hoverLabel = label;
+}
+
+function disposeLabelSprite(label) {
+    label.material?.map?.dispose?.();
+    label.material?.dispose?.();
 }
 
 function handleWheel(state, event) {

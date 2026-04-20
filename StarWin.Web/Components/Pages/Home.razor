@@ -1194,7 +1194,7 @@
     private const int ColonyBatchSize = 120;
     private const int ExplorerListBatchSize = 120;
     private const int TimelineAllFilterId = -1;
-    private const double SectorMapMaximumLabelDistanceParsecs = 5;
+    private const double SectorMapMaximumLabelDistanceParsecs = 3;
     private const double MaximumVoidRouteDistanceParsecs = 3;
     private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
 
@@ -3094,7 +3094,7 @@
                     ? 0
                     : CalculateParsecDistance(focusedSystem.Coordinates, system.Coordinates),
                 isRouteSystem = routeSystemIds.Contains(system.Id),
-                showLabel = routeSystemIds.Contains(system.Id) || ShouldShowSectorMapLabel(system, focusedSystem),
+                showLabel = ShouldShowSectorMapLabel(system, focusedSystem),
                 bodies = system.AstralBodies.Take(3).Select(body => new
                 {
                     kind = body.Kind.ToString(),
@@ -3164,11 +3164,6 @@
     private static bool ShouldShowSectorMapLabel(StarSystem system, StarSystem? focusedSystem)
     {
         if (focusedSystem is null || system.Id == focusedSystem.Id)
-        {
-            return true;
-        }
-
-        if (system.Worlds.Any(world => world.Colony is not null))
         {
             return true;
         }
