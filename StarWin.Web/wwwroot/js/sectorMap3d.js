@@ -1,5 +1,11 @@
 let threePromise;
 const maps = new WeakMap();
+const performanceSampleSize = 150;
+const performanceWarmupFrames = 45;
+const slowFrameMilliseconds = 34;
+const slowAverageMilliseconds = 28;
+const slowFrameRatio = 0.32;
+const minimumAdaptiveSystemLimit = 150;
 
 async function loadThree() {
     if (!threePromise) {
@@ -23,6 +29,8 @@ export async function renderSectorMap(host, sector, selectedSystemId, dotNetRefe
 
     state.dotNetReference = dotNetReference;
     state.systems = sector.systems ?? [];
+    state.maximumRenderedSystems = Number(sector.maximumRenderedSystems ?? state.systems.length);
+    resetPerformanceMonitor(state);
     rebuildScene(state, sector, selectedSystemId);
     focusSystem(state, selectedSystemId);
     resize(state);
@@ -103,7 +111,9 @@ function createMap(host, THREE) {
         animationFrame: 0,
         dotNetReference: null,
         systems: [],
+        maximumRenderedSystems: 0,
         systemPositions: new Map(),
+        performance: createPerformanceMonitor(),
         target: new THREE.Vector3(36, 18, 36),
         cameraOffset: new THREE.Vector3(84, 70, 82),
         radius: 116,
@@ -935,8 +945,61 @@ function resize(state) {
     state.renderer.setSize(width, height, false);
 }
 
-function animate(state) {
-    state.animationFrame = requestAnimationFrame(() => animate(state));
+function animate(state, timestamp = performance.now()) {
+    state.animationFrame = requestAnimationFrame(nextTimestamp => animate(state, nextTimestamp));
+    trackMapPerformance(state, timestamp);
     faceImageMarkers(state);
     state.renderer.render(state.scene, state.camera);
+}
+
+function createPerformanceMonitor() {
+    return {
+        lastTimestamp: 0,
+        frameCount: 0,
+        samples: [],
+        reported: false
+    };
+}
+
+function resetPerformanceMonitor(state) {
+    state.performance = createPerformanceMonitor();
+}
+
+function trackMapPerformance(state, timestamp) {
+    const monitor = state.performance;
+    if (!monitor || monitor.reported) {
+        return;
+    }
+
+    if (monitor.lastTimestamp === 0) {
+        monitor.lastTimestamp = timestamp;
+        return;
+    }
+
+    const frameMilliseconds = timestamp - monitor.lastTimestamp;
+    monitor.lastTimestamp = timestamp;
+    monitor.frameCount++;
+    if (monitor.frameCount <= performanceWarmupFrames) {
+        return;
+    }
+
+    monitor.samples.push(frameMilliseconds);
+    if (monitor.samples.length < performanceSampleSize) {
+        return;
+    }
+
+    const averageFrameMilliseconds = monitor.samples.reduce((sum, sample) => sum + sample, 0) / monitor.samples.length;
+    const slowFrames = monitor.samples.filter(sample => sample >= slowFrameMilliseconds).length;
+    const currentLimit = Number(state.maximumRenderedSystems || state.systems.length || 0);
+    const suggestedLimit = Math.max(minimumAdaptiveSystemLimit, Math.floor(currentLimit * 0.72));
+    const hasSustainedLag = averageFrameMilliseconds >= slowAverageMilliseconds
+        || slowFrames / monitor.samples.length >= slowFrameRatio;
+
+    monitor.samples.length = 0;
+    if (!hasSustainedLag || suggestedLimit >= currentLimit || currentLimit <= minimumAdaptiveSystemLimit) {
+        return;
+    }
+
+    monitor.reported = true;
+    state.dotNetReference?.invokeMethodAsync("ReduceSectorMapRenderLimit", suggestedLimit, averageFrameMilliseconds);
 }

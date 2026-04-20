@@ -144,8 +144,12 @@
                         <div class="map-hud">
                             <span>3D Sector Map</span>
                             <strong>@sector.Name</strong>
-                            <small>@GetSectorMapSystemCount(sector, selectedSystem) of @sector.Systems.Count systems within @sectorMapViewDistanceParsecs parsecs@(IsSectorMapCapped(sector, selectedSystem) ? " (closest 1,000 shown)" : string.Empty)</small>
+                            <small>@GetSectorMapSystemCount(sector, selectedSystem) of @sector.Systems.Count systems within @sectorMapViewDistanceParsecs parsecs@(IsSectorMapCapped(sector, selectedSystem) ? $" (closest {sectorMapRenderLimit:N0} shown)" : string.Empty)</small>
                             <small>@GetSectorMapRouteCount(sector, selectedSystem) visible basic/owned hyperlanes</small>
+                            @if (!string.IsNullOrWhiteSpace(sectorMapPerformanceStatus))
+                            {
+                                <small class="map-performance-status">@sectorMapPerformanceStatus</small>
+                            }
                             @if (selectedRoutePlan is { } hudRoutePlan)
                             {
                                 <small>@hudRoutePlan.Legs.Count route legs from @hudRoutePlan.Origin.Name to @hudRoutePlan.Destination.Name; @hudRoutePlan.OffHyperlaneLegCount off-lane</small>
@@ -1186,6 +1190,7 @@
 @code {
     private const int DefaultSectorMapViewDistanceParsecs = 5;
     private const int SectorMapMaximumRenderedSystems = 1_000;
+    private const int SectorMapMinimumRenderedSystems = 150;
     private const int ColonyBatchSize = 120;
     private const int ExplorerListBatchSize = 120;
     private const int TimelineAllFilterId = -1;
@@ -1223,6 +1228,7 @@
     private int renderedSectorId;
     private int renderedSystemId;
     private int renderedViewDistanceParsecs;
+    private int renderedMapRenderLimit;
     private double renderedRouteDistanceParsecs;
     private int renderedRouteOriginSystemId;
     private int renderedRouteDestinationSystemId;
@@ -1285,6 +1291,8 @@
     private decimal ownedHyperlaneBaseMaximumLengthParsecs = 1.2m;
     private string sectorConfigurationStatus = string.Empty;
     private int sectorMapViewDistanceParsecs = DefaultSectorMapViewDistanceParsecs;
+    private int sectorMapRenderLimit = SectorMapMaximumRenderedSystems;
+    private string sectorMapPerformanceStatus = string.Empty;
 
     private IReadOnlyDictionary<int, AlienRace>? alienRacesById;
     private IReadOnlyDictionary<int, Empire>? empiresById;
@@ -1430,6 +1438,7 @@
             && renderedSectorId == sector.Id
             && renderedSystemId == selectedSystemId
             && renderedViewDistanceParsecs == sectorMapViewDistanceParsecs
+            && renderedMapRenderLimit == sectorMapRenderLimit
             && renderedRouteOriginSystemId == routeOriginSystemId
             && renderedRouteDestinationSystemId == routeDestinationSystemId
             && Math.Abs(renderedRouteDistanceParsecs - GetHyperlaneRouteDistanceParsecs(sector)) < 0.001)
@@ -1451,6 +1460,7 @@
         renderedSectorId = sector.Id;
         renderedSystemId = selectedSystemId;
         renderedViewDistanceParsecs = sectorMapViewDistanceParsecs;
+        renderedMapRenderLimit = sectorMapRenderLimit;
         renderedRouteDistanceParsecs = GetHyperlaneRouteDistanceParsecs(sector);
         renderedRouteOriginSystemId = routeOriginSystemId;
         renderedRouteDestinationSystemId = routeDestinationSystemId;
@@ -1566,6 +1576,21 @@
         SelectDefaultWorld();
         await PersistExplorerSessionAsync();
         StateHasChanged();
+    }
+
+    [JSInvokable]
+    public Task ReduceSectorMapRenderLimit(int suggestedMaximumSystems, double averageFrameMilliseconds)
+    {
+        var nextLimit = Math.Clamp(suggestedMaximumSystems, SectorMapMinimumRenderedSystems, SectorMapMaximumRenderedSystems);
+        if (nextLimit >= sectorMapRenderLimit)
+        {
+            return Task.CompletedTask;
+        }
+
+        sectorMapRenderLimit = nextLimit;
+        sectorMapPerformanceStatus = $"Performance mode: showing closest {sectorMapRenderLimit:N0} systems after slow map frames ({averageFrameMilliseconds:0} ms avg).";
+        renderedOverview = false;
+        return InvokeAsync(StateHasChanged);
     }
 
     private void SelectWorld(int worldId)
@@ -1727,6 +1752,7 @@
         sectorMapViewDistanceParsecs = Math.Min(
             sectorMapViewDistanceParsecs,
             GetSectorMapMaximumViewDistance(sector));
+        ResetSectorMapPerformanceLimit();
         SelectDefaultCivilizationRecords(sector);
         LoadSectorConfigurationForm(sector);
         ClearSelectedRoute();
@@ -1757,6 +1783,13 @@
         selectedSystemId = systemId;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         SelectDefaultWorld();
+    }
+
+    private void ResetSectorMapPerformanceLimit()
+    {
+        sectorMapRenderLimit = SectorMapMaximumRenderedSystems;
+        sectorMapPerformanceStatus = string.Empty;
+        renderedMapRenderLimit = 0;
     }
 
     private void ApplyRouteOriginText()
@@ -3024,7 +3057,7 @@
             sector = sector.Name,
             viewDistanceParsecs = sectorMapViewDistanceParsecs,
             fadeStartParsecs = Math.Max(0, sectorMapViewDistanceParsecs - 1),
-            maximumRenderedSystems = SectorMapMaximumRenderedSystems,
+            maximumRenderedSystems = sectorMapRenderLimit,
             labelDistanceParsecs = SectorMapMaximumLabelDistanceParsecs,
             routeDistanceParsecs = routeDistance,
             ownedRouteDistanceParsecs = ownedRouteDistance,
@@ -3093,7 +3126,7 @@
             .Where(item => item.Distance <= sectorMapViewDistanceParsecs)
             .OrderBy(item => item.Distance)
             .ThenBy(item => item.System.Name)
-            .Take(SectorMapMaximumRenderedSystems)
+            .Take(sectorMapRenderLimit)
             .Select(item => item.System)
             .ToList();
 
@@ -3432,7 +3465,7 @@
     {
         var focused = focusedSystem ?? sector.Systems.FirstOrDefault();
         return focused is not null
-            && sector.Systems.Count(system => CalculateParsecDistance(focused.Coordinates, system.Coordinates) <= sectorMapViewDistanceParsecs) > SectorMapMaximumRenderedSystems;
+            && sector.Systems.Count(system => CalculateParsecDistance(focused.Coordinates, system.Coordinates) <= sectorMapViewDistanceParsecs) > sectorMapRenderLimit;
     }
 
     private int GetSectorMapRouteCount(StarWinSector sector, StarSystem? focusedSystem)
