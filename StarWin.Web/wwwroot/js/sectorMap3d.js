@@ -162,6 +162,7 @@ function rebuildScene(state, sector, selectedSystemId) {
 
     const viewDistance = Number(sector.viewDistanceParsecs ?? 20);
     const fadeStart = Number(sector.fadeStartParsecs ?? Math.max(0, viewDistance - 1));
+    const shrinkStart = Math.max(0, Math.min(fadeStart, viewDistance * 0.55));
     const routeActive = Boolean(sector.routeActive);
     const routeSystemIds = new Set(sector.routeSystemIds ?? []);
 
@@ -173,6 +174,7 @@ function rebuildScene(state, sector, selectedSystemId) {
         const isRouteSystem = routeSystemIds.has(system.id) || Boolean(system.isRouteSystem);
         const focusOpacity = isRouteSystem ? 1 : getFocusDistanceOpacity(system.distanceFromFocus, fadeStart, viewDistance);
         const systemOpacity = routeActive && !isRouteSystem ? Math.min(focusOpacity, 0.16) : focusOpacity;
+        const focusScale = isRouteSystem ? 1 : getFocusDistanceScale(system.distanceFromFocus, shrinkStart, viewDistance);
 
         const bodies = (system.bodies?.length ? system.bodies : [{ kind: "Unknown" }]).slice(0, 3);
         const bodyRadii = bodies.map(body => getAstralBodyVisualRadius(body, system.id === selectedSystemId));
@@ -206,7 +208,7 @@ function rebuildScene(state, sector, selectedSystemId) {
             cluster.add(ring);
         }
 
-        applyFocusOpacity(cluster, systemOpacity);
+        applyFocusAppearance(cluster, systemOpacity, focusScale);
         state.group.add(cluster);
     }
 
@@ -399,7 +401,21 @@ function getFocusDistanceOpacity(distanceFromFocus, fadeStart, viewDistance) {
     return 1 - fadeProgress * 0.75;
 }
 
-function applyFocusOpacity(root, opacity) {
+function getFocusDistanceScale(distanceFromFocus, shrinkStart, viewDistance) {
+    const distance = Number(distanceFromFocus ?? 0);
+    if (distance <= shrinkStart || viewDistance <= shrinkStart) {
+        return 1;
+    }
+
+    const shrinkProgress = Math.min(1, Math.max(0, (distance - shrinkStart) / (viewDistance - shrinkStart)));
+    return 1 - shrinkProgress * 0.62;
+}
+
+function applyFocusAppearance(root, opacity, scale) {
+    if (scale < 0.999) {
+        root.scale.setScalar(Math.max(0.28, scale));
+    }
+
     if (opacity >= 0.999) {
         return;
     }
