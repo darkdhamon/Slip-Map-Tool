@@ -1,6 +1,10 @@
 using System.IO.Compression;
 using System.Globalization;
+using System.Data;
+using System.Data.Common;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using StarWin.Application.Services.LegacyImport;
 using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.StarMap;
@@ -20,6 +24,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     private const int EmpireRecordSize = 52;
     private const int StarSystemSaveBatchSize = 500;
     private const int WorldSaveBatchSize = 25_000;
+    private const int SqlBulkCopyBatchSize = 10_000;
     private readonly StarWinClassificationCatalog classificationCatalog = new();
     private readonly IndependentColonyEmpireFactory independentColonyEmpireFactory = new();
     private readonly SpaceHabitatConstructionService spaceHabitatConstructionService = new();
@@ -138,6 +143,86 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         "u38",
         "u39",
         "u40"
+    ];
+
+    private static readonly string[] StarSystemColumns =
+    [
+        "Id",
+        "SectorId",
+        "LegacySystemId",
+        "Name",
+        "Coordinates",
+        "AllegianceId",
+        "MapCode"
+    ];
+
+    private static readonly string[] AstralBodyColumns =
+    [
+        "Role",
+        "Kind",
+        "Classification",
+        "ClassificationCode",
+        "DecimalClassCode",
+        "PlanetCount",
+        "Luminosity",
+        "SolarMasses",
+        "CompanionOrbitAu",
+        "StarSystemId"
+    ];
+
+    private static readonly string[] WorldColumns =
+    [
+        "Id",
+        "Kind",
+        "LegacyPlanetId",
+        "LegacyMoonId",
+        "StarSystemId",
+        "ParentWorldId",
+        "PrimaryAstralBodySequence",
+        "Name",
+        "WorldType",
+        "AtmosphereType",
+        "AtmosphereComposition",
+        "WaterType",
+        "Hydrography_WaterPercent",
+        "Hydrography_IcePercent",
+        "Hydrography_CloudPercent",
+        "MineralResources_MetalOre",
+        "MineralResources_RadioactiveOre",
+        "MineralResources_PreciousMetal",
+        "MineralResources_RawCrystals",
+        "MineralResources_PreciousGems",
+        "DiameterKm",
+        "DensityTenthsEarth",
+        "AtmosphericPressure",
+        "AverageTemperatureCelsius",
+        "MiscellaneousFlags",
+        "Albedo",
+        "AlienRaceId",
+        "ControlledByEmpireId",
+        "AllegianceId",
+        "OrbitRadiusAu",
+        "OrbitRadiusKm",
+        "SmallestMolecularWeightRetained",
+        "AxialTiltDegrees",
+        "OrbitalInclinationDegrees",
+        "RotationPeriodHours",
+        "EccentricityThousandths",
+        "OrbitPeriodDays",
+        "GravityEarthG",
+        "MassEarthMasses",
+        "EscapeVelocityKmPerSecond",
+        "OxygenPressureAtmospheres",
+        "BoilingPointCelsius",
+        "MagneticFieldGauss"
+    ];
+
+    private static readonly string[] UnusualCharacteristicColumns =
+    [
+        "Code",
+        "Name",
+        "Notes",
+        "WorldId"
     ];
 
     private static readonly string[] EnvironmentTypes =
@@ -641,15 +726,17 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             if (isNewSector)
             {
                 dbContext.Sectors.Add(sector);
+                await FlushImportChangesAsync(
+                    progress,
+                    41,
+                    "Saving sector shell...",
+                    $"Creating sector {sector.Name} before bulk importing star map records.",
+                    cancellationToken);
             }
 
-            var importedWorldsById = new Dictionary<int, World>();
             await ReportImportProgressAsync(progress, 42, "Writing star systems and worlds...", $"Preparing {importedSystems.Count:N0} star system record(s), {planets.Count:N0} planet record(s), and {moons.Count:N0} moon record(s).");
             var processedSystemCount = 0;
-            var batchHasChanges = isNewSector;
-            var batchSystemCount = 0;
-            var batchAstralBodyCount = 0;
-            var batchWorldCount = 0;
+            var batch = new StarMapImportBatch();
             foreach (var systemImport in importedSystems)
             {
                 processedSystemCount++;
@@ -667,25 +754,22 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 foreach (var world in newWorlds)
                 {
                     existingWorldIds.Add(world.Id);
-                    importedWorldsById[world.Id] = world;
                 }
 
                 if (existingSystemIds.Add(systemImport.System.Id))
                 {
                     foreach (var world in newWorlds)
                     {
-                        systemImport.System.Worlds.Add(world);
+                        batch.Worlds.Add(world);
+                        AddUnusualCharacteristicRows(batch.UnusualCharacteristics, world);
                     }
 
-                    dbContext.StarSystems.Add(systemImport.System);
+                    batch.StarSystems.Add(systemImport.System);
+                    AddAstralBodyRows(batch.AstralBodies, systemImport.System.Id, systemImport.System.AstralBodies);
                     addedSystemCount++;
                     addedAstralBodyCount += systemImport.System.AstralBodies.Count;
                     addedWorldCount += newWorlds.Count;
                     addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
-                    batchHasChanges = true;
-                    batchSystemCount++;
-                    batchAstralBodyCount += systemImport.System.AstralBodies.Count;
-                    batchWorldCount += newWorlds.Count;
                 }
                 else
                 {
@@ -698,50 +782,43 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
 
                     foreach (var astralBody in systemImport.System.AstralBodies.Where(body => existingRoles.Add(body.Role)))
                     {
-                        dbContext.Set<AstralBody>().Add(astralBody);
-                        dbContext.Entry(astralBody).Property("StarSystemId").CurrentValue = systemImport.System.Id;
+                        batch.AstralBodies.Add(new AstralBodyImportRow(systemImport.System.Id, astralBody));
                         addedAstralBodyCount++;
-                        batchHasChanges = true;
-                        batchAstralBodyCount++;
                     }
 
                     foreach (var world in newWorlds)
                     {
-                        dbContext.Worlds.Add(world);
+                        batch.Worlds.Add(world);
+                        AddUnusualCharacteristicRows(batch.UnusualCharacteristics, world);
                     }
 
                     addedWorldCount += newWorlds.Count;
                     addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
-                    batchHasChanges = batchHasChanges || newWorlds.Count > 0;
-                    batchWorldCount += newWorlds.Count;
                 }
 
-                if (batchHasChanges
-                    && (batchSystemCount >= StarSystemSaveBatchSize
-                        || batchWorldCount >= WorldSaveBatchSize
+                if (batch.HasChanges
+                    && (batch.StarSystems.Count >= StarSystemSaveBatchSize
+                        || batch.Worlds.Count >= WorldSaveBatchSize
                         || processedSystemCount == importedSystems.Count))
                 {
                     var savePercent = CalculatePhasePercent(43, 59, processedSystemCount, importedSystems.Count);
-                    await FlushImportChangesAsync(
+                    await BulkInsertStarMapBatchAsync(
                         progress,
                         savePercent,
-                        "Saving star systems and worlds...",
-                        $"Committing batch {processedSystemCount:N0} of {importedSystems.Count:N0}: {batchSystemCount:N0} star system(s), {batchAstralBodyCount:N0} astral bodies, and {batchWorldCount:N0} world(s).",
+                        $"Committing batch {processedSystemCount:N0} of {importedSystems.Count:N0}: {batch.StarSystems.Count:N0} star system(s), {batch.AstralBodies.Count:N0} astral bodies, {batch.Worlds.Count:N0} world(s), and {batch.UnusualCharacteristics.Count:N0} unusual characteristic(s).",
+                        batch,
                         cancellationToken);
-                    batchHasChanges = false;
-                    batchSystemCount = 0;
-                    batchAstralBodyCount = 0;
-                    batchWorldCount = 0;
+                    batch = new StarMapImportBatch();
                 }
             }
 
-            if (batchHasChanges)
+            if (batch.HasChanges)
             {
-                await FlushImportChangesAsync(
+                await BulkInsertStarMapBatchAsync(
                     progress,
                     59,
-                    "Saving star systems and worlds...",
-                    $"Committing final batch: {batchSystemCount:N0} star system(s), {batchAstralBodyCount:N0} astral bodies, and {batchWorldCount:N0} world(s).",
+                    $"Committing final batch: {batch.StarSystems.Count:N0} star system(s), {batch.AstralBodies.Count:N0} astral bodies, {batch.Worlds.Count:N0} world(s), and {batch.UnusualCharacteristics.Count:N0} unusual characteristic(s).",
+                    batch,
                     cancellationToken);
             }
             else
@@ -992,6 +1069,241 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
 
         await ReportImportProgressAsync(progress, percentComplete, status, "Database changes committed.");
     }
+
+    private async Task BulkInsertStarMapBatchAsync(
+        IProgress<StarWinLegacyImportProgress>? progress,
+        int percentComplete,
+        string detail,
+        StarMapImportBatch batch,
+        CancellationToken cancellationToken)
+    {
+        await ReportImportProgressAsync(
+            progress,
+            Math.Clamp(percentComplete - 1, 0, 100),
+            "Saving star systems and worlds...",
+            $"{detail} Using bulk database inserts.");
+
+        if (batch.StarSystems.Count > 0)
+        {
+            await BulkInsertAsync("StarSystems", StarSystemColumns, batch.StarSystems.Select(BuildStarSystemValues), cancellationToken);
+        }
+
+        if (batch.AstralBodies.Count > 0)
+        {
+            await BulkInsertAsync("AstralBodies", AstralBodyColumns, batch.AstralBodies.Select(BuildAstralBodyValues), cancellationToken);
+        }
+
+        if (batch.Worlds.Count > 0)
+        {
+            await BulkInsertAsync("Worlds", WorldColumns, batch.Worlds.Select(BuildWorldValues), cancellationToken);
+        }
+
+        if (batch.UnusualCharacteristics.Count > 0)
+        {
+            await BulkInsertAsync(
+                "UnusualCharacteristics",
+                UnusualCharacteristicColumns,
+                batch.UnusualCharacteristics.Select(BuildUnusualCharacteristicValues),
+                cancellationToken);
+        }
+
+        await ReportImportProgressAsync(progress, percentComplete, "Saving star systems and worlds...", "Bulk database batch committed.");
+    }
+
+    private async Task BulkInsertAsync(
+        string tableName,
+        IReadOnlyList<string> columns,
+        IEnumerable<object?[]> rows,
+        CancellationToken cancellationToken)
+    {
+        if (dbContext.Database.ProviderName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            await BulkInsertSqlServerAsync(tableName, columns, rows, cancellationToken);
+            return;
+        }
+
+        await BulkInsertPreparedStatementsAsync(tableName, columns, rows, cancellationToken);
+    }
+
+    private async Task BulkInsertSqlServerAsync(
+        string tableName,
+        IReadOnlyList<string> columns,
+        IEnumerable<object?[]> rows,
+        CancellationToken cancellationToken)
+    {
+        var connection = (SqlConnection)dbContext.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        var transaction = (SqlTransaction?)dbContext.Database.CurrentTransaction?.GetDbTransaction();
+        using var bulkCopy = new SqlBulkCopy(connection, SqlBulkCopyOptions.CheckConstraints, transaction)
+        {
+            DestinationTableName = tableName,
+            BatchSize = SqlBulkCopyBatchSize,
+            BulkCopyTimeout = 0,
+            EnableStreaming = true
+        };
+
+        foreach (var column in columns)
+        {
+            bulkCopy.ColumnMappings.Add(column, column);
+        }
+
+        using var table = CreateDataTable(columns, rows);
+        await bulkCopy.WriteToServerAsync(table, cancellationToken);
+    }
+
+    private async Task BulkInsertPreparedStatementsAsync(
+        string tableName,
+        IReadOnlyList<string> columns,
+        IEnumerable<object?[]> rows,
+        CancellationToken cancellationToken)
+    {
+        var connection = dbContext.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        await using var command = connection.CreateCommand();
+        command.Transaction = dbContext.Database.CurrentTransaction?.GetDbTransaction();
+        command.CommandText = $"INSERT INTO {QuoteIdentifier(tableName)} ({string.Join(", ", columns.Select(QuoteIdentifier))}) VALUES ({string.Join(", ", columns.Select((_, index) => $"@p{index}"))});";
+
+        for (var index = 0; index < columns.Count; index++)
+        {
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = $"@p{index}";
+            command.Parameters.Add(parameter);
+        }
+
+        foreach (var row in rows)
+        {
+            for (var index = 0; index < columns.Count; index++)
+            {
+                ((DbParameter)command.Parameters[index]).Value = row[index] ?? DBNull.Value;
+            }
+
+            await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+    }
+
+    private static DataTable CreateDataTable(IReadOnlyList<string> columns, IEnumerable<object?[]> rows)
+    {
+        var table = new DataTable();
+        foreach (var column in columns)
+        {
+            table.Columns.Add(column);
+        }
+
+        foreach (var row in rows)
+        {
+            table.Rows.Add(row.Select(value => value ?? DBNull.Value).ToArray());
+        }
+
+        return table;
+    }
+
+    private static void AddAstralBodyRows(ICollection<AstralBodyImportRow> rows, int starSystemId, IEnumerable<AstralBody> astralBodies)
+    {
+        foreach (var astralBody in astralBodies)
+        {
+            rows.Add(new AstralBodyImportRow(starSystemId, astralBody));
+        }
+    }
+
+    private static void AddUnusualCharacteristicRows(ICollection<UnusualCharacteristicImportRow> rows, World world)
+    {
+        foreach (var characteristic in world.UnusualCharacteristics)
+        {
+            rows.Add(new UnusualCharacteristicImportRow(world.Id, characteristic));
+        }
+    }
+
+    private static object?[] BuildStarSystemValues(StarSystem system) =>
+    [
+        system.Id,
+        system.SectorId,
+        system.LegacySystemId,
+        system.Name,
+        FormatCoordinates(system.Coordinates),
+        (int)system.AllegianceId,
+        system.MapCode
+    ];
+
+    private static object?[] BuildAstralBodyValues(AstralBodyImportRow row) =>
+    [
+        row.Body.Role.ToString(),
+        row.Body.Kind.ToString(),
+        row.Body.Classification,
+        row.Body.ClassificationCode,
+        row.Body.DecimalClassCode,
+        row.Body.PlanetCount,
+        row.Body.Luminosity,
+        row.Body.SolarMasses,
+        row.Body.CompanionOrbitAu,
+        row.StarSystemId
+    ];
+
+    private static object?[] BuildWorldValues(World world) =>
+    [
+        world.Id,
+        world.Kind.ToString(),
+        world.LegacyPlanetId,
+        world.LegacyMoonId,
+        world.StarSystemId,
+        world.ParentWorldId,
+        world.PrimaryAstralBodySequence,
+        world.Name,
+        world.WorldType,
+        world.AtmosphereType,
+        world.AtmosphereComposition,
+        world.WaterType,
+        world.Hydrography.WaterPercent,
+        world.Hydrography.IcePercent,
+        world.Hydrography.CloudPercent,
+        world.MineralResources.MetalOre,
+        world.MineralResources.RadioactiveOre,
+        world.MineralResources.PreciousMetal,
+        world.MineralResources.RawCrystals,
+        world.MineralResources.PreciousGems,
+        world.DiameterKm,
+        world.DensityTenthsEarth,
+        world.AtmosphericPressure,
+        world.AverageTemperatureCelsius,
+        world.MiscellaneousFlags,
+        world.Albedo,
+        world.AlienRaceId,
+        world.ControlledByEmpireId,
+        (int)world.AllegianceId,
+        world.OrbitRadiusAu,
+        world.OrbitRadiusKm,
+        world.SmallestMolecularWeightRetained,
+        world.AxialTiltDegrees,
+        world.OrbitalInclinationDegrees,
+        world.RotationPeriodHours is null ? null : (long)world.RotationPeriodHours.Value,
+        world.EccentricityThousandths,
+        world.OrbitPeriodDays,
+        world.GravityEarthG,
+        world.MassEarthMasses,
+        world.EscapeVelocityKmPerSecond,
+        world.OxygenPressureAtmospheres,
+        world.BoilingPointCelsius,
+        world.MagneticFieldGauss
+    ];
+
+    private static object?[] BuildUnusualCharacteristicValues(UnusualCharacteristicImportRow row) =>
+    [
+        row.Characteristic.Code,
+        row.Characteristic.Name,
+        row.Characteristic.Notes,
+        row.WorldId
+    ];
+
+    private static string FormatCoordinates(Coordinates coordinates) => $"{coordinates.X},{coordinates.Y},{coordinates.Z}";
+
+    private static string QuoteIdentifier(string identifier) => $"\"{identifier.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
 
     private static int CalculatePhasePercent(int startPercent, int endPercent, int processedCount, int totalCount)
     {
@@ -2292,6 +2604,27 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         StarSystem System,
         byte[] PlanetCounts,
         int[] FirstPlanetIds);
+
+    private sealed class StarMapImportBatch
+    {
+        public List<StarSystem> StarSystems { get; } = [];
+
+        public List<AstralBodyImportRow> AstralBodies { get; } = [];
+
+        public List<World> Worlds { get; } = [];
+
+        public List<UnusualCharacteristicImportRow> UnusualCharacteristics { get; } = [];
+
+        public bool HasChanges =>
+            StarSystems.Count > 0
+            || AstralBodies.Count > 0
+            || Worlds.Count > 0
+            || UnusualCharacteristics.Count > 0;
+    }
+
+    private sealed record AstralBodyImportRow(int StarSystemId, AstralBody Body);
+
+    private sealed record UnusualCharacteristicImportRow(int WorldId, UnusualCharacteristic Characteristic);
 
     private sealed record LegacyPlanetImport(
         int LegacyId,
