@@ -238,9 +238,9 @@
                                     @foreach (var leg in fullscreenRoutePlan.Legs)
                                     {
                                         <button type="button"
-                                                class="route-leg @(leg.IsHyperlane ? "hyperlane" : "off-lane")"
+                                                class="route-leg @GetRouteLegCssClass(leg)"
                                                 @onclick="() => SelectSystem(leg.Target.Id)">
-                                            <span>@(leg.IsHyperlane ? "Hyperlane" : "Off-lane")</span>
+                                            <span>@GetRouteLegTierLabel(leg)</span>
                                             <strong>@leg.Source.Name to @leg.Target.Name</strong>
                                             <small>@Format(leg.DistanceParsecs) pc</small>
                                         </button>
@@ -316,9 +316,9 @@
                                 @foreach (var leg in routePlan.Legs)
                                 {
                                     <button type="button"
-                                            class="route-leg @(leg.IsHyperlane ? "hyperlane" : "off-lane")"
+                                            class="route-leg @GetRouteLegCssClass(leg)"
                                             @onclick="() => SelectSystem(leg.Target.Id)">
-                                        <span>@(leg.IsHyperlane ? "Hyperlane" : "Off-lane")</span>
+                                        <span>@GetRouteLegTierLabel(leg)</span>
                                         <strong>@leg.Source.Name to @leg.Target.Name</strong>
                                         <small>@Format(leg.DistanceParsecs) pc</small>
                                     </button>
@@ -3116,7 +3116,9 @@
                 sourceId = leg.Source.Id,
                 targetId = leg.Target.Id,
                 distanceParsecs = leg.DistanceParsecs,
-                isHyperlane = leg.IsHyperlane
+                isHyperlane = leg.IsHyperlane,
+                isOwned = leg.IsOwned,
+                isGold = leg.IsGold
             }).ToArray()
         };
     }
@@ -3304,8 +3306,8 @@
         var adjacency = systems.ToDictionary(system => system.Id, _ => new List<SectorMapRouteLeg>());
         foreach (var route in BuildSectorMapRoutes(systems, routeDistanceParsecs, ownedRouteDistanceParsecs, empiresById))
         {
-            adjacency[route.Source.Id].Add(new SectorMapRouteLeg(route.Source, route.Target, route.DistanceParsecs, true));
-            adjacency[route.Target.Id].Add(new SectorMapRouteLeg(route.Target, route.Source, route.DistanceParsecs, true));
+            adjacency[route.Source.Id].Add(new SectorMapRouteLeg(route.Source, route.Target, route.DistanceParsecs, true, route.IsOwned, route.IsGold));
+            adjacency[route.Target.Id].Add(new SectorMapRouteLeg(route.Target, route.Source, route.DistanceParsecs, true, route.IsOwned, route.IsGold));
         }
 
         return adjacency;
@@ -3451,8 +3453,38 @@
     {
         return legs
             .Reverse()
-            .Select(leg => new SectorMapRouteLeg(leg.Target, leg.Source, leg.DistanceParsecs, leg.IsHyperlane))
+            .Select(leg => new SectorMapRouteLeg(leg.Target, leg.Source, leg.DistanceParsecs, leg.IsHyperlane, leg.IsOwned, leg.IsGold))
             .ToList();
+    }
+
+    private static string GetRouteLegCssClass(SectorMapRouteLeg leg)
+    {
+        if (!leg.IsHyperlane)
+        {
+            return "off-lane";
+        }
+
+        if (leg.IsGold)
+        {
+            return "gold-hyperlane";
+        }
+
+        return leg.IsOwned ? "owned-hyperlane" : "basic-hyperlane";
+    }
+
+    private static string GetRouteLegTierLabel(SectorMapRouteLeg leg)
+    {
+        if (!leg.IsHyperlane)
+        {
+            return "Off-lane";
+        }
+
+        if (leg.IsGold)
+        {
+            return "Gold hyperlane";
+        }
+
+        return leg.IsOwned ? "Owned hyperlane" : "Basic hyperlane";
     }
 
     private int GetSectorMapSystemCount(StarWinSector sector, StarSystem? focusedSystem)
@@ -3800,7 +3832,9 @@
         StarSystem Source,
         StarSystem Target,
         double DistanceParsecs,
-        bool IsHyperlane);
+        bool IsHyperlane,
+        bool IsOwned = false,
+        bool IsGold = false);
 
     private sealed record RouteGraphCacheKey(
         int SectorId,

@@ -964,13 +964,14 @@ dd {
     right: 18px;
     bottom: 18px;
     z-index: 3;
-    display: grid;
-    grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     width: var(--fullscreen-route-planner-width);
     box-sizing: border-box;
     height: calc(100vh - 36px);
     max-height: none;
-    overflow: hidden auto;
+    overflow: hidden;
     border: 1px solid rgba(125, 211, 252, 0.28);
     border-radius: 8px;
     background: rgba(2, 6, 23, 0.82);
@@ -989,6 +990,7 @@ dd {
 
 .sector-map-three:fullscreen .fullscreen-route-planner .field-grid {
     grid-template-columns: 1fr;
+    flex: 0 0 auto;
 }
 
 .sector-map-three:fullscreen .fullscreen-route-planner .field-grid div,
@@ -1002,9 +1004,15 @@ dd {
 }
 
 .route-leg-list.compact {
+    flex: 1 1 auto;
     min-height: 0;
     max-height: none;
+    overflow: auto;
     padding-right: 0;
+}
+
+.sector-map-three:fullscreen .fullscreen-route-planner .parent-actions {
+    margin: 0;
 }
 
 .fullscreen-system-overlay h2 {
@@ -1226,6 +1234,24 @@ dd {
     color: #d1fae5;
     padding: 10px;
     text-align: left;
+}
+
+.route-leg.basic-hyperlane {
+    border-color: rgba(34, 211, 238, 0.52);
+    background: rgba(8, 47, 73, 0.34);
+    color: #cffafe;
+}
+
+.route-leg.owned-hyperlane {
+    border-color: rgba(192, 132, 252, 0.52);
+    background: rgba(59, 7, 100, 0.34);
+    color: #f3e8ff;
+}
+
+.route-leg.gold-hyperlane {
+    border-color: rgba(251, 191, 36, 0.56);
+    background: rgba(113, 63, 18, 0.34);
+    color: #fef3c7;
 }
 
 .route-leg.off-lane {

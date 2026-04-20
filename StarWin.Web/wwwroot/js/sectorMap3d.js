@@ -367,7 +367,9 @@ function addRouteLines(state, sector, selectedSystemId) {
     }
 
     if (routePath.length) {
-        const hyperlanePositions = [];
+        const basicHyperlanePositions = [];
+        const ownedHyperlanePositions = [];
+        const goldHyperlanePositions = [];
         const offLanePositions = [];
         for (const route of routePath) {
             const source = state.systemPositions.get(route.sourceId);
@@ -376,13 +378,29 @@ function addRouteLines(state, sector, selectedSystemId) {
                 continue;
             }
 
-            const bucket = route.isHyperlane ? hyperlanePositions : offLanePositions;
+            const bucket = route.isGold
+                ? goldHyperlanePositions
+                : route.isOwned
+                    ? ownedHyperlanePositions
+                    : route.isHyperlane
+                        ? basicHyperlanePositions
+                        : offLanePositions;
             bucket.push(source.x, source.y, source.z, target.x, target.y, target.z);
         }
 
-        if (hyperlanePositions.length) {
-            state.routeGroup.add(createRouteLineSegments(THREE, hyperlanePositions, 0x34d399, 1, false, 2.6));
-            state.routeGroup.add(createRouteLineSegments(THREE, hyperlanePositions, 0xbbf7d0, 0.62, true, 1.25));
+        if (basicHyperlanePositions.length) {
+            state.routeGroup.add(createRouteLineSegments(THREE, basicHyperlanePositions, 0x22d3ee, 1, false, 2.6));
+            state.routeGroup.add(createRouteLineSegments(THREE, basicHyperlanePositions, 0xecfeff, 0.62, true, 1.25));
+        }
+
+        if (ownedHyperlanePositions.length) {
+            state.routeGroup.add(createRouteLineSegments(THREE, ownedHyperlanePositions, 0xa855f7, 1, false, 2.6));
+            state.routeGroup.add(createRouteLineSegments(THREE, ownedHyperlanePositions, 0xf5d0fe, 0.62, true, 1.25));
+        }
+
+        if (goldHyperlanePositions.length) {
+            state.routeGroup.add(createRouteLineSegments(THREE, goldHyperlanePositions, 0xfbbf24, 1, false, 2.6));
+            state.routeGroup.add(createRouteLineSegments(THREE, goldHyperlanePositions, 0xfffbeb, 0.62, true, 1.25));
         }
 
         if (offLanePositions.length) {
