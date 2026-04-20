@@ -4,9 +4,9 @@ public sealed class SectorConfiguration
 {
     public int SectorId { get; set; }
 
-    public string BasicHyperlaneTierName { get; set; } = "Basic";
-
     public decimal BasicHyperlaneMaximumLengthParsecs { get; set; } = 1m;
+
+    public decimal OwnedHyperlaneBaseMaximumLengthParsecs { get; set; } = 1.2m;
 
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 }

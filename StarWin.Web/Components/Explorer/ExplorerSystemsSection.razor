@@ -11,16 +11,26 @@
                        @bind:event="oninput"
                        @bind:after="ResetSystemWindow" />
             </label>
-            <label>
-                Allegiance
-                <select @bind="systemEmpireId" @bind:after="ResetSystemWindow">
-                    <option value="@AllFilterId">All allegiances</option>
-                    @foreach (var empire in Empires)
-                    {
-                        <option value="@empire.Id">@empire.Name</option>
-                    }
-                </select>
-            </label>
+            <button type="button" class="timeline-clear-button" @onclick="ToggleSystemFilters">
+                @(showSystemFilters ? "Hide filters" : "Show filters")
+            </button>
+            @if (showSystemFilters)
+            {
+                <label>
+                    Allegiance
+                    <input list="system-allegiance-options"
+                           placeholder="All allegiances"
+                           @bind="systemEmpireText"
+                           @bind:event="oninput"
+                           @bind:after="ApplySystemEmpireFilter" />
+                    <datalist id="system-allegiance-options">
+                        @foreach (var empire in Empires)
+                        {
+                            <option value="@FormatEmpireOption(empire)" />
+                        }
+                    </datalist>
+                </label>
+            }
             <button type="button" class="timeline-clear-button" @onclick="ClearSystemFilters">Clear filters</button>
         </section>
         @{
@@ -86,10 +96,12 @@
     private IJSObjectReference? scrollModule;
     private int renderedSectorId;
     private string systemQuery = string.Empty;
+    private string systemEmpireText = string.Empty;
     private int systemEmpireId = AllFilterId;
     private int systemVisibleCount = ExplorerListBatchSize;
     private bool systemHasMoreRecords;
     private bool systemObserverConfigured;
+    private bool showSystemFilters;
 
     protected override void OnParametersSet()
     {
@@ -154,7 +166,20 @@
     private void ClearSystemFilters()
     {
         systemQuery = string.Empty;
+        systemEmpireText = string.Empty;
         systemEmpireId = AllFilterId;
+        showSystemFilters = false;
+        ResetSystemWindow();
+    }
+
+    private void ToggleSystemFilters()
+    {
+        showSystemFilters = !showSystemFilters;
+    }
+
+    private void ApplySystemEmpireFilter()
+    {
+        systemEmpireId = ParseComboId(systemEmpireText);
         ResetSystemWindow();
     }
 
@@ -203,6 +228,23 @@
     private static string DisplayCoordinates(Coordinates coordinates)
     {
         return $"{coordinates.XParsecs:0.#}, {coordinates.YParsecs:0.#}, {coordinates.ZParsecs:0.#}";
+    }
+
+    private static string FormatEmpireOption(Empire empire)
+    {
+        return $"{empire.Id} - {empire.Name}";
+    }
+
+    private static int ParseComboId(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return AllFilterId;
+        }
+
+        var separatorIndex = value.IndexOf(" - ", StringComparison.Ordinal);
+        var idText = separatorIndex < 0 ? value : value[..separatorIndex];
+        return int.TryParse(idText, out var id) ? id : AllFilterId;
     }
 
     public async ValueTask DisposeAsync()

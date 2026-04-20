@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using StarWin.Infrastructure.Data;
 
 #nullable disable
 
-namespace StarWin.Web.Data.Migrations
+namespace StarWin.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(StarWinDbContext))]
-    partial class StarWinDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260420045752_AddOwnedHyperlaneConfiguration")]
+    partial class AddOwnedHyperlaneConfiguration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -182,11 +185,6 @@ namespace StarWin.Web.Data.Migrations
 
                     b.Property<int>("MilitaryPower")
                         .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("nvarchar(160)");
 
                     b.Property<byte>("NativePopulationPercent")
                         .HasColumnType("tinyint");
@@ -487,38 +485,6 @@ namespace StarWin.Web.Data.Migrations
                     b.HasIndex("TargetKind", "TargetId");
 
                     b.ToTable("EntityImages", (string)null);
-                });
-
-            modelBuilder.Entity("StarWin.Domain.Model.Entity.Notes.EntityNote", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Markdown")
-                        .IsRequired()
-                        .HasMaxLength(16000)
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("TargetId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TargetKind")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<DateTimeOffset>("UpdatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TargetKind", "TargetId")
-                        .IsUnique();
-
-                    b.ToTable("EntityNotes", (string)null);
                 });
 
             modelBuilder.Entity("StarWin.Domain.Model.Entity.StarMap.AstralBody", b =>

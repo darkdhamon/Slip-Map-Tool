@@ -145,13 +145,17 @@ function rebuildScene(state, sector, selectedSystemId) {
 
     const viewDistance = Number(sector.viewDistanceParsecs ?? 20);
     const fadeStart = Number(sector.fadeStartParsecs ?? Math.max(0, viewDistance - 1));
+    const routeActive = Boolean(sector.routeActive);
+    const routeSystemIds = new Set(sector.routeSystemIds ?? []);
 
     for (const system of sector.systems ?? []) {
         const cluster = new THREE.Group();
         cluster.position.set(system.x * 8, system.z * 6, system.y * 12);
         cluster.userData = { systemId: system.id, systemName: system.name };
         state.systemPositions.set(system.id, cluster.position.clone());
-        const focusOpacity = getFocusDistanceOpacity(system.distanceFromFocus, fadeStart, viewDistance);
+        const isRouteSystem = routeSystemIds.has(system.id) || Boolean(system.isRouteSystem);
+        const focusOpacity = isRouteSystem ? 1 : getFocusDistanceOpacity(system.distanceFromFocus, fadeStart, viewDistance);
+        const systemOpacity = routeActive && !isRouteSystem ? Math.min(focusOpacity, 0.16) : focusOpacity;
 
         const bodies = (system.bodies?.length ? system.bodies : [{ kind: "Unknown" }]).slice(0, 3);
         const bodyRadii = bodies.map(body => getAstralBodyVisualRadius(body, system.id === selectedSystemId));
@@ -185,7 +189,7 @@ function rebuildScene(state, sector, selectedSystemId) {
             cluster.add(ring);
         }
 
-        applyFocusOpacity(cluster, focusOpacity);
+        applyFocusOpacity(cluster, systemOpacity);
         state.group.add(cluster);
     }
 
@@ -195,12 +199,17 @@ function rebuildScene(state, sector, selectedSystemId) {
 function addRouteLines(state, sector, selectedSystemId) {
     const THREE = state.THREE;
     const routes = sector.routes ?? [];
-    if (!routes.length) {
+    const routePath = sector.routePath ?? [];
+    if (!routes.length && !routePath.length) {
         return;
     }
 
     const standardPositions = [];
     const selectedPositions = [];
+    const ownedPositions = [];
+    const selectedOwnedPositions = [];
+    const goldPositions = [];
+    const selectedGoldPositions = [];
 
     for (const route of routes) {
         const source = state.systemPositions.get(route.sourceId);
@@ -209,9 +218,12 @@ function addRouteLines(state, sector, selectedSystemId) {
             continue;
         }
 
-        const bucket = route.sourceId === selectedSystemId || route.targetId === selectedSystemId
-            ? selectedPositions
-            : standardPositions;
+        const selected = route.sourceId === selectedSystemId || route.targetId === selectedSystemId;
+        const bucket = route.isGold
+            ? selected ? selectedGoldPositions : goldPositions
+            : route.isOwned
+                ? selected ? selectedOwnedPositions : ownedPositions
+                : selected ? selectedPositions : standardPositions;
         bucket.push(source.x, source.y, source.z, target.x, target.y, target.z);
     }
 
@@ -220,14 +232,16 @@ function addRouteLines(state, sector, selectedSystemId) {
             THREE,
             standardPositions,
             0x22d3ee,
-            0.5,
+            routePath.length ? 0.14 : 0.5,
             true));
-        state.routeGroup.add(createRouteLineSegments(
-            THREE,
-            standardPositions,
-            0xa7f3d0,
-            0.26,
-            false));
+        if (!routePath.length) {
+            state.routeGroup.add(createRouteLineSegments(
+                THREE,
+                standardPositions,
+                0xa7f3d0,
+                0.26,
+                false));
+        }
     }
 
     if (selectedPositions.length) {
@@ -235,27 +249,124 @@ function addRouteLines(state, sector, selectedSystemId) {
             THREE,
             selectedPositions,
             0x67e8f9,
-            0.96,
+            routePath.length ? 0.22 : 0.96,
             true));
+        if (!routePath.length) {
+            state.routeGroup.add(createRouteLineSegments(
+                THREE,
+                selectedPositions,
+                0xecfeff,
+                0.55,
+            false));
+        }
+    }
+
+    if (ownedPositions.length) {
         state.routeGroup.add(createRouteLineSegments(
             THREE,
-            selectedPositions,
-            0xecfeff,
-            0.55,
+            ownedPositions,
+            0xa855f7,
+            routePath.length ? 0.22 : 0.68,
+            true));
+        if (!routePath.length) {
+            state.routeGroup.add(createRouteLineSegments(
+                THREE,
+                ownedPositions,
+                0xd8b4fe,
+                0.36,
+                false));
+        }
+    }
+
+    if (selectedOwnedPositions.length) {
+        state.routeGroup.add(createRouteLineSegments(
+            THREE,
+            selectedOwnedPositions,
+            0xc084fc,
+            routePath.length ? 0.34 : 1,
+            true));
+        if (!routePath.length) {
+            state.routeGroup.add(createRouteLineSegments(
+                THREE,
+                selectedOwnedPositions,
+                0xf5d0fe,
+                0.58,
             false));
+        }
+    }
+
+    if (goldPositions.length) {
+        state.routeGroup.add(createRouteLineSegments(
+            THREE,
+            goldPositions,
+            0xfbbf24,
+            routePath.length ? 0.28 : 0.8,
+            true));
+        if (!routePath.length) {
+            state.routeGroup.add(createRouteLineSegments(
+                THREE,
+                goldPositions,
+                0xfef3c7,
+                0.42,
+                false));
+        }
+    }
+
+    if (selectedGoldPositions.length) {
+        state.routeGroup.add(createRouteLineSegments(
+            THREE,
+            selectedGoldPositions,
+            0xfacc15,
+            routePath.length ? 0.42 : 1,
+            true));
+        if (!routePath.length) {
+            state.routeGroup.add(createRouteLineSegments(
+                THREE,
+                selectedGoldPositions,
+                0xfffbeb,
+                0.62,
+                false));
+        }
+    }
+
+    if (routePath.length) {
+        const hyperlanePositions = [];
+        const offLanePositions = [];
+        for (const route of routePath) {
+            const source = state.systemPositions.get(route.sourceId);
+            const target = state.systemPositions.get(route.targetId);
+            if (!source || !target) {
+                continue;
+            }
+
+            const bucket = route.isHyperlane ? hyperlanePositions : offLanePositions;
+            bucket.push(source.x, source.y, source.z, target.x, target.y, target.z);
+        }
+
+        if (hyperlanePositions.length) {
+            state.routeGroup.add(createRouteLineSegments(THREE, hyperlanePositions, 0x34d399, 1, false, 2.6));
+            state.routeGroup.add(createRouteLineSegments(THREE, hyperlanePositions, 0xbbf7d0, 0.62, true, 1.25));
+        }
+
+        if (offLanePositions.length) {
+            state.routeGroup.add(createRouteLineSegments(THREE, offLanePositions, 0x7f1d1d, 0.86, false, 3.4, false));
+            state.routeGroup.add(createRouteLineSegments(THREE, offLanePositions, 0xef4444, 1, true, 1.8, false));
+            state.routeGroup.add(createRouteLineSegments(THREE, offLanePositions, 0xff0000, 0.62, false, 5.2, true));
+        }
     }
 }
 
-function createRouteLineSegments(THREE, positions, color, opacity, depthTest) {
+function createRouteLineSegments(THREE, positions, color, opacity, depthTest, lineWidth = 1, additive = true) {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
     const material = new THREE.LineBasicMaterial({
         color,
         transparent: true,
         opacity,
+        linewidth: lineWidth,
         depthWrite: false,
         depthTest,
-        blending: THREE.AdditiveBlending
+        blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending
     });
 
     return new THREE.LineSegments(geometry, material);

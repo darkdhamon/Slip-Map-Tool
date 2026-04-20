@@ -4,29 +4,34 @@
 @inject IStarWinSearchService SearchService
 @inject IStarWinImageService ImageService
 @inject IStarWinSectorConfigurationService SectorConfigurationService
+@inject IStarWinEntityNameService EntityNameService
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
 @{
     var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
-    var sectorCache = GetSectorCache(sector);
+    var sectorSummary = GetSectorSummary(sector);
+    var sectorCache = ShouldUseFullSectorCache(activeSection) ? GetSectorCache(sector) : null;
     var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
     var selectedHabitat = selectedSystem?.SpaceHabitats.FirstOrDefault(habitat => habitat.Id == selectedHabitatId);
     var selectedWorld = selectedHabitat is null
         ? selectedSystem?.Worlds.FirstOrDefault(world => world.Id == selectedWorldId) ?? selectedSystem?.Worlds.FirstOrDefault()
         : null;
-    var sectorWorlds = sectorCache.Worlds;
-    var sectorColonies = sectorCache.Colonies;
-    var sectorRaceIds = sectorCache.RaceIds;
-    var sectorEmpireIds = sectorCache.EmpireIds;
+    var sectorWorlds = sectorCache?.Worlds ?? [];
+    var sectorColonies = sectorCache?.Colonies ?? [];
+    var sectorRaceIds = sectorCache?.RaceIds ?? sectorSummary.RaceIds;
+    var sectorEmpireIds = sectorCache?.EmpireIds ?? sectorSummary.EmpireIds;
     var sectorRaces = Workspace.AlienRaces.Where(race => sectorRaceIds.Contains(race.Id)).OrderBy(race => race.Name).ToList();
     var sectorEmpires = Workspace.Empires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
     var selectedRace = sectorRaces.FirstOrDefault(race => race.Id == selectedRaceId) ?? sectorRaces.FirstOrDefault();
     var selectedEmpire = sectorEmpires.FirstOrDefault(empire => empire.Id == selectedEmpireId) ?? sectorEmpires.FirstOrDefault();
     var selectedColony = selectedWorld?.Colony ?? sectorColonies.FirstOrDefault().Colony;
-    var selectedColonyWorld = selectedColony is null || !sectorCache.WorldsById.TryGetValue(selectedColony.WorldId, out var colonyWorld)
+    var selectedColonyWorld = selectedColony is null || sectorCache is null || !sectorCache.WorldsById.TryGetValue(selectedColony.WorldId, out var colonyWorld)
         ? null
         : colonyWorld;
+    var selectedRoutePlan = activeSection == "Overview"
+        ? GetPlottedRoutePlan(sector)
+        : null;
 }
 
 <PageTitle>Starforged Atlas</PageTitle>
@@ -68,7 +73,7 @@
     </header>
 
     <section class="control-strip">
-        <label>
+        <label class="control-field sector-field">
             Sector
             <select @bind="selectedSectorId" @bind:after="SelectDefaultSystem">
                 @foreach (var item in Workspace.Sectors)
@@ -78,14 +83,18 @@
             </select>
         </label>
 
-        <label>
+        <label class="control-field system-field">
             System
-            <select @bind="selectedSystemId" @bind:after="SelectDefaultWorld">
+            <input list="sector-system-options"
+                   placeholder="Select system..."
+                   @bind="selectedSystemText"
+                   @bind:after="ApplySelectedSystemText" />
+            <datalist id="sector-system-options">
                 @foreach (var system in sector.Systems)
                 {
-                    <option value="@system.Id">@system.Name</option>
+                    <option value="@FormatSystemOption(system)" />
                 }
-            </select>
+            </datalist>
         </label>
 
         <ExplorerSectionTabs Sections="sections"
@@ -96,11 +105,11 @@
                              SectionSelected="SelectSectionAsync" />
     </section>
 
-    <ExplorerMetricsBand SystemCount="@sector.Systems.Count"
-                         WorldCount="@sectorWorlds.Count"
-                         ColonyCount="@sectorColonies.Count"
-                         EmpireCount="@sectorEmpires.Count"
-                         RaceCount="@sectorRaces.Count" />
+    <ExplorerMetricsBand SystemCount="@sectorSummary.SystemCount"
+                         WorldCount="@sectorSummary.WorldCount"
+                         ColonyCount="@sectorSummary.ColonyCount"
+                         EmpireCount="@sectorSummary.EmpireIds.Count"
+                         RaceCount="@sectorSummary.RaceIds.Count" />
 
     @switch (activeSection)
     {
@@ -122,7 +131,11 @@
                             <span>3D Sector Map</span>
                             <strong>@sector.Name</strong>
                             <small>@GetSectorMapSystemCount(sector, selectedSystem) of @sector.Systems.Count systems within @sectorMapViewDistanceParsecs parsecs@(IsSectorMapCapped(sector, selectedSystem) ? " (closest 1,000 shown)" : string.Empty)</small>
-                            <small>@GetSectorMapRouteCount(sector, selectedSystem) @GetHyperlaneTierName(sector) hyperlanes within @Format(GetHyperlaneRouteDistanceParsecs(sector)) parsecs</small>
+                            <small>@GetSectorMapRouteCount(sector, selectedSystem) visible basic/owned hyperlanes</small>
+                            @if (selectedRoutePlan is { } hudRoutePlan)
+                            {
+                                <small>@hudRoutePlan.Legs.Count route legs from @hudRoutePlan.Origin.Name to @hudRoutePlan.Destination.Name; @hudRoutePlan.OffHyperlaneLegCount off-lane</small>
+                            }
                             <label class="map-distance-control">
                                 <span>View distance</span>
                                 <input type="range"
@@ -144,46 +157,81 @@
                             <span>Wheel zoom</span>
                             <span>Right-drag pan</span>
                         </div>
-                        @if (selectedSystem is not null)
-                        {
-                            <article class="fullscreen-system-overlay">
-                                <span class="panel-kicker">Current system</span>
-                                <h2>@selectedSystem.Name</h2>
-                                <dl class="data-list">
-                                    <div><dt>Coordinates</dt><dd>@DisplayCoordinates(selectedSystem.Coordinates)</dd></div>
-                                    <div><dt>Allegiance</dt><dd>@DisplayAllegiance(selectedSystem.AllegianceId)</dd></div>
-                                    <div><dt>Astral bodies</dt><dd>@selectedSystem.AstralBodies.Count</dd></div>
-                                    <div><dt>Worlds</dt><dd>@selectedSystem.Worlds.Count</dd></div>
-                                </dl>
-                                <button type="button" class="overlay-action" @onclick="OpenSelectedSystemRecord">Open system record</button>
-                            </article>
-                        }
                     }
-                </div>
-
-                <div class="stacked-panels">
-                    <article class="feature-panel">
-                        <span class="panel-kicker">Current system</span>
-                        <h2>@(selectedSystem?.Name ?? "No system selected")</h2>
-                        @if (selectedSystem is not null)
-                        {
+                    @if (sectorMapRequested && selectedSystem is not null)
+                    {
+                        <article class="fullscreen-system-overlay">
+                            <span class="panel-kicker">Current system</span>
+                            <EditableEntityName Name="@selectedSystem.Name"
+                                                Label="System"
+                                                NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.StarSystem, selectedSystem.Id, name)" />
                             <dl class="data-list">
                                 <div><dt>Coordinates</dt><dd>@DisplayCoordinates(selectedSystem.Coordinates)</dd></div>
                                 <div><dt>Allegiance</dt><dd>@DisplayAllegiance(selectedSystem.AllegianceId)</dd></div>
                                 <div><dt>Astral bodies</dt><dd>@selectedSystem.AstralBodies.Count</dd></div>
                                 <div><dt>Worlds</dt><dd>@selectedSystem.Worlds.Count</dd></div>
                             </dl>
-                        }
-                    </article>
+                            <button type="button" class="overlay-action" @onclick="OpenSelectedSystemRecord">Open system record</button>
+                        </article>
+                    }
+                </div>
 
-                    <article class="feature-panel">
-                        <span class="panel-kicker">Recent sector history</span>
-                        @foreach (var history in sector.History.Take(4))
+                <div class="stacked-panels">
+                    <article class="feature-panel route-planner-panel">
+                        <span class="panel-kicker">Route planner</span>
+                        <h2>Plot hyperlane route</h2>
+                        <label>
+                            Origin
+                            <input list="route-system-options"
+                                   placeholder="Select origin..."
+                                   @bind="routeOriginText"
+                                   @bind:after="ApplyRouteOriginText" />
+                        </label>
+                        <label>
+                            Destination
+                            <input list="route-system-options"
+                                   placeholder="Select destination..."
+                                   @bind="routeDestinationText"
+                                   @bind:after="ApplyRouteDestinationText" />
+                        </label>
+                        <datalist id="route-system-options">
+                            @foreach (var system in sector.Systems.OrderBy(system => system.Name).ThenBy(system => system.Id))
+                            {
+                                <option value="@FormatSystemOption(system)" />
+                            }
+                        </datalist>
+                        <div class="parent-actions">
+                            <button type="button" @onclick="PlotSelectedRouteAsync" disabled="@sectionLoadingVisible">Plot route</button>
+                            <button type="button" @onclick="ClearSelectedRoute">Clear route</button>
+                        </div>
+                        @if (selectedRoutePlan is { } routePlan)
                         {
-                            <div class="timeline-row">
-                                <strong>C@history.Century @history.EventType</strong>
-                                <span>@history.Description</span>
+                            <dl class="field-grid">
+                                <div><dt>Origin</dt><dd>@routePlan.Origin.Name</dd></div>
+                                <div><dt>Destination</dt><dd>@routePlan.Destination.Name</dd></div>
+                                <div><dt>Direct distance</dt><dd>@Format(routePlan.DirectDistanceParsecs) pc</dd></div>
+                                <div><dt>Route distance</dt><dd>@Format(routePlan.TotalDistanceParsecs) pc</dd></div>
+                                <div><dt>Extra travel</dt><dd>@Format(routePlan.ExtraDistanceParsecs) pc</dd></div>
+                                <div><dt>Hyperlane legs</dt><dd>@routePlan.HyperlaneLegCount</dd></div>
+                                <div><dt>Off-lane legs</dt><dd>@routePlan.OffHyperlaneLegCount</dd></div>
+                                <div><dt>Void limit</dt><dd>@Format(MaximumVoidRouteDistanceParsecs) pc</dd></div>
+                            </dl>
+                            <div class="route-leg-list">
+                                @foreach (var leg in routePlan.Legs)
+                                {
+                                    <button type="button"
+                                            class="route-leg @(leg.IsHyperlane ? "hyperlane" : "off-lane")"
+                                            @onclick="() => SelectSystem(leg.Target.Id)">
+                                        <span>@(leg.IsHyperlane ? "Hyperlane" : "Off-lane")</span>
+                                        <strong>@leg.Source.Name to @leg.Target.Name</strong>
+                                        <small>@Format(leg.DistanceParsecs) pc</small>
+                                    </button>
+                                }
                             </div>
+                        }
+                        else if (routeDestinationSystemId is not 0)
+                        {
+                            <p>No route could be plotted without a void flight over @Format(MaximumVoidRouteDistanceParsecs) parsecs.</p>
                         }
                     </article>
                 </div>
@@ -191,7 +239,7 @@
             break;
         case "Timeline":
             <ExplorerTimelineSection Sector="sector"
-                                     SectorCache="sectorCache"
+                                     SectorCache="sectorCache!"
                                      Races="sectorRaces"
                                      Empires="sectorEmpires"
                                      RaceSelected="SelectRace"
@@ -207,20 +255,36 @@
                 <p class="panel-note">Configure sector-level travel assumptions used by the map and future civilization systems.</p>
                 <div class="form-grid">
                     <label>
-                        Hyperlane tier
-                        <input @bind="basicHyperlaneTierName" />
+                        Basic hyperlane
+                        <input value="Basic Hyperlane" readonly />
                     </label>
                     <label>
-                        Maximum hyperlane length
+                        Basic maximum length
                         <input type="number"
                                min="0.1"
                                max="100"
                                step="0.1"
                                @bind="basicHyperlaneMaximumLengthParsecs" />
                     </label>
+                    <label>
+                        Owned hyperlane
+                        <input value="Owned Hyperlane" readonly />
+                    </label>
+                    <label>
+                        Owned base maximum length
+                        <input type="number"
+                               min="0.1"
+                               max="150"
+                               step="0.1"
+                               @bind="ownedHyperlaneBaseMaximumLengthParsecs" />
+                    </label>
                 </div>
                 <dl class="field-grid">
-                    <div><dt>Default</dt><dd>1 parsec</dd></div>
+                    <div><dt>Basic default</dt><dd>1 parsec</dd></div>
+                    <div><dt>Owned default</dt><dd>@Format(GetDefaultOwnedHyperlaneBaseLengthParsecs(sector)) parsecs</dd></div>
+                    <div><dt>Owned rule</dt><dd>Same empire controls colonies in both systems</dd></div>
+                    <div><dt>Tech level</dt><dd>GURPS TL = StarWin import TL + 2</dd></div>
+                    <div><dt>Gold hyperlanes</dt><dd>GURPS TL 12 empires connect every system where they own a colony</dd></div>
                     <div><dt>Current map routes</dt><dd>@GetSectorMapRouteCount(sector, selectedSystem) visible hyperlanes</dd></div>
                     <div><dt>Last saved</dt><dd>@DisplayDateTime(sector.Configuration.UpdatedAtUtc)</dd></div>
                 </dl>
@@ -235,7 +299,7 @@
             </section>
             break;
         case "Systems":
-            <ExplorerSystemsSection SectorCache="sectorCache"
+            <ExplorerSystemsSection SectorCache="sectorCache!"
                                     Empires="sectorEmpires"
                                     SectorId="@sector.Id"
                                     SelectedSystemId="@(selectedSystem?.Id ?? 0)"
@@ -244,13 +308,19 @@
                 {
                     <article class="detail-panel">
                         <span class="panel-kicker">System survey</span>
-                        <h2>@selectedSystem.Name</h2>
+                        <EditableEntityName Name="@selectedSystem.Name"
+                                            Label="System"
+                                            NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.StarSystem, selectedSystem.Id, name)" />
                         <dl class="field-grid">
                             <div><dt>System id</dt><dd>@selectedSystem.Id</dd></div>
                             <div><dt>Map code</dt><dd>@selectedSystem.MapCode</dd></div>
                             <div><dt>Allegiance</dt><dd>@DisplayAllegiance(selectedSystem.AllegianceId)</dd></div>
                             <div><dt>World count</dt><dd>@selectedSystem.Worlds.Count</dd></div>
                         </dl>
+
+                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.StarSystem"
+                                          TargetId="selectedSystem.Id"
+                                          Title="System notes" />
 
                         <div class="stellar-grid">
                             @foreach (var bodyItem in selectedSystem.AstralBodies.Select((body, index) => new { Body = body, Sequence = index }))
@@ -313,16 +383,26 @@
                                 <option value="SpaceHabitat">Habitats</option>
                             </select>
                         </label>
-                        <label>
-                            Type
-                            <select @bind="worldType" @bind:after="ResetWorldWindow">
-                                <option value="">All types</option>
+                        <button type="button" class="timeline-clear-button" @onclick="ToggleWorldFilters">
+                            @(showWorldFilters ? "Hide filters" : "Show filters")
+                        </button>
+                        @if (showWorldFilters)
+                        {
+                            <label>
+                                Type
+                                <input list="world-type-options"
+                                       placeholder="All types"
+                                       @bind="worldType"
+                                       @bind:event="oninput"
+                                       @bind:after="ResetWorldWindow" />
+                                <datalist id="world-type-options">
                                 @foreach (var itemType in (selectedSystem?.Worlds.Select(world => world.WorldType) ?? []).Distinct().OrderBy(item => item))
                                 {
-                                    <option value="@itemType">@itemType</option>
+                                    <option value="@itemType" />
                                 }
-                            </select>
-                        </label>
+                                </datalist>
+                            </label>
+                        }
                         <button type="button" class="timeline-clear-button" @onclick="ClearWorldFilters">Clear filters</button>
                     </section>
                     @{
@@ -399,7 +479,9 @@
                     <article class="detail-panel world-detail">
                         @RenderEntityOrb(EntityImageTargetKind.World, selectedWorld.Id, $"world-orb {selectedWorld.WorldType.ToLowerInvariant()}", selectedWorld.Name)
                         <span class="panel-kicker">@selectedWorld.Kind survey</span>
-                        <h2>@selectedWorld.Name</h2>
+                        <EditableEntityName Name="@selectedWorld.Name"
+                                            Label="World"
+                                            NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.World, selectedWorld.Id, name)" />
                         @RenderImagePanel(EntityImageTargetKind.World, selectedWorld.Id, "World image", false)
                         <div class="parent-actions">
                             @if (selectedWorld.ParentWorldId is int parentWorldId
@@ -429,6 +511,10 @@
                             <div><dt>Boiling point</dt><dd>@DisplayNullable(selectedWorld.BoilingPointCelsius, " C")</dd></div>
                             <div><dt>Magnetic field</dt><dd>@DisplayNullable(selectedWorld.MagneticFieldGauss, " gauss")</dd></div>
                         </dl>
+
+                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.World"
+                                          TargetId="selectedWorld.Id"
+                                          Title="World notes" />
 
                         <div class="tag-group">
                             @if (selectedWorld.UnusualCharacteristics.Count == 0)
@@ -483,50 +569,68 @@
                                    @bind:event="oninput"
                                    @bind:after="ResetColonyWindow" />
                         </label>
-                        <label>
-                            Race
-                            <select @bind="colonyRaceId" @bind:after="ResetColonyWindow">
-                                <option value="@TimelineAllFilterId">All races</option>
-                                @foreach (var race in sectorRaces)
-                                {
-                                    <option value="@race.Id">@race.Name</option>
-                                }
-                            </select>
-                        </label>
-                        <label>
-                            Allegiance
-                            <select @bind="colonyEmpireId" @bind:after="ResetColonyWindow">
-                                <option value="@TimelineAllFilterId">All allegiances</option>
-                                @foreach (var empire in sectorEmpires)
-                                {
-                                    <option value="@empire.Id">@empire.Name</option>
-                                }
-                            </select>
-                        </label>
-                        <label>
-                            Status
-                            <select @bind="colonyStatus" @bind:after="ResetColonyWindow">
-                                <option value="">All statuses</option>
-                                @foreach (var status in Enum.GetValues<ColonyPoliticalStatus>())
-                                {
-                                    <option value="@status.ToString()">@status</option>
-                                }
-                            </select>
-                        </label>
-                        <label>
-                            Class
-                            <select @bind="colonyClass" @bind:after="ResetColonyWindow">
-                                <option value="">All classes</option>
-                                @foreach (var itemClass in sectorColonies.Select(item => item.Colony.ColonyClass).Distinct().OrderBy(item => item))
-                                {
-                                    <option value="@itemClass">@itemClass</option>
-                                }
-                            </select>
-                        </label>
+                        <button type="button" class="timeline-clear-button" @onclick="ToggleColonyFilters">
+                            @(showColonyFilters ? "Hide filters" : "Show filters")
+                        </button>
+                        @if (showColonyFilters)
+                        {
+                            <label>
+                                Race
+                                <input list="colony-race-options"
+                                       placeholder="All races"
+                                       @bind="colonyRaceText"
+                                       @bind:event="oninput"
+                                       @bind:after="ApplyColonyRaceFilter" />
+                                <datalist id="colony-race-options">
+                                    @foreach (var race in sectorRaces)
+                                    {
+                                        <option value="@FormatRaceOption(race)" />
+                                    }
+                                </datalist>
+                            </label>
+                            <label>
+                                Allegiance
+                                <input list="colony-empire-options"
+                                       placeholder="All allegiances"
+                                       @bind="colonyEmpireText"
+                                       @bind:event="oninput"
+                                       @bind:after="ApplyColonyEmpireFilter" />
+                                <datalist id="colony-empire-options">
+                                    @foreach (var empire in sectorEmpires)
+                                    {
+                                        <option value="@FormatEmpireOption(empire)" />
+                                    }
+                                </datalist>
+                            </label>
+                            <label>
+                                Status
+                                <select @bind="colonyStatus" @bind:after="ResetColonyWindow">
+                                    <option value="">All statuses</option>
+                                    @foreach (var status in Enum.GetValues<ColonyPoliticalStatus>())
+                                    {
+                                        <option value="@status.ToString()">@status</option>
+                                    }
+                                </select>
+                            </label>
+                            <label>
+                                Class
+                                <input list="colony-class-options"
+                                       placeholder="All classes"
+                                       @bind="colonyClass"
+                                       @bind:event="oninput"
+                                       @bind:after="ResetColonyWindow" />
+                                <datalist id="colony-class-options">
+                                    @foreach (var itemClass in sectorColonies.Select(item => item.Colony.ColonyClass).Distinct().OrderBy(item => item))
+                                    {
+                                        <option value="@itemClass" />
+                                    }
+                                </datalist>
+                            </label>
+                        }
                         <button type="button" class="timeline-clear-button" @onclick="ClearColonyFilters">Clear filters</button>
                     </section>
                     @{
-                        var colonyWindow = GetFilteredColonies(sectorCache)
+                        var colonyWindow = GetFilteredColonies(sectorCache!)
                             .Take(colonyVisibleCount + 1)
                             .ToList();
                         var hasMoreColonies = colonyWindow.Count > colonyVisibleCount;
@@ -546,7 +650,7 @@
                     @foreach (var item in visibleColonies)
                     {
                         <button type="button" class="record-row @(selectedColony?.Id == item.Colony.Id ? "active" : null)" @onclick="() => SelectColony(item.World.Id)">
-                            <strong>@item.Colony.ColonyClass on @item.World.Name</strong>
+                                    <strong>@DisplayColonyName(item.Colony) on @item.World.Name</strong>
                             <span>@item.Colony.AllegianceName; @DisplayPopulation(item.Colony.EstimatedPopulation)</span>
                         </button>
                     }
@@ -562,7 +666,9 @@
                 {
                     <article class="detail-panel">
                         <span class="panel-kicker">Colony record</span>
-                        <h2>@selectedColony.ColonyClass</h2>
+                        <EditableEntityName Name="@DisplayColonyName(selectedColony)"
+                                            Label="Colony"
+                                            NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.Colony, selectedColony.Id, name)" />
                         @RenderImagePanel(EntityImageTargetKind.Colony, selectedColony.Id, "Colony images", true)
                         @if (selectedColonyWorld is not null)
                         {
@@ -587,6 +693,10 @@
                             <div><dt>Stability</dt><dd>@selectedColony.Stability</dd></div>
                             <div><dt>Crime</dt><dd>@selectedColony.Crime</dd></div>
                         </dl>
+
+                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.Colony"
+                                          TargetId="selectedColony.Id"
+                                          Title="Colony notes" />
 
                         <section class="relationship-section">
                             <h3>Demographics</h3>
@@ -617,26 +727,40 @@
                                    @bind:event="oninput"
                                    @bind:after="ResetRaceWindow" />
                         </label>
-                        <label>
-                            Environment
-                            <select @bind="raceEnvironment" @bind:after="ResetRaceWindow">
-                                <option value="">All environments</option>
-                                @foreach (var environment in sectorRaces.Select(race => race.EnvironmentType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value))
-                                {
-                                    <option value="@environment">@environment</option>
-                                }
-                            </select>
-                        </label>
-                        <label>
-                            Appearance
-                            <select @bind="raceAppearance" @bind:after="ResetRaceWindow">
-                                <option value="">All appearances</option>
-                                @foreach (var appearance in sectorRaces.Select(race => race.AppearanceType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value))
-                                {
-                                    <option value="@appearance">@appearance</option>
-                                }
-                            </select>
-                        </label>
+                        <button type="button" class="timeline-clear-button" @onclick="ToggleRaceFilters">
+                            @(showRaceFilters ? "Hide filters" : "Show filters")
+                        </button>
+                        @if (showRaceFilters)
+                        {
+                            <label>
+                                Environment
+                                <input list="race-environment-options"
+                                       placeholder="All environments"
+                                       @bind="raceEnvironment"
+                                       @bind:event="oninput"
+                                       @bind:after="ResetRaceWindow" />
+                                <datalist id="race-environment-options">
+                                    @foreach (var environment in sectorRaces.Select(race => race.EnvironmentType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value))
+                                    {
+                                        <option value="@environment" />
+                                    }
+                                </datalist>
+                            </label>
+                            <label>
+                                Appearance
+                                <input list="race-appearance-options"
+                                       placeholder="All appearances"
+                                       @bind="raceAppearance"
+                                       @bind:event="oninput"
+                                       @bind:after="ResetRaceWindow" />
+                                <datalist id="race-appearance-options">
+                                    @foreach (var appearance in sectorRaces.Select(race => race.AppearanceType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value))
+                                    {
+                                        <option value="@appearance" />
+                                    }
+                                </datalist>
+                            </label>
+                        }
                         <button type="button" class="timeline-clear-button" @onclick="ClearRaceFilters">Clear filters</button>
                     </section>
                     @{
@@ -657,7 +781,7 @@
                     }
                     @foreach (var race in visibleRaces)
                     {
-                        <button type="button" class="record-row @(selectedRace?.Id == race.Id ? "active" : null)" @onclick="() => selectedRaceId = race.Id">
+                            <button type="button" class="record-row @(selectedRace?.Id == race.Id ? "active" : null)" @onclick="() => SelectRace(race.Id)">
                             <strong>@race.Name</strong>
                             <span>@race.AppearanceType; @race.EnvironmentType</span>
                         </button>
@@ -675,7 +799,9 @@
                     var gurpsTemplate = BuildGurpsTemplate(selectedRace);
                     <article class="detail-panel">
                         <span class="panel-kicker">Alien biology</span>
-                        <h2>@selectedRace.Name</h2>
+                        <EditableEntityName Name="@selectedRace.Name"
+                                            Label="Race"
+                                            NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.AlienRace, selectedRace.Id, name)" />
                         @RenderImagePanel(EntityImageTargetKind.AlienRace, selectedRace.Id, "Race images", true)
                         <div class="parent-actions">
                             @if (FindWorld(selectedRace.HomePlanetId) is World homeWorld)
@@ -699,6 +825,10 @@
                             <div><dt>Psi</dt><dd>@selectedRace.BiologyProfile.PsiRating</dd></div>
                             <div><dt>Faith</dt><dd>@selectedRace.Religion</dd></div>
                         </dl>
+
+                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.AlienRace"
+                                          TargetId="selectedRace.Id"
+                                          Title="Alien notes" />
 
                         <section class="relationship-section">
                             <h3>Empire memberships</h3>
@@ -745,16 +875,26 @@
                                    @bind:event="oninput"
                                    @bind:after="ResetEmpireWindow" />
                         </label>
-                        <label>
-                            Race
-                            <select @bind="empireRaceId" @bind:after="ResetEmpireWindow">
-                                <option value="@TimelineAllFilterId">All races</option>
-                                @foreach (var race in sectorRaces)
-                                {
-                                    <option value="@race.Id">@race.Name</option>
-                                }
-                            </select>
-                        </label>
+                        <button type="button" class="timeline-clear-button" @onclick="ToggleEmpireFilters">
+                            @(showEmpireFilters ? "Hide filters" : "Show filters")
+                        </button>
+                        @if (showEmpireFilters)
+                        {
+                            <label>
+                                Race
+                                <input list="empire-race-options"
+                                       placeholder="All races"
+                                       @bind="empireRaceText"
+                                       @bind:event="oninput"
+                                       @bind:after="ApplyEmpireRaceFilter" />
+                                <datalist id="empire-race-options">
+                                    @foreach (var race in sectorRaces)
+                                    {
+                                        <option value="@FormatRaceOption(race)" />
+                                    }
+                                </datalist>
+                            </label>
+                        }
                         <button type="button" class="timeline-clear-button" @onclick="ClearEmpireFilters">Clear filters</button>
                     </section>
                     @{
@@ -775,9 +915,9 @@
                     }
                     @foreach (var empire in visibleEmpires)
                     {
-                        <button type="button" class="record-row @(selectedEmpire?.Id == empire.Id ? "active" : null)" @onclick="() => selectedEmpireId = empire.Id">
+                            <button type="button" class="record-row @(selectedEmpire?.Id == empire.Id ? "active" : null)" @onclick="() => SelectEmpire(empire.Id)">
                             <strong>@empire.Name</strong>
-                            <span>TL @empire.CivilizationProfile.TechLevel; @empire.Planets planets</span>
+                            <span>GURPS TL @GetGurpsTechLevel(empire); @empire.Planets planets</span>
                         </button>
                     }
                     @if (hasMoreEmpires)
@@ -792,7 +932,9 @@
                 {
                     <article class="detail-panel">
                         <span class="panel-kicker">Empire profile</span>
-                        <h2>@selectedEmpire.Name</h2>
+                        <EditableEntityName Name="@selectedEmpire.Name"
+                                            Label="Empire"
+                                            NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.Empire, selectedEmpire.Id, name)" />
                         @RenderImagePanel(EntityImageTargetKind.Empire, selectedEmpire.Id, "Empire flag", false)
                         @{
                             var empireHomeworld = FindWorld(selectedEmpire.Founding.FoundingWorldId);
@@ -810,7 +952,7 @@
                             }
                         </div>
                         <dl class="field-grid">
-                            <div><dt>Tech level</dt><dd>@selectedEmpire.CivilizationProfile.TechLevel</dd></div>
+                            <div><dt>Tech level</dt><dd>GURPS TL @GetGurpsTechLevel(selectedEmpire) / StarWin @selectedEmpire.CivilizationProfile.TechLevel</dd></div>
                             <div><dt>Military power</dt><dd>@selectedEmpire.MilitaryPower</dd></div>
                             <div><dt>Economic power</dt><dd>@selectedEmpire.EconomicPowerMcr MCr</dd></div>
                             <div><dt>Trade bonus</dt><dd>@selectedEmpire.TradeBonusMcr MCr</dd></div>
@@ -822,6 +964,10 @@
                             <div><dt>Captive population</dt><dd>@selectedEmpire.CaptivePopulationMillions million</dd></div>
                             <div><dt>Expansion</dt><dd>@selectedEmpire.ExpansionPolicy</dd></div>
                         </dl>
+
+                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.Empire"
+                                          TargetId="selectedEmpire.Id"
+                                          Title="Empire notes" />
 
                         <div class="force-grid">
                             <article>
@@ -862,7 +1008,7 @@
                                 @foreach (var listing in empireColonies)
                                 {
                                     <button type="button" class="relationship-row" @onclick="() => SelectColony(listing.World.Id)">
-                                        <strong>@listing.Colony.ColonyClass on @listing.World.Name</strong>
+                                                <strong>@DisplayColonyName(listing.Colony) on @listing.World.Name</strong>
                                         <span>@listing.System.Name; @DisplayPopulation(listing.Colony.EstimatedPopulation)</span>
                                     </button>
                                 }
@@ -882,6 +1028,7 @@
     private const int ExplorerListBatchSize = 120;
     private const int TimelineAllFilterId = -1;
     private const double SectorMapMaximumLabelDistanceParsecs = 5;
+    private const double MaximumVoidRouteDistanceParsecs = 3;
     private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
 
     [SupplyParameterFromQuery(Name = "sectorId")]
@@ -896,6 +1043,7 @@
     private bool sectionLoadingAwaitingTargetRender;
     private int selectedSectorId;
     private int selectedSystemId;
+    private string selectedSystemText = string.Empty;
     private int selectedWorldId;
     private int selectedHabitatId;
     private int selectedRaceId;
@@ -914,13 +1062,29 @@
     private int renderedSystemId;
     private int renderedViewDistanceParsecs;
     private double renderedRouteDistanceParsecs;
+    private int renderedRouteOriginSystemId;
+    private int renderedRouteDestinationSystemId;
     private bool renderedOverview;
     private bool sectorMapRequested;
+    private SectorMapRoutePlan? plottedRoutePlan;
+    private int plottedRouteSectorId;
+    private int plottedRouteOriginSystemId;
+    private int plottedRouteDestinationSystemId;
+    private double plottedRouteDistanceParsecs;
+    private double plottedOwnedRouteDistanceParsecs;
+    private readonly Dictionary<RouteGraphCacheKey, IReadOnlyDictionary<int, List<SectorMapRouteLeg>>> routeGraphCaches = [];
     private bool browserSessionRestored;
     private bool browserSessionReady;
     private IReadOnlyList<EntityImage> entityImages = [];
+    private bool entityImagesLoaded;
     private string imageUploadStatus = string.Empty;
+    private string routeOriginText = string.Empty;
+    private int routeOriginSystemId;
+    private string routeDestinationText = string.Empty;
+    private int routeDestinationSystemId;
     private string colonyQuery = string.Empty;
+    private string colonyRaceText = string.Empty;
+    private string colonyEmpireText = string.Empty;
     private int colonyRaceId = TimelineAllFilterId;
     private int colonyEmpireId = TimelineAllFilterId;
     private string colonyStatus = string.Empty;
@@ -928,25 +1092,30 @@
     private int colonyVisibleCount = ColonyBatchSize;
     private bool colonyHasMoreRecords;
     private bool colonyObserverConfigured;
+    private bool showColonyFilters;
     private string worldQuery = string.Empty;
     private string worldKind = string.Empty;
     private string worldType = string.Empty;
     private int worldVisibleCount = ExplorerListBatchSize;
     private bool worldHasMoreRecords;
     private bool worldObserverConfigured;
+    private bool showWorldFilters;
     private string raceQuery = string.Empty;
     private string raceEnvironment = string.Empty;
     private string raceAppearance = string.Empty;
     private int raceVisibleCount = ExplorerListBatchSize;
     private bool raceHasMoreRecords;
     private bool raceObserverConfigured;
+    private bool showRaceFilters;
     private string empireQuery = string.Empty;
+    private string empireRaceText = string.Empty;
     private int empireRaceId = TimelineAllFilterId;
     private int empireVisibleCount = ExplorerListBatchSize;
     private bool empireHasMoreRecords;
     private bool empireObserverConfigured;
-    private string basicHyperlaneTierName = "Basic";
+    private bool showEmpireFilters;
     private decimal basicHyperlaneMaximumLengthParsecs = 1m;
+    private decimal ownedHyperlaneBaseMaximumLengthParsecs = 1.2m;
     private string sectorConfigurationStatus = string.Empty;
     private int sectorMapViewDistanceParsecs = DefaultSectorMapViewDistanceParsecs;
 
@@ -957,6 +1126,16 @@
     private ExplorerSectorCache GetSectorCache(StarWinSector sector)
     {
         return sectorCacheBuilder.Get(sector);
+    }
+
+    private ExplorerSectorSummary GetSectorSummary(StarWinSector sector)
+    {
+        return sectorCacheBuilder.GetSummary(sector);
+    }
+
+    private static bool ShouldUseFullSectorCache(string sectionName)
+    {
+        return sectionName is "Timeline" or "Systems" or "Colonies" or "Aliens" or "Empires";
     }
 
     private IReadOnlyDictionary<int, AlienRace> AlienRacesById =>
@@ -980,14 +1159,12 @@
 
         selectedSectorId = initialSector.Id;
         selectedSystemId = initialSector.Systems.FirstOrDefault()?.Id ?? 0;
+        selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
+        routeOriginSystemId = selectedSystemId;
+        routeOriginText = FormatSelectedSystem(initialSector, routeOriginSystemId);
         selectedWorldId = initialSector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Id ?? 0;
         SelectDefaultCivilizationRecords(initialSector);
         LoadSectorConfigurationForm(initialSector);
-    }
-
-    protected override async Task OnInitializedAsync()
-    {
-        entityImages = await ImageService.GetImagesAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -1010,6 +1187,7 @@
         if (activeSection == "Colonies")
         {
             renderedOverview = false;
+            await EnsureEntityImagesLoadedAsync();
             await ConfigureColonyObserverAsync();
             await CompleteSectionLoadingIfReadyAsync();
             return;
@@ -1019,6 +1197,7 @@
         if (activeSection == "Systems")
         {
             renderedOverview = false;
+            await EnsureEntityImagesLoadedAsync();
             await CompleteSectionLoadingIfReadyAsync();
             return;
         }
@@ -1026,6 +1205,7 @@
         if (activeSection == "Worlds")
         {
             renderedOverview = false;
+            await EnsureEntityImagesLoadedAsync();
             await ConfigureRecordObserverAsync("world", worldHasMoreRecords, () => worldObserverConfigured, value => worldObserverConfigured = value, worldLoadMoreElement, "LoadMoreWorlds");
             await CompleteSectionLoadingIfReadyAsync();
             return;
@@ -1035,6 +1215,7 @@
         if (activeSection == "Aliens")
         {
             renderedOverview = false;
+            await EnsureEntityImagesLoadedAsync();
             await ConfigureRecordObserverAsync("race", raceHasMoreRecords, () => raceObserverConfigured, value => raceObserverConfigured = value, raceLoadMoreElement, "LoadMoreRaces");
             await CompleteSectionLoadingIfReadyAsync();
             return;
@@ -1044,6 +1225,7 @@
         if (activeSection == "Empires")
         {
             renderedOverview = false;
+            await EnsureEntityImagesLoadedAsync();
             await ConfigureRecordObserverAsync("empire", empireHasMoreRecords, () => empireObserverConfigured, value => empireObserverConfigured = value, empireLoadMoreElement, "LoadMoreEmpires");
             await CompleteSectionLoadingIfReadyAsync();
             return;
@@ -1070,6 +1252,8 @@
             && renderedSectorId == sector.Id
             && renderedSystemId == selectedSystemId
             && renderedViewDistanceParsecs == sectorMapViewDistanceParsecs
+            && renderedRouteOriginSystemId == routeOriginSystemId
+            && renderedRouteDestinationSystemId == routeDestinationSystemId
             && Math.Abs(renderedRouteDistanceParsecs - GetHyperlaneRouteDistanceParsecs(sector)) < 0.001)
         {
             await CompleteSectionLoadingIfReadyAsync();
@@ -1090,8 +1274,22 @@
         renderedSystemId = selectedSystemId;
         renderedViewDistanceParsecs = sectorMapViewDistanceParsecs;
         renderedRouteDistanceParsecs = GetHyperlaneRouteDistanceParsecs(sector);
+        renderedRouteOriginSystemId = routeOriginSystemId;
+        renderedRouteDestinationSystemId = routeDestinationSystemId;
         renderedOverview = true;
         await CompleteSectionLoadingIfReadyAsync();
+    }
+
+    private async Task EnsureEntityImagesLoadedAsync()
+    {
+        if (entityImagesLoaded)
+        {
+            return;
+        }
+
+        entityImages = await ImageService.GetImagesAsync();
+        entityImagesLoaded = true;
+        StateHasChanged();
     }
 
     private async Task SelectSectionAsync(string sectionName)
@@ -1144,6 +1342,8 @@
     private void SelectSystem(int systemId)
     {
         selectedSystemId = systemId;
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         activeSection = activeSection == "Overview" ? "Overview" : "Systems";
         SelectDefaultWorld();
         _ = PersistExplorerSessionAsync();
@@ -1170,6 +1370,8 @@
     public async Task SelectSystemFromMap(int systemId)
     {
         selectedSystemId = systemId;
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         activeSection = "Overview";
         SelectDefaultWorld();
         await PersistExplorerSessionAsync();
@@ -1183,6 +1385,7 @@
         if (system is not null)
         {
             selectedSystemId = system.Id;
+            selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         }
 
         selectedWorldId = worldId;
@@ -1198,6 +1401,7 @@
         if (system is not null)
         {
             selectedSystemId = system.Id;
+            selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         }
 
         selectedHabitatId = habitatId;
@@ -1249,6 +1453,7 @@
     {
         var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         selectedWorldId = sector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Id ?? 0;
         selectedHabitatId = 0;
         sectorMapViewDistanceParsecs = Math.Min(
@@ -1256,6 +1461,7 @@
             GetSectorMapMaximumViewDistance(sector));
         SelectDefaultCivilizationRecords(sector);
         LoadSectorConfigurationForm(sector);
+        ClearSelectedRoute();
         _ = PersistExplorerSessionAsync();
     }
 
@@ -1263,9 +1469,152 @@
     {
         var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
         var system = sector.Systems.FirstOrDefault(item => item.Id == selectedSystemId);
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         selectedWorldId = system?.Worlds.FirstOrDefault()?.Id ?? 0;
         selectedHabitatId = 0;
         _ = PersistExplorerSessionAsync();
+    }
+
+    private void ApplySelectedSystemText()
+    {
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var systemId = ParseComboId(selectedSystemText);
+        if (systemId == TimelineAllFilterId || sector.Systems.All(system => system.Id != systemId))
+        {
+            selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+            return;
+        }
+
+        selectedSystemId = systemId;
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        SelectDefaultWorld();
+    }
+
+    private void ApplyRouteOriginText()
+    {
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var systemId = ParseComboId(routeOriginText);
+        if (systemId == TimelineAllFilterId || sector.Systems.All(system => system.Id != systemId))
+        {
+            routeOriginSystemId = 0;
+            routeOriginText = string.Empty;
+            ClearPlottedRoutePlan();
+            renderedOverview = false;
+            return;
+        }
+
+        routeOriginSystemId = systemId;
+        routeOriginText = FormatSelectedSystem(sector, routeOriginSystemId);
+        ClearPlottedRoutePlan();
+        renderedOverview = false;
+    }
+
+    private void ApplyRouteDestinationText()
+    {
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var systemId = ParseComboId(routeDestinationText);
+        if (systemId == TimelineAllFilterId || sector.Systems.All(system => system.Id != systemId))
+        {
+            routeDestinationSystemId = 0;
+            routeDestinationText = string.Empty;
+            ClearPlottedRoutePlan();
+            renderedOverview = false;
+            return;
+        }
+
+        routeDestinationSystemId = systemId;
+        routeDestinationText = FormatSelectedSystem(sector, routeDestinationSystemId);
+        ClearPlottedRoutePlan();
+        renderedOverview = false;
+    }
+
+    private void ClearPlottedRoutePlan()
+    {
+        plottedRoutePlan = null;
+        plottedRouteSectorId = 0;
+        plottedRouteOriginSystemId = 0;
+        plottedRouteDestinationSystemId = 0;
+        plottedRouteDistanceParsecs = 0;
+        plottedOwnedRouteDistanceParsecs = 0;
+    }
+
+    private async Task PlotSelectedRouteAsync()
+    {
+        if (sectionLoadingVisible)
+        {
+            return;
+        }
+
+        sectionLoadingTarget = "Route";
+        sectionLoadingStatus = "Reading origin system and destination...";
+        sectionLoadingAwaitingTargetRender = false;
+        sectionLoadingVisible = true;
+        StateHasChanged();
+        await Task.Yield();
+        await Task.Delay(60);
+
+        ApplyRouteOriginText();
+        ApplyRouteDestinationText();
+        if (routeOriginSystemId == 0 || routeDestinationSystemId == 0)
+        {
+            sectionLoadingVisible = false;
+            sectionLoadingTarget = string.Empty;
+            sectionLoadingStatus = string.Empty;
+            StateHasChanged();
+            return;
+        }
+
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var origin = sector.Systems.FirstOrDefault(system => system.Id == routeOriginSystemId);
+        var destination = sector.Systems.FirstOrDefault(system => system.Id == routeDestinationSystemId);
+        if (origin is null || destination is null || origin.Id == destination.Id)
+        {
+            ClearPlottedRoutePlan();
+            sectionLoadingVisible = false;
+            sectionLoadingTarget = string.Empty;
+            sectionLoadingStatus = string.Empty;
+            StateHasChanged();
+            return;
+        }
+
+        sectionLoadingStatus = "Following hyperlanes as far as possible...";
+        StateHasChanged();
+        await Task.Yield();
+        await Task.Delay(40);
+
+        var adjacency = await GetRouteAdjacencyAsync(sector);
+
+        sectionLoadingStatus = "Minimizing any unavoidable void crossing...";
+        StateHasChanged();
+        await Task.Yield();
+        plottedRoutePlan = await Task.Run(() => BuildHyperlanePreferredRoute(origin, destination, adjacency));
+        plottedRouteSectorId = sector.Id;
+        plottedRouteOriginSystemId = origin.Id;
+        plottedRouteDestinationSystemId = destination.Id;
+        plottedRouteDistanceParsecs = GetHyperlaneRouteDistanceParsecs(sector);
+        plottedOwnedRouteDistanceParsecs = GetOwnedHyperlaneBaseLengthParsecs(sector);
+
+        sectorMapRequested = true;
+        renderedOverview = false;
+        sectionLoadingStatus = "Rendering route map...";
+        StateHasChanged();
+        await Task.Delay(140);
+
+        sectionLoadingVisible = false;
+        sectionLoadingTarget = string.Empty;
+        sectionLoadingStatus = string.Empty;
+        StateHasChanged();
+    }
+
+    private void ClearSelectedRoute()
+    {
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        routeOriginSystemId = selectedSystemId;
+        routeOriginText = FormatSelectedSystem(sector, routeOriginSystemId);
+        routeDestinationSystemId = 0;
+        routeDestinationText = string.Empty;
+        ClearPlottedRoutePlan();
+        renderedOverview = false;
     }
 
     private async Task ConfigureColonyObserverAsync()
@@ -1344,10 +1693,13 @@
     private void ClearColonyFilters()
     {
         colonyQuery = string.Empty;
+        colonyRaceText = string.Empty;
+        colonyEmpireText = string.Empty;
         colonyRaceId = TimelineAllFilterId;
         colonyEmpireId = TimelineAllFilterId;
         colonyStatus = string.Empty;
         colonyClass = string.Empty;
+        showColonyFilters = false;
         ResetColonyWindow();
     }
 
@@ -1400,6 +1752,7 @@
         worldQuery = string.Empty;
         worldKind = string.Empty;
         worldType = string.Empty;
+        showWorldFilters = false;
         ResetWorldWindow();
     }
 
@@ -1408,13 +1761,54 @@
         raceQuery = string.Empty;
         raceEnvironment = string.Empty;
         raceAppearance = string.Empty;
+        showRaceFilters = false;
         ResetRaceWindow();
     }
 
     private void ClearEmpireFilters()
     {
         empireQuery = string.Empty;
+        empireRaceText = string.Empty;
         empireRaceId = TimelineAllFilterId;
+        showEmpireFilters = false;
+        ResetEmpireWindow();
+    }
+
+    private void ToggleWorldFilters()
+    {
+        showWorldFilters = !showWorldFilters;
+    }
+
+    private void ToggleColonyFilters()
+    {
+        showColonyFilters = !showColonyFilters;
+    }
+
+    private void ToggleRaceFilters()
+    {
+        showRaceFilters = !showRaceFilters;
+    }
+
+    private void ToggleEmpireFilters()
+    {
+        showEmpireFilters = !showEmpireFilters;
+    }
+
+    private void ApplyColonyRaceFilter()
+    {
+        colonyRaceId = ParseComboId(colonyRaceText);
+        ResetColonyWindow();
+    }
+
+    private void ApplyColonyEmpireFilter()
+    {
+        colonyEmpireId = ParseComboId(colonyEmpireText);
+        ResetColonyWindow();
+    }
+
+    private void ApplyEmpireRaceFilter()
+    {
+        empireRaceId = ParseComboId(empireRaceText);
         ResetEmpireWindow();
     }
 
@@ -1472,6 +1866,9 @@
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        routeOriginSystemId = selectedSystemId;
+        routeOriginText = FormatSelectedSystem(sector, routeOriginSystemId);
         selectedWorldId = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId)?.Worlds.FirstOrDefault()?.Id ?? 0;
         selectedHabitatId = 0;
         sectorMapViewDistanceParsecs = Math.Min(
@@ -1501,24 +1898,26 @@
 
     private void LoadSectorConfigurationForm(StarWinSector sector)
     {
-        basicHyperlaneTierName = GetHyperlaneTierName(sector);
         basicHyperlaneMaximumLengthParsecs = Math.Round(sector.Configuration.BasicHyperlaneMaximumLengthParsecs, 3);
+        ownedHyperlaneBaseMaximumLengthParsecs = Math.Round((decimal)GetOwnedHyperlaneBaseLengthParsecs(sector), 3);
         sectorConfigurationStatus = string.Empty;
     }
 
     private async Task SaveSectorConfiguration()
     {
         var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
-        var configuration = await SectorConfigurationService.SaveBasicHyperlaneSettingsAsync(
+        var configuration = await SectorConfigurationService.SaveHyperlaneSettingsAsync(
             sector.Id,
-            basicHyperlaneTierName,
-            basicHyperlaneMaximumLengthParsecs);
+            basicHyperlaneMaximumLengthParsecs,
+            ownedHyperlaneBaseMaximumLengthParsecs);
 
-        sector.Configuration.BasicHyperlaneTierName = configuration.BasicHyperlaneTierName;
         sector.Configuration.BasicHyperlaneMaximumLengthParsecs = configuration.BasicHyperlaneMaximumLengthParsecs;
+        sector.Configuration.OwnedHyperlaneBaseMaximumLengthParsecs = configuration.OwnedHyperlaneBaseMaximumLengthParsecs;
         sector.Configuration.UpdatedAtUtc = configuration.UpdatedAtUtc;
         LoadSectorConfigurationForm(sector);
-        sectorConfigurationStatus = $"{configuration.BasicHyperlaneTierName} hyperlanes now connect systems up to {configuration.BasicHyperlaneMaximumLengthParsecs:0.###} parsecs apart.";
+        sectorConfigurationStatus = $"Basic hyperlanes now connect systems up to {configuration.BasicHyperlaneMaximumLengthParsecs:0.###} parsecs; owned hyperlanes start at {configuration.OwnedHyperlaneBaseMaximumLengthParsecs:0.###} parsecs before tech-level bonuses.";
+        routeGraphCaches.Clear();
+        ClearPlottedRoutePlan();
         renderedOverview = false;
     }
 
@@ -1600,6 +1999,72 @@
         return AlienRacesById.TryGetValue(raceId, out var race) ? race.Name : raceId.ToString();
     }
 
+    private static string DisplayColonyName(Colony colony)
+    {
+        return string.IsNullOrWhiteSpace(colony.Name) ? colony.ColonyClass : colony.Name;
+    }
+
+    private async Task SaveEntityNameAsync(EntityNoteTargetKind targetKind, int targetId, string name)
+    {
+        var savedName = await EntityNameService.SaveNameAsync(targetKind, targetId, name);
+        ApplySavedEntityName(targetKind, targetId, savedName);
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        sectorCacheBuilder.Invalidate(sector.Id);
+        alienRacesById = null;
+        empiresById = null;
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        routeOriginText = routeOriginSystemId == 0 ? string.Empty : FormatSelectedSystem(sector, routeOriginSystemId);
+        routeDestinationText = routeDestinationSystemId == 0 ? string.Empty : FormatSelectedSystem(sector, routeDestinationSystemId);
+        renderedOverview = false;
+    }
+
+    private void ApplySavedEntityName(EntityNoteTargetKind targetKind, int targetId, string savedName)
+    {
+        switch (targetKind)
+        {
+            case EntityNoteTargetKind.StarSystem:
+                foreach (var system in Workspace.Sectors.SelectMany(sector => sector.Systems).Where(system => system.Id == targetId))
+                {
+                    system.Name = savedName;
+                }
+
+                break;
+            case EntityNoteTargetKind.World:
+                foreach (var world in Workspace.Sectors.SelectMany(sector => sector.Systems).SelectMany(system => system.Worlds).Where(world => world.Id == targetId))
+                {
+                    world.Name = savedName;
+                }
+
+                break;
+            case EntityNoteTargetKind.Colony:
+                foreach (var colony in Workspace.Sectors
+                    .SelectMany(sector => sector.Systems)
+                    .SelectMany(system => system.Worlds)
+                    .Select(world => world.Colony)
+                    .OfType<Colony>()
+                    .Where(colony => colony.Id == targetId))
+                {
+                    colony.Name = savedName;
+                }
+
+                break;
+            case EntityNoteTargetKind.AlienRace:
+                if (Workspace.AlienRaces.FirstOrDefault(race => race.Id == targetId) is { } race)
+                {
+                    race.Name = savedName;
+                }
+
+                break;
+            case EntityNoteTargetKind.Empire:
+                if (Workspace.Empires.FirstOrDefault(empire => empire.Id == targetId) is { } empire)
+                {
+                    empire.Name = savedName;
+                }
+
+                break;
+        }
+    }
+
     private static bool ContainsTimelineQuery(string? value, string query)
     {
         return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
@@ -1649,6 +2114,7 @@
         return ContainsTimelineQuery(item.World.Name, query)
             || ContainsTimelineQuery(item.World.WorldType, query)
             || ContainsTimelineQuery(item.Colony.Id.ToString(), query)
+            || ContainsTimelineQuery(item.Colony.Name, query)
             || ContainsTimelineQuery(item.Colony.WorldId.ToString(), query)
             || ContainsTimelineQuery(item.Colony.ColonyClass, query)
             || ContainsTimelineQuery(item.Colony.ColonistRaceName, query)
@@ -1816,14 +2282,14 @@
 
     private void SelectDefaultCivilizationRecords(StarWinSector sector)
     {
-        var sectorCache = GetSectorCache(sector);
+        var sectorSummary = GetSectorSummary(sector);
 
-        selectedRaceId = sectorCache.RaceIds.Contains(selectedRaceId)
+        selectedRaceId = sectorSummary.RaceIds.Contains(selectedRaceId)
             ? selectedRaceId
-            : Workspace.AlienRaces.FirstOrDefault(race => sectorCache.RaceIds.Contains(race.Id))?.Id ?? 0;
-        selectedEmpireId = sectorCache.EmpireIds.Contains(selectedEmpireId)
+            : Workspace.AlienRaces.FirstOrDefault(race => sectorSummary.RaceIds.Contains(race.Id))?.Id ?? 0;
+        selectedEmpireId = sectorSummary.EmpireIds.Contains(selectedEmpireId)
             ? selectedEmpireId
-            : Workspace.Empires.FirstOrDefault(empire => sectorCache.EmpireIds.Contains(empire.Id))?.Id ?? 0;
+            : Workspace.Empires.FirstOrDefault(empire => sectorSummary.EmpireIds.Contains(empire.Id))?.Id ?? 0;
     }
 
     private IEnumerable<RaceEmpireMembership> GetRaceEmpireMemberships(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
@@ -1970,6 +2436,7 @@
             await using var stream = file.OpenReadStream(10 * 1024 * 1024);
             await ImageService.UploadImageAsync(targetKind, targetId, file.Name, file.ContentType, stream);
             entityImages = await ImageService.GetImagesAsync();
+            entityImagesLoaded = true;
             imageUploadStatus = $"{file.Name} uploaded.";
         }
         catch (Exception exception)
@@ -2072,6 +2539,39 @@
         return $"{coordinates.XParsecs:0.#}, {coordinates.YParsecs:0.#}, {coordinates.ZParsecs:0.#}";
     }
 
+    private static string FormatSystemOption(StarSystem system)
+    {
+        return $"{system.Id} - {system.Name}";
+    }
+
+    private static string FormatSelectedSystem(StarWinSector sector, int systemId)
+    {
+        var system = sector.Systems.FirstOrDefault(item => item.Id == systemId);
+        return system is null ? string.Empty : FormatSystemOption(system);
+    }
+
+    private static string FormatRaceOption(AlienRace race)
+    {
+        return $"{race.Id} - {race.Name}";
+    }
+
+    private static string FormatEmpireOption(Empire empire)
+    {
+        return $"{empire.Id} - {empire.Name}";
+    }
+
+    private static int ParseComboId(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return TimelineAllFilterId;
+        }
+
+        var separatorIndex = value.IndexOf(" - ", StringComparison.Ordinal);
+        var idText = separatorIndex < 0 ? value : value[..separatorIndex];
+        return int.TryParse(idText, out var id) ? id : TimelineAllFilterId;
+    }
+
     private static string DisplayPopulation(long population)
     {
         return population >= 1_000_000_000
@@ -2101,16 +2601,21 @@
         return value == default ? "Not saved" : value.ToLocalTime().ToString("g");
     }
 
-    private static string GetHyperlaneTierName(StarWinSector sector)
-    {
-        return string.IsNullOrWhiteSpace(sector.Configuration.BasicHyperlaneTierName)
-            ? "Basic"
-            : sector.Configuration.BasicHyperlaneTierName;
-    }
-
     private static double GetHyperlaneRouteDistanceParsecs(StarWinSector sector)
     {
         return (double)Math.Max(0.1m, sector.Configuration.BasicHyperlaneMaximumLengthParsecs);
+    }
+
+    private static double GetDefaultOwnedHyperlaneBaseLengthParsecs(StarWinSector sector)
+    {
+        return GetHyperlaneRouteDistanceParsecs(sector) * 1.2;
+    }
+
+    private static double GetOwnedHyperlaneBaseLengthParsecs(StarWinSector sector)
+    {
+        return (double)(sector.Configuration.OwnedHyperlaneBaseMaximumLengthParsecs <= 0
+            ? sector.Configuration.BasicHyperlaneMaximumLengthParsecs * 1.2m
+            : sector.Configuration.OwnedHyperlaneBaseMaximumLengthParsecs);
     }
 
     private static string DisplayResultType(StarWinSearchResultType type)
@@ -2126,11 +2631,14 @@
 
     private object BuildSectorMap(StarWinSector sector, int focusedSystemId)
     {
-        var mappedSystems = GetSectorMapSystems(sector, focusedSystemId).ToList();
         var focusedSystem = sector.Systems.FirstOrDefault(system => system.Id == focusedSystemId)
             ?? sector.Systems.FirstOrDefault();
+        var routePlan = GetPlottedRoutePlan(sector);
+        var routeSystemIds = routePlan?.Systems.Select(system => system.Id).ToHashSet() ?? [];
+        var mappedSystems = GetSectorMapSystems(sector, focusedSystemId, routePlan).ToList();
         var routeDistance = GetHyperlaneRouteDistanceParsecs(sector);
-        var routes = BuildSectorMapRoutes(mappedSystems, routeDistance);
+        var ownedRouteDistance = GetOwnedHyperlaneBaseLengthParsecs(sector);
+        var routes = BuildSectorMapRoutes(mappedSystems, routeDistance, ownedRouteDistance, EmpiresById);
 
         return new
         {
@@ -2140,9 +2648,13 @@
             maximumRenderedSystems = SectorMapMaximumRenderedSystems,
             labelDistanceParsecs = SectorMapMaximumLabelDistanceParsecs,
             routeDistanceParsecs = routeDistance,
+            ownedRouteDistanceParsecs = ownedRouteDistance,
+            maximumVoidRouteDistanceParsecs = MaximumVoidRouteDistanceParsecs,
             totalSystemCount = sector.Systems.Count,
             visibleSystemCount = mappedSystems.Count,
             visibleRouteCount = routes.Count,
+            routeActive = routePlan is not null,
+            routeSystemIds = routeSystemIds.ToArray(),
             systems = mappedSystems.Select(system => new
             {
                 id = system.Id,
@@ -2153,7 +2665,8 @@
                 distanceFromFocus = focusedSystem is null
                     ? 0
                     : CalculateParsecDistance(focusedSystem.Coordinates, system.Coordinates),
-                showLabel = ShouldShowSectorMapLabel(system, focusedSystem),
+                isRouteSystem = routeSystemIds.Contains(system.Id),
+                showLabel = routeSystemIds.Contains(system.Id) || ShouldShowSectorMapLabel(system, focusedSystem),
                 bodies = system.AstralBodies.Take(3).Select(body => new
                 {
                     kind = body.Kind.ToString(),
@@ -2168,12 +2681,21 @@
             {
                 sourceId = route.Source.Id,
                 targetId = route.Target.Id,
-                distanceParsecs = route.DistanceParsecs
+                distanceParsecs = route.DistanceParsecs,
+                isOwned = route.IsOwned,
+                isGold = route.IsGold
+            }).ToArray(),
+            routePath = (routePlan?.Legs ?? []).Select(leg => new
+            {
+                sourceId = leg.Source.Id,
+                targetId = leg.Target.Id,
+                distanceParsecs = leg.DistanceParsecs,
+                isHyperlane = leg.IsHyperlane
             }).ToArray()
         };
     }
 
-    private IReadOnlyList<StarSystem> GetSectorMapSystems(StarWinSector sector, int focusedSystemId)
+    private IReadOnlyList<StarSystem> GetSectorMapSystems(StarWinSector sector, int focusedSystemId, SectorMapRoutePlan? routePlan = null)
     {
         var focusedSystem = sector.Systems.FirstOrDefault(system => system.Id == focusedSystemId)
             ?? sector.Systems.FirstOrDefault();
@@ -2183,7 +2705,7 @@
             return [];
         }
 
-        return sector.Systems
+        var nearbySystems = sector.Systems
             .Select(system => new
             {
                 System = system,
@@ -2195,6 +2717,20 @@
             .Take(SectorMapMaximumRenderedSystems)
             .Select(item => item.System)
             .ToList();
+
+        if (routePlan is not null)
+        {
+            var mappedSystemIds = nearbySystems.Select(system => system.Id).ToHashSet();
+            foreach (var routeSystem in routePlan.Systems)
+            {
+                if (mappedSystemIds.Add(routeSystem.Id))
+                {
+                    nearbySystems.Add(routeSystem);
+                }
+            }
+        }
+
+        return nearbySystems;
     }
 
     private static bool ShouldShowSectorMapLabel(StarSystem system, StarSystem? focusedSystem)
@@ -2210,6 +2746,302 @@
         }
 
         return CalculateParsecDistance(focusedSystem.Coordinates, system.Coordinates) <= SectorMapMaximumLabelDistanceParsecs;
+    }
+
+    private SectorMapRoutePlan? GetPlottedRoutePlan(StarWinSector sector)
+    {
+        if (plottedRoutePlan is null
+            || plottedRouteSectorId != sector.Id
+            || plottedRouteOriginSystemId != routeOriginSystemId
+            || plottedRouteDestinationSystemId != routeDestinationSystemId
+            || Math.Abs(plottedRouteDistanceParsecs - GetHyperlaneRouteDistanceParsecs(sector)) >= 0.001
+            || Math.Abs(plottedOwnedRouteDistanceParsecs - GetOwnedHyperlaneBaseLengthParsecs(sector)) >= 0.001)
+        {
+            return null;
+        }
+
+        return plottedRoutePlan;
+    }
+
+    private async Task<IReadOnlyDictionary<int, List<SectorMapRouteLeg>>> GetRouteAdjacencyAsync(StarWinSector sector)
+    {
+        var cacheKey = new RouteGraphCacheKey(
+            sector.Id,
+            Math.Round(GetHyperlaneRouteDistanceParsecs(sector), 3),
+            Math.Round(GetOwnedHyperlaneBaseLengthParsecs(sector), 3),
+            MaximumVoidRouteDistanceParsecs);
+        if (routeGraphCaches.TryGetValue(cacheKey, out var cachedAdjacency))
+        {
+            return cachedAdjacency;
+        }
+
+        var systems = sector.Systems.ToList();
+        var routeDistanceParsecs = GetHyperlaneRouteDistanceParsecs(sector);
+        var ownedRouteDistanceParsecs = GetOwnedHyperlaneBaseLengthParsecs(sector);
+        var empiresById = EmpiresById;
+        var adjacency = await Task.Run(() => BuildRouteAdjacency(
+            systems,
+            routeDistanceParsecs,
+            ownedRouteDistanceParsecs,
+            empiresById,
+            MaximumVoidRouteDistanceParsecs));
+        routeGraphCaches[cacheKey] = adjacency;
+        return adjacency;
+    }
+
+    private static SectorMapRoutePlan? BuildHyperlanePreferredRoute(
+        StarSystem origin,
+        StarSystem destination,
+        IReadOnlyDictionary<int, List<SectorMapRouteLeg>> adjacency)
+    {
+        if (!adjacency.ContainsKey(origin.Id) || !adjacency.ContainsKey(destination.Id))
+        {
+            return null;
+        }
+
+        var searchResult = SearchPreferredRoute(origin, destination.Id, adjacency);
+        var routePath = BuildRoutePath(searchResult, origin.Id, destination.Id);
+        if (routePath is not null)
+        {
+            return BuildRoutePlan(origin, destination, routePath);
+        }
+
+        return null;
+    }
+
+    private static Dictionary<int, List<SectorMapRouteLeg>> BuildRouteAdjacency(
+        IReadOnlyList<StarSystem> systems,
+        double routeDistanceParsecs,
+        double ownedRouteDistanceParsecs,
+        IReadOnlyDictionary<int, Empire> empiresById,
+        double maximumVoidRouteDistanceParsecs)
+    {
+        var adjacency = BuildHyperlaneAdjacency(systems, routeDistanceParsecs, ownedRouteDistanceParsecs, empiresById);
+        if (systems.Count < 2 || maximumVoidRouteDistanceParsecs <= routeDistanceParsecs)
+        {
+            return adjacency;
+        }
+
+        var cellSize = Math.Max(0.1, maximumVoidRouteDistanceParsecs);
+        var cells = systems
+            .GroupBy(system => GetRouteCell(system, cellSize))
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        foreach (var source in systems)
+        {
+            var originCell = GetRouteCell(source, cellSize);
+            for (var x = originCell.X - 1; x <= originCell.X + 1; x++)
+            {
+                for (var y = originCell.Y - 1; y <= originCell.Y + 1; y++)
+                {
+                    for (var z = originCell.Z - 1; z <= originCell.Z + 1; z++)
+                    {
+                        if (!cells.TryGetValue((x, y, z), out var candidates))
+                        {
+                            continue;
+                        }
+
+                        foreach (var target in candidates)
+                        {
+                            if (target.Id <= source.Id)
+                            {
+                                continue;
+                            }
+
+                            var voidDistance = CalculateParsecDistance(source.Coordinates, target.Coordinates);
+                            if (voidDistance <= routeDistanceParsecs || voidDistance > maximumVoidRouteDistanceParsecs)
+                            {
+                                continue;
+                            }
+
+                            adjacency[source.Id].Add(new SectorMapRouteLeg(source, target, voidDistance, false));
+                            adjacency[target.Id].Add(new SectorMapRouteLeg(target, source, voidDistance, false));
+                        }
+                    }
+                }
+            }
+        }
+
+        return adjacency;
+    }
+
+    private static (int X, int Y, int Z) GetRouteCell(StarSystem system, double cellSize)
+    {
+        return (
+            X: (int)Math.Floor(system.Coordinates.XParsecs / cellSize),
+            Y: (int)Math.Floor(system.Coordinates.YParsecs / cellSize),
+            Z: (int)Math.Floor(system.Coordinates.ZParsecs / cellSize));
+    }
+
+    private static SectorMapRoutePlan BuildRoutePlan(StarSystem origin, StarSystem destination, IReadOnlyList<SectorMapRouteLeg> legs)
+    {
+        var routeSystems = legs
+            .Select(leg => leg.Source)
+            .Concat(legs.Select(leg => leg.Target))
+            .DistinctBy(system => system.Id)
+            .ToList();
+
+        return new SectorMapRoutePlan(origin, destination, routeSystems, legs);
+    }
+
+    private static Dictionary<int, List<SectorMapRouteLeg>> BuildHyperlaneAdjacency(
+        IReadOnlyList<StarSystem> systems,
+        double routeDistanceParsecs,
+        double ownedRouteDistanceParsecs,
+        IReadOnlyDictionary<int, Empire> empiresById)
+    {
+        var adjacency = systems.ToDictionary(system => system.Id, _ => new List<SectorMapRouteLeg>());
+        foreach (var route in BuildSectorMapRoutes(systems, routeDistanceParsecs, ownedRouteDistanceParsecs, empiresById))
+        {
+            adjacency[route.Source.Id].Add(new SectorMapRouteLeg(route.Source, route.Target, route.DistanceParsecs, true));
+            adjacency[route.Target.Id].Add(new SectorMapRouteLeg(route.Target, route.Source, route.DistanceParsecs, true));
+        }
+
+        return adjacency;
+    }
+
+    private static HyperlaneSearchResult SearchHyperlaneRoutes(
+        StarSystem origin,
+        IReadOnlyDictionary<int, List<SectorMapRouteLeg>> adjacency)
+    {
+        var distances = adjacency.Keys.ToDictionary(systemId => systemId, _ => double.PositiveInfinity);
+        var previousLegs = new Dictionary<int, SectorMapRouteLeg>();
+        var queue = new PriorityQueue<int, double>();
+        var settledSystemIds = new HashSet<int>();
+
+        distances[origin.Id] = 0;
+        queue.Enqueue(origin.Id, 0);
+
+        while (queue.Count > 0)
+        {
+            var systemId = queue.Dequeue();
+            if (!settledSystemIds.Add(systemId))
+            {
+                continue;
+            }
+
+            foreach (var leg in adjacency[systemId])
+            {
+                var nextSystemId = leg.Target.Id;
+                var nextDistance = distances[systemId] + leg.DistanceParsecs;
+                if (nextDistance >= distances[nextSystemId])
+                {
+                    continue;
+                }
+
+                distances[nextSystemId] = nextDistance;
+                previousLegs[nextSystemId] = leg;
+                queue.Enqueue(nextSystemId, nextDistance);
+            }
+        }
+
+        return new HyperlaneSearchResult(distances, previousLegs);
+    }
+
+    private static PreferredRouteSearchResult SearchPreferredRoute(
+        StarSystem origin,
+        int destinationSystemId,
+        IReadOnlyDictionary<int, List<SectorMapRouteLeg>> adjacency)
+    {
+        const double voidLegPenalty = 1_000_000;
+        const double voidDistancePenalty = 1_000;
+        var costs = adjacency.Keys.ToDictionary(systemId => systemId, _ => double.PositiveInfinity);
+        var previousLegs = new Dictionary<int, SectorMapRouteLeg>();
+        var queue = new PriorityQueue<int, double>();
+        var settledSystemIds = new HashSet<int>();
+
+        costs[origin.Id] = 0;
+        queue.Enqueue(origin.Id, 0);
+
+        while (queue.Count > 0)
+        {
+            var systemId = queue.Dequeue();
+            if (!settledSystemIds.Add(systemId))
+            {
+                continue;
+            }
+
+            if (systemId == destinationSystemId)
+            {
+                break;
+            }
+
+            foreach (var leg in adjacency[systemId])
+            {
+                var nextSystemId = leg.Target.Id;
+                var legCost = leg.DistanceParsecs
+                    + (leg.IsHyperlane ? 0 : voidLegPenalty + leg.DistanceParsecs * voidDistancePenalty);
+                var nextCost = costs[systemId] + legCost;
+                if (nextCost >= costs[nextSystemId])
+                {
+                    continue;
+                }
+
+                costs[nextSystemId] = nextCost;
+                previousLegs[nextSystemId] = leg;
+                queue.Enqueue(nextSystemId, nextCost);
+            }
+        }
+
+        return new PreferredRouteSearchResult(costs, previousLegs);
+    }
+
+    private static IReadOnlyList<SectorMapRouteLeg>? BuildHyperlanePath(HyperlaneSearchResult searchResult, int originSystemId, int targetSystemId)
+    {
+        if (originSystemId == targetSystemId)
+        {
+            return [];
+        }
+
+        if (!searchResult.PreviousLegs.ContainsKey(targetSystemId))
+        {
+            return null;
+        }
+
+        var legs = new List<SectorMapRouteLeg>();
+        var currentSystemId = targetSystemId;
+        while (currentSystemId != originSystemId)
+        {
+            var leg = searchResult.PreviousLegs[currentSystemId];
+            legs.Add(leg);
+            currentSystemId = leg.Source.Id;
+        }
+
+        legs.Reverse();
+        return legs;
+    }
+
+    private static IReadOnlyList<SectorMapRouteLeg>? BuildRoutePath(PreferredRouteSearchResult searchResult, int originSystemId, int targetSystemId)
+    {
+        if (originSystemId == targetSystemId)
+        {
+            return [];
+        }
+
+        if (!searchResult.PreviousLegs.ContainsKey(targetSystemId))
+        {
+            return null;
+        }
+
+        var legs = new List<SectorMapRouteLeg>();
+        var currentSystemId = targetSystemId;
+        while (currentSystemId != originSystemId)
+        {
+            var leg = searchResult.PreviousLegs[currentSystemId];
+            legs.Add(leg);
+            currentSystemId = leg.Source.Id;
+        }
+
+        legs.Reverse();
+        return legs;
+    }
+
+    private static IReadOnlyList<SectorMapRouteLeg> ReverseRouteLegs(IReadOnlyList<SectorMapRouteLeg> legs)
+    {
+        return legs
+            .Reverse()
+            .Select(leg => new SectorMapRouteLeg(leg.Target, leg.Source, leg.DistanceParsecs, leg.IsHyperlane))
+            .ToList();
     }
 
     private int GetSectorMapSystemCount(StarWinSector sector, StarSystem? focusedSystem)
@@ -2228,17 +3060,24 @@
     {
         return BuildSectorMapRoutes(
             GetSectorMapSystems(sector, focusedSystem?.Id ?? 0),
-            GetHyperlaneRouteDistanceParsecs(sector)).Count;
+            GetHyperlaneRouteDistanceParsecs(sector),
+            GetOwnedHyperlaneBaseLengthParsecs(sector),
+            EmpiresById).Count;
     }
 
-    private static IReadOnlyList<SectorMapRoute> BuildSectorMapRoutes(IReadOnlyList<StarSystem> systems, double routeDistanceParsecs)
+    private static IReadOnlyList<SectorMapRoute> BuildSectorMapRoutes(
+        IReadOnlyList<StarSystem> systems,
+        double routeDistanceParsecs,
+        double ownedRouteDistanceParsecs,
+        IReadOnlyDictionary<int, Empire> empiresById)
     {
         if (systems.Count < 2)
         {
             return [];
         }
 
-        var cellSize = Math.Max(0.1, routeDistanceParsecs);
+        var maximumRouteDistanceParsecs = Math.Max(routeDistanceParsecs, ownedRouteDistanceParsecs * GetMaximumOwnedHyperlaneTechMultiplier(empiresById));
+        var cellSize = Math.Max(0.1, maximumRouteDistanceParsecs);
         var cells = systems
             .GroupBy(system => (
                 X: (int)Math.Floor(system.Coordinates.XParsecs / cellSize),
@@ -2275,7 +3114,14 @@
                             var distance = CalculateParsecDistance(system.Coordinates, candidate.Coordinates);
                             if (distance <= routeDistanceParsecs)
                             {
-                                routes.Add(new SectorMapRoute(system, candidate, distance));
+                                routes.Add(new SectorMapRoute(system, candidate, distance, false, false));
+                                continue;
+                            }
+
+                            if (TryGetOwnedHyperlaneMaximumDistance(system, candidate, ownedRouteDistanceParsecs, empiresById, out var ownedMaximumDistance)
+                                && distance <= ownedMaximumDistance)
+                            {
+                                routes.Add(new SectorMapRoute(system, candidate, distance, true, false));
                             }
                         }
                     }
@@ -2283,7 +3129,137 @@
             }
         }
 
+        AddGoldHyperlaneRoutes(systems, routes, empiresById);
+
         return routes;
+    }
+
+    private static void AddGoldHyperlaneRoutes(
+        IReadOnlyList<StarSystem> systems,
+        List<SectorMapRoute> routes,
+        IReadOnlyDictionary<int, Empire> empiresById)
+    {
+        var goldRouteKeys = new HashSet<(int SourceId, int TargetId)>();
+        var goldEmpireIds = empiresById.Values
+            .Where(IsGoldHyperlaneEmpire)
+            .Select(empire => empire.Id)
+            .ToHashSet();
+        if (goldEmpireIds.Count == 0)
+        {
+            return;
+        }
+
+        var systemsByGoldEmpire = systems
+            .SelectMany(system => GetControlledColonyEmpireIds(system)
+                .Where(goldEmpireIds.Contains)
+                .Select(empireId => new { EmpireId = empireId, System = system }))
+            .GroupBy(item => item.EmpireId, item => item.System);
+
+        foreach (var empireSystems in systemsByGoldEmpire)
+        {
+            var ownedSystems = empireSystems
+                .DistinctBy(system => system.Id)
+                .OrderBy(system => system.Id)
+                .ToList();
+            for (var sourceIndex = 0; sourceIndex < ownedSystems.Count; sourceIndex++)
+            {
+                var source = ownedSystems[sourceIndex];
+                for (var targetIndex = sourceIndex + 1; targetIndex < ownedSystems.Count; targetIndex++)
+                {
+                    var target = ownedSystems[targetIndex];
+                    var routeKey = GetSectorMapRouteKey(source.Id, target.Id);
+                    if (!goldRouteKeys.Add(routeKey))
+                    {
+                        continue;
+                    }
+
+                    routes.RemoveAll(route => GetSectorMapRouteKey(route.Source.Id, route.Target.Id) == routeKey);
+                    routes.Add(new SectorMapRoute(
+                        source,
+                        target,
+                        CalculateParsecDistance(source.Coordinates, target.Coordinates),
+                        false,
+                        true));
+                }
+            }
+        }
+    }
+
+    private static (int SourceId, int TargetId) GetSectorMapRouteKey(int sourceId, int targetId)
+    {
+        return sourceId < targetId ? (sourceId, targetId) : (targetId, sourceId);
+    }
+
+    private static bool TryGetOwnedHyperlaneMaximumDistance(
+        StarSystem source,
+        StarSystem target,
+        double ownedRouteDistanceParsecs,
+        IReadOnlyDictionary<int, Empire> empiresById,
+        out double maximumDistanceParsecs)
+    {
+        maximumDistanceParsecs = 0;
+        var sharedEmpireIds = GetControlledColonyEmpireIds(source)
+            .Intersect(GetControlledColonyEmpireIds(target))
+            .ToList();
+        if (sharedEmpireIds.Count == 0)
+        {
+            return false;
+        }
+
+        maximumDistanceParsecs = sharedEmpireIds
+            .Select(empireId => GetOwnedHyperlaneMaximumDistance(ownedRouteDistanceParsecs, empiresById.GetValueOrDefault(empireId)))
+            .DefaultIfEmpty(0)
+            .Max();
+        return maximumDistanceParsecs > 0;
+    }
+
+    private static IEnumerable<int> GetControlledColonyEmpireIds(StarSystem system)
+    {
+        return system.Worlds
+            .Where(world => world.Colony is not null)
+            .SelectMany(world => GetControlledColonyEmpireIds(world.Colony!))
+            .Distinct();
+    }
+
+    private static IEnumerable<int> GetControlledColonyEmpireIds(Colony colony)
+    {
+        if (colony.ControllingEmpireId is int controllingEmpireId)
+        {
+            yield return controllingEmpireId;
+        }
+
+        if (colony.AllegianceId != ushort.MaxValue)
+        {
+            yield return colony.AllegianceId;
+        }
+    }
+
+    private static double GetMaximumOwnedHyperlaneTechMultiplier(IReadOnlyDictionary<int, Empire> empiresById)
+    {
+        return empiresById.Count == 0
+            ? 1
+            : empiresById.Values.Max(empire => GetOwnedHyperlaneTechMultiplier(empire));
+    }
+
+    private static double GetOwnedHyperlaneMaximumDistance(double ownedRouteDistanceParsecs, Empire? empire)
+    {
+        return ownedRouteDistanceParsecs * GetOwnedHyperlaneTechMultiplier(empire);
+    }
+
+    private static double GetOwnedHyperlaneTechMultiplier(Empire? empire)
+    {
+        var techLevel = empire?.CivilizationProfile.TechLevel ?? 10;
+        return 1 + Math.Max(0, techLevel - 10) * 0.05;
+    }
+
+    private static bool IsGoldHyperlaneEmpire(Empire empire)
+    {
+        return GetGurpsTechLevel(empire) >= 12;
+    }
+
+    private static int GetGurpsTechLevel(Empire empire)
+    {
+        return empire.CivilizationProfile.TechLevel + 2;
     }
 
     private static int GetSectorMapMaximumViewDistance(StarWinSector sector)
@@ -2375,7 +3351,46 @@
     private sealed record RaceEmpireMembership(Empire Empire, EmpireRaceMembership Membership);
 
     private sealed record ColonyListing(StarWinSector Sector, StarSystem System, World World, Colony Colony);
-    private sealed record SectorMapRoute(StarSystem Source, StarSystem Target, double DistanceParsecs);
+
+    private sealed record SectorMapRoute(StarSystem Source, StarSystem Target, double DistanceParsecs, bool IsOwned, bool IsGold);
+
+    private sealed record SectorMapRoutePlan(
+        StarSystem Origin,
+        StarSystem Destination,
+        IReadOnlyList<StarSystem> Systems,
+        IReadOnlyList<SectorMapRouteLeg> Legs)
+    {
+        public double DirectDistanceParsecs => CalculateParsecDistance(Origin.Coordinates, Destination.Coordinates);
+
+        public double TotalDistanceParsecs => Legs.Sum(leg => leg.DistanceParsecs);
+
+        public double ExtraDistanceParsecs => Math.Max(0, TotalDistanceParsecs - DirectDistanceParsecs);
+
+        public int HyperlaneLegCount => Legs.Count(leg => leg.IsHyperlane);
+
+        public int OffHyperlaneLegCount => Legs.Count(leg => !leg.IsHyperlane);
+    }
+
+    private sealed record SectorMapRouteLeg(
+        StarSystem Source,
+        StarSystem Target,
+        double DistanceParsecs,
+        bool IsHyperlane);
+
+    private sealed record RouteGraphCacheKey(
+        int SectorId,
+        double RouteDistanceParsecs,
+        double OwnedRouteDistanceParsecs,
+        double MaximumVoidRouteDistanceParsecs);
+
+    private sealed record HyperlaneSearchResult(
+        IReadOnlyDictionary<int, double> Distances,
+        IReadOnlyDictionary<int, SectorMapRouteLeg> PreviousLegs);
+
+    private sealed record PreferredRouteSearchResult(
+        IReadOnlyDictionary<int, double> Costs,
+        IReadOnlyDictionary<int, SectorMapRouteLeg> PreviousLegs);
+
     private sealed record ExplorerSessionSelection(int SectorId, int SystemId);
 
     public async ValueTask DisposeAsync()

@@ -7,14 +7,18 @@ namespace StarWin.Infrastructure.Services;
 
 public sealed class StarWinSectorConfigurationService(StarWinDbContext dbContext) : IStarWinSectorConfigurationService
 {
-    public async Task<SectorConfiguration> SaveBasicHyperlaneSettingsAsync(
+    public async Task<SectorConfiguration> SaveHyperlaneSettingsAsync(
         int sectorId,
-        string tierName,
-        decimal maximumLengthParsecs,
+        decimal basicMaximumLengthParsecs,
+        decimal ownedBaseMaximumLengthParsecs,
         CancellationToken cancellationToken = default)
     {
-        var normalizedLength = Math.Clamp(maximumLengthParsecs, 0.1m, 100m);
-        var normalizedName = string.IsNullOrWhiteSpace(tierName) ? "Basic" : tierName.Trim();
+        var normalizedBasicLength = Math.Clamp(basicMaximumLengthParsecs, 0.1m, 100m);
+        var defaultOwnedLength = normalizedBasicLength * 1.2m;
+        var normalizedOwnedLength = Math.Clamp(
+            ownedBaseMaximumLengthParsecs <= 0 ? defaultOwnedLength : ownedBaseMaximumLengthParsecs,
+            normalizedBasicLength,
+            150m);
 
         var configuration = await dbContext.Set<SectorConfiguration>()
             .FirstOrDefaultAsync(item => item.SectorId == sectorId, cancellationToken);
@@ -25,8 +29,8 @@ public sealed class StarWinSectorConfigurationService(StarWinDbContext dbContext
             dbContext.Set<SectorConfiguration>().Add(configuration);
         }
 
-        configuration.BasicHyperlaneTierName = normalizedName;
-        configuration.BasicHyperlaneMaximumLengthParsecs = normalizedLength;
+        configuration.BasicHyperlaneMaximumLengthParsecs = normalizedBasicLength;
+        configuration.OwnedHyperlaneBaseMaximumLengthParsecs = normalizedOwnedLength;
         configuration.UpdatedAtUtc = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);

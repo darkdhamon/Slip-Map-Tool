@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using StarWin.Infrastructure.Data;
 
 #nullable disable
 
-namespace StarWin.Web.Data.Migrations
+namespace StarWin.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(StarWinDbContext))]
-    partial class StarWinDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260420054000_AddEntityNotes")]
+    partial class AddEntityNotes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -182,11 +185,6 @@ namespace StarWin.Web.Data.Migrations
 
                     b.Property<int>("MilitaryPower")
                         .HasColumnType("int");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("nvarchar(160)");
 
                     b.Property<byte>("NativePopulationPercent")
                         .HasColumnType("tinyint");

@@ -1,0 +1,86 @@
+<div class="editable-name">
+    @if (isEditing)
+    {
+        <input aria-label="@($"{Label} name")"
+               maxlength="160"
+               @bind="draftName"
+               @bind:event="oninput" />
+        <div class="name-actions">
+            <button type="button" @onclick="SaveAsync" disabled="@isSaving">Save</button>
+            <button type="button" @onclick="Cancel" disabled="@isSaving">Cancel</button>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(status))
+        {
+            <small>@status</small>
+        }
+    }
+    else
+    {
+        <h2>@Name</h2>
+        <button type="button" class="icon-text-button" @onclick="StartEditing">Edit name</button>
+    }
+</div>
+
+@code {
+    private string draftName = string.Empty;
+    private string status = string.Empty;
+    private bool isEditing;
+    private bool isSaving;
+
+    [Parameter]
+    public string Name { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Label { get; set; } = "Record";
+
+    [Parameter]
+    public EventCallback<string> NameSaved { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (!isEditing)
+        {
+            draftName = Name;
+        }
+    }
+
+    private void StartEditing()
+    {
+        draftName = Name;
+        status = string.Empty;
+        isEditing = true;
+    }
+
+    private void Cancel()
+    {
+        draftName = Name;
+        status = string.Empty;
+        isEditing = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(draftName))
+        {
+            status = "Name is required.";
+            return;
+        }
+
+        isSaving = true;
+        status = "Saving...";
+        try
+        {
+            await NameSaved.InvokeAsync(draftName);
+            isEditing = false;
+            status = string.Empty;
+        }
+        catch (InvalidOperationException exception)
+        {
+            status = exception.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

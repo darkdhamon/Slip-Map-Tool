@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using StarWin.Infrastructure.Data;
 
 #nullable disable
 
-namespace StarWin.Web.Data.Migrations
+namespace StarWin.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(StarWinDbContext))]
-    partial class StarWinDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260420054358_AddColonyNames")]
+    partial class AddColonyNames
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

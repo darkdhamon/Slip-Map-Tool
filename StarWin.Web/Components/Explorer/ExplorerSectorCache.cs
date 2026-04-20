@@ -6,6 +6,126 @@ namespace StarWin.Web.Components.Explorer;
 public sealed class ExplorerSectorCacheBuilder
 {
     private readonly Dictionary<int, ExplorerSectorCache> sectorCaches = [];
+    private readonly Dictionary<int, ExplorerSectorSummary> sectorSummaries = [];
+
+    public ExplorerSectorSummary GetSummary(StarWinSector sector)
+    {
+        if (sectorSummaries.TryGetValue(sector.Id, out var cachedSummary))
+        {
+            return cachedSummary;
+        }
+
+        var raceIds = new HashSet<int>();
+        var empireIds = new HashSet<int>();
+        var worldCount = 0;
+        var colonyCount = 0;
+
+        foreach (var system in sector.Systems)
+        {
+            if (system.AllegianceId != ushort.MaxValue)
+            {
+                empireIds.Add(system.AllegianceId);
+            }
+
+            foreach (var habitat in system.SpaceHabitats)
+            {
+                if (habitat.BuiltByEmpireId is int builtByEmpireId)
+                {
+                    empireIds.Add(builtByEmpireId);
+                }
+
+                if (habitat.ControlledByEmpireId is int controlledByEmpireId)
+                {
+                    empireIds.Add(controlledByEmpireId);
+                }
+            }
+
+            foreach (var world in system.Worlds)
+            {
+                worldCount++;
+                if (world.AlienRaceId is int worldRaceId)
+                {
+                    raceIds.Add(worldRaceId);
+                }
+
+                if (world.ControlledByEmpireId is int controlledByEmpireId)
+                {
+                    empireIds.Add(controlledByEmpireId);
+                }
+
+                if (world.AllegianceId != ushort.MaxValue)
+                {
+                    empireIds.Add(world.AllegianceId);
+                }
+
+                if (world.Colony is not Colony colony)
+                {
+                    continue;
+                }
+
+                colonyCount++;
+                raceIds.Add(colony.RaceId);
+                foreach (var demographic in colony.Demographics)
+                {
+                    raceIds.Add(demographic.RaceId);
+                }
+
+                if (colony.ControllingEmpireId is int colonyControllingEmpireId)
+                {
+                    empireIds.Add(colonyControllingEmpireId);
+                }
+
+                if (colony.FoundingEmpireId is int foundingEmpireId)
+                {
+                    empireIds.Add(foundingEmpireId);
+                }
+
+                if (colony.ParentEmpireId is int parentEmpireId)
+                {
+                    empireIds.Add(parentEmpireId);
+                }
+
+                if (colony.AllegianceId != ushort.MaxValue)
+                {
+                    empireIds.Add(colony.AllegianceId);
+                }
+            }
+        }
+
+        foreach (var history in sector.History)
+        {
+            if (history.RaceId is int raceId)
+            {
+                raceIds.Add(raceId);
+            }
+
+            if (history.OtherRaceId is int otherRaceId)
+            {
+                raceIds.Add(otherRaceId);
+            }
+
+            if (history.EmpireId is int empireId)
+            {
+                empireIds.Add(empireId);
+            }
+        }
+
+        var summary = new ExplorerSectorSummary(
+            SystemCount: sector.Systems.Count,
+            WorldCount: worldCount,
+            ColonyCount: colonyCount,
+            RaceIds: raceIds,
+            EmpireIds: empireIds);
+
+        sectorSummaries[sector.Id] = summary;
+        return summary;
+    }
+
+    public void Invalidate(int sectorId)
+    {
+        sectorCaches.Remove(sectorId);
+        sectorSummaries.Remove(sectorId);
+    }
 
     public ExplorerSectorCache Get(StarWinSector sector)
     {
@@ -191,5 +311,12 @@ public sealed record ExplorerSectorCache(
     IReadOnlyDictionary<int, StarSystem> SystemsById,
     IReadOnlyList<string> EventTypes,
     IReadOnlyList<HistoryEvent> SortedHistory,
+    HashSet<int> RaceIds,
+    HashSet<int> EmpireIds);
+
+public sealed record ExplorerSectorSummary(
+    int SystemCount,
+    int WorldCount,
+    int ColonyCount,
     HashSet<int> RaceIds,
     HashSet<int> EmpireIds);

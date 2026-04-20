@@ -1,0 +1,129 @@
+@using Markdig
+@using System.Net
+@inject IStarWinEntityNoteService NoteService
+
+<section class="entity-notes-panel">
+    <div class="notes-header">
+        <div>
+            <span class="panel-kicker">@Title</span>
+            <h3>Notes</h3>
+        </div>
+        @if (isEditing)
+        {
+            <div class="notes-actions">
+                <button type="button" @onclick="SaveNoteAsync" disabled="@isSaving">Save</button>
+                <button type="button" @onclick="CancelEditing" disabled="@isSaving">Cancel</button>
+            </div>
+        }
+        else
+        {
+            <button type="button" @onclick="StartEditing">Edit notes</button>
+        }
+    </div>
+
+    @if (isEditing)
+    {
+        <textarea class="markdown-editor"
+                  rows="10"
+                  placeholder="Write notes in markdown..."
+                  @bind="draftMarkdown"></textarea>
+        @if (!string.IsNullOrWhiteSpace(saveStatus))
+        {
+            <p class="notes-status">@saveStatus</p>
+        }
+    }
+    else if (string.IsNullOrWhiteSpace(markdown))
+    {
+        <p class="notes-empty">No notes yet.</p>
+    }
+    else
+    {
+        <div class="markdown-view">
+            @((MarkupString)RenderMarkdown(markdown))
+        </div>
+        <small>Updated @updatedAtUtc.ToLocalTime().ToString("g")</small>
+    }
+</section>
+
+@code {
+    private static readonly MarkdownPipeline MarkdownPipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .Build();
+
+    private EntityNoteTargetKind loadedTargetKind;
+    private int loadedTargetId;
+    private string markdown = string.Empty;
+    private string draftMarkdown = string.Empty;
+    private string saveStatus = string.Empty;
+    private DateTimeOffset updatedAtUtc;
+    private bool isEditing;
+    private bool isSaving;
+
+    [Parameter]
+    public EntityNoteTargetKind TargetKind { get; set; }
+
+    [Parameter]
+    public int TargetId { get; set; }
+
+    [Parameter]
+    public string Title { get; set; } = "Record";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (TargetId <= 0)
+        {
+            markdown = string.Empty;
+            draftMarkdown = string.Empty;
+            isEditing = false;
+            return;
+        }
+
+        if (loadedTargetKind == TargetKind && loadedTargetId == TargetId)
+        {
+            return;
+        }
+
+        loadedTargetKind = TargetKind;
+        loadedTargetId = TargetId;
+        isEditing = false;
+        saveStatus = string.Empty;
+
+        var note = await NoteService.GetNoteAsync(TargetKind, TargetId);
+        markdown = note?.Markdown ?? string.Empty;
+        draftMarkdown = markdown;
+        updatedAtUtc = note?.UpdatedAtUtc ?? DateTimeOffset.UtcNow;
+    }
+
+    private void StartEditing()
+    {
+        draftMarkdown = markdown;
+        saveStatus = string.Empty;
+        isEditing = true;
+    }
+
+    private void CancelEditing()
+    {
+        draftMarkdown = markdown;
+        saveStatus = string.Empty;
+        isEditing = false;
+    }
+
+    private async Task SaveNoteAsync()
+    {
+        isSaving = true;
+        saveStatus = "Saving notes...";
+
+        var note = await NoteService.SaveNoteAsync(TargetKind, TargetId, draftMarkdown);
+        markdown = note?.Markdown ?? string.Empty;
+        draftMarkdown = markdown;
+        updatedAtUtc = note?.UpdatedAtUtc ?? DateTimeOffset.UtcNow;
+        isEditing = false;
+        isSaving = false;
+        saveStatus = string.Empty;
+    }
+
+    private static string RenderMarkdown(string value)
+    {
+        return Markdown.ToHtml(WebUtility.HtmlEncode(value), MarkdownPipeline);
+    }
+}

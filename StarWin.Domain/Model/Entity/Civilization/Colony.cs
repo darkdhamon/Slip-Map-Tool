@@ -6,6 +6,8 @@ public sealed class Colony
 
     public int WorldId { get; set; }
 
+    public string Name { get; set; } = string.Empty;
+
     public WorldKind WorldKind { get; set; }
 
     public ushort RaceId { get; set; }

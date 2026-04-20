@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.Media;
 using StarWin.Domain.Model.Entity.Military;
+using StarWin.Domain.Model.Entity.Notes;
 using StarWin.Domain.Model.Entity.StarMap;
 
 namespace StarWin.Infrastructure.Data;
@@ -27,11 +28,14 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
 
     public DbSet<EntityImage> EntityImages => Set<EntityImage>();
 
+    public DbSet<EntityNote> EntityNotes => Set<EntityNote>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ConfigureStarMap(modelBuilder);
         ConfigureCivilization(modelBuilder);
         ConfigureMedia(modelBuilder);
+        ConfigureNotes(modelBuilder);
     }
 
     private static void ConfigureStarMap(ModelBuilder modelBuilder)
@@ -59,8 +63,8 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
         {
             entity.ToTable("SectorConfigurations");
             entity.HasKey(configuration => configuration.SectorId);
-            entity.Property(configuration => configuration.BasicHyperlaneTierName).HasMaxLength(80);
             entity.Property(configuration => configuration.BasicHyperlaneMaximumLengthParsecs).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.OwnedHyperlaneBaseMaximumLengthParsecs).HasPrecision(8, 3);
         });
 
         modelBuilder.Entity<StarSystem>(entity =>
@@ -235,6 +239,7 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.ToTable("Colonies");
             entity.HasKey(colony => colony.Id);
             entity.Property(colony => colony.Id).ValueGeneratedNever();
+            entity.Property(colony => colony.Name).HasMaxLength(160);
             entity.Property(colony => colony.WorldKind).HasConversion<string>().HasMaxLength(40);
             entity.Property(colony => colony.ColonistRaceName).HasMaxLength(160);
             entity.Property(colony => colony.AllegianceName).HasMaxLength(160);
@@ -283,6 +288,18 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.Property(image => image.RelativePath).HasMaxLength(500);
             entity.Property(image => image.Caption).HasMaxLength(260);
             entity.HasIndex(image => new { image.TargetKind, image.TargetId });
+        });
+    }
+
+    private static void ConfigureNotes(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<EntityNote>(entity =>
+        {
+            entity.ToTable("EntityNotes");
+            entity.HasKey(note => note.Id);
+            entity.Property(note => note.TargetKind).HasConversion<string>().HasMaxLength(40);
+            entity.Property(note => note.Markdown).HasMaxLength(16_000);
+            entity.HasIndex(note => new { note.TargetKind, note.TargetId }).IsUnique();
         });
     }
 

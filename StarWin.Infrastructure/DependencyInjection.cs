@@ -23,6 +23,8 @@ public static class DependencyInjection
         services.AddSingleton<IStarWinWorkspace, StarWinDatabaseWorkspace>();
         services.AddScoped<IStarWinSearchService, StarWinSearchService>();
         services.AddScoped<IStarWinImageService, StarWinImageService>();
+        services.AddScoped<IStarWinEntityNoteService, StarWinEntityNoteService>();
+        services.AddScoped<IStarWinEntityNameService, StarWinEntityNameService>();
         services.AddScoped<IStarWinLegacyImportService, StarWinLegacyImportService>();
         services.AddScoped<IStarWinSectorConfigurationService, StarWinSectorConfigurationService>();
 

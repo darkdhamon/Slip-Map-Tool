@@ -32,36 +32,54 @@
                 }
             </select>
         </label>
-        <label>
-            Colony
-            <select @bind="timelineColonyId" @bind:after="ResetTimelineWindow">
-                <option value="@AllFilterId">All colonies</option>
-                @foreach (var item in SectorCache.ColoniesByWorldName)
-                {
-                    <option value="@item.Colony.Id">@item.Colony.ColonyClass on @item.World.Name</option>
-                }
-            </select>
-        </label>
-        <label>
-            System
-            <select @bind="timelineSystemId" @bind:after="ResetTimelineWindow">
-                <option value="@AllFilterId">All systems</option>
-                @foreach (var system in SectorCache.SystemsByName)
-                {
-                    <option value="@system.Id">@system.Name</option>
-                }
-            </select>
-        </label>
-        <label>
-            World
-            <select @bind="timelineWorldId" @bind:after="ResetTimelineWindow">
-                <option value="@AllFilterId">All worlds</option>
-                @foreach (var world in SectorCache.WorldsByName)
-                {
-                    <option value="@world.Id">@world.Name</option>
-                }
-            </select>
-        </label>
+        <button type="button" class="timeline-clear-button" @onclick="ToggleLocationFilters">
+            @(showLocationFilters ? "Hide location filters" : "Show location filters")
+        </button>
+        @if (showLocationFilters)
+        {
+            <label>
+                Colony
+                <input list="timeline-colony-options"
+                       placeholder="All colonies"
+                       @bind="timelineColonyText"
+                       @bind:event="oninput"
+                       @bind:after="ApplyTimelineColonyFilter" />
+                <datalist id="timeline-colony-options">
+                    @foreach (var item in SectorCache.ColoniesByWorldName)
+                    {
+                        <option value="@FormatTimelineColonyOption(item)" />
+                    }
+                </datalist>
+            </label>
+            <label>
+                System
+                <input list="timeline-system-options"
+                       placeholder="All systems"
+                       @bind="timelineSystemText"
+                       @bind:event="oninput"
+                       @bind:after="ApplyTimelineSystemFilter" />
+                <datalist id="timeline-system-options">
+                    @foreach (var system in SectorCache.SystemsByName)
+                    {
+                        <option value="@FormatTimelineSystemOption(system)" />
+                    }
+                </datalist>
+            </label>
+            <label>
+                World
+                <input list="timeline-world-options"
+                       placeholder="All worlds"
+                       @bind="timelineWorldText"
+                       @bind:event="oninput"
+                       @bind:after="ApplyTimelineWorldFilter" />
+                <datalist id="timeline-world-options">
+                    @foreach (var world in SectorCache.WorldsByName)
+                    {
+                        <option value="@FormatTimelineWorldOption(world)" />
+                    }
+                </datalist>
+            </label>
+        }
         <label>
             Event type
             <select @bind="timelineEventType" @bind:after="ResetTimelineWindow">
@@ -158,7 +176,7 @@
 </section>
 
 @code {
-    private const int TimelineBatchSize = 80;
+    private const int TimelineBatchSize = 40;
     private const int AllFilterId = -1;
 
     [Parameter, EditorRequired]
@@ -200,10 +218,14 @@
     private int timelineColonyId = AllFilterId;
     private int timelineSystemId = AllFilterId;
     private int timelineWorldId = AllFilterId;
+    private string timelineColonyText = string.Empty;
+    private string timelineSystemText = string.Empty;
+    private string timelineWorldText = string.Empty;
     private string timelineEventType = string.Empty;
     private int timelineVisibleCount = TimelineBatchSize;
     private bool timelineHasMoreEvents;
     private bool timelineObserverConfigured;
+    private bool showLocationFilters;
 
     protected override void OnParametersSet()
     {
@@ -273,6 +295,29 @@
     {
         timelineVisibleCount = TimelineBatchSize;
         timelineObserverConfigured = false;
+    }
+
+    private void ToggleLocationFilters()
+    {
+        showLocationFilters = !showLocationFilters;
+    }
+
+    private void ApplyTimelineColonyFilter()
+    {
+        timelineColonyId = ParseTimelineOptionId(timelineColonyText);
+        ResetTimelineWindow();
+    }
+
+    private void ApplyTimelineSystemFilter()
+    {
+        timelineSystemId = ParseTimelineOptionId(timelineSystemText);
+        ResetTimelineWindow();
+    }
+
+    private void ApplyTimelineWorldFilter()
+    {
+        timelineWorldId = ParseTimelineOptionId(timelineWorldText);
+        ResetTimelineWindow();
     }
 
     private IEnumerable<HistoryEvent> GetFilteredTimelineEvents()
@@ -350,8 +395,39 @@
         timelineColonyId = AllFilterId;
         timelineSystemId = AllFilterId;
         timelineWorldId = AllFilterId;
+        timelineColonyText = string.Empty;
+        timelineSystemText = string.Empty;
+        timelineWorldText = string.Empty;
         timelineEventType = string.Empty;
+        showLocationFilters = false;
         ResetTimelineWindow();
+    }
+
+    private static int ParseTimelineOptionId(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return AllFilterId;
+        }
+
+        var separatorIndex = value.IndexOf(" - ", StringComparison.Ordinal);
+        var idText = separatorIndex < 0 ? value : value[..separatorIndex];
+        return int.TryParse(idText, out var id) ? id : AllFilterId;
+    }
+
+    private static string FormatTimelineColonyOption((World World, Colony Colony) item)
+    {
+        return $"{item.Colony.Id} - {item.Colony.ColonyClass} on {item.World.Name}";
+    }
+
+    private static string FormatTimelineSystemOption(StarSystem system)
+    {
+        return $"{system.Id} - {system.Name}";
+    }
+
+    private static string FormatTimelineWorldOption(World world)
+    {
+        return $"{world.Id} - {world.Name}";
     }
 
     private static bool ContainsTimelineQuery(string? value, string query)
