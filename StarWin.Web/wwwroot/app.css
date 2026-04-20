@@ -411,6 +411,23 @@ dd {
     animation: loading-meter-slide 1.1s ease-in-out infinite;
 }
 
+.loading-meter.import-progress-meter span {
+    transition: width 0.2s ease;
+    animation: none;
+}
+
+.loading-progress-detail {
+    margin: 0;
+    color: #c8d8ea;
+    line-height: 1.45;
+}
+
+.loading-progress-value {
+    justify-self: end;
+    color: var(--accent-strong);
+    font-size: 0.82rem;
+}
+
 @keyframes loading-meter-slide {
     0% {
         transform: translateX(-110%);

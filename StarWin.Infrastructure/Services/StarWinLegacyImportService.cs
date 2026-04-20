@@ -445,14 +445,17 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         Stream zipPackage,
         string packageName,
         string targetSectorName,
+        IProgress<StarWinLegacyImportProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(zipPackage);
 
+        await ReportImportProgressAsync(progress, 3, "Buffering package...", "Copying the uploaded archive into an import workspace.");
         await using var bufferedPackage = new MemoryStream();
         await zipPackage.CopyToAsync(bufferedPackage, cancellationToken);
 
         bufferedPackage.Position = 0;
+        await ReportImportProgressAsync(progress, 8, "Previewing package...", "Checking required StarWin files and record counts.");
         var preview = await PreviewStarWinZipAsync(bufferedPackage, packageName, cancellationToken);
         if (!preview.CanImport)
         {
@@ -462,6 +465,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         bufferedPackage.Position = 0;
         using var archive = new ZipArchive(bufferedPackage, ZipArchiveMode.Read, leaveOpen: true);
         var sectorPreview = preview.Sectors[0];
+        await ReportImportProgressAsync(progress, 12, "Opening sector files...", $"Opening {sectorPreview.SectorName} legacy data files from the archive.");
         var sunFile = sectorPreview.Files.First(file => string.Equals(file.Extension, ".sun", StringComparison.OrdinalIgnoreCase));
         var planetFile = sectorPreview.Files.First(file => string.Equals(file.Extension, ".pln", StringComparison.OrdinalIgnoreCase));
         var moonFile = sectorPreview.Files.First(file => string.Equals(file.Extension, ".mon", StringComparison.OrdinalIgnoreCase));
@@ -521,6 +525,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
 
         var requestedSectorName = NormalizeSectorName(
             string.IsNullOrWhiteSpace(targetSectorName) ? sectorPreview.SectorName : targetSectorName);
+        await ReportImportProgressAsync(progress, 18, "Loading sector state...", $"Checking whether {requestedSectorName} already exists.");
         var sector = await dbContext.Sectors
             .FirstOrDefaultAsync(existingSector => existingSector.Name == requestedSectorName, cancellationToken);
         var isNewSector = sector is null;
@@ -535,6 +540,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         }
 
         var sectorId = sector.Id;
+        await ReportImportProgressAsync(progress, 24, "Reading existing records...", "Loading existing systems, worlds, races, empires, colonies, and history keys.");
         var existingSystemIds = isNewSector
             ? new HashSet<int>()
             : await dbContext.StarSystems
@@ -597,6 +603,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             }
         }
 
+        await ReportImportProgressAsync(progress, 32, "Reading legacy records...", "Parsing StarWin systems, planets, moons, races, empires, colonies, contacts, and history.");
         var importedSystems = ReadStarSystems(sunEntry, sectorId, sectorPreview.StarSystemRecordCount)
             .ToList();
         var planets = ReadPlanetRecords(planetEntry).ToList();
@@ -624,8 +631,17 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         var skippedColonyCount = 0;
         var skippedHistoryCount = 0;
 
+        await ReportImportProgressAsync(progress, 42, "Writing star systems and worlds...", $"Preparing {importedSystems.Count:N0} star system record(s), {planets.Count:N0} planet record(s), and {moons.Count:N0} moon record(s).");
+        var processedSystemCount = 0;
         foreach (var systemImport in importedSystems)
         {
+            processedSystemCount++;
+            if (processedSystemCount == 1 || processedSystemCount % 250 == 0 || processedSystemCount == importedSystems.Count)
+            {
+                var systemPercent = CalculatePhasePercent(42, 58, processedSystemCount, importedSystems.Count);
+                await ReportImportProgressAsync(progress, systemPercent, "Writing star systems and worlds...", $"Processed {processedSystemCount:N0} of {importedSystems.Count:N0} star system record(s).");
+            }
+
             var worlds = BuildWorlds(systemImport, planets, moons, sectorId);
             var newWorlds = worlds
                 .Where(world => !existingWorldIds.Contains(world.Id))
@@ -674,6 +690,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
         }
 
+        await ReportImportProgressAsync(progress, 60, "Writing alien races...", $"Preparing {aliens.Count:N0} alien race record(s).");
         foreach (var alienRecord in aliens)
         {
             if (!existingRaceIds.Add(alienRecord.LegacyId))
@@ -688,6 +705,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             addedAlienCount++;
         }
 
+        await ReportImportProgressAsync(progress, 66, "Writing empires and contacts...", $"Preparing {empires.Count:N0} empire record(s) and {contacts.Count:N0} contact record(s).");
         foreach (var empireRecord in empires)
         {
             if (!existingEmpireIds.Add(empireRecord.LegacyId))
@@ -709,6 +727,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             .ToDictionary(world => world.Id);
         var importedSystemsById = importedSystems
             .ToDictionary(system => system.System.Id, system => system.System);
+        await ReportImportProgressAsync(progress, 72, "Writing colonies...", $"Preparing {colonies.Count:N0} colony record(s).");
         foreach (var colonyRecord in colonies)
         {
             var colony = CreateColony(colonyRecord, aliens, sectorId);
@@ -723,6 +742,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             addedColonyCount++;
         }
 
+        await ReportImportProgressAsync(progress, 78, "Writing history events...", $"Preparing {historyEvents.Count:N0} history event record(s).");
         foreach (var historyEvent in historyEvents)
         {
             var historyKey = BuildHistoryKey(historyEvent);
@@ -736,6 +756,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             addedHistoryCount++;
         }
 
+        await ReportImportProgressAsync(progress, 84, "Deriving colony state...", "Loading sector colonies, worlds, and history for independent colony analysis.");
         var sectorColonies = await dbContext.Colonies
             .Where(colony => dbContext.Worlds.Any(world => world.Id == colony.WorldId
                 && world.StarSystemId != null
@@ -758,6 +779,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             .ToListAsync(cancellationToken);
         sectorHistory.AddRange(historyEvents.Where(history => !sectorHistory.Any(existing => BuildHistoryKey(existing) == BuildHistoryKey(history))));
 
+        await ReportImportProgressAsync(progress, 88, "Creating independent empires...", "Building empires for colonies whose history says they became independent.");
         var nextEmpireId = Math.Max(
             existingEmpireIds.Count == 0 ? 0 : existingEmpireIds.Max(),
             knownEmpires.Count == 0 ? 0 : knownEmpires.Keys.Max()) + 1;
@@ -789,6 +811,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             addedIndependentEmpireCount++;
         }
 
+        await ReportImportProgressAsync(progress, 92, "Creating space habitats...", "Creating habitat satellites from imported colony facilities.");
         var nextSpaceHabitatId = (await dbContext.SpaceHabitats
             .Select(habitat => (int?)habitat.Id)
             .MaxAsync(cancellationToken) ?? 0) + 1;
@@ -815,6 +838,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             addedSpaceHabitatCount++;
         }
 
+        await ReportImportProgressAsync(progress, 96, "Preparing import summary...", "Recording the import history event and final change summary.");
         if (addedSystemCount > 0 || addedAstralBodyCount > 0 || addedWorldCount > 0 || addedAlienCount > 0 || addedEmpireCount > 0 || addedColonyCount > 0 || addedHistoryCount > 0 || addedIndependentEmpireCount > 0 || addedSpaceHabitatCount > 0)
         {
             sector.History.Add(new HistoryEvent
@@ -831,7 +855,9 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             dbContext.Sectors.Add(sector);
         }
 
+        await ReportImportProgressAsync(progress, 98, "Saving database changes...", "Committing imported records to the atlas database.");
         await dbContext.SaveChangesAsync(cancellationToken);
+        await ReportImportProgressAsync(progress, 100, "Import complete.", "The database commit finished.");
 
         return new StarWinLegacyImportResult(
             true,
@@ -844,6 +870,31 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 $"Created {addedIndependentEmpireCount:N0} independent colony empires and {addedSpaceHabitatCount:N0} space habitat satellites from colony/history data.",
                 $"Skipped {skippedSystemCount:N0} existing star systems, {skippedWorldCount:N0} existing worlds, {skippedAlienCount:N0} races, {skippedEmpireCount:N0} empires, {skippedColonyCount:N0} colonies, and {skippedHistoryCount:N0} history events without overwriting."
             ]);
+    }
+
+    private static async Task ReportImportProgressAsync(
+        IProgress<StarWinLegacyImportProgress>? progress,
+        int percentComplete,
+        string status,
+        string detail)
+    {
+        progress?.Report(new StarWinLegacyImportProgress(
+            Math.Clamp(percentComplete, 0, 100),
+            status,
+            detail));
+
+        await Task.Yield();
+    }
+
+    private static int CalculatePhasePercent(int startPercent, int endPercent, int processedCount, int totalCount)
+    {
+        if (totalCount <= 0)
+        {
+            return endPercent;
+        }
+
+        var phaseWidth = endPercent - startPercent;
+        return startPercent + (int)Math.Round(phaseWidth * Math.Clamp(processedCount / (double)totalCount, 0, 1));
     }
 
     private static StarWinLegacyImportFileEntry CreateFileEntry(ZipArchiveEntry entry)

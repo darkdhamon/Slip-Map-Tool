@@ -11,5 +11,6 @@ public interface IStarWinLegacyImportService
         Stream zipPackage,
         string packageName,
         string targetSectorName,
+        IProgress<StarWinLegacyImportProgress>? progress = null,
         CancellationToken cancellationToken = default);
 }

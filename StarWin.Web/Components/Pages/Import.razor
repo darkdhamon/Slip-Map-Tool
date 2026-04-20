@@ -143,9 +143,14 @@
             <section class="loading-modal">
                 <span class="panel-kicker">@importLoadingLabel</span>
                 <h2>@importLoadingStatus</h2>
-                <div class="loading-meter" aria-hidden="true">
-                    <span></span>
+                @if (!string.IsNullOrWhiteSpace(importLoadingDetail))
+                {
+                    <p class="loading-progress-detail">@importLoadingDetail</p>
+                }
+                <div class="loading-meter import-progress-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@importLoadingProgressPercent">
+                    <span style="width: @importLoadingProgressPercent%;"></span>
                 </div>
+                <strong class="loading-progress-value">@importLoadingProgressPercent%</strong>
                 <ol>
                     @foreach (var step in importLoadingSteps)
                     {
@@ -178,6 +183,8 @@
     private bool importLoadingVisible;
     private string importLoadingLabel = "Import";
     private string importLoadingStatus = string.Empty;
+    private string importLoadingDetail = string.Empty;
+    private int importLoadingProgressPercent;
     private IReadOnlyList<string> importLoadingSteps = [];
     private StarWinLegacyImportPreview? starWinPreview;
     private IBrowserFile? selectedFile;
@@ -275,6 +282,8 @@
             await ShowImportLoadingAsync(
                 "Importing package",
                 "Preparing sector import...",
+                "Opening the selected package.",
+                0,
                 [
                     "Opening the uploaded StarWin 2 archive.",
                     "Importing systems, worlds, colonies, empires, and history.",
@@ -282,9 +291,8 @@
                 ]);
 
             await using var stream = selectedFile.OpenReadStream(512 * 1024 * 1024);
-            importLoadingStatus = "Writing imported records...";
-            StateHasChanged();
-            var result = await LegacyImportService.ImportStarWinZipAsync(stream, selectedFile.Name, targetSectorName);
+            var progress = new Progress<StarWinLegacyImportProgress>(UpdateImportLoadingProgress);
+            var result = await LegacyImportService.ImportStarWinZipAsync(stream, selectedFile.Name, targetSectorName, progress);
             starWinPreview = result.Preview;
             statusTitle = result.Success ? "Import complete" : "Import failed";
             statusMessage = string.Join(" ", result.Messages);
@@ -305,10 +313,25 @@
         }
     }
 
-    private async Task ShowImportLoadingAsync(string label, string status, IReadOnlyList<string> steps)
+    private async Task ShowImportLoadingAsync(
+        string label,
+        string status,
+        IReadOnlyList<string> steps)
+    {
+        await ShowImportLoadingAsync(label, status, string.Empty, 0, steps);
+    }
+
+    private async Task ShowImportLoadingAsync(
+        string label,
+        string status,
+        string detail,
+        int progressPercent,
+        IReadOnlyList<string> steps)
     {
         importLoadingLabel = label;
         importLoadingStatus = status;
+        importLoadingDetail = detail;
+        importLoadingProgressPercent = Math.Clamp(progressPercent, 0, 100);
         importLoadingSteps = steps;
         importLoadingVisible = true;
         StateHasChanged();
@@ -316,11 +339,21 @@
         await Task.Yield();
     }
 
+    private void UpdateImportLoadingProgress(StarWinLegacyImportProgress progress)
+    {
+        importLoadingStatus = progress.Status;
+        importLoadingDetail = progress.Detail;
+        importLoadingProgressPercent = Math.Clamp(progress.PercentComplete, 0, 100);
+        _ = InvokeAsync(StateHasChanged);
+    }
+
     private void HideImportLoading()
     {
         importLoadingVisible = false;
         importLoadingLabel = "Import";
         importLoadingStatus = string.Empty;
+        importLoadingDetail = string.Empty;
+        importLoadingProgressPercent = 0;
         importLoadingSteps = [];
     }
 
