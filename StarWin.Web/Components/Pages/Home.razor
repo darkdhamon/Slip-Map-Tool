@@ -376,7 +376,7 @@
                     </label>
                 </div>
                 <dl class="field-grid">
-                    <div><dt>Route rule</dt><dd>Same TL6+ empire controls colonies in both systems</dd></div>
+                    <div><dt>Route rule</dt><dd>Shared empire colonies use that empire's TL tier; different empires use the TL6 basic range</dd></div>
                     <div><dt>Buffer</dt><dd>@Format(HyperlaneRangeBufferParsecs) parsec added to finite TL ranges</dd></div>
                     <div><dt>Tech level</dt><dd>Uses imported StarWin tech level</dd></div>
                     <div><dt>Unlimited routes</dt><dd>StarWin TL10 empires connect every system where they own a colony</dd></div>
@@ -3595,8 +3595,19 @@
                             }
 
                             var distance = CalculateParsecDistance(system.Coordinates, candidate.Coordinates);
-                            if (TryGetSharedHyperlaneTier(system, candidate, empiresById, out var hyperlaneTechLevel, out var maximumDistanceParsecs)
-                                && !IsUnlimitedHyperlaneTechLevel(hyperlaneTechLevel)
+                            var hasSharedTier = TryGetSharedHyperlaneTier(
+                                system,
+                                candidate,
+                                empiresById,
+                                out var hyperlaneTechLevel,
+                                out var maximumDistanceParsecs);
+                            if (!hasSharedTier)
+                            {
+                                hyperlaneTechLevel = 6;
+                                maximumDistanceParsecs = GetHyperlaneMaximumDistanceForStarWinTechLevel(hyperlaneTechLevel);
+                            }
+
+                            if (!IsUnlimitedHyperlaneTechLevel(hyperlaneTechLevel)
                                 && distance <= maximumDistanceParsecs)
                             {
                                 routes.Add(new SectorMapRoute(
