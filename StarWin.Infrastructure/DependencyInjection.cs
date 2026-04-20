@@ -25,6 +25,8 @@ public static class DependencyInjection
         services.AddScoped<IStarWinImageService, StarWinImageService>();
         services.AddScoped<IStarWinEntityNoteService, StarWinEntityNoteService>();
         services.AddScoped<IStarWinEntityNameService, StarWinEntityNameService>();
+        services.AddScoped<IStarWinIndependentColonyService, StarWinIndependentColonyService>();
+        services.AddScoped<IStarWinSpaceHabitatService, StarWinSpaceHabitatService>();
         services.AddScoped<IStarWinLegacyImportService, StarWinLegacyImportService>();
         services.AddScoped<IStarWinSectorConfigurationService, StarWinSectorConfigurationService>();
 

@@ -19,6 +19,8 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     private const int ContactRecordSize = 6;
     private const int EmpireRecordSize = 52;
     private readonly StarWinClassificationCatalog classificationCatalog = new();
+    private readonly IndependentColonyEmpireFactory independentColonyEmpireFactory = new();
+    private readonly SpaceHabitatConstructionService spaceHabitatConstructionService = new();
 
     private static readonly string[] AtmosphereTypes =
     [
@@ -567,6 +569,19 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         var existingEmpireIds = await dbContext.Empires
             .Select(empire => empire.Id)
             .ToHashSetAsync(cancellationToken);
+        var knownAlienRaces = await dbContext.AlienRaces
+            .ToDictionaryAsync(race => race.Id, cancellationToken);
+        var knownEmpires = await dbContext.Empires
+            .ToDictionaryAsync(empire => empire.Id, cancellationToken);
+        var independentEmpireColonyIds = await dbContext.Empires
+            .Where(empire => empire.Founding.Origin == EmpireOrigin.IndependentColony
+                && empire.Founding.FoundingColonyId != null)
+            .Select(empire => empire.Founding.FoundingColonyId!.Value)
+            .ToHashSetAsync(cancellationToken);
+        var existingSpaceHabitatWorldIds = await dbContext.SpaceHabitats
+            .Where(habitat => habitat.OrbitTargetKind == OrbitTargetKind.World)
+            .Select(habitat => habitat.OrbitTargetId)
+            .ToHashSetAsync(cancellationToken);
         var existingColonyWorldIds = await dbContext.Colonies
             .Select(colony => colony.WorldId)
             .ToHashSetAsync(cancellationToken);
@@ -600,6 +615,8 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         var addedColonyCount = 0;
         var addedContactCount = 0;
         var addedHistoryCount = 0;
+        var addedIndependentEmpireCount = 0;
+        var addedSpaceHabitatCount = 0;
         var skippedSystemCount = 0;
         var skippedWorldCount = 0;
         var skippedAlienCount = 0;
@@ -665,7 +682,9 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 continue;
             }
 
-            dbContext.AlienRaces.Add(CreateAlienRace(alienRecord, sectorId));
+            var alienRace = CreateAlienRace(alienRecord, sectorId);
+            dbContext.AlienRaces.Add(alienRace);
+            knownAlienRaces[alienRace.Id] = alienRace;
             addedAlienCount++;
         }
 
@@ -679,10 +698,17 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
 
             var empire = CreateEmpire(empireRecord, aliens, contacts, sectorId);
             dbContext.Empires.Add(empire);
+            knownEmpires[empire.Id] = empire;
             addedEmpireCount++;
             addedContactCount += empire.Contacts.Count;
         }
 
+        var importedColonies = new List<Colony>();
+        var importedWorldsById = importedSystems
+            .SelectMany(system => system.System.Worlds)
+            .ToDictionary(world => world.Id);
+        var importedSystemsById = importedSystems
+            .ToDictionary(system => system.System.Id, system => system.System);
         foreach (var colonyRecord in colonies)
         {
             var colony = CreateColony(colonyRecord, aliens, sectorId);
@@ -693,6 +719,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             }
 
             dbContext.Colonies.Add(colony);
+            importedColonies.Add(colony);
             addedColonyCount++;
         }
 
@@ -709,14 +736,93 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             addedHistoryCount++;
         }
 
-        if (addedSystemCount > 0 || addedAstralBodyCount > 0 || addedWorldCount > 0 || addedAlienCount > 0 || addedEmpireCount > 0 || addedColonyCount > 0 || addedHistoryCount > 0)
+        var sectorColonies = await dbContext.Colonies
+            .Where(colony => dbContext.Worlds.Any(world => world.Id == colony.WorldId
+                && world.StarSystemId != null
+                && dbContext.StarSystems.Any(system => system.Id == world.StarSystemId && system.SectorId == sectorId)))
+            .Include(colony => colony.Demographics)
+            .ToListAsync(cancellationToken);
+        sectorColonies.AddRange(importedColonies.Where(colony => sectorColonies.All(existing => existing.Id != colony.Id)));
+
+        var sectorWorlds = await dbContext.Worlds
+            .Where(world => world.StarSystemId != null
+                && dbContext.StarSystems.Any(system => system.Id == world.StarSystemId && system.SectorId == sectorId))
+            .ToDictionaryAsync(world => world.Id, cancellationToken);
+        foreach (var world in importedWorldsById.Values)
+        {
+            sectorWorlds.TryAdd(world.Id, world);
+        }
+
+        var sectorHistory = await dbContext.HistoryEvents
+            .Where(history => history.SectorId == sectorId)
+            .ToListAsync(cancellationToken);
+        sectorHistory.AddRange(historyEvents.Where(history => !sectorHistory.Any(existing => BuildHistoryKey(existing) == BuildHistoryKey(history))));
+
+        var nextEmpireId = Math.Max(
+            existingEmpireIds.Count == 0 ? 0 : existingEmpireIds.Max(),
+            knownEmpires.Count == 0 ? 0 : knownEmpires.Keys.Max()) + 1;
+        foreach (var colony in sectorColonies.Where(colony => IsIndependentColony(colony, sectorHistory)))
+        {
+            if (!independentEmpireColonyIds.Add(colony.Id)
+                || !sectorWorlds.TryGetValue(colony.WorldId, out var world)
+                || !knownAlienRaces.TryGetValue(colony.RaceId, out var foundingRace))
+            {
+                continue;
+            }
+
+            var parentEmpire = ResolveEmpire(knownEmpires, colony.ParentEmpireId ?? colony.FoundingEmpireId);
+            var independentEmpire = independentColonyEmpireFactory.CreateEmpireFromIndependentColony(
+                colony,
+                world,
+                foundingRace,
+                parentEmpire);
+            while (!existingEmpireIds.Add(nextEmpireId))
+            {
+                nextEmpireId++;
+            }
+
+            independentEmpire.Id = nextEmpireId++;
+            independentEmpire.Founding.FoundedCentury = FindIndependenceCentury(colony, sectorHistory);
+            colony.ControllingEmpireId = independentEmpire.Id;
+            dbContext.Empires.Add(independentEmpire);
+            knownEmpires[independentEmpire.Id] = independentEmpire;
+            addedIndependentEmpireCount++;
+        }
+
+        var nextSpaceHabitatId = (await dbContext.SpaceHabitats
+            .Select(habitat => (int?)habitat.Id)
+            .MaxAsync(cancellationToken) ?? 0) + 1;
+        foreach (var colony in importedColonies.Where(HasSpaceHabitatFacility))
+        {
+            if (!existingSpaceHabitatWorldIds.Add(colony.WorldId)
+                || !sectorWorlds.TryGetValue(colony.WorldId, out var world))
+            {
+                continue;
+            }
+
+            var spaceHabitat = CreateSpaceHabitat(colony, world, knownEmpires);
+            spaceHabitat.Id = nextSpaceHabitatId++;
+            dbContext.SpaceHabitats.Add(spaceHabitat);
+            if (world.StarSystemId is { } starSystemId)
+            {
+                dbContext.Entry(spaceHabitat).Property("StarSystemId").CurrentValue = starSystemId;
+                if (importedSystemsById.TryGetValue(starSystemId, out var starSystem))
+                {
+                    starSystem.SpaceHabitats.Add(spaceHabitat);
+                }
+            }
+
+            addedSpaceHabitatCount++;
+        }
+
+        if (addedSystemCount > 0 || addedAstralBodyCount > 0 || addedWorldCount > 0 || addedAlienCount > 0 || addedEmpireCount > 0 || addedColonyCount > 0 || addedHistoryCount > 0 || addedIndependentEmpireCount > 0 || addedSpaceHabitatCount > 0)
         {
             sector.History.Add(new HistoryEvent
             {
                 SectorId = sector.Id,
                 Century = 0,
                 EventType = "Legacy Import",
-                Description = $"Merged {addedSystemCount:N0} missing star systems, {addedAstralBodyCount:N0} missing astral bodies, {addedWorldCount:N0} missing worlds, {addedAlienCount:N0} alien races, {addedEmpireCount:N0} empires, {addedColonyCount:N0} colonies, and {addedHistoryCount:N0} history events from {packageName}. Existing records were not overwritten."
+                Description = $"Merged {addedSystemCount:N0} missing star systems, {addedAstralBodyCount:N0} missing astral bodies, {addedWorldCount:N0} missing worlds, {addedAlienCount:N0} alien races, {addedEmpireCount:N0} empires, {addedColonyCount:N0} colonies, {addedHistoryCount:N0} history events, {addedIndependentEmpireCount:N0} independent colony empires, and {addedSpaceHabitatCount:N0} space habitats from {packageName}. Existing records were not overwritten."
             });
         }
 
@@ -735,6 +841,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 $"{sector.Name} merged from {packageName}.",
                 $"Added {addedSystemCount:N0} star systems, {addedAstralBodyCount:N0} astral bodies, {addedWorldCount:N0} worlds, and {addedMoonCount:N0} moon satellites.",
                 $"Added {addedAlienCount:N0} alien races, {addedEmpireCount:N0} empires, {addedContactCount:N0} empire contacts, {addedColonyCount:N0} colonies, and {addedHistoryCount:N0} history events.",
+                $"Created {addedIndependentEmpireCount:N0} independent colony empires and {addedSpaceHabitatCount:N0} space habitat satellites from colony/history data.",
                 $"Skipped {skippedSystemCount:N0} existing star systems, {skippedWorldCount:N0} existing worlds, {skippedAlienCount:N0} races, {skippedEmpireCount:N0} empires, {skippedColonyCount:N0} colonies, and {skippedHistoryCount:N0} history events without overwriting."
             ]);
     }
@@ -1564,6 +1671,96 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     private static string NormalizeSectorName(string requestedName)
     {
         return string.IsNullOrWhiteSpace(requestedName) ? "Imported Sector" : requestedName.Trim();
+    }
+
+    private static bool IsIndependentColony(Colony colony, IReadOnlyList<HistoryEvent> sectorHistory)
+    {
+        if (colony.PoliticalStatus == ColonyPoliticalStatus.Independent || colony.AllegianceId == ushort.MaxValue)
+        {
+            return true;
+        }
+
+        return sectorHistory.Any(history => IsIndependenceEventForColony(history, colony));
+    }
+
+    private static int? FindIndependenceCentury(Colony colony, IReadOnlyList<HistoryEvent> sectorHistory)
+    {
+        return sectorHistory
+            .Where(history => IsIndependenceEventForColony(history, colony))
+            .OrderBy(history => history.Century)
+            .Select(history => (int?)history.Century)
+            .FirstOrDefault();
+    }
+
+    private static bool IsIndependenceEventForColony(HistoryEvent history, Colony colony)
+    {
+        if (!LooksLikeIndependenceEvent(history))
+        {
+            return false;
+        }
+
+        if (history.ColonyId == colony.Id || history.PlanetId == colony.WorldId)
+        {
+            return true;
+        }
+
+        var colonyIsAlreadyIndependent = colony.PoliticalStatus == ColonyPoliticalStatus.Independent
+            || colony.AllegianceId == ushort.MaxValue;
+        return colonyIsAlreadyIndependent
+            && history.RaceId == colony.RaceId
+            && (history.EmpireId == colony.ParentEmpireId
+                || history.EmpireId == colony.FoundingEmpireId
+                || history.EmpireId == colony.AllegianceId);
+    }
+
+    private static bool LooksLikeIndependenceEvent(HistoryEvent history)
+    {
+        var text = string.Concat(history.EventType, " ", history.Description);
+        return text.Contains("independ", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("seced", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("liberat", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("revolt", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasSpaceHabitatFacility(Colony colony)
+    {
+        return colony.Facilities.Any(facility =>
+            facility.Contains("space habitat", StringComparison.OrdinalIgnoreCase)
+            || facility.Contains("orbital habitat", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private SpaceHabitat CreateSpaceHabitat(
+        Colony colony,
+        World world,
+        IReadOnlyDictionary<int, Empire> knownEmpires)
+    {
+        var controllingEmpire = ResolveEmpire(knownEmpires, colony.ControllingEmpireId)
+            ?? ResolveEmpire(knownEmpires, colony.AllegianceId == ushort.MaxValue ? null : colony.AllegianceId)
+            ?? ResolveEmpire(knownEmpires, colony.ParentEmpireId)
+            ?? ResolveEmpire(knownEmpires, colony.FoundingEmpireId)
+            ?? ResolveEmpire(knownEmpires, colony.RaceId);
+        var name = string.IsNullOrWhiteSpace(world.Name)
+            ? "Space Habitat"
+            : $"{world.Name} Space Habitat";
+
+        if (controllingEmpire is null)
+        {
+            return new SpaceHabitat
+            {
+                Name = name,
+                OrbitTargetKind = OrbitTargetKind.World,
+                OrbitTargetId = world.Id
+            };
+        }
+
+        return spaceHabitatConstructionService.BuildOrbitingWorld(controllingEmpire, world, name);
+    }
+
+    private static Empire? ResolveEmpire(IReadOnlyDictionary<int, Empire> knownEmpires, int? empireId)
+    {
+        return empireId is { } id && knownEmpires.TryGetValue(id, out var empire)
+            ? empire
+            : null;
     }
 
     private static int BuildPlanetWorldId(int sectorId, int legacyPlanetId)

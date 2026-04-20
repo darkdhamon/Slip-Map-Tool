@@ -5,6 +5,8 @@
 @inject IStarWinImageService ImageService
 @inject IStarWinSectorConfigurationService SectorConfigurationService
 @inject IStarWinEntityNameService EntityNameService
+@inject IStarWinIndependentColonyService IndependentColonyService
+@inject IStarWinSpaceHabitatService SpaceHabitatService
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -186,6 +188,79 @@
                             <button type="button" class="overlay-action" @onclick="OpenSelectedSystemRecord">Open system record</button>
                         </article>
                     }
+                    @if (sectorMapRequested)
+                    {
+                        <article class="fullscreen-route-planner route-planner-panel">
+                            <span class="panel-kicker">Route planner</span>
+                            <h2>Plot hyperlane route</h2>
+                            <label>
+                                Origin
+                                <input list="fullscreen-route-system-options"
+                                       placeholder="Select origin..."
+                                       @bind="routeOriginText"
+                                       @bind:after="ApplyRouteOriginText" />
+                            </label>
+                            <label>
+                                Destination
+                                <input list="fullscreen-route-system-options"
+                                       placeholder="Select destination..."
+                                       @bind="routeDestinationText"
+                                       @bind:after="ApplyRouteDestinationText" />
+                            </label>
+                            <datalist id="fullscreen-route-system-options">
+                                @foreach (var system in sector.Systems.OrderBy(system => system.Name).ThenBy(system => system.Id))
+                                {
+                                    <option value="@FormatSystemOption(system)" />
+                                }
+                            </datalist>
+                            <div class="parent-actions">
+                                <button type="button" @onclick="PlotSelectedRouteAsync" disabled="@sectionLoadingVisible">Plot route</button>
+                                <button type="button" @onclick="ClearSelectedRoute">Clear route</button>
+                            </div>
+                            @if (selectedRoutePlan is { } fullscreenRoutePlan)
+                            {
+                                <dl class="field-grid">
+                                    <div><dt>Origin</dt><dd>@fullscreenRoutePlan.Origin.Name</dd></div>
+                                    <div><dt>Destination</dt><dd>@fullscreenRoutePlan.Destination.Name</dd></div>
+                                    <div><dt>Route distance</dt><dd>@Format(fullscreenRoutePlan.TotalDistanceParsecs) pc</dd></div>
+                                    <div><dt>Off-lane legs</dt><dd>@fullscreenRoutePlan.OffHyperlaneLegCount</dd></div>
+                                </dl>
+                                <div class="route-leg-list compact">
+                                    @foreach (var leg in fullscreenRoutePlan.Legs)
+                                    {
+                                        <button type="button"
+                                                class="route-leg @(leg.IsHyperlane ? "hyperlane" : "off-lane")"
+                                                @onclick="() => SelectSystem(leg.Target.Id)">
+                                            <span>@(leg.IsHyperlane ? "Hyperlane" : "Off-lane")</span>
+                                            <strong>@leg.Source.Name to @leg.Target.Name</strong>
+                                            <small>@Format(leg.DistanceParsecs) pc</small>
+                                        </button>
+                                    }
+                                </div>
+                            }
+                            else if (routeDestinationSystemId is not 0)
+                            {
+                                <p>No route could be plotted without a void flight over @Format(MaximumVoidRouteDistanceParsecs) parsecs.</p>
+                            }
+                        </article>
+                    }
+                    @if (sectionLoadingVisible)
+                    {
+                        <div class="fullscreen-loading-modal-backdrop" role="status" aria-live="polite" aria-label="Loading route">
+                            <section class="loading-modal">
+                                <span class="panel-kicker">Loading @sectionLoadingTarget</span>
+                                <h2>@sectionLoadingStatus</h2>
+                                <div class="loading-meter" aria-hidden="true">
+                                    <span></span>
+                                </div>
+                                <ol>
+                                    <li>Reading the current system and destination.</li>
+                                    <li>Following connected hyperlane networks.</li>
+                                    <li>Finding the shortest unavoidable void crossing.</li>
+                                </ol>
+                            </section>
+                        </div>
+                    }
                 </div>
 
                 <div class="stacked-panels">
@@ -306,6 +381,7 @@
                 </dl>
                 <div class="parent-actions">
                     <button type="button" @onclick="SaveSectorConfiguration">Save configuration</button>
+                    <button type="button" @onclick="() => ConvertIndependentColoniesAsync(sector.Id)" disabled="@sectionLoadingVisible">Convert independent colonies</button>
                     <button type="button" @onclick="() => LoadSectorConfigurationForm(sector)">Reset form</button>
                 </div>
                 @if (!string.IsNullOrWhiteSpace(sectorConfigurationStatus))
@@ -371,6 +447,27 @@
                                                 </button>
                                             }
                                         }
+                                        <div class="habitat-create-form">
+                                            <input placeholder="Habitat name"
+                                                   @bind="spaceHabitatName"
+                                                   maxlength="160" />
+                                            <select @bind="spaceHabitatEmpireId">
+                                                <option value="0">Empire</option>
+                                                @foreach (var empire in Workspace.Empires.OrderBy(empire => empire.Name))
+                                                {
+                                                    <option value="@empire.Id">@empire.Name</option>
+                                                }
+                                            </select>
+                                            <button type="button"
+                                                    @onclick="() => CreateAstralBodySpaceHabitatAsync(selectedSystem, bodyItem.Sequence)"
+                                                    disabled="@IsSpaceHabitatCreateDisabled">
+                                                Create habitat
+                                            </button>
+                                            @if (!string.IsNullOrWhiteSpace(spaceHabitatStatus))
+                                            {
+                                                <p>@spaceHabitatStatus</p>
+                                            }
+                                        </div>
                                     </div>
                                 </article>
                             }
@@ -569,6 +666,27 @@
                                     </button>
                                 }
                             }
+                            <div class="habitat-create-form">
+                                <input placeholder="Habitat name"
+                                       @bind="spaceHabitatName"
+                                       maxlength="160" />
+                                <select @bind="spaceHabitatEmpireId">
+                                    <option value="0">Empire</option>
+                                    @foreach (var empire in Workspace.Empires.OrderBy(empire => empire.Name))
+                                    {
+                                        <option value="@empire.Id">@empire.Name</option>
+                                    }
+                                </select>
+                                <button type="button"
+                                        @onclick="() => CreateWorldSpaceHabitatAsync(selectedWorld)"
+                                        disabled="@IsSpaceHabitatCreateDisabled">
+                                    Create habitat
+                                </button>
+                                @if (!string.IsNullOrWhiteSpace(spaceHabitatStatus))
+                                {
+                                    <p>@spaceHabitatStatus</p>
+                                }
+                            </div>
                         </div>
                     </article>
                 }
@@ -1095,6 +1213,9 @@
     private IReadOnlyList<EntityImage> entityImages = [];
     private bool entityImagesLoaded;
     private string imageUploadStatus = string.Empty;
+    private string spaceHabitatName = string.Empty;
+    private int spaceHabitatEmpireId;
+    private string spaceHabitatStatus = string.Empty;
     private string routeOriginText = string.Empty;
     private int routeOriginSystemId;
     private string routeDestinationText = string.Empty;
@@ -1161,6 +1282,9 @@
 
     private IReadOnlyDictionary<int, Empire> EmpiresById =>
         empiresById ??= Workspace.Empires.ToDictionary(empire => empire.Id);
+
+    private bool IsSpaceHabitatCreateDisabled =>
+        spaceHabitatEmpireId == 0 || sectionLoadingVisible;
 
     private IReadOnlyDictionary<int, World> WorldsById =>
         worldsById ??= Workspace.Sectors
@@ -1469,6 +1593,84 @@
         activeSection = "Systems";
     }
 
+    private async Task CreateAstralBodySpaceHabitatAsync(StarSystem system, int astralBodySequence)
+    {
+        if (spaceHabitatEmpireId == 0)
+        {
+            spaceHabitatStatus = "Choose an empire.";
+            return;
+        }
+
+        try
+        {
+            var habitat = await SpaceHabitatService.CreateOrbitingAstralBodyAsync(
+                system.Id,
+                astralBodySequence,
+                spaceHabitatEmpireId,
+                spaceHabitatName);
+            AddSpaceHabitatToWorkspace(system.Id, habitat);
+            SelectHabitat(habitat.Id);
+            CompleteSpaceHabitatCreate(system.Id, habitat.Name);
+        }
+        catch (InvalidOperationException ex)
+        {
+            spaceHabitatStatus = ex.Message;
+        }
+    }
+
+    private async Task CreateWorldSpaceHabitatAsync(World world)
+    {
+        if (spaceHabitatEmpireId == 0)
+        {
+            spaceHabitatStatus = "Choose an empire.";
+            return;
+        }
+
+        try
+        {
+            var habitat = await SpaceHabitatService.CreateOrbitingWorldAsync(
+                world.Id,
+                spaceHabitatEmpireId,
+                spaceHabitatName);
+            if (world.StarSystemId is int systemId)
+            {
+                AddSpaceHabitatToWorkspace(systemId, habitat);
+            }
+
+            SelectHabitat(habitat.Id);
+            CompleteSpaceHabitatCreate(world.StarSystemId ?? selectedSystemId, habitat.Name);
+        }
+        catch (InvalidOperationException ex)
+        {
+            spaceHabitatStatus = ex.Message;
+        }
+    }
+
+    private void AddSpaceHabitatToWorkspace(int systemId, SpaceHabitat habitat)
+    {
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var system = sector.Systems.FirstOrDefault(item => item.Id == systemId);
+        if (system is null || system.SpaceHabitats.Any(item => item.Id == habitat.Id))
+        {
+            return;
+        }
+
+        system.SpaceHabitats.Add(habitat);
+        sectorCacheBuilder.Invalidate(sector.Id);
+        worldsById = null;
+        renderedOverview = false;
+    }
+
+    private void CompleteSpaceHabitatCreate(int systemId, string habitatName)
+    {
+        selectedSystemId = systemId;
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        spaceHabitatName = string.Empty;
+        spaceHabitatStatus = $"{habitatName} created.";
+        _ = PersistExplorerSessionAsync();
+    }
+
     private void SelectColony(int worldId)
     {
         SelectWorld(worldId);
@@ -1575,6 +1777,67 @@
         plottedRouteDestinationSystemId = 0;
         plottedRouteDistanceParsecs = 0;
         plottedOwnedRouteDistanceParsecs = 0;
+    }
+
+    private async Task ConvertIndependentColoniesAsync(int sectorId)
+    {
+        sectorConfigurationStatus = "Converting independent colonies...";
+        try
+        {
+            var createdEmpires = await IndependentColonyService.ConvertIndependentColoniesAsync(sectorId);
+            ApplyCreatedIndependentEmpires(sectorId, createdEmpires);
+            sectorConfigurationStatus = createdEmpires.Count == 0
+                ? "No independent colonies needed conversion."
+                : $"Converted {createdEmpires.Count:N0} independent colon{(createdEmpires.Count == 1 ? "y" : "ies")} into empire{(createdEmpires.Count == 1 ? string.Empty : "s")}.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            sectorConfigurationStatus = ex.Message;
+        }
+    }
+
+    private void ApplyCreatedIndependentEmpires(int sectorId, IReadOnlyList<Empire> createdEmpires)
+    {
+        if (createdEmpires.Count == 0)
+        {
+            return;
+        }
+
+        if (Workspace.Empires is IList<Empire> empireList)
+        {
+            foreach (var empire in createdEmpires.Where(empire => empireList.All(existing => existing.Id != empire.Id)))
+            {
+                empireList.Add(empire);
+            }
+        }
+
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == sectorId);
+        if (sector is not null)
+        {
+            foreach (var colony in sector.Systems
+                .SelectMany(system => system.Worlds)
+                .Select(world => world.Colony)
+                .OfType<Colony>())
+            {
+                var empire = createdEmpires.FirstOrDefault(item => item.Founding.FoundingColonyId == colony.Id);
+                if (empire is not null)
+                {
+                    colony.ControllingEmpireId = empire.Id;
+                }
+            }
+
+            sector.History.Add(new HistoryEvent
+            {
+                SectorId = sector.Id,
+                Century = 0,
+                EventType = "Configuration",
+                Description = $"Converted {createdEmpires.Count:N0} independent colonies into empires."
+            });
+            sectorCacheBuilder.Invalidate(sector.Id);
+        }
+
+        empiresById = null;
+        renderedOverview = false;
     }
 
     private async Task PlotSelectedRouteAsync()

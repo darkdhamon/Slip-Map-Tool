@@ -193,7 +193,8 @@ dd {
 .hero-search input,
 .control-strip input,
 .control-strip select,
-.form-grid input {
+.form-grid input,
+.form-grid select {
     width: 100%;
     box-sizing: border-box;
     min-height: 42px;
@@ -208,7 +209,8 @@ dd {
 .hero-search input:focus,
 .control-strip input:focus,
 .control-strip select:focus,
-.form-grid input:focus {
+.form-grid input:focus,
+.form-grid select:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
 }
@@ -728,6 +730,7 @@ dd {
     min-height: 100vh;
     border: 0;
     border-radius: 0;
+    --fullscreen-route-planner-width: min(380px, calc(100vw - 36px));
 }
 
 .sector-map-canvas {
@@ -741,7 +744,8 @@ dd {
 .map-hud,
 .map-controls-hint,
 .map-fullscreen-button,
-.fullscreen-system-overlay {
+.fullscreen-system-overlay,
+.fullscreen-route-planner {
     position: absolute;
     z-index: 2;
 }
@@ -765,6 +769,21 @@ dd {
     background: rgba(2, 6, 23, 0.68);
     padding: 10px 12px;
     backdrop-filter: blur(10px);
+}
+
+.fullscreen-loading-modal-backdrop {
+    display: none;
+}
+
+.sector-map-three:fullscreen .fullscreen-loading-modal-backdrop {
+    position: absolute;
+    inset: 0 var(--fullscreen-route-planner-width) 0 0;
+    z-index: 8;
+    display: grid;
+    place-items: center;
+    background: rgba(2, 6, 23, 0.54);
+    padding: 24px;
+    backdrop-filter: blur(5px);
 }
 
 .map-hud span,
@@ -821,6 +840,11 @@ dd {
     justify-content: flex-end;
 }
 
+.sector-map-three:fullscreen .map-controls-hint {
+    right: calc(var(--fullscreen-route-planner-width) + 36px);
+    max-width: calc(100vw - var(--fullscreen-route-planner-width) - 72px);
+}
+
 .map-controls-hint span {
     border: 1px solid rgba(125, 211, 252, 0.22);
     border-radius: 999px;
@@ -842,6 +866,10 @@ dd {
     font-weight: 900;
     text-transform: uppercase;
     backdrop-filter: blur(10px);
+}
+
+.sector-map-three:fullscreen .map-fullscreen-button {
+    right: calc(var(--fullscreen-route-planner-width) + 36px);
 }
 
 .map-fullscreen-button:hover {
@@ -878,6 +906,38 @@ dd {
 
 .sector-map-three:fullscreen .fullscreen-system-overlay {
     width: min(380px, calc(100vw - 36px));
+}
+
+.fullscreen-route-planner {
+    display: none;
+}
+
+.sector-map-three:fullscreen .fullscreen-route-planner {
+    top: 18px;
+    right: 18px;
+    bottom: 18px;
+    z-index: 3;
+    display: grid;
+    grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
+    width: var(--fullscreen-route-planner-width);
+    height: calc(100vh - 36px);
+    max-height: none;
+    overflow: auto;
+    border: 1px solid rgba(125, 211, 252, 0.28);
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.82);
+    padding: 14px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+    backdrop-filter: blur(10px);
+}
+
+.sector-map-three:fullscreen .fullscreen-route-planner h2 {
+    font-size: 1.25rem;
+}
+
+.route-leg-list.compact {
+    min-height: 0;
+    max-height: none;
 }
 
 .fullscreen-system-overlay h2 {
@@ -1004,6 +1064,10 @@ dd {
 .route-planner-panel {
     display: grid;
     gap: 12px;
+}
+
+.sector-map-three:not(:fullscreen) .fullscreen-route-planner {
+    display: none;
 }
 
 .route-planner-panel h2 {
@@ -1168,6 +1232,51 @@ dd {
 .satellite-panel {
     display: grid;
     gap: 8px;
+}
+
+.habitat-create-form {
+    display: grid;
+    grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    margin-top: 8px;
+}
+
+.habitat-create-form input,
+.habitat-create-form select {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 38px;
+    border: 1px solid rgba(125, 211, 252, 0.38);
+    border-radius: 6px;
+    background: rgba(3, 10, 24, 0.72);
+    color: var(--text);
+    padding: 8px 10px;
+}
+
+.habitat-create-form button {
+    min-height: 38px;
+    border: 1px solid rgba(56, 189, 248, 0.38);
+    border-radius: 6px;
+    background: rgba(14, 165, 233, 0.16);
+    color: #ecfeff;
+    padding: 8px 10px;
+}
+
+.habitat-create-form button:hover:not(:disabled) {
+    border-color: var(--accent);
+    background: rgba(14, 165, 233, 0.28);
+}
+
+.habitat-create-form button:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+
+.habitat-create-form p {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--muted);
 }
 
 .satellite-panel {
@@ -1875,6 +1984,7 @@ dd {
 
     .field-grid,
     .form-grid,
+    .habitat-create-form,
     .toggle-grid,
     .metrics-band {
         grid-template-columns: 1fr;
@@ -1890,6 +2000,36 @@ dd {
 
     .map-system span {
         display: none;
+    }
+
+    .sector-map-three:fullscreen .fullscreen-system-overlay {
+        display: none;
+    }
+
+    .sector-map-three:fullscreen .fullscreen-route-planner {
+        top: auto;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        width: auto;
+        height: 46vh;
+        max-height: 46vh;
+    }
+
+    .sector-map-three:fullscreen .fullscreen-loading-modal-backdrop {
+        inset: 0 0 46vh 0;
+        padding: 16px;
+    }
+
+    .sector-map-three:fullscreen .map-fullscreen-button {
+        right: 12px;
+        top: 12px;
+    }
+
+    .sector-map-three:fullscreen .map-controls-hint {
+        right: 12px;
+        bottom: calc(46vh + 24px);
+        max-width: calc(100vw - 24px);
     }
 
     .world-orb {
