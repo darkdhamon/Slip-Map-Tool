@@ -6,8 +6,7 @@ const slowFrameMilliseconds = 100;
 const slowAverageMilliseconds = 100;
 const slowFrameRatio = 0.32;
 const minimumAdaptiveSystemLimit = 150;
-const systemShrinkStartParsecs = 1;
-const systemShrinkEndParsecs = 5;
+const compactSystemScale = 0.38;
 
 async function loadThree() {
     if (!threePromise) {
@@ -123,6 +122,7 @@ function createMap(host, THREE) {
         systems: [],
         systemPositions: new Map(),
         systemClusters: new Map(),
+        hoveredSystemId: null,
         hoverLabel: null,
         performance: createPerformanceMonitor(),
         target: new THREE.Vector3(36, 18, 36),
@@ -168,6 +168,7 @@ function rebuildScene(state, sector, selectedSystemId) {
     state.clickable.length = 0;
     state.systemPositions.clear();
     state.systemClusters.clear();
+    state.hoveredSystemId = null;
     state.hoverLabel = null;
 
     const viewDistance = Number(sector.viewDistanceParsecs ?? 20);
@@ -184,7 +185,9 @@ function rebuildScene(state, sector, selectedSystemId) {
         const isRouteSystem = routeSystemIds.has(system.id) || Boolean(system.isRouteSystem);
         const focusOpacity = isRouteSystem ? 1 : getFocusDistanceOpacity(system.distanceFromFocus, fadeStart, viewDistance);
         const systemOpacity = routeActive && !isRouteSystem ? Math.min(focusOpacity, 0.16) : focusOpacity;
-        const focusScale = getFocusDistanceScale(system.distanceFromFocus);
+        const focusScale = system.id === selectedSystemId ? 1 : compactSystemScale;
+        cluster.userData.baseScale = focusScale;
+        cluster.userData.selected = system.id === selectedSystemId;
 
         const bodies = (system.bodies?.length ? system.bodies : [{ kind: "Unknown" }]).slice(0, 3);
         const bodyRadii = bodies.map(body => getAstralBodyVisualRadius(body, system.id === selectedSystemId));
@@ -414,16 +417,6 @@ function getFocusDistanceOpacity(distanceFromFocus, fadeStart, viewDistance) {
 
     const fadeProgress = Math.min(1, Math.max(0, (distance - fadeStart) / (viewDistance - fadeStart)));
     return 1 - fadeProgress * 0.75;
-}
-
-function getFocusDistanceScale(distanceFromFocus) {
-    const distance = Number(distanceFromFocus ?? 0);
-    if (distance <= systemShrinkStartParsecs) {
-        return 1;
-    }
-
-    const shrinkProgress = Math.min(1, Math.max(0, (distance - systemShrinkStartParsecs) / (systemShrinkEndParsecs - systemShrinkStartParsecs)));
-    return 1 - shrinkProgress * 0.62;
 }
 
 function applyFocusAppearance(root, opacity, scale) {
@@ -907,12 +900,15 @@ function updateHoveredLabel(state, event) {
 }
 
 function setHoveredLabel(state, systemId) {
+    resetHoveredSystemScale(state);
+
     if (state.hoverLabel?.userData?.persistentLabel === false && state.hoverLabel.parent) {
         state.hoverLabel.parent.remove(state.hoverLabel);
         disposeLabelSprite(state.hoverLabel);
     }
 
     state.hoverLabel = null;
+    state.hoveredSystemId = null;
     if (systemId === null || systemId === undefined) {
         return;
     }
@@ -920,6 +916,11 @@ function setHoveredLabel(state, systemId) {
     const cluster = state.systemClusters.get(systemId);
     if (!cluster) {
         return;
+    }
+
+    state.hoveredSystemId = systemId;
+    if (!cluster.userData.selected) {
+        cluster.scale.setScalar(1);
     }
 
     const existingLabel = cluster.children.find(child => child.userData?.persistentLabel === true);
@@ -937,6 +938,19 @@ function setHoveredLabel(state, systemId) {
     };
     cluster.add(label);
     state.hoverLabel = label;
+}
+
+function resetHoveredSystemScale(state) {
+    if (state.hoveredSystemId === null || state.hoveredSystemId === undefined) {
+        return;
+    }
+
+    const cluster = state.systemClusters.get(state.hoveredSystemId);
+    if (!cluster || cluster.userData.selected) {
+        return;
+    }
+
+    cluster.scale.setScalar(cluster.userData.baseScale ?? compactSystemScale);
 }
 
 function disposeLabelSprite(label) {

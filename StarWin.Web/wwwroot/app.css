@@ -967,9 +967,10 @@ dd {
     display: grid;
     grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
     width: var(--fullscreen-route-planner-width);
+    box-sizing: border-box;
     height: calc(100vh - 36px);
     max-height: none;
-    overflow: auto;
+    overflow: hidden auto;
     border: 1px solid rgba(125, 211, 252, 0.28);
     border-radius: 8px;
     background: rgba(2, 6, 23, 0.82);
@@ -982,9 +983,28 @@ dd {
     font-size: 1.25rem;
 }
 
+.sector-map-three:fullscreen .fullscreen-route-planner > * {
+    min-width: 0;
+}
+
+.sector-map-three:fullscreen .fullscreen-route-planner .field-grid {
+    grid-template-columns: 1fr;
+}
+
+.sector-map-three:fullscreen .fullscreen-route-planner .field-grid div,
+.sector-map-three:fullscreen .fullscreen-route-planner .route-leg {
+    min-width: 0;
+}
+
+.sector-map-three:fullscreen .fullscreen-route-planner dd,
+.sector-map-three:fullscreen .fullscreen-route-planner .route-leg strong {
+    overflow-wrap: anywhere;
+}
+
 .route-leg-list.compact {
     min-height: 0;
     max-height: none;
+    padding-right: 0;
 }
 
 .fullscreen-system-overlay h2 {
@@ -1198,6 +1218,8 @@ dd {
     display: grid;
     gap: 4px;
     width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
     border: 1px solid rgba(52, 211, 153, 0.36);
     border-radius: 6px;
     background: rgba(5, 46, 22, 0.26);
@@ -1221,6 +1243,10 @@ dd {
 
 .route-leg small {
     color: var(--muted);
+}
+
+.route-leg strong {
+    overflow-wrap: anywhere;
 }
 
 .data-list,
