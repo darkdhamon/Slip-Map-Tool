@@ -783,7 +783,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
 
             independentEmpire.Id = nextEmpireId++;
             independentEmpire.Founding.FoundedCentury = FindIndependenceCentury(colony, sectorHistory);
-            colony.ControllingEmpireId = independentEmpire.Id;
+            AssignColonyToIndependentEmpire(colony, independentEmpire);
             dbContext.Empires.Add(independentEmpire);
             knownEmpires[independentEmpire.Id] = independentEmpire;
             addedIndependentEmpireCount++;
@@ -1761,6 +1761,14 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         return empireId is { } id && knownEmpires.TryGetValue(id, out var empire)
             ? empire
             : null;
+    }
+
+    private static void AssignColonyToIndependentEmpire(Colony colony, Empire empire)
+    {
+        colony.ControllingEmpireId = empire.Id;
+        colony.FoundingEmpireId = empire.Id;
+        colony.PoliticalStatus = ColonyPoliticalStatus.Controlled;
+        colony.AllegianceName = empire.Name;
     }
 
     private static int BuildPlanetWorldId(int sectorId, int legacyPlanetId)

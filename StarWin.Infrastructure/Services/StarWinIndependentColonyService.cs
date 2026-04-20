@@ -11,15 +11,19 @@ public sealed class StarWinIndependentColonyService(StarWinDbContext dbContext) 
 {
     private readonly IndependentColonyEmpireFactory independentColonyEmpireFactory = new();
 
-    public async Task<IReadOnlyList<Empire>> ConvertIndependentColoniesAsync(
+    public async Task<IndependentColonyConversionResult> ConvertIndependentColoniesAsync(
         int sectorId,
         CancellationToken cancellationToken = default)
     {
-        var existingFoundingColonyIds = await dbContext.Empires
+        var independentEmpires = await dbContext.Empires
             .Where(empire => empire.Founding.Origin == EmpireOrigin.IndependentColony
                 && empire.Founding.FoundingColonyId != null)
-            .Select(empire => empire.Founding.FoundingColonyId!.Value)
-            .ToHashSetAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
+        var independentEmpiresByFoundingColonyId = independentEmpires
+            .GroupBy(empire => empire.Founding.FoundingColonyId!.Value)
+            .ToDictionary(
+                group => group.Key,
+                group => group.OrderBy(empire => empire.Id).First());
         var racesById = await dbContext.AlienRaces
             .ToDictionaryAsync(race => race.Id, cancellationToken);
         var empiresById = await dbContext.Empires
@@ -33,12 +37,23 @@ public sealed class StarWinIndependentColonyService(StarWinDbContext dbContext) 
 
         var nextEmpireId = (empiresById.Count == 0 ? 0 : empiresById.Keys.Max()) + 1;
         var createdEmpires = new List<Empire>();
+        var assignments = new List<IndependentColonyAssignment>();
         foreach (var world in worlds)
         {
             if (world.Colony is not { } colony
-                || !IsIndependent(colony)
-                || !existingFoundingColonyIds.Add(colony.Id)
-                || !racesById.TryGetValue(colony.RaceId, out var foundingRace))
+                || !IsIndependent(colony))
+            {
+                continue;
+            }
+
+            if (independentEmpiresByFoundingColonyId.TryGetValue(colony.Id, out var existingEmpire))
+            {
+                AssignColonyToIndependentEmpire(colony, existingEmpire);
+                assignments.Add(new IndependentColonyAssignment(colony.Id, existingEmpire.Id, existingEmpire.Name));
+                continue;
+            }
+
+            if (!racesById.TryGetValue(colony.RaceId, out var foundingRace))
             {
                 continue;
             }
@@ -55,25 +70,29 @@ public sealed class StarWinIndependentColonyService(StarWinDbContext dbContext) 
             }
 
             empire.Id = nextEmpireId++;
-            colony.ControllingEmpireId = empire.Id;
+            AssignColonyToIndependentEmpire(colony, empire);
             dbContext.Empires.Add(empire);
             empiresById[empire.Id] = empire;
+            independentEmpiresByFoundingColonyId[colony.Id] = empire;
             createdEmpires.Add(empire);
+            assignments.Add(new IndependentColonyAssignment(colony.Id, empire.Id, empire.Name));
         }
 
-        if (createdEmpires.Count > 0)
+        if (assignments.Count > 0)
         {
             dbContext.HistoryEvents.Add(new HistoryEvent
             {
                 SectorId = sectorId,
                 Century = 0,
                 EventType = "Configuration",
-                Description = $"Converted {createdEmpires.Count:N0} independent colonies into empires."
+                Description = createdEmpires.Count == assignments.Count
+                    ? $"Converted {createdEmpires.Count:N0} independent colonies into empires."
+                    : $"Converted {createdEmpires.Count:N0} independent colonies into empires and assigned {assignments.Count:N0} colonies to independent empires."
             });
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        return createdEmpires;
+        return new IndependentColonyConversionResult(createdEmpires, assignments);
     }
 
     private static bool IsIndependent(Colony colony)
@@ -87,5 +106,13 @@ public sealed class StarWinIndependentColonyService(StarWinDbContext dbContext) 
         return empireId is { } id && empiresById.TryGetValue(id, out var empire)
             ? empire
             : null;
+    }
+
+    private static void AssignColonyToIndependentEmpire(Colony colony, Empire empire)
+    {
+        colony.ControllingEmpireId = empire.Id;
+        colony.FoundingEmpireId = empire.Id;
+        colony.PoliticalStatus = ColonyPoliticalStatus.Controlled;
+        colony.AllegianceName = empire.Name;
     }
 }

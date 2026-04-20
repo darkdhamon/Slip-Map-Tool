@@ -1183,11 +1183,63 @@ dd {
     color: var(--muted);
 }
 
+.record-row-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.record-row.fallen {
+    border-color: rgba(248, 113, 113, 0.42);
+    background: rgba(42, 12, 20, 0.74);
+}
+
+.record-row.fallen span {
+    color: #fecaca;
+}
+
 .record-row.active,
 .record-row:hover {
     border-color: var(--accent);
     background: rgba(14, 165, 233, 0.16);
     box-shadow: 0 0 18px rgba(56, 189, 248, 0.12);
+}
+
+.record-row.fallen.active,
+.record-row.fallen:hover {
+    border-color: #fb7185;
+    background: rgba(88, 28, 39, 0.72);
+    box-shadow: 0 0 18px rgba(248, 113, 113, 0.18);
+}
+
+.empire-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    border: 1px solid rgba(248, 113, 113, 0.5);
+    border-radius: 6px;
+    background: rgba(127, 29, 29, 0.42);
+    color: #fee2e2;
+    padding: 3px 7px;
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.empire-alert {
+    display: grid;
+    gap: 4px;
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: 8px;
+    background: rgba(69, 10, 10, 0.38);
+    color: #fee2e2;
+    padding: 12px;
+}
+
+.empire-alert span {
+    color: #fecaca;
 }
 
 .field-grid {

@@ -1049,9 +1049,16 @@
                     }
                     @foreach (var empire in visibleEmpires)
                     {
-                            <button type="button" class="record-row @(selectedEmpire?.Id == empire.Id ? "active" : null)" @onclick="() => SelectEmpire(empire.Id)">
-                            <strong>@empire.Name</strong>
-                            <span>GURPS TL @GetGurpsTechLevel(empire); @empire.Planets planets</span>
+                        var empireIsFallen = IsFallenEmpire(empire, sector);
+                        <button type="button" class="record-row @(selectedEmpire?.Id == empire.Id ? "active" : null) @(empireIsFallen ? "fallen" : null)" @onclick="() => SelectEmpire(empire.Id)">
+                            <strong class="record-row-title">
+                                <span>@empire.Name</span>
+                                @if (empireIsFallen)
+                                {
+                                    <span class="empire-status fallen">Fallen empire</span>
+                                }
+                            </strong>
+                            <span>@(empireIsFallen ? "No controlled colonies; former holdings conquered" : $"GURPS TL {GetGurpsTechLevel(empire)}; {empire.Planets} planets")</span>
                         </button>
                     }
                     @if (hasMoreEmpires)
@@ -1074,6 +1081,15 @@
                             var empireHomeworld = FindWorld(selectedEmpire.Founding.FoundingWorldId);
                             var capitalColony = GetCapitalColony(selectedEmpire);
                             var empireColonies = GetEmpireColonies(selectedEmpire, sector).ToList();
+                            var empireControlledColonies = GetControlledEmpireColonies(selectedEmpire, sector).ToList();
+                            var selectedEmpireIsFallen = IsFallenEmpire(selectedEmpire, sector);
+                        }
+                        @if (selectedEmpireIsFallen)
+                        {
+                            <div class="empire-alert fallen">
+                                <strong>Fallen empire</strong>
+                                <span>This empire no longer controls any colonies in this sector.</span>
+                            </div>
                         }
                         <div class="parent-actions">
                             @if (empireHomeworld is not null)
@@ -1086,6 +1102,8 @@
                             }
                         </div>
                         <dl class="field-grid">
+                            <div><dt>Status</dt><dd>@(selectedEmpireIsFallen ? "Fallen empire" : "Active empire")</dd></div>
+                            <div><dt>Controlled colonies</dt><dd>@empireControlledColonies.Count</dd></div>
                             <div><dt>Tech level</dt><dd>GURPS TL @GetGurpsTechLevel(selectedEmpire) / StarWin @selectedEmpire.CivilizationProfile.TechLevel</dd></div>
                             <div><dt>Military power</dt><dd>@selectedEmpire.MilitaryPower</dd></div>
                             <div><dt>Economic power</dt><dd>@selectedEmpire.EconomicPowerMcr MCr</dd></div>
@@ -1784,11 +1802,11 @@
         sectorConfigurationStatus = "Converting independent colonies...";
         try
         {
-            var createdEmpires = await IndependentColonyService.ConvertIndependentColoniesAsync(sectorId);
-            ApplyCreatedIndependentEmpires(sectorId, createdEmpires);
-            sectorConfigurationStatus = createdEmpires.Count == 0
+            var result = await IndependentColonyService.ConvertIndependentColoniesAsync(sectorId);
+            ApplyIndependentColonyConversion(sectorId, result);
+            sectorConfigurationStatus = result.Assignments.Count == 0
                 ? "No independent colonies needed conversion."
-                : $"Converted {createdEmpires.Count:N0} independent colon{(createdEmpires.Count == 1 ? "y" : "ies")} into empire{(createdEmpires.Count == 1 ? string.Empty : "s")}.";
+                : $"Created {result.CreatedEmpires.Count:N0} empire{(result.CreatedEmpires.Count == 1 ? string.Empty : "s")} and assigned {result.Assignments.Count:N0} colon{(result.Assignments.Count == 1 ? "y" : "ies")}.";
         }
         catch (InvalidOperationException ex)
         {
@@ -1796,16 +1814,16 @@
         }
     }
 
-    private void ApplyCreatedIndependentEmpires(int sectorId, IReadOnlyList<Empire> createdEmpires)
+    private void ApplyIndependentColonyConversion(int sectorId, IndependentColonyConversionResult result)
     {
-        if (createdEmpires.Count == 0)
+        if (result.Assignments.Count == 0)
         {
             return;
         }
 
         if (Workspace.Empires is IList<Empire> empireList)
         {
-            foreach (var empire in createdEmpires.Where(empire => empireList.All(existing => existing.Id != empire.Id)))
+            foreach (var empire in result.CreatedEmpires.Where(empire => empireList.All(existing => existing.Id != empire.Id)))
             {
                 empireList.Add(empire);
             }
@@ -1814,15 +1832,18 @@
         var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == sectorId);
         if (sector is not null)
         {
+            var assignmentsByColonyId = result.Assignments.ToDictionary(assignment => assignment.ColonyId);
             foreach (var colony in sector.Systems
                 .SelectMany(system => system.Worlds)
                 .Select(world => world.Colony)
                 .OfType<Colony>())
             {
-                var empire = createdEmpires.FirstOrDefault(item => item.Founding.FoundingColonyId == colony.Id);
-                if (empire is not null)
+                if (assignmentsByColonyId.TryGetValue(colony.Id, out var assignment))
                 {
-                    colony.ControllingEmpireId = empire.Id;
+                    colony.ControllingEmpireId = assignment.EmpireId;
+                    colony.FoundingEmpireId = assignment.EmpireId;
+                    colony.PoliticalStatus = ColonyPoliticalStatus.Controlled;
+                    colony.AllegianceName = assignment.EmpireName;
                 }
             }
 
@@ -1831,7 +1852,7 @@
                 SectorId = sector.Id,
                 Century = 0,
                 EventType = "Configuration",
-                Description = $"Converted {createdEmpires.Count:N0} independent colonies into empires."
+                Description = $"Created {result.CreatedEmpires.Count:N0} independent colony empires and assigned {result.Assignments.Count:N0} colonies."
             });
             sectorCacheBuilder.Invalidate(sector.Id);
         }
@@ -2574,10 +2595,12 @@
 
         var query = empireQuery.Trim();
         var homeWorld = FindWorld(empire.Founding.FoundingWorldId);
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
         return ContainsTimelineQuery(empire.Name, query)
             || ContainsTimelineQuery(empire.Id.ToString(), query)
             || ContainsTimelineQuery(empire.LegacyRaceId?.ToString(), query)
             || ContainsTimelineQuery(empire.ExpansionPolicy.ToString(), query)
+            || (IsFallenEmpire(empire, sector) && ContainsTimelineQuery("Fallen empire", query))
             || ContainsTimelineQuery(homeWorld?.Name, query)
             || empire.RaceMemberships.Any(membership =>
                 ContainsTimelineQuery(DisplayRace(membership.RaceId), query)
@@ -2628,6 +2651,28 @@
             .Where(listing => listing.Colony.IsControlledBy(empire.Id) || listing.Colony.FoundingEmpireId == empire.Id)
             .OrderByDescending(listing => listing.Colony.EstimatedPopulation)
             .ThenBy(listing => listing.World.Name);
+    }
+
+    private IEnumerable<ColonyListing> GetControlledEmpireColonies(Empire empire, StarWinSector sector)
+    {
+        return GetEmpireColonies(empire, sector)
+            .Where(listing => listing.Colony.IsControlledBy(empire.Id));
+    }
+
+    private bool IsFallenEmpire(Empire empire, StarWinSector sector)
+    {
+        var colonies = GetEmpireColonies(empire, sector).ToList();
+        if (colonies.Any(listing => listing.Colony.IsControlledBy(empire.Id)))
+        {
+            return false;
+        }
+
+        return colonies.Count > 0
+            || empire.Planets > 0
+            || empire.Moons > 0
+            || empire.SpaceHabitats > 0
+            || empire.NativePopulationMillions > 0
+            || empire.SubjectPopulationMillions > 0;
     }
 
     private ColonyListing? GetCapitalColony(Empire empire)

@@ -38,13 +38,18 @@ public sealed class Colony
 
     public ColonyEmpireRelationship GetRelationshipToEmpire(int empireId)
     {
-        if (PoliticalStatus == ColonyPoliticalStatus.Independent || AllegianceId == ushort.MaxValue)
-        {
-            return IsFoundedBy(empireId) ? ColonyEmpireRelationship.Independent : ColonyEmpireRelationship.NotInvolved;
-        }
-
         var foundedByEmpire = IsFoundedBy(empireId);
         var controlledByEmpire = IsControlledBy(empireId);
+
+        if (PoliticalStatus == ColonyPoliticalStatus.Independent || AllegianceId == ushort.MaxValue)
+        {
+            if (controlledByEmpire)
+            {
+                return foundedByEmpire ? ColonyEmpireRelationship.Owned : ColonyEmpireRelationship.Subjugated;
+            }
+
+            return foundedByEmpire ? ColonyEmpireRelationship.Independent : ColonyEmpireRelationship.NotInvolved;
+        }
 
         return (foundedByEmpire, controlledByEmpire) switch
         {
