@@ -485,7 +485,8 @@
         case "Worlds":
             <section class="content-grid">
                 <div class="record-list">
-                    <section class="record-filter-panel">
+                    <details class="record-filter-panel" open>
+                        <summary class="record-filter-summary">Search</summary>
                         <label>
                             Search
                             <input placeholder="Name, type, atmosphere..."
@@ -523,7 +524,7 @@
                             </label>
                         }
                         <button type="button" class="timeline-clear-button" @onclick="ClearWorldFilters">Clear filters</button>
-                    </section>
+                    </details>
                     @{
                         var worldWindow = GetFilteredExplorerWorldRecords(selectedSystem)
                             .Take(worldVisibleCount + 1)
@@ -701,7 +702,8 @@
         case "Colonies":
             <section class="content-grid">
                 <div class="record-list colony-record-list">
-                    <section class="record-filter-panel">
+                    <details class="record-filter-panel" open>
+                        <summary class="record-filter-summary">Search</summary>
                         <label>
                             Search
                             <input placeholder="World, class, race, empire..."
@@ -768,7 +770,7 @@
                             </label>
                         }
                         <button type="button" class="timeline-clear-button" @onclick="ClearColonyFilters">Clear filters</button>
-                    </section>
+                    </details>
                     @{
                         var colonyWindow = GetFilteredColonies(sectorCache!)
                             .Take(colonyVisibleCount + 1)
@@ -859,7 +861,8 @@
         case "Aliens":
             <section class="content-grid">
                 <div class="record-list">
-                    <section class="record-filter-panel">
+                    <details class="record-filter-panel" open>
+                        <summary class="record-filter-summary">Search</summary>
                         <label>
                             Search
                             <input placeholder="Name, biology, traits..."
@@ -902,7 +905,7 @@
                             </label>
                         }
                         <button type="button" class="timeline-clear-button" @onclick="ClearRaceFilters">Clear filters</button>
-                    </section>
+                    </details>
                     @{
                         var raceWindow = GetFilteredRaces(sectorRaces)
                             .Take(raceVisibleCount + 1)
@@ -1007,7 +1010,8 @@
         case "Empires":
             <section class="content-grid">
                 <div class="record-list">
-                    <section class="record-filter-panel">
+                    <details class="record-filter-panel" open>
+                        <summary class="record-filter-summary">Search</summary>
                         <label>
                             Search
                             <input placeholder="Name, policy, homeworld..."
@@ -1036,7 +1040,7 @@
                             </label>
                         }
                         <button type="button" class="timeline-clear-button" @onclick="ClearEmpireFilters">Clear filters</button>
-                    </section>
+                    </details>
                     @{
                         var empireWindow = GetFilteredEmpires(sectorEmpires)
                             .Take(empireVisibleCount + 1)

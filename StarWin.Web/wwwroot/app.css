@@ -1034,12 +1034,52 @@ dd {
 }
 
 .record-filter-panel {
+    position: sticky;
+    top: 0;
+    z-index: 5;
     display: grid;
     gap: 10px;
     border: 1px solid var(--line);
     border-radius: 8px;
-    background: rgba(3, 10, 24, 0.72);
+    background: rgba(3, 10, 24, 0.94);
     padding: 12px;
+    box-shadow: 0 14px 26px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(10px);
+}
+
+.record-filter-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: #dbeafe;
+    font-weight: 900;
+    list-style: none;
+    cursor: pointer;
+}
+
+.record-filter-summary::-webkit-details-marker {
+    display: none;
+}
+
+.record-filter-summary::after {
+    content: "-";
+    display: grid;
+    place-items: center;
+    width: 24px;
+    aspect-ratio: 1;
+    border: 1px solid rgba(125, 211, 252, 0.34);
+    border-radius: 6px;
+    color: var(--accent-strong);
+    font-weight: 900;
+}
+
+.record-filter-panel:not([open]) {
+    gap: 0;
+}
+
+.record-filter-panel:not([open]) .record-filter-summary::after {
+    content: "+";
 }
 
 .record-filter-panel label {

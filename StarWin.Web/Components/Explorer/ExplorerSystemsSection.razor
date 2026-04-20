@@ -3,7 +3,8 @@
 
 <section class="content-grid">
     <div class="record-list">
-        <section class="record-filter-panel">
+        <details class="record-filter-panel" open>
+            <summary class="record-filter-summary">Search</summary>
             <label>
                 Search
                 <input placeholder="Name, ID, coordinates..."
@@ -32,7 +33,7 @@
                 </label>
             }
             <button type="button" class="timeline-clear-button" @onclick="ClearSystemFilters">Clear filters</button>
-        </section>
+        </details>
         @{
             var systemWindow = SectorCache.SystemsByName
                 .Where(SystemMatches)
