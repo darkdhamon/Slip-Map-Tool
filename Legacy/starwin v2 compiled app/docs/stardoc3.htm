@@ -1,0 +1,254 @@
+<html>
+
+<head>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+<title>star generator</title>
+<meta name="generator" content="Namo WebEditor v4.0">
+<meta name="namo-theme" content="Plain Blue">
+<style><!--
+p { color:rgb(0,0,0); font-family:Arial;}
+h1 { color:rgb(0,64,128); font-size:12pt; font-family:Arial;}
+h2 { color:rgb(0,128,192); font-size:12pt; font-family:Arial;}
+p.namo-list { color:rgb(0,0,160); font-size:12pt; font-family:Arial;}
+p.namo-sublist { color:rgb(128,128,128); font-size:10pt; font-family:Arial;}
+--></style>
+<script language="JavaScript">
+<!--
+function na_change_img_src(name, nsdoc, rpath, preload)
+{ 
+  var img = eval((navigator.appName == 'Netscape') ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img) {
+    img.altsrc = img.src;
+    img.src    = rpath;
+  } 
+}
+
+function na_restore_img_src(name, nsdoc)
+{
+  var img = eval((navigator.appName == 'Netscape') ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img && img.altsrc) {
+    img.src    = img.altsrc;
+    img.altsrc = null;
+  } 
+}
+
+// -->
+</script>
+</head>
+
+<body bgcolor="white" text="#000000" link="#1768FF" vlink="gray" alink="#FF8000">
+<table align="center" border="0" width="100%">
+    <tr>
+        <td valign="top">
+            <p align="center"><b><font color="blue"><u>STAR GENERATOR</u></font></b></p>
+        </td>
+    </tr>
+    <tr>
+        <td valign="top" align="center">
+            <p>&nbsp;</p>
+            <!--NAMO_NAVBAR_START S h    -->
+<div>
+[<a href="stardoc1.htm">Index</a>]
+[<a href="stardoc2.htm">Star systems</a>]
+[star generator]
+[<a href="stardoc4.htm">alien races</a>]
+[<a href="stardoc5.htm">colonies</a>]
+[<a href="stardoc6.htm">miscleanous</a>]
+[<a href="stardoc7.htm">CivGen</a>]
+[<a href="stardoc8.htm">star browser</a>]
+[<a href="stardoc9.htm">Star Editor</a>]
+</div>
+            <!--NAMO_NAVBAR_END-->
+            <p>&nbsp;</p>
+        </td>
+    </tr>
+    <tr>
+        <td height="58" valign="top">
+            <p align="center">&nbsp;</p>
+            <table align="center" border="0" width="85%">
+                <tr>
+                    <td>
+<B><FONT color=#0000ff>Creating Star Systems</FONT></B> 
+<P>On the File  menu, click on <b>Generate</b><B> Sector</B>.<br> <img src="pics/Image1.jpg" width="231" height="218" border="0"><br>A dialog box will 
+appear with these informations:<br> <img src="pics/Image2.jpg" width="398" height="284" border="0"><BR><B>Name:</B> name of the file in which datas 
+will be stored<br> <b>File:</b> click on the edit box to change the file names 
+                        and the directory where they will be created. <BR><B>X, Y, Z:</B> coordinates of the first space zone 
+<BR><B>Density:</B> density of the sector (between 1 and 100 %) <BR><B>Size:</B> 
+length of the sector in Parsecs, default is 10 (a cube of 10x10x10 parsecs) 
+<BR><B>Gaia:</B> if checked there is a higher chance of Terran planets 
+<BR><B>New file:</B> if checked will erase any previous datas contained in the 
+file. If not will merge old systems <BR>with the new created ones. <BR><B>Tot al 
+disable:</B> to disable the creation of totally alien races. <BR><B>2D 
+Sector:</B> to create 2D sectors (Z coordinates set to 0, useful if you want to 
+create Traveller like maps). 
+<P>Create Sector will store datas in files that aren' t humanly readable. You 
+must create a <U>logfile</U> for a system or use Star Browser. 
+<P>I recommand you to store datafiles in the data directory, and not in the same 
+directory than Star Generator executable file. 
+<P><U>Coordinates:</U> 
+<P>The first space zone created will get the coordinates of (coX,coY,coZ) and 
+the last space zone coordinates will be (coX+9,coY+9,coZ+9) for a sector 
+size of 10. A space zone is a box of 1x1x1 parsec. 
+<P>1 parsec= 3.26 LY 
+<P><U>Density notes:</U> 
+                        <p>&nbsp;</p>
+<TABLE border=1>
+<TBODY>
+<TR>
+<TD>Rift</TD>
+<TD>1 %</TD></TR>
+<TR>
+<TD>Sparse</TD>
+<TD>3 %</TD></TR>
+<TR>
+<TD>Scattered</TD>
+<TD>5 %</TD></TR>
+<TR>
+<TD>Standard</TD>
+<TD>8 %</TD></TR>
+<TR>
+<TD>Dense</TD>
+<TD>15 %</TD></TR></TBODY></TABLE>
+<P>A density of 100% means a star system in each space zone. 
+<P><B><FONT color=#0000ff>Gaia parameter</FONT></B> 
+<P>A user of Star send me a request on how to have more often Terran worlds. 
+<BR>So I decided to include a Gaia parameter who increase the chance of 
+<BR>having Terran planets.Normally there are between 5 and 10 % of chance <BR>to 
+have habitable worlds,when you use the gaia parameter you increase <BR>the 
+chance to between 40 and 50 %. 
+<P>
+<HR width="100%">
+                        <br><b><font color="blue">New Sector</font></b>
+                        <p>By clicking on New Sector in the File menu you'll 
+                        generate a blank sector. It's useful if you want to 
+                        create manually a sector with Star Editor.</p>
+                        <hr>
+                        <p><b><font color="blue">Open Sector</font></b></p>
+                        <p>By clicking on Open file in the File menu, you'll 
+                        load a sector. </p>
+                        <hr>
+                        <p>&nbsp;</p>
+                        <p><A name=Logfiles></A><B><FONT color=#0000ff>Logfiles</FONT></B></p>
+ 
+<P>With the first version of Star generator, all datas were stored in logfiles,but with the program Sector generator that could handle thousand of star 
+systems, keeping logfiles for each star systems would have meaned using too much space disk. Now Star generator doesn't keep anymore logfiles, 
+                        with Browser you could view all the systems created without wasting 
+                        space disk. 
+<P><img src="pics/Image4.jpg" width="253" height="165" border="0"><br>But sometimes you could need to get these datas in an ASCII file (*.log). 
+It's the purpose of System Log and Alien Log (all in the Logs menu). You give the filename and Id 
+number of the star system (or alien race) and Star Generator will create a 
+logfile of the specific system under the log directory (or wherever you 
+want). <BR>With StarGenerator v1.56+ you could <A 
+href="./stardoc3.htm#RPG Conversion">convert</A> some of the alien characteristics to a 
+specific rpg system rules. Simply set the Output to the specific game (set 
+to Standard if you doesn't want any conversion). 
+<P>
+<HR width="100%">
+                        <br><A name=Sector></A><B><FONT color=#0000ff>Sector Report</FONT></B> 
+<P><img src="pics/Image3.jpg" width="309" height="159" border="0"><br>This utility will give all systems coordinates of a given sector in an ASCII 
+file (*.map) under the log directory. Miscleanous informations about the 
+sector (number and type of stars, planets, alien races...) are given at the 
+end of the file. <BR>With StarGen V1.6+ you could choose what to put in the 
+logfile.<br>&nbsp;
+                        <hr>
+                        <br><A name=colrpt></A><B><FONT color=#0000ff>Colonies Report</FONT></B></p>
+ 
+<P>By clicking on the Colonies Report in Logs menu you'll generate a logfile with a list 
+of colonies owned by a specific race (subjugated worlds are included).<br>&nbsp; 
+<HR width="100%">
+<br><A name=merger></A><B><FONT color=#0000ff>Merge Sector</FONT></B> 
+<P>With this utility (Utilities menu), you could merge a sector (<B>sector to add</B>) to the end 
+of another one (<B>Main sector)</B>. </P><HR width="100%">
+<BR><A name="Alien Generation"></A><B><FONT color=#0000ff>Alien 
+Generation</FONT></B> 
+<P>By clicking on the <B>Alien Gen</B> button, you will generate a new <a href="stardoc4.htm">alien 
+race</a> . A logfile with all its<br> characteristics will be saved under the 
+file name you gave.<br> </P>                        <HR width="100%">
+<BR><A name=Export></A><B><FONT color=#0000ff>MAP EXPORT</FONT></B> 
+<P>This little tool converts Star Generator datas to *.lst files that could be 
+imported to Chview. Chview is a software that draws 3D map of a local stellar 
+area. 
+<P>Chview could be downloaded at <A 
+href="http://members.nova.org/~sol/chview">http://members.nova.org/~sol/chview</A> 
+Chview is a property of Jo Grant and Ben Lin.<br>&nbsp; <HR width="100%">
+<BR><A name="RPG Conversion"></A><B><FONT color=#0000ff>RPG 
+Conversion</FONT></B> 
+<P>You have the possibility to convert alien race datas to a specific role 
+playing <BR>game system. All the converted characteristics are just after 
+standard alien datas <BR>in the ASCII logfile. 
+<P>The actually supported rpg are : 
+<P><B>Alternity</B> : copyright TSR 
+<P><B>Battlelords of the 23<SUP>rd</SUP> century</B> : copyright Optimus Design 
+System 
+<P><B>Fuzion</B> : copyright Fuzion Labs Group. The fabulous Atomik Alienz 
+plug-in is necessary (<A 
+href="http://www.meta-earth.com">http://www.meta-earth.com</A>). 
+<P><B>Gurps</B> : copyright Steve Jackson Games 
+<P><B>Space Master</B> : copyright Iron Crown Enterprise 
+<P>Some of the alien abilities are described in the different games rules, for 
+the others <BR>it's up to the GM to specify the ability effect on the rules. 
+<P><B>Alternity </B>: 
+<P>Psionic powers I : the alien Mindwalker has psionic energy points equal to 
+his Will <BR>scored x1.5, and a Diplomat with Mindwalker as his secondary 
+profession, has psionic <BR>energy poins equal to his Will. 
+<P>Psionic powers II : the alien Mindwalker has psionic energy points equal to 
+his Will <BR>scored x2, and a Diplomat with Mindwalker as his secondary 
+profession, has psionic <BR>energy poins equal to his Will.&nbsp; </P>                        
+<hr>
+<p>Starwin.ini</p>
+<p>This file hold some parameters used by the program.<br>Here are 
+the standard values:</p>
+<p><pre>
+[Stellar Probabilities]
+Pheno=1
+Misc=5
+A_II=9
+M_III=20
+F_IV=30
+F_V=115
+G_V=250
+K_V=260
+M_V=260
+F_VII=50
+
+[Alien Probabilities]
+Human=20
+Animal=30
+Reptile=15
+Insect=15
+Misc=15
+Exotic=5
+
+[Settings]
+Height=324
+Width=513
+Left=196
+Top=144
+
+[Browser Settings]
+Height=586
+Width=786
+Left=6
+Top=6
+
+</pre>                        <p>Stellar probabilities values represent the 
+                        probability to get a specific star as the main system 
+                        star.<br>The sum of all the values should always be 
+                        1000.</p>
+<p>Alien probabilities values represent the probability to get a type of species 
+                        for a standard world.<br>The sum of all the values should 
+                        always be 100.</p>
+<p>Settings and Browser Settings are the size and position of the applicarions.</p>
+</td>
+</tr>
+</table>
+<p align="center">&nbsp;</td>
+    </tr>
+</table>
+</body>
+
+</html>

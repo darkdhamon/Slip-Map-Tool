@@ -1,0 +1,33 @@
+Capital Ships: 
+     MT: Monitor 
+     SD: Super Dreadnought 
+     CVA: Capital Carrier 
+     FTA: Capital Freighter
+
+First line Ships: 
+     BB: Battleship 
+     BC: BattleCruiser 
+     CV: Carrier 
+     CA: Heavy Cruiser 
+     FT: Freighter 
+     AS: Assault Ship
+
+Second line Ships: 
+     FG: Frigate 
+     DD: Destroyer 
+     CL: Light Cruiser 
+     CVL: Light Carrier 
+     CVE: Escort Ship Carrier 
+     FTL: Light Freighter 
+     ASL: Light Assault Ship
+
+Fast Ships: 
+     ES: Escort Ship 
+     CT: Corvette
+
+Patrol Ships: Spaceship that couldn't travel between stars
+
+Bases:
+     PDC: Armored ground base
+     SB : Starbase	 	
+     BS : Battlestation

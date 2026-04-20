@@ -1,0 +1,2577 @@
+ Sector : Zelltar Sector
+ -------
+
+
+Alien Races
+***********
+
+   Id SysId   Appearance    TL  Government
+--------------------------------------------------------
+    0    27  Humanoid       5   Technocracy
+    1   114  Humanoid       1   Tribalism
+    2   117  Insectoid      1   Democracy
+    3   154  Totally alien  1   Theocracy
+    4   194  Totally alien  4   Bureaucracy
+    5   203  Humanoid       7   Republic
+    6   278  Insectoid      6   Bureaucracy
+    7   289  Humanoid       7   Corporation
+    8   323  Crustacean     7   Balkanization
+    9   391  Totally alien  7   Bureaucracy
+   10   418  Humanoid       3   Republic
+   11   452  Totally alien  7   Imperialism
+   12   452  Avian          7   Dictatorship
+   13   464  Totally alien  1   Theocracy
+   14   470  Humanoid       3   Imperialism
+   15   510  Insectoid      7   Republic
+   16   525  Humanoid       7   Theocracy
+   17   544  Liquid         1   Community
+   18   550  Centauroid     7   Syndicate
+   19   566  Insectoid      7   Technocracy
+   20   624  Humanoid       1   Monarchy
+   21   655  Totally alien  5   Theocracy
+   22   675  Totally alien  6   Imperialism
+   23   684  Ursoid         1   Balkanization
+   24   762  Insectoid      1   Monarchy
+   25   769  Humanoid       7   Theocracy
+   26   818  Amphibian      1   Theocracy
+   27   838  Totally alien  6   Republic
+   28   873  Insectoid      6   Technocracy
+   29   904  Humanoid       1   Balkanization
+   30   949  Avian          3   Corporation
+   31   959  Totally alien  1   Tribalism
+   32   975  Feline         3   Imperialism
+   33   992  Totally alien  1   Theocracy
+   34  1000  Humanoid       6   Monarchy
+   35  1035  Humanoid       1   Balkanization
+   36  1048  Totally alien  1   Anarchy
+   37  1081  Picthinine     3   Bureaucracy
+   38  1087  Totally alien  6   Republic
+   39  1162  Totally alien  7   Dictatorship
+   40  1217  Totally alien  5   Monarchy
+   41  1250  Humanoid       3   Theocracy
+   42  1280  Totally alien  7   Oligarchy
+   43  1338  Serpentile     6   Theocracy
+   44  1355  Totally alien  7   Republic
+   45  1355  Totally alien  1   Tribalism
+   46  1377  Totally alien  5   Corporation
+   47  1408  Totally alien  1   Tribalism
+   48  1475  Humanoid       3   Theocracy
+   49  1483  Totally alien  5   Theocracy
+   50  1527  Totally alien  6   Republic
+   51  1586  Porcine        1   Theocracy
+   52  1621  Humanoid       7   Bureaucracy
+   53  1776  Totally alien  6   Matriarchy
+   54  1817  Totally alien  1   Tribalism
+   55  1884  Totally alien  5   Imperialism
+   56  1929  Totally alien  1   Democracy
+   57  1993  Insectoid      3   Technocracy
+   58  2056  Totally alien  3   Theocracy
+   59  2129  Reptilian      5   Imperialism
+   60  2134  Rodent         7   Republic
+   61  2153  Reptilian      1   Monarchy
+   62  2164  Reptilian      7   Aristocracy
+   63  2271  Totally alien  7   Corporation
+   64  2278  Reptilian      3   Monarchy
+   65  2298  Totally alien  6   Oligarchy
+   66  2328  Serpentile     6   Monarchy
+   67  2332  Humanoid       5   Corporation
+   68  2337  Totally alien  3   Balkanization
+   69  2375  Reptilian      5   Monarchy
+   70  2385  Insectoid      6   Technocracy
+   71  2423  Totally alien  1   Balkanization
+   72  2432  Totally alien  6   Dictatorship
+   73  2434  Humanoid       5   Monarchy
+   74  2437  Humanoid       6   Monarchy
+   75  2469  Humanoid       8   Monarchy
+   76  2496  Totally alien  7   Republic
+   77  2530  Reptilian      6   Theocracy
+   78  2553  Humanoid       1   Democracy
+   79  2605  Totally alien  6   Technocracy
+   80  2616  Totally alien  1   Tribalism
+   81  2629  Totally alien  7   Corporation
+   82  2668  Vegetal        7   Technocracy
+   83  2676  Totally alien  4   Imperialism
+   84  2763  Humanoid       5   Imperialism
+   85  2770  Crustacean     2   Monarchy
+   86  2777  Totally alien  7   Technocracy
+   87  2781  Reptilian      5   Republic
+   88  2888  Porcine        7   Imperialism
+   89  2890  Avian          5   Bureaucracy
+   90  2893  Humanoid       1   Community
+   91  2983  Arachnid       1   Community
+   92  2988  Humanoid       5   Dictatorship
+   93  2991  Porcine        6   Theocracy
+   94  3000  Totally alien  7   Dictatorship
+   95  3038  Reptilian      5   Theocracy
+   96  3093  Totally alien  7   Bureaucracy
+   97  3112  Humanoid       3   Monarchy
+   98  3158  Rodent         1   Anarchy
+   99  3160  Totally alien  4   Oligarchy
+  100  3164  Feline         6   Dictatorship
+  101  3178  Porcine        3   Balkanization
+  102  3183  Totally alien  1   Tribalism
+  103  3267  Amphibian      7   Bureaucracy
+  104  3337  Mineral        6   Monarchy
+  105  3369  Humanoid       3   Theocracy
+  106  3382  Reptilian      3   Theocracy
+  107  3389  Humanoid       8   Dictatorship
+  108  3413  Totally alien  5   Stochastic
+  109  3432  Reptilian      3   Dictatorship
+  110  3451  Vegetal        1   Anarchy
+  111  3463  Reptilian      5   Balkanization
+  112  3472  Insectoid      6   Corporation
+  113  3493  Totally alien  1   Anarchy
+  114  3515  Totally alien  1   Anarchy
+  115  3548  Centauroid     7   Republic
+  116  3615  Insectoid      7   Republic
+  117  3657  Totally alien  6   Technocracy
+  118  3673  Totally alien  7   Dictatorship
+  119  3732  Animal         6   Imperialism
+  120  3761  Reptilian      7   Theocracy
+  121  3768  Serpentile     3   Corporation
+  122  3784  Totally alien  6   Theocracy
+  123  3868  Humanoid       7   Republic
+  124  3870  Totally alien  6   Imperialism
+  125  3871  Canine         7   Imperialism
+  126  3888  Crustacean     5   Imperialism
+  127  3956  Totally alien  1   Community
+  128  3967  Amphibian      1   Tribalism
+  129  3991  Animal         1   Community
+  130  4002  Humanoid       7   Imperialism
+  131  4040  Animal         1   Tribalism
+  132  4053  Totally alien  3   Dictatorship
+  133  4074  Canine         5   Technocracy
+  134  4127  Totally alien  3   Monarchy
+  135  4140  Humanoid       7   Bureaucracy
+  136  4154  Totally alien  5   Bureaucracy
+  137  4168  Porcine        7   Republic
+  138  4189  Rodent         6   Bureaucracy
+  139  4222  Humanoid       1   Democracy
+  140  4251  Totally alien  1   Tribalism
+  141  4267  Totally alien  7   Imperialism
+  142  4272  Humanoid       7   Dictatorship
+  143  4274  Totally alien  1   Tribalism
+  144  4277  Humanoid       6   Imperialism
+  145  4308  Totally alien  3   Bureaucracy
+  146  4320  Humanoid       1   Balkanization
+  147  4326  Canine         4   Dictatorship
+  148  4357  Insectoid      7   Dictatorship
+  149  4365  Insectoid      7   Corporation
+  150  4372  Feline         1   Theocracy
+  151  4431  Feline         6   Bureaucracy
+  152  4509  Totally alien  7   Bureaucracy
+  153  4578  Reptilian      3   Community
+  154  4578  Mineral        1   Monarchy
+  155  4698  Totally alien  6   Theocracy
+  156  4715  Insectoid      1   Community
+  157  4715  Reptilian      1   Anarchy
+  158  4757  Totally alien  1   Tribalism
+  159  4761  Totally alien  6   Technocracy
+  160  4766  Totally alien  7   Bureaucracy
+  161  4798  Totally alien  7   Dictatorship
+  162  4832  Totally alien  7   Bureaucracy
+  163  4899  Serpentile     5   Republic
+  164  4933  Insectoid      7   Theocracy
+  165  4943  Animal         7   Imperialism
+  166  4987  Vegetal        7   Technocracy
+  167  5003  Centauroid     7   Dictatorship
+  168  5016  Totally alien  7   Republic
+  169  5030  Totally alien  3   Balkanization
+  170  5067  Humanoid       7   Corporation
+  171  5075  Humanoid       7   Corporation
+  172  5157  Totally alien  4   Dictatorship
+  173  5204  Totally alien  7   Dictatorship
+  174  5238  Totally alien  1   Monarchy
+  175  5269  Reptilian      7   Bureaucracy
+  176  5269  Insectoid      5   Imperialism
+  177  5308  Totally alien  7   Republic
+  178  5344  Insectoid      7   Dictatorship
+  179  5347  Totally alien  4   Syndicate
+  180  5374  Insectoid      1   Monarchy
+  181  5397  Animal         1   Anarchy
+  182  5477  Reptilian      6   Balkanization
+  183  5485  Humanoid       6   Corporation
+  184  5491  Reptilian      6   Monarchy
+  185  5499  Totally alien  7   Oligarchy
+  186  5505  Reptilian      4   Republic
+  187  5547  Canine         3   Utopia
+  188  5557  Totally alien  1   Democracy
+  189  5570  Humanoid       3   Theocracy
+  190  5586  Reptilian      1   Monarchy
+  191  5654  Humanoid       1   Community
+  192  5679  Canine         7   Oligarchy
+  193  5701  Totally alien  6   Bureaucracy
+  194  5775  Totally alien  7   Corporation
+  195  5781  Centauroid     3   Republic
+  196  5906  Porcine        1   Anarchy
+  197  5909  Insectoid      6   Republic
+  198  5923  Reptilian      1   Anarchy
+  199  5967  Reptilian      1   Balkanization
+  200  5968  Totally alien  5   Technocracy
+  201  5969  Totally alien  7   Theocracy
+  202  5972  Reptilian      7   Corporation
+  203  5982  Totally alien  6   Bureaucracy
+  204  6028  Totally alien  4   Republic
+  205  6047  Ursoid         7   Technocracy
+  206  6063  Humanoid       7   Theocracy
+  207  6090  Totally alien  7   Theocracy
+  208  6225  Totally alien  5   Imperialism
+  209  6235  Humanoid       7   Monarchy
+  210  6249  Totally alien  4   Corporation
+  211  6301  Reptilian      7   Gerontocracy
+  212  6322  Totally alien  7   Bureaucracy
+  213  6351  Reptilian      7   Republic
+  214  6427  Totally alien  1   Community
+  215  6452  Totally alien  3   Bureaucracy
+  216  6460  Totally alien  6   Imperialism
+  217  6492  Totally alien  1   Democracy
+  218  6529  Totally alien  6   Monarchy
+  219  6537  Insectoid      5   Corporation
+  220  6551  Totally alien  1   Monarchy
+  221  6567  Totally alien  7   Bureaucracy
+  222  6619  Insectoid      6   Technocracy
+  223  6636  Mechanoid      6   Dictatorship
+  224  6657  Reptilian      5   Balkanization
+  225  6675  Totally alien  6   Technocracy
+  226  6703  Animal         5   Dictatorship
+  227  6812  Humanoid       7   Imperialism
+  228  6815  Canine         7   Imperialism
+  229  6878  Humanoid       6   Balkanization
+  230  6883  Totally alien  1   Monarchy
+  231  6889  Rodent         8   Republic
+  232  6934  Humanoid       7   Monarchy
+  233  7022  Humanoid       7   Theocracy
+  234  7132  Totally alien  5   Imperialism
+  235  7155  Crustacean     6   Ploutocracy
+  236  7200  Totally alien  3   Matriarchy
+  237  7257  Reptilian      1   Balkanization
+  238  7293  Animal         4   Balkanization
+  239  7311  Humanoid       6   Corporation
+  240  7347  Gaseous        5   Theocracy
+  241  7390  Humanoid       8   Matriarchy
+  242  7435  Insectoid      5   Technocracy
+  243  7458  Animal         7   Corporation
+  244  7488  Humanoid       3   Bureaucracy
+  245  7505  Humanoid       7   Monarchy
+  246  7517  Humanoid       7   Theocracy
+  247  7540  Totally alien  6   Technocracy
+  248  7588  Humanoid       5   Technocracy
+  249  7601  Humanoid       6   Balkanization
+  250  7653  Totally alien  6   Oligarchy
+  251  7782  Arachnid       1   Tribalism
+  252  7786  Totally alien  7   Technocracy
+  253  7825  Totally alien  1   Monarchy
+  254  7841  Humanoid       7   Technocracy
+  255  7846  Mineral        1   Anarchy
+  256  7850  Totally alien  7   Technocracy
+  257  7850  Mineral        3   Theocracy
+  258  7906  Rodent         7   Bureaucracy
+  259  7930  Animal         7   Gerontocracy
+  260  7933  Totally alien  7   Republic
+  261  7982  Insectoid      3   Bureaucracy
+  262  8030  Reptilian      5   Republic
+  263  8037  Humanoid       7   Technocracy
+  264  8115  Avian          3   Imperialism
+  265  8130  Insectoid      7   Republic
+  266  8159  Totally alien  3   Balkanization
+  267  8162  Reptilian      5   Imperialism
+  268  8197  Humanoid       7   Republic
+  269  8232  Totally alien  3   Corporation
+  270  8375  Serpentile     7   Imperialism
+  271  8388  Totally alien  1   Monarchy
+  272  8395  Reptilian      1   Theocracy
+  273  8397  Insectoid      4   Corporation
+  274  8404  Humanoid       6   Imperialism
+  275  8442  Reptilian      6   Dictatorship
+  276  8456  Reptilian      7   Republic
+  277  8475  Humanoid       7   Corporation
+  278  8499  Totally alien  6   Bureaucracy
+  279  8511  Humanoid       1   Community
+  280  8595  Humanoid       3   Monarchy
+  281  8647  Mineral        1   Balkanization
+  282  8685  Totally alien  6   Imperialism
+  283  8686  Insectoid      1   Balkanization
+  284  8711  Totally alien  1   Theocracy
+  285  8715  Insectoid      7   Technocracy
+  286  8733  Mineral        7   Monarchy
+  287  8744  Centauroid     6   Federation
+  288  8780  Totally alien  6   Republic
+  289  8780  Totally alien  1   Democracy
+  290  8798  Humanoid       4   Balkanization
+  291  8827  Totally alien  5   Monarchy
+  292  8855  Totally alien  3   Dictatorship
+  293  8918  Canine         7   Dictatorship
+  294  8960  Porcine        4   Ploutocracy
+  295  8972  Totally alien  7   Theocracy
+  296  8985  Ursoid         6   Theocracy
+  297  8987  Humanoid       3   Imperialism
+  298  9001  Totally alien  7   Republic
+  299  9045  Totally alien  4   Imperialism
+  300  9048  Totally alien  6   Bureaucracy
+  301  9105  Insectoid      6   Theocracy
+  302  9110  Mineral        7   Corporation
+  303  9131  Totally alien  1   Tribalism
+  304  9138  Totally alien  6   Monarchy
+  305  9140  Vegetal        5   Republic
+  306  9171  Totally alien  7   Theocracy
+  307  9214  Humanoid       3   Republic
+  308  9263  Totally alien  5   Ploutocracy
+  309  9330  Totally alien  5   Republic
+  310  9427  Totally alien  7   Dictatorship
+  311  9434  Totally alien  3   Matriarchy
+  312  9446  Totally alien  7   Meritocracy
+  313  9479  Arachnid       3   Dictatorship
+  314  9533  Totally alien  1   Tribalism
+  315  9535  Insectoid      5   Theocracy
+  316  9554  Totally alien  6   Theocracy
+  317  9651  Totally alien  6   Corporation
+  318  9698  Totally alien  6   Theocracy
+  319  9703  Reptilian      7   Bureaucracy
+  320  9712  Insectoid      6   Theocracy
+  321  9716  Insectoid      6   Corporation
+  322  9779  Centauroid     6   Imperialism
+  323  9784  Totally alien  1   Theocracy
+  324  9860  Totally alien  6   Monarchy
+  325  9908  Insectoid      6   Aristocracy
+  326  9934  Totally alien  7   Gerontocracy
+  327  9954  Totally alien  6   Dictatorship
+  328 10017  Totally alien  6   Republic
+  329 10029  Humanoid       7   Bureaucracy
+  330 10054  Totally alien  5   Republic
+  331 10063  Rodent         7   Corporation
+  332 10098  Humanoid       7   Oligarchy
+  333 10154  Feline         5   Dictatorship
+  334 10159  Mineral        1   Community
+  335 10178  Insectoid      5   Technocracy
+  336 10252  Humanoid       1   Tribalism
+  337 10323  Totally alien  7   Theocracy
+  338 10323  Picthinine     3   Theocracy
+  339 10331  Amphibian      7   Imperialism
+  340 10333  Insectoid      8   Bureaucracy
+  341 10336  Totally alien  3   Dictatorship
+  342 10413  Reptilian      6   Technocracy
+  343 10468  Reptilian      7   Gerontocracy
+  344 10500  Totally alien  1   Democracy
+  345 10535  Crustacean     6   Imperialism
+  346 10540  Animal         7   Theocracy
+  347 10552  Mineral        6   Imperialism
+  348 10553  Totally alien  5   Bureaucracy
+  349 10555  Crustacean     6   Monarchy
+  350 10574  Humanoid       6   Bureaucracy
+  351 10585  Mineral        6   Monarchy
+  352 10601  Humanoid       6   Syndicate
+  353 10616  Vegetal        6   Bureaucracy
+  354 10621  Totally alien  7   Imperialism
+  355 10623  Insectoid      3   Republic
+  356 10642  Totally alien  4   Imperialism
+  357 10644  Totally alien  7   Oligarchy
+  358 10663  Insectoid      7   Bureaucracy
+  359 10673  Insectoid      6   Dictatorship
+  360 10676  Humanoid       7   Imperialism
+  361 10725  Totally alien  1   Anarchy
+  362 10730  Totally alien  7   Dictatorship
+  363 10749  Humanoid       6   Balkanization
+  364 10764  Humanoid       7   Stochastic
+  365 10789  Humanoid       1   Community
+  366 10822  Humanoid       6   Federation
+  367 10842  Totally alien  1   Tribalism
+  368 10887  Reptilian      6   Imperialism
+  369 10954  Totally alien  1   Anarchy
+  370 11084  Totally alien  1   Balkanization
+  371 11102  Feline         1   Balkanization
+  372 11140  Totally alien  7   Technocracy
+  373 11149  Totally alien  4   Corporation
+  374 11179  Humanoid       7   Bureaucracy
+  375 11201  Humanoid       6   Aristocracy
+  376 11222  Reptilian      7   Technocracy
+  377 11264  Reptilian      7   Corporation
+  378 11269  Totally alien  7   Oligarchy
+  379 11276  Totally alien  3   Technocracy
+  380 11302  Reptilian      7   Bureaucracy
+  381 11350  Totally alien  7   Bureaucracy
+  382 11356  Humanoid       7   Bureaucracy
+  383 11362  Insectoid      1   Balkanization
+  384 11431  Humanoid       1   Democracy
+  385 11459  Humanoid       6   Republic
+  386 11470  Insectoid      1   Balkanization
+  387 11498  Totally alien  7   Oligarchy
+  388 11527  Humanoid       6   Technocracy
+  389 11534  Totally alien  3   Bureaucracy
+  390 11562  Totally alien  6   Imperialism
+  391 11636  Totally alien  7   Technocracy
+  392 11716  Totally alien  4   Corporation
+  393 11719  Reptilian      6   Republic
+  394 11720  Totally alien  3   Bureaucracy
+  395 11729  Animal         7   Republic
+  396 11732  Totally alien  4   Imperialism
+  397 11746  Totally alien  7   Imperialism
+  398 11749  Humanoid       6   Technocracy
+  399 11807  Totally alien  1   Anarchy
+  400 11849  Porcine        1   Theocracy
+  401 11904  Totally alien  1   Democracy
+  402 11924  Totally alien  1   Anarchy
+  403 11925  Humanoid       6   Dictatorship
+  404 11929  Reptilian      5   Theocracy
+  405 11954  Humanoid       8   Imperialism
+  406 11969  Reptilian      7   Corporation
+  407 11983  Insectoid      1   Community
+  408 12007  Totally alien  4   Dictatorship
+  409 12014  Totally alien  3   Technocracy
+  410 12016  Mineral        4   Balkanization
+  411 12027  Totally alien  7   Republic
+  412 12058  Humanoid       7   Republic
+  413 12063  Totally alien  7   Monarchy
+  414 12103  Totally alien  6   Balkanization
+  415 12108  Reptilian      7   Imperialism
+  416 12192  Energetic      7   Oligarchy
+  417 12195  Gaseous        5   Monarchy
+  418 12204  Totally alien  3   Dictatorship
+  419 12218  Animal         7   Theocracy
+  420 12231  Reptilian      6   Imperialism
+  421 12239  Totally alien  1   Tribalism
+  422 12274  Reptilian      7   Oligarchy
+  423 12276  Totally alien  4   Balkanization
+  424 12287  Totally alien  3   Theocracy
+  425 12379  Totally alien  5   Imperialism
+  426 12496  Totally alien  3   Monarchy
+  427 12566  Totally alien  5   Corporation
+  428 12570  Crustacean     1   Democracy
+  429 12605  Reptilian      5   Monarchy
+  430 12607  Canine         7   Republic
+  431 12644  Humanoid       7   Theocracy
+  432 12674  Porcine        6   Federation
+  433 12683  Liquid         1   Tribalism
+  434 12762  Totally alien  7   Republic
+  435 12780  Totally alien  7   Bureaucracy
+  436 12784  Humanoid       6   Imperialism
+  437 12807  Humanoid       4   Imperialism
+  438 12842  Totally alien  7   Bureaucracy
+  439 12855  Humanoid       7   Corporation
+  440 12864  Humanoid       7   Dictatorship
+  441 12884  Reptilian      6   Monarchy
+  442 12895  Insectoid      1   Anarchy
+  443 12978  Mineral        6   Corporation
+  444 13008  Totally alien  6   Dictatorship
+  445 13041  Crustacean     6   Syndicate
+  446 13063  Totally alien  7   Republic
+  447 13175  Totally alien  7   Theocracy
+  448 13177  Humanoid       7   Republic
+  449 13214  Reptilian      6   Balkanization
+  450 13232  Reptilian      1   Community
+  451 13252  Mineral        5   Technocracy
+  452 13260  Canine         1   Democracy
+  453 13310  Feline         4   Corporation
+  454 13359  Totally alien  7   Dictatorship
+  455 13370  Insectoid      7   Corporation
+  456 13412  Vegetal        7   Imperialism
+  457 13477  Picthinine     5   Dictatorship
+  458 13481  Totally alien  1   Democracy
+  459 13490  Humanoid       5   Monarchy
+  460 13522  Humanoid       1   Tribalism
+  461 13548  Humanoid       6   Dictatorship
+  462 13556  Vegetal        6   Balkanization
+  463 13558  Humanoid       7   Dictatorship
+  464 13590  Insectoid      7   Oligarchy
+  465 13593  Feline         1   Democracy
+  466 13598  Mineral        6   Republic
+  467 13608  Totally alien  5   Technocracy
+  468 13635  Totally alien  6   Dictatorship
+  469 13636  Humanoid       3   Dictatorship
+  470 13642  Totally alien  3   Dictatorship
+  471 13683  Humanoid       6   Imperialism
+  472 13745  Totally alien  4   Technocracy
+  473 13775  Insectoid      6   Dictatorship
+  474 13809  Rodent         5   Balkanization
+  475 13823  Canine         7   Technocracy
+  476 13885  Insectoid      5   Matriarchy
+  477 13885  Arachnid       3   Monarchy
+  478 13898  Totally alien  3   Anarchy
+  479 13918  Insectoid      6   Corporation
+  480 13951  Totally alien  3   Bureaucracy
+  481 13954  Totally alien  7   Bureaucracy
+  482 14003  Totally alien  7   Bureaucracy
+  483 14010  Totally alien  4   Oligarchy
+  484 14021  Totally alien  6   Technocracy
+  485 14044  Totally alien  7   Republic
+  486 14052  Totally alien  6   Technocracy
+  487 14062  Porcine        6   Bureaucracy
+  488 14079  Totally alien  7   Republic
+  489 14081  Reptilian      5   Balkanization
+  490 14167  Animal         1   Democracy
+  491 14199  Vegetal        6   Monarchy
+  492 14235  Insectoid      7   Technocracy
+  493 14257  Amphibian      7   Dictatorship
+  494 14257  Rodent         1   Tribalism
+  495 14267  Reptilian      7   Theocracy
+  496 14291  Totally alien  6   Corporation
+  497 14374  Rodent         7   Bureaucracy
+  498 14393  Totally alien  3   Utopia
+  499 14399  Amphibian      1   Theocracy
+  500 14414  Humanoid       5   Technocracy
+  501 14424  Totally alien  5   Dictatorship
+  502 14537  Totally alien  3   Dictatorship
+  503 14538  Mineral        1   Theocracy
+  504 14547  Gaseous        1   Community
+  505 14548  Porcine        4   Theocracy
+  506 14555  Totally alien  3   Aristocracy
+  507 14585  Totally alien  6   Dictatorship
+  508 14639  Totally alien  1   Community
+  509 14652  Humanoid       3   Imperialism
+  510 14677  Mineral        6   Ploutocracy
+  511 14688  Humanoid       7   Imperialism
+  512 14717  Ursoid         1   Anarchy
+  513 14723  Humanoid       1   Democracy
+  514 14727  Porcine        1   Monarchy
+  515 14783  Humanoid       5   Meritocracy
+  516 14844  Reptilian      5   Corporation
+  517 14930  Totally alien  7   Dictatorship
+  518 14970  Reptilian      7   Dictatorship
+  519 14973  Totally alien  1   Anarchy
+  520 14975  Reptilian      5   Republic
+  521 15005  Canine         7   Federation
+  522 15050  Insectoid      3   Theocracy
+  523 15063  Totally alien  1   Monarchy
+  524 15079  Humanoid       7   Bureaucracy
+  525 15096  Crustacean     4   Balkanization
+  526 15128  Mineral        7   Monarchy
+  527 15152  Insectoid      7   Balkanization
+  528 15153  Serpentile     1   Community
+  529 15169  Mineral        4   Imperialism
+  530 15178  Totally alien  7   Theocracy
+  531 15202  Reptilian      5   Dictatorship
+  532 15243  Totally alien  1   Monarchy
+  533 15244  Totally alien  7   Theocracy
+  534 15249  Rodent         7   Dictatorship
+  535 15267  Totally alien  7   Republic
+  536 15384  Insectoid      1   Monarchy
+  537 15399  Humanoid       1   Balkanization
+  538 15414  Humanoid       1   Theocracy
+  539 15431  Humanoid       3   Ploutocracy
+  540 15444  Totally alien  4   Balkanization
+  541 15477  Feline         7   Meritocracy
+  542 15488  Totally alien  3   Corporation
+  543 15579  Humanoid       6   Dictatorship
+  544 15627  Totally alien  7   Imperialism
+  545 15628  Totally alien  6   Balkanization
+  546 15632  Amphibian      3   Balkanization
+  547 15643  Insectoid      1   Community
+  548 15648  Vegetal        6   Theocracy
+  549 15654  Humanoid       7   Oligarchy
+  550 15660  Totally alien  5   Oligarchy
+  551 15672  Serpentile     4   Syndicate
+  552 15675  Totally alien  6   Bureaucracy
+  553 15687  Mineral        3   Balkanization
+  554 15733  Humanoid       1   Theocracy
+  555 15748  Totally alien  3   Balkanization
+  556 15770  Reptilian      6   Theocracy
+  557 15825  Canine         4   Imperialism
+  558 15832  Humanoid       7   Monarchy
+  559 15845  Totally alien  3   Monarchy
+  560 15934  Totally alien  6   Bureaucracy
+  561 15943  Humanoid       1   Theocracy
+  562 15960  Totally alien  7   Monarchy
+  563 15969  Rodent         7   Corporation
+  564 15982  Animal         3   Dictatorship
+  565 15995  Totally alien  5   Corporation
+  566 16011  Amphibian      7   Republic
+  567 16018  Serpentile     7   Bureaucracy
+  568 16027  Picthinine     3   Dictatorship
+  569 16127  Totally alien  1   Tribalism
+  570 16156  Insectoid      3   Oligarchy
+  571 16184  Humanoid       7   Theocracy
+  572 16191  Amphibian      1   Monarchy
+  573 16208  Insectoid      7   Imperialism
+  574 16240  Gaseous        7   Technocracy
+  575 16252  Totally alien  7   Imperialism
+  576 16269  Totally alien  7   Dictatorship
+  577 16282  Centauroid     4   Technocracy
+  578 16338  Totally alien  1   Community
+  579 16371  Humanoid       7   Gaming Oligarchy
+  580 16395  Reptilian      4   Republic
+  581 16464  Insectoid      6   Aristocracy
+  582 16469  Mineral        1   Tribalism
+  583 16495  Insectoid      3   Imperialism
+  584 16503  Totally alien  1   Theocracy
+  585 16549  Humanoid       6   Dictatorship
+  586 16561  Reptilian      8   Technocracy
+  587 16571  Totally alien  6   Dictatorship
+  588 16599  Reptilian      1   Democracy
+  589 16691  Mineral        8   Theocracy
+  590 16783  Reptilian      7   Aristocracy
+  591 16802  Totally alien  7   Dictatorship
+  592 16889  Totally alien  7   Imperialism
+  593 16899  Arachnid       6   Imperialism
+  594 16905  Humanoid       7   Imperialism
+  595 16943  Serpentile     1   Theocracy
+  596 16965  Totally alien  1   Balkanization
+  597 16983  Totally alien  1   Monarchy
+  598 17010  Humanoid       4   Dictatorship
+  599 17035  Humanoid       8   Dictatorship
+  600 17048  Vegetal        6   Syndicate
+  601 17053  Humanoid       1   Balkanization
+  602 17066  Totally alien  7   Republic
+  603 17086  Humanoid       7   Bureaucracy
+  604 17093  Reptilian      6   Oligarchy
+  605 17143  Humanoid       7   Technocracy
+  606 17281  Vegetal        7   Technocracy
+  607 17300  Mineral        7   Republic
+  608 17309  Rodent         1   Monarchy
+  609 17349  Porcine        7   Bureaucracy
+  610 17350  Mechanoid      6   Corporation
+  611 17409  Reptilian      7   Gerontocracy
+  612 17419  Humanoid       1   Anarchy
+  613 17422  Feline         3   Oligarchy
+  614 17485  Totally alien  5   Theocracy
+  615 17503  Mineral        6   Corporation
+  616 17518  Totally alien  7   Meritocracy
+  617 17526  Reptilian      1   Anarchy
+  618 17541  Avian          7   Republic
+  619 17564  Humanoid       4   Corporation
+  620 17587  Reptilian      7   Bureaucracy
+  621 17600  Rodent         7   Bureaucracy
+  622 17601  Avian          6   Dictatorship
+  623 17602  Humanoid       6   Dictatorship
+  624 17633  Humanoid       7   Technocracy
+  625 17654  Insectoid      1   Anarchy
+  626 17657  Totally alien  6   Bureaucracy
+  627 17697  Reptilian      3   Bureaucracy
+  628 17775  Insectoid      6   Monarchy
+  629 17854  Totally alien  5   Dictatorship
+  630 17861  Insectoid      7   Theocracy
+  631 17863  Totally alien  5   Technocracy
+  632 17869  Totally alien  7   Imperialism
+  633 17875  Feline         6   Technocracy
+  634 17976  Totally alien  7   Matriarchy
+  635 17992  Animal         1   Anarchy
+  636 18014  Totally alien  5   Dictatorship
+  637 18029  Arachnid       1   Tribalism
+  638 18039  Reptilian      7   Dictatorship
+  639 18114  Totally alien  1   Balkanization
+  640 18152  Totally alien  7   Gerontocracy
+  641 18159  Totally alien  7   Imperialism
+  642 18182  Rodent         3   Bureaucracy
+  643 18209  Centauroid     6   Monarchy
+  644 18228  Insectoid      1   Democracy
+  645 18258  Humanoid       7   Monarchy
+  646 18289  Avian          1   Community
+  647 18325  Crustacean     6   Imperialism
+  648 18363  Vegetal        6   Republic
+  649 18426  Porcine        6   Balkanization
+  650 18478  Insectoid      6   Meritocracy
+  651 18481  Humanoid       1   Tribalism
+  652 18497  Porcine        6   Monarchy
+  653 18566  Humanoid       6   Technocracy
+  654 18574  Reptilian      1   Tribalism
+  655 18634  Totally alien  1   Anarchy
+  656 18656  Totally alien  7   Dictatorship
+  657 18724  Serpentile     7   Balkanization
+  658 18731  Humanoid       7   Meritocracy
+  659 18751  Humanoid       7   Corporation
+  660 18755  Totally alien  7   Imperialism
+  661 18782  Insectoid      7   Bureaucracy
+  662 18782  Totally alien  4   Republic
+  663 18820  Totally alien  7   Corporation
+  664 18913  Totally alien  6   Bureaucracy
+  665 18914  Humanoid       6   Imperialism
+  666 18925  Humanoid       7   Oligarchy
+  667 18940  Totally alien  6   Theocracy
+  668 19026  Gaseous        4   Balkanization
+  669 19044  Amphibian      3   Monarchy
+  670 19071  Porcine        7   Imperialism
+  671 19172  Totally alien  6   Ploutocracy
+  672 19257  Humanoid       7   Oligarchy
+  673 19308  Feline         6   Dictatorship
+  674 19361  Serpentile     7   Corporation
+  675 19400  Reptilian      7   Dictatorship
+  676 19457  Totally alien  4   Monarchy
+  677 19457  Humanoid       6   Dictatorship
+  678 19468  Totally alien  1   Community
+  679 19482  Mineral        6   Balkanization
+  680 19523  Animal         7   Corporation
+  681 19576  Reptilian      7   Theocracy
+  682 19627  Totally alien  7   Corporation
+  683 19629  Totally alien  7   Imperialism
+  684 19648  Humanoid       6   Dictatorship
+  685 19670  Totally alien  5   Corporation
+  686 19700  Amphibian      4   Theocracy
+  687 19702  Humanoid       1   Democracy
+  688 19714  Humanoid       6   Theocracy
+  689 19726  Centauroid     6   Republic
+  690 19741  Canine         7   Corporation
+  691 19780  Animal         1   Community
+  692 19821  Arachnid       6   Republic
+  693 19828  Totally alien  6   Theocracy
+  694 19835  Humanoid       6   Oligarchy
+  695 19873  Serpentile     1   Tribalism
+  696 19883  Insectoid      7   Imperialism
+  697 19905  Humanoid       1   Democracy
+  698 19956  Humanoid       4   Monarchy
+  699 19970  Totally alien  6   Republic
+  700 20021  Totally alien  7   Theocracy
+  701 20053  Totally alien  6   Monarchy
+  702 20059  Insectoid      7   Dictatorship
+  703 20064  Humanoid       7   Ploutocracy
+  704 20065  Mineral        3   Bureaucracy
+  705 20079  Reptilian      1   Monarchy
+  706 20315  Totally alien  3   Imperialism
+  707 20336  Totally alien  7   Corporation
+  708 20392  Canine         1   Community
+  709 20396  Totally alien  7   Republic
+  710 20445  Totally alien  1   Monarchy
+  711 20448  Amphibian      1   Democracy
+  712 20490  Humanoid       4   Balkanization
+  713 20508  Insectoid      7   Imperialism
+  714 20513  Reptilian      7   Corporation
+  715 20579  Serpentile     7   Bureaucracy
+  716 20598  Mineral        3   Theocracy
+  717 20661  Reptilian      7   Dictatorship
+  718 20683  Totally alien  5   Technocracy
+  719 20687  Reptilian      6   Bureaucracy
+  720 20736  Humanoid       7   Bureaucracy
+  721 20768  Totally alien  7   Theocracy
+  722 20777  Feline         6   Oligarchy
+  723 20897  Humanoid       6   Corporation
+  724 20902  Reptilian      6   Monarchy
+  725 20903  Reptilian      1   Monarchy
+  726 20910  Canine         7   Republic
+  727 20914  Totally alien  7   Meritocracy
+  728 20936  Humanoid       7   Corporation
+  729 20939  Reptilian      8   Republic
+  730 20939  Totally alien  3   Technocracy
+  731 20968  Mineral        7   Theocracy
+  732 20976  Totally alien  1   Democracy
+  733 21096  Totally alien  6   Dictatorship
+  734 21121  Rodent         3   Dictatorship
+  735 21135  Reptilian      7   Theocracy
+  736 21208  Humanoid       4   Technocracy
+  737 21218  Humanoid       3   Corporation
+  738 21244  Totally alien  5   Oligarchy
+  739 21247  Totally alien  1   Democracy
+  740 21264  Totally alien  7   Republic
+  741 21273  Totally alien  3   Syndicate
+  742 21274  Totally alien  7   Technocracy
+  743 21278  Reptilian      1   Theocracy
+  744 21357  Totally alien  7   Bureaucracy
+  745 21364  Picthinine     7   Technocracy
+  746 21382  Totally alien  1   Tribalism
+  747 21385  Arachnid       1   Balkanization
+  748 21392  Reptilian      3   Theocracy
+  749 21395  Reptilian      6   Technocracy
+  750 21450  Totally alien  1   Monarchy
+  751 21543  Porcine        5   Meritocracy
+  752 21584  Reptilian      7   Theocracy
+  753 21602  Totally alien  1   Balkanization
+  754 21607  Totally alien  7   Theocracy
+  755 21727  Arachnid       5   Republic
+  756 21742  Totally alien  4   Balkanization
+  757 21745  Humanoid       7   Technocracy
+  758 21774  Reptilian      6   Monarchy
+  759 21776  Totally alien  7   Theocracy
+  760 21789  Reptilian      6   Theocracy
+  761 21795  Totally alien  3   Gaming Oligarchy
+  762 21821  Humanoid       6   Dictatorship
+  763 21836  Arachnid       7   Gerontocracy
+  764 21921  Reptilian      6   Oligarchy
+  765 21944  Picthinine     1   Anarchy
+  766 21944  Totally alien  1   Democracy
+  767 21978  Reptilian      1   Balkanization
+  768 22055  Rodent         7   Corporation
+  769 22084  Reptilian      6   Imperialism
+  770 22090  Humanoid       7   Corporation
+  771 22123  Totally alien  7   Dictatorship
+  772 22130  Mineral        7   Bureaucracy
+  773 22137  Totally alien  1   Democracy
+  774 22137  Totally alien  4   Bureaucracy
+  775 22164  Totally alien  5   Monarchy
+  776 22216  Totally alien  6   Theocracy
+  777 22230  Rodent         7   Bureaucracy
+  778 22260  Humanoid       1   Anarchy
+  779 22265  Arachnid       5   Monarchy
+  780 22319  Totally alien  7   Gaming Oligarchy
+  781 22319  Humanoid       3   Monarchy
+  782 22340  Totally alien  7   Bureaucracy
+  783 22351  Humanoid       7   Gerontocracy
+  784 22374  Totally alien  6   Monarchy
+  785 22384  Totally alien  6   Theocracy
+  786 22437  Humanoid       1   Anarchy
+  787 22453  Totally alien  4   Imperialism
+  788 22467  Rodent         7   Balkanization
+  789 22509  Crustacean     1   Monarchy
+  790 22517  Totally alien  7   Imperialism
+  791 22554  Totally alien  1   Anarchy
+  792 22563  Geometric      3   Technocracy
+  793 22569  Insectoid      7   Technocracy
+  794 22575  Centauroid     4   Technocracy
+  795 22595  Reptilian      6   Republic
+  796 22600  Reptilian      7   Republic
+  797 22602  Humanoid       7   Corporation
+  798 22621  Totally alien  4   Imperialism
+  799 22626  Porcine        5   Theocracy
+  800 22635  Insectoid      6   Balkanization
+  801 22636  Totally alien  7   Republic
+  802 22665  Centauroid     2   Balkanization
+  803 22712  Insectoid      1   Theocracy
+  804 22715  Humanoid       3   Stochastic
+  805 22731  Totally alien  1   Anarchy
+  806 22760  Animal         7   Imperialism
+  807 22786  Avian          7   Balkanization
+  808 22790  Totally alien  7   Stochastic
+  809 22898  Animal         7   Technocracy
+  810 22936  Totally alien  7   Republic
+  811 22940  Totally alien  1   Theocracy
+  812 22943  Totally alien  5   Imperialism
+  813 23037  Humanoid       6   Republic
+  814 23057  Reptilian      6   Republic
+  815 23077  Totally alien  8   Technocracy
+  816 23085  Mineral        6   Technocracy
+  817 23094  Centauroid     4   Technocracy
+  818 23146  Totally alien  1   Theocracy
+  819 23155  Vegetal        7   Dictatorship
+  820 23172  Totally alien  7   Corporation
+  821 23198  Totally alien  6   Republic
+  822 23214  Reptilian      8   Theocracy
+  823 23238  Totally alien  1   Tribalism
+  824 23265  Totally alien  3   Theocracy
+  825 23307  Reptilian      7   Dictatorship
+  826 23316  Totally alien  5   Balkanization
+  827 23351  Totally alien  7   Theocracy
+  828 23353  Totally alien  7   Meritocracy
+  829 23418  Humanoid       7   Bureaucracy
+  830 23422  Reptilian      7   Corporation
+  831 23429  Humanoid       3   Syndicate
+  832 23487  Totally alien  6   Technocracy
+  833 23490  Totally alien  6   Monarchy
+  834 23495  Crustacean     6   Syndicate
+  835 23533  Humanoid       7   Theocracy
+  836 23552  Totally alien  7   Technocracy
+  837 23565  Totally alien  3   Monarchy
+  838 23609  Humanoid       3   Imperialism
+  839 23627  Totally alien  5   Balkanization
+  840 23630  Totally alien  7   Dictatorship
+  841 23644  Totally alien  3   Bureaucracy
+  842 23705  Totally alien  7   Technocracy
+  843 23710  Reptilian      3   Balkanization
+  844 23775  Totally alien  3   Imperialism
+  845 23778  Totally alien  4   Theocracy
+  846 23781  Humanoid       1   Monarchy
+  847 23857  Totally alien  6   Technocracy
+  848 23865  Totally alien  4   Dictatorship
+  849 23873  Reptilian      6   Oligarchy
+  850 23911  Totally alien  7   Oligarchy
+  851 23966  Insectoid      7   Theocracy
+  852 23990  Totally alien  7   Dictatorship
+  853 24001  Humanoid       7   Technocracy
+  854 24035  Totally alien  7   Imperialism
+  855 24037  Totally alien  7   Dictatorship
+  856 24052  Humanoid       4   Dictatorship
+  857 24088  Porcine        1   Democracy
+  858 24138  Reptilian      6   Republic
+  859 24141  Totally alien  6   Technocracy
+  860 24160  Totally alien  3   Dictatorship
+  861 24165  Totally alien  3   Gerontocracy
+  862 24186  Humanoid       7   Dictatorship
+  863 24187  Totally alien  7   Ploutocracy
+  864 24191  Humanoid       7   Ploutocracy
+  865 24228  Humanoid       4   Bureaucracy
+  866 24231  Insectoid      7   Oligarchy
+  867 24231  Humanoid       1   Balkanization
+  868 24249  Animal         6   Bureaucracy
+  869 24258  Feline         7   Bureaucracy
+  870 24264  Reptilian      4   Bureaucracy
+  871 24266  Geometric      7   Dictatorship
+  872 24322  Centauroid     6   Dictatorship
+  873 24456  Totally alien  6   Imperialism
+  874 24500  Totally alien  7   Republic
+  875 24506  Humanoid       1   Anarchy
+  876 24515  Totally alien  7   Bureaucracy
+  877 24525  Totally alien  3   Technocracy
+  878 24567  Centauroid     3   Monarchy
+  879 24605  Feline         7   Corporation
+  880 24617  Arachnid       7   Bureaucracy
+  881 24636  Porcine        6   Technocracy
+  882 24667  Humanoid       3   Dictatorship
+  883 24703  Humanoid       5   Imperialism
+  884 24721  Humanoid       6   Technocracy
+  885 24727  Insectoid      5   Dictatorship
+  886 24764  Totally alien  5   Technocracy
+  887 24818  Totally alien  6   Theocracy
+  888 24836  Reptilian      6   Dictatorship
+  889 24840  Totally alien  6   Balkanization
+  890 24846  Totally alien  1   Community
+  891 24866  Totally alien  7   Monarchy
+  892 24896  Totally alien  3   Oligarchy
+  893 24898  Reptilian      7   Technocracy
+  894 24899  Humanoid       3   Monarchy
+  895 24917  Totally alien  1   Theocracy
+  896 24953  Totally alien  7   Syndicate
+  897 24970  Liquid         3   Bureaucracy
+  898 25074  Totally alien  4   Corporation
+  899 25130  Humanoid       6   Meritocracy
+  900 25146  Totally alien  6   Theocracy
+  901 25181  Rodent         5   Theocracy
+  902 25211  Totally alien  7   Technocracy
+  903 25236  Humanoid       1   Balkanization
+  904 25286  Humanoid       6   Balkanization
+  905 25321  Reptilian      7   Imperialism
+  906 25339  Totally alien  3   Imperialism
+  907 25341  Reptilian      7   Monarchy
+  908 25344  Reptilian      7   Balkanization
+  909 25357  Humanoid       7   Imperialism
+  910 25387  Totally alien  7   Bureaucracy
+  911 25402  Totally alien  1   Theocracy
+  912 25435  Humanoid       7   Corporation
+  913 25442  Insectoid      3   Theocracy
+  914 25443  Reptilian      6   Corporation
+  915 25479  Humanoid       1   Balkanization
+  916 25480  Avian          1   Theocracy
+  917 25565  Totally alien  1   Monarchy
+  918 25573  Totally alien  6   Dictatorship
+  919 25611  Humanoid       1   Anarchy
+  920 25726  Reptilian      1   Tribalism
+  921 25756  Avian          1   Theocracy
+  922 25772  Humanoid       1   Monarchy
+  923 25779  Totally alien  5   Technocracy
+  924 25780  Humanoid       6   Dictatorship
+  925 25789  Humanoid       7   Matriarchy
+  926 25813  Totally alien  1   Democracy
+  927 25900  Canine         5   Monarchy
+  928 25970  Crustacean     1   Theocracy
+  929 25979  Totally alien  7   Technocracy
+  930 25984  Totally alien  6   Balkanization
+  931 25991  Reptilian      7   Matriarchy
+  932 26056  Humanoid       7   Oligarchy
+  933 26069  Totally alien  3   Republic
+  934 26079  Humanoid       3   Balkanization
+  935 26096  Serpentile     1   Anarchy
+  936 26136  Humanoid       7   Gerontocracy
+  937 26150  Reptilian      2   Democracy
+  938 26162  Totally alien  1   Tribalism
+  939 26226  Mineral        7   Oligarchy
+  940 26242  Totally alien  6   Republic
+  941 26261  Totally alien  7   Bureaucracy
+  942 26265  Porcine        3   Balkanization
+  943 26300  Reptilian      1   Democracy
+  944 26312  Reptilian      1   Democracy
+  945 26325  Totally alien  3   Dictatorship
+  946 26334  Centauroid     1   Anarchy
+  947 26350  Totally alien  1   Democracy
+  948 26390  Totally alien  1   Anarchy
+  949 26421  Totally alien  7   Theocracy
+  950 26445  Canine         7   Theocracy
+  951 26447  Totally alien  7   Bureaucracy
+  952 26456  Insectoid      3   Oligarchy
+  953 26470  Mineral        3   Monarchy
+  954 26497  Humanoid       7   Technocracy
+  955 26506  Animal         7   Dictatorship
+  956 26530  Totally alien  3   Federation
+  957 26551  Totally alien  1   Theocracy
+  958 26689  Totally alien  6   Dictatorship
+  959 26696  Serpentile     1   Anarchy
+  960 26726  Totally alien  7   Imperialism
+  961 26768  Reptilian      5   Bureaucracy
+  962 26775  Totally alien  5   Meritocracy
+  963 26780  Insectoid      7   Technocracy
+  964 26796  Humanoid       2   Community
+  965 26808  Serpentile     7   Theocracy
+  966 26810  Canine         6   Balkanization
+  967 26813  Mineral        5   Monarchy
+  968 26815  Insectoid      1   Community
+  969 26817  Totally alien  7   Dictatorship
+  970 26819  Feline         7   Republic
+  971 26820  Humanoid       1   Balkanization
+  972 26855  Humanoid       3   Technocracy
+  973 26940  Reptilian      6   Dictatorship
+  974 26963  Humanoid       1   Balkanization
+  975 26970  Totally alien  1   Monarchy
+  976 26980  Mineral        1   Balkanization
+  977 27013  Totally alien  7   Bureaucracy
+  978 27087  Vegetal        7   Bureaucracy
+  979 27101  Totally alien  6   Dictatorship
+  980 27113  Vegetal        7   Imperialism
+  981 27125  Insectoid      1   Anarchy
+  982 27128  Totally alien  5   Bureaucracy
+  983 27141  Mechanoid      6   Balkanization
+  984 27162  Humanoid       7   Bureaucracy
+  985 27259  Totally alien  3   Republic
+  986 27300  Centauroid     7   Imperialism
+  987 27309  Totally alien  6   Monarchy
+  988 27366  Totally alien  3   Syndicate
+  989 27377  Totally alien  7   Monarchy
+  990 27397  Rodent         6   Balkanization
+  991 27443  Totally alien  6   Balkanization
+  992 27493  Totally alien  1   Balkanization
+  993 27517  Insectoid      7   Republic
+  994 27546  Avian          7   Technocracy
+  995 27547  Porcine        3   Community
+  996 27549  Humanoid       7   Bureaucracy
+  997 27555  Mineral        4   Republic
+  998 27562  Humanoid       8   Technocracy
+  999 27571  Totally alien  7   Imperialism
+ 1000 27575  Totally alien  3   Theocracy
+ 1001 27677  Totally alien  6   Imperialism
+ 1002 27780  Totally alien  3   Ploutocracy
+ 1003 27783  Humanoid       1   Theocracy
+ 1004 27794  Centauroid     1   Democracy
+ 1005 27823  Mineral        8   Theocracy
+ 1006 27884  Humanoid       1   Balkanization
+ 1007 27911  Humanoid       6   Bureaucracy
+ 1008 27936  Humanoid       1   Tribalism
+ 1009 28023  Centauroid     6   Balkanization
+ 1010 28051  Animal         6   Theocracy
+ 1011 28061  Porcine        1   Balkanization
+ 1012 28208  Animal         1   Community
+ 1013 28286  Arachnid       7   Corporation
+ 1014 28303  Totally alien  7   Dictatorship
+ 1015 28333  Mineral        7   Corporation
+ 1016 28337  Reptilian      1   Democracy
+ 1017 28359  Picthinine     1   Theocracy
+ 1018 28400  Humanoid       1   Community
+ 1019 28447  Totally alien  6   Meritocracy
+ 1020 28456  Arachnid       7   Dictatorship
+ 1021 28517  Crustacean     1   Balkanization
+ 1022 28526  Totally alien  7   Matriarchy
+ 1023 28655  Totally alien  1   Democracy
+ 1024 28666  Arachnid       7   Theocracy
+ 1025 28694  Reptilian      4   Balkanization
+ 1026 28703  Humanoid       3   Corporation
+ 1027 28715  Animal         1   Theocracy
+ 1028 28744  Humanoid       1   Theocracy
+ 1029 28758  Feline         8   Dictatorship
+ 1030 28790  Totally alien  1   Tribalism
+ 1031 28845  Totally alien  1   Anarchy
+ 1032 28851  Humanoid       1   Tribalism
+ 1033 28901  Reptilian      1   Tribalism
+ 1034 28920  Vegetal        7   Oligarchy
+ 1035 28927  Humanoid       6   Oligarchy
+ 1036 28934  Reptilian      6   Balkanization
+ 1037 28945  Insectoid      1   Community
+ 1038 28945  Totally alien  4   Balkanization
+ 1039 28982  Serpentile     1   Theocracy
+ 1040 29009  Totally alien  3   Technocracy
+ 1041 29061  Vegetal        6   Corporation
+ 1042 29082  Totally alien  5   Imperialism
+ 1043 29213  Totally alien  6   Bureaucracy
+ 1044 29265  Totally alien  7   Dictatorship
+ 1045 29308  Reptilian      7   Bureaucracy
+ 1046 29316  Humanoid       7   Corporation
+ 1047 29341  Arachnid       1   Balkanization
+ 1048 29377  Picthinine     7   Bureaucracy
+ 1049 29416  Humanoid       1   Tribalism
+ 1050 29433  Totally alien  2   Community
+ 1051 29447  Humanoid       7   Technocracy
+ 1052 29454  Humanoid       7   Gerontocracy
+ 1053 29455  Mineral        7   Matriarchy
+ 1054 29469  Totally alien  1   Community
+ 1055 29474  Mineral        5   Dictatorship
+ 1056 29477  Amoebic        7   Imperialism
+ 1057 29513  Totally alien  4   Technocracy
+ 1058 29523  Insectoid      1   Balkanization
+ 1059 29524  Mineral        6   Technocracy
+ 1060 29532  Reptilian      1   Theocracy
+ 1061 29574  Mineral        3   Republic
+ 1062 29582  Totally alien  7   Imperialism
+ 1063 29622  Totally alien  5   Bureaucracy
+ 1064 29662  Totally alien  6   Dictatorship
+ 1065 29700  Mineral        1   Theocracy
+ 1066 29711  Humanoid       4   Technocracy
+ 1067 29722  Humanoid       1   Monarchy
+ 1068 29723  Humanoid       4   Dictatorship
+ 1069 29726  Reptilian      7   Imperialism
+ 1070 29745  Feline         3   Theocracy
+ 1071 29765  Totally alien  4   Meritocracy
+ 1072 29780  Rodent         7   Technocracy
+ 1073 29792  Humanoid       4   Balkanization
+ 1074 29793  Mineral        5   Theocracy
+ 1075 29813  Mineral        7   Ploutocracy
+ 1076 29814  Humanoid       7   Imperialism
+ 1077 29815  Totally alien  7   Republic
+ 1078 29822  Reptilian      3   Bureaucracy
+ 1079 29863  Totally alien  7   Imperialism
+ 1080 29880  Reptilian      6   Monarchy
+ 1081 29897  Humanoid       6   Balkanization
+ 1082 29986  Humanoid       1   Balkanization
+ 1083 30008  Insectoid      1   Theocracy
+ 1084 30030  Totally alien  6   Balkanization
+ 1085 30039  Humanoid       7   Stochastic
+ 1086 30098  Humanoid       7   Imperialism
+ 1087 30142  Reptilian      7   Theocracy
+ 1088 30166  Totally alien  1   Theocracy
+ 1089 30172  Totally alien  3   Republic
+ 1090 30238  Reptilian      1   Balkanization
+ 1091 30248  Rodent         6   Theocracy
+ 1092 30250  Totally alien  6   Oligarchy
+ 1093 30345  Totally alien  7   Republic
+ 1094 30350  Feline         4   Monarchy
+ 1095 30410  Humanoid       4   Theocracy
+ 1096 30497  Reptilian      3   Democracy
+ 1097 30507  Humanoid       3   Technocracy
+ 1098 30520  Insectoid      4   Monarchy
+ 1099 30558  Totally alien  5   Monarchy
+ 1100 30602  Reptilian      4   Bureaucracy
+ 1101 30610  Insectoid      1   Monarchy
+ 1102 30616  Insectoid      1   Tribalism
+ 1103 30635  Humanoid       7   Meritocracy
+ 1104 30728  Serpentile     6   Republic
+ 1105 30779  Humanoid       6   Bureaucracy
+ 1106 30791  Totally alien  3   Monarchy
+ 1107 30795  Porcine        3   Technocracy
+ 1108 30846  Humanoid       6   Oligarchy
+ 1109 30862  Totally alien  5   Ploutocracy
+ 1110 30877  Humanoid       6   Gerontocracy
+ 1111 30900  Feline         6   Republic
+ 1112 30910  Arachnid       4   Theocracy
+ 1113 30984  Humanoid       4   Republic
+ 1114 31030  Humanoid       7   Republic
+ 1115 31035  Insectoid      6   Monarchy
+ 1116 31159  Porcine        7   Dictatorship
+ 1117 31185  Humanoid       3   Ploutocracy
+ 1118 31295  Reptilian      5   Bureaucracy
+ 1119 31382  Totally alien  6   Republic
+ 1120 31388  Serpentile     1   Anarchy
+ 1121 31411  Totally alien  6   Monarchy
+ 1122 31458  Humanoid       7   Imperialism
+ 1123 31465  Centauroid     6   Corporation
+ 1124 31498  Totally alien  7   Theocracy
+ 1125 31508  Totally alien  1   Community
+ 1126 31566  Centauroid     7   Corporation
+ 1127 31581  Humanoid       7   Corporation
+ 1128 31585  Totally alien  7   Bureaucracy
+ 1129 31589  Reptilian      5   Stochastic
+ 1130 31609  Mineral        7   Theocracy
+ 1131 31641  Arachnid       6   Bureaucracy
+ 1132 31724  Animal         1   Tribalism
+ 1133 31726  Totally alien  7   Republic
+ 1134 31760  Totally alien  7   Balkanization
+ 1135 31799  Insectoid      5   Bureaucracy
+ 1136 31817  Humanoid       1   Theocracy
+ 1137 31837  Totally alien  7   Meritocracy
+ 1138 31866  Animal         3   Gerontocracy
+ 1139 31887  Arachnid       6   Imperialism
+ 1140 31908  Totally alien  6   Imperialism
+ 1141 31922  Humanoid       3   Oligarchy
+ 1142 31931  Totally alien  4   Theocracy
+ 1143 31939  Reptilian      1   Monarchy
+ 1144 31956  Vegetal        7   Imperialism
+ 1145 31978  Humanoid       3   Bureaucracy
+ 1146 32046  Totally alien  3   Monarchy
+ 1147 32165  Totally alien  7   Corporation
+ 1148 32203  Mineral        1   Democracy
+ 1149 32206  Reptilian      7   Bureaucracy
+ 1150 32352  Arachnid       7   Theocracy
+ 1151 32372  Totally alien  7   Theocracy
+ 1152 32430  Totally alien  7   Corporation
+ 1153 32469  Humanoid       6   Monarchy
+ 1154 32496  Ursoid         7   Imperialism
+ 1155 32503  Humanoid       1   Theocracy
+ 1156 32641  Reptilian      6   Corporation
+ 1157 32655  Humanoid       7   Utopia
+ 1158 32667  Insectoid      1   Balkanization
+ 1159 32686  Totally alien  1   Democracy
+ 1160 32687  Humanoid       1   Theocracy
+ 1161 32690  Totally alien  1   Community
+ 1162 32721  Insectoid      1   Tribalism
+ 1163 32746  Mineral        7   Corporation
+ 1164 32781  Avian          5   Gerontocracy
+ 1165 32786  Humanoid       1   Tribalism
+ 1166 32803  Totally alien  3   Dictatorship
+ 1167 32806  Mineral        7   Technocracy
+ 1168 32818  Humanoid       3   Theocracy
+ 1169 32889  Totally alien  6   Theocracy
+ 1170 32922  Totally alien  3   Technocracy
+ 1171 32986  Totally alien  1   Balkanization
+ 1172 33010  Totally alien  5   Monarchy
+ 1173 33020  Humanoid       6   Dictatorship
+ 1174 33034  Serpentile     5   Monarchy
+ 1175 33037  Totally alien  1   Democracy
+ 1176 33039  Totally alien  6   Theocracy
+ 1177 33068  Humanoid       1   Democracy
+ 1178 33102  Humanoid       1   Anarchy
+ 1179 33147  Insectoid      6   Technocracy
+ 1180 33184  Insectoid      7   Republic
+ 1181 33257  Totally alien  1   Community
+ 1182 33276  Arachnid       3   Imperialism
+ 1183 33285  Reptilian      6   Balkanization
+ 1184 33285  Totally alien  4   Theocracy
+ 1185 33297  Humanoid       7   Balkanization
+ 1186 33326  Totally alien  1   Democracy
+ 1187 33351  Reptilian      6   Republic
+ 1188 33425  Reptilian      7   Republic
+ 1189 33523  Totally alien  1   Tribalism
+ 1190 33607  Totally alien  4   Technocracy
+ 1191 33636  Arachnid       5   Oligarchy
+ 1192 33654  Serpentile     3   Monarchy
+ 1193 33663  Avian          7   Technocracy
+ 1194 33672  Insectoid      1   Democracy
+ 1195 33673  Humanoid       3   Technocracy
+ 1196 33688  Totally alien  3   Balkanization
+ 1197 33704  Totally alien  7   Imperialism
+ 1198 33714  Totally alien  1   Monarchy
+ 1199 33760  Totally alien  3   Dictatorship
+ 1200 33770  Avian          7   Theocracy
+ 1201 33797  Humanoid       1   Democracy
+ 1202 33812  Totally alien  1   Community
+ 1203 33838  Totally alien  7   Dictatorship
+ 1204 33874  Humanoid       6   Corporation
+ 1205 33875  Totally alien  4   Theocracy
+ 1206 33918  Totally alien  7   Meritocracy
+ 1207 33949  Totally alien  5   Republic
+ 1208 33970  Avian          7   Dictatorship
+ 1209 33975  Crustacean     7   Stochastic
+ 1210 34003  Humanoid       5   Monarchy
+ 1211 34050  Gaseous        6   Republic
+ 1212 34071  Mineral        7   Oligarchy
+ 1213 34104  Amphibian      3   Balkanization
+ 1214 34141  Reptilian      1   Anarchy
+ 1215 34194  Totally alien  6   Republic
+ 1216 34209  Totally alien  3   Theocracy
+ 1217 34301  Vegetal        6   Monarchy
+ 1218 34310  Totally alien  1   Democracy
+ 1219 34322  Humanoid       7   Oligarchy
+ 1220 34340  Mineral        6   Balkanization
+ 1221 34454  Humanoid       5   Balkanization
+ 1222 34465  Reptilian      7   Dictatorship
+ 1223 34532  Totally alien  5   Bureaucracy
+ 1224 34590  Totally alien  6   Dictatorship
+ 1225 34598  Porcine        1   Democracy
+ 1226 34603  Reptilian      6   Technocracy
+ 1227 34632  Totally alien  7   Technocracy
+ 1228 34641  Animal         1   Theocracy
+ 1229 34655  Reptilian      7   Syndicate
+ 1230 34666  Reptilian      7   Gerontocracy
+ 1231 34668  Humanoid       7   Syndicate
+ 1232 34696  Reptilian      5   Balkanization
+ 1233 34702  Totally alien  7   Technocracy
+ 1234 34814  Totally alien  7   Computer Oligarchy
+ 1235 34865  Totally alien  5   Theocracy
+ 1236 34872  Humanoid       1   Community
+ 1237 34886  Totally alien  7   Bureaucracy
+ 1238 34929  Totally alien  1   Theocracy
+ 1239 34958  Liquid         6   Dictatorship
+ 1240 34968  Mechanoid      6   Dictatorship
+ 1241 34971  Humanoid       7   Corporation
+ 1242 34991  Totally alien  7   Monarchy
+ 1243 35015  Totally alien  7   Imperialism
+ 1244 35086  Amphibian      4   Monarchy
+ 1245 35166  Insectoid      4   Balkanization
+ 1246 35210  Humanoid       4   Corporation
+ 1247 35241  Reptilian      7   Corporation
+ 1248 35264  Humanoid       6   Oligarchy
+ 1249 35272  Reptilian      6   Meritocracy
+ 1250 35317  Rodent         6   Monarchy
+ 1251 35325  Totally alien  7   Republic
+ 1252 35336  Humanoid       7   Republic
+ 1253 35370  Reptilian      3   Technocracy
+ 1254 35375  Totally alien  8   Oligarchy
+ 1255 35385  Totally alien  3   Dictatorship
+ 1256 35397  Totally alien  7   Theocracy
+ 1257 35397  Totally alien  3   Imperialism
+ 1258 35405  Rodent         8   Corporation
+ 1259 35426  Totally alien  7   Technocracy
+ 1260 35431  Reptilian      7   Bureaucracy
+ 1261 35493  Humanoid       4   Republic
+ 1262 35494  Vegetal        6   Gerontocracy
+ 1263 35497  Totally alien  8   Meritocracy
+ 1264 35515  Humanoid       6   Meritocracy
+ 1265 35526  Reptilian      3   Monarchy
+ 1266 35553  Totally alien  7   Republic
+ 1267 35704  Humanoid       1   Balkanization
+ 1268 35749  Humanoid       7   Bureaucracy
+ 1269 35759  Reptilian      5   Monarchy
+ 1270 35759  Insectoid      5   Theocracy
+ 1271 35762  Totally alien  5   Technocracy
+ 1272 35804  Totally alien  7   Theocracy
+ 1273 35806  Totally alien  1   Monarchy
+ 1274 35815  Reptilian      3   Balkanization
+ 1275 35840  Totally alien  7   Technocracy
+ 1276 35891  Humanoid       5   Imperialism
+ 1277 35895  Feline         1   Monarchy
+ 1278 35934  Insectoid      8   Balkanization
+ 1279 35940  Avian          1   Democracy
+ 1280 36006  Totally alien  6   Imperialism
+ 1281 36032  Humanoid       7   Monarchy
+ 1282 36042  Humanoid       7   Bureaucracy
+ 1283 36048  Insectoid      7   Imperialism
+ 1284 36106  Reptilian      1   Balkanization
+ 1285 36126  Humanoid       1   Theocracy
+ 1286 36128  Totally alien  1   Balkanization
+ 1287 36183  Totally alien  7   Corporation
+ 1288 36197  Reptilian      3   Corporation
+ 1289 36197  Totally alien  5   Theocracy
+ 1290 36203  Totally alien  7   Theocracy
+ 1291 36284  Totally alien  1   Tribalism
+ 1292 36298  Totally alien  7   Imperialism
+ 1293 36374  Humanoid       1   Monarchy
+ 1294 36478  Serpentile     7   Dictatorship
+ 1295 36561  Totally alien  7   Dictatorship
+ 1296 36604  Insectoid      7   Dictatorship
+ 1297 36629  Picthinine     7   Republic
+ 1298 36652  Arachnid       4   Republic
+ 1299 36664  Totally alien  7   Technocracy
+ 1300 36702  Totally alien  7   Corporation
+ 1301 36711  Totally alien  1   Balkanization
+ 1302 36771  Totally alien  3   Dictatorship
+ 1303 36801  Humanoid       7   Oligarchy
+ 1304 36816  Totally alien  7   Imperialism
+ 1305 36880  Humanoid       7   Imperialism
+ 1306 36903  Humanoid       2   Community
+ 1307 36947  Insectoid      6   Balkanization
+ 1308 36984  Totally alien  7   Dictatorship
+ 1309 37002  Totally alien  7   Corporation
+ 1310 37058  Centauroid     3   Bureaucracy
+ 1311 37071  Totally alien  5   Theocracy
+ 1312 37087  Humanoid       1   Monarchy
+ 1313 37127  Humanoid       5   Corporation
+ 1314 37172  Mineral        7   Theocracy
+ 1315 37197  Humanoid       3   Balkanization
+ 1316 37237  Totally alien  7   Matriarchy
+ 1317 37275  Totally alien  3   Imperialism
+ 1318 37360  Totally alien  7   Dictatorship
+ 1319 37366  Canine         1   Monarchy
+ 1320 37369  Humanoid       1   Balkanization
+ 1321 37394  Animal         3   Corporation
+ 1322 37396  Totally alien  7   Syndicate
+ 1323 37422  Totally alien  7   Theocracy
+ 1324 37503  Centauroid     1   Monarchy
+ 1325 37575  Reptilian      6   Meritocracy
+ 1326 37578  Totally alien  7   Republic
+ 1327 37585  Humanoid       1   Anarchy
+ 1328 37612  Humanoid       8   Gaming Oligarchy
+ 1329 37631  Humanoid       7   Technocracy
+ 1330 37640  Humanoid       1   Anarchy
+ 1331 37662  Animal         1   Tribalism
+ 1332 37697  Totally alien  3   Dictatorship
+ 1333 37732  Porcine        8   Imperialism
+ 1334 37811  Reptilian      3   Balkanization
+ 1335 37893  Totally alien  7   Bureaucracy
+ 1336 37913  Totally alien  7   Bureaucracy
+ 1337 37947  Humanoid       2   Theocracy
+ 1338 37993  Totally alien  7   Dictatorship
+ 1339 38006  Totally alien  1   Theocracy
+ 1340 38065  Arachnid       3   Imperialism
+ 1341 38123  Humanoid       5   Meritocracy
+ 1342 38151  Totally alien  1   Balkanization
+ 1343 38162  Avian          3   Imperialism
+ 1344 38221  Reptilian      4   Gaming Oligarchy
+ 1345 38240  Totally alien  3   Dictatorship
+ 1346 38241  Totally alien  5   Dictatorship
+ 1347 38241  Humanoid       1   Anarchy
+ 1348 38248  Arachnid       1   Anarchy
+ 1349 38264  Totally alien  7   Monarchy
+ 1350 38299  Humanoid       6   Corporation
+ 1351 38340  Reptilian      1   Community
+ 1352 38362  Mineral        6   Balkanization
+ 1353 38400  Humanoid       1   Balkanization
+ 1354 38406  Humanoid       6   Technocracy
+ 1355 38469  Totally alien  7   Corporation
+ 1356 38541  Totally alien  5   Bureaucracy
+ 1357 38550  Totally alien  7   Technocracy
+ 1358 38610  Porcine        1   Balkanization
+ 1359 38632  Humanoid       1   Theocracy
+ 1360 38766  Humanoid       3   Theocracy
+ 1361 38796  Mineral        7   Bureaucracy
+ 1362 38798  Humanoid       7   Bureaucracy
+ 1363 38814  Insectoid      7   Technocracy
+ 1364 38861  Totally alien  3   Technocracy
+ 1365 38906  Totally alien  7   Imperialism
+ 1366 38913  Totally alien  1   Tribalism
+ 1367 39040  Humanoid       1   Balkanization
+ 1368 39053  Humanoid       6   Dictatorship
+ 1369 39056  Porcine        6   Corporation
+ 1370 39065  Totally alien  1   Anarchy
+ 1371 39099  Rodent         7   Bureaucracy
+ 1372 39113  Totally alien  1   Anarchy
+ 1373 39166  Humanoid       4   Syndicate
+ 1374 39209  Totally alien  1   Tribalism
+ 1375 39251  Reptilian      7   Technocracy
+ 1376 39262  Humanoid       7   Dictatorship
+ 1377 39294  Rodent         4   Utopia
+ 1378 39330  Totally alien  3   Bureaucracy
+ 1379 39379  Reptilian      6   Oligarchy
+ 1380 39391  Humanoid       3   Balkanization
+ 1381 39531  Totally alien  5   Theocracy
+ 1382 39553  Reptilian      7   Gerontocracy
+ 1383 39591  Mineral        4   Imperialism
+ 1384 39632  Mechanoid      8   Republic
+ 1385 39648  Insectoid      7   Balkanization
+ 1386 39657  Humanoid       1   Democracy
+ 1387 39670  Totally alien  1   Community
+ 1388 39686  Totally alien  1   Tribalism
+ 1389 39700  Humanoid       3   Technocracy
+ 1390 39788  Totally alien  1   Monarchy
+ 1391 39823  Totally alien  7   Theocracy
+ 1392 39852  Mineral        7   Republic
+ 1393 39862  Humanoid       7   Federation
+ 1394 39864  Totally alien  7   Oligarchy
+ 1395 39920  Arachnid       1   Community
+ 1396 39921  Insectoid      6   Monarchy
+ 1397 39923  Mineral        7   Theocracy
+ 1398 39964  Mineral        1   Tribalism
+ 1399 39972  Reptilian      5   Imperialism
+ 1400 39978  Totally alien  7   Oligarchy
+ 1401 39984  Totally alien  7   Balkanization
+ 1402 39996  Humanoid       6   Bureaucracy
+ 1403 40015  Mineral        1   Anarchy
+ 1404 40028  Totally alien  6   Computer Oligarchy
+ 1405 40056  Totally alien  7   Balkanization
+ 1406 40100  Humanoid       7   Dictatorship
+ 1407 40149  Humanoid       6   Imperialism
+ 1408 40170  Totally alien  1   Balkanization
+ 1409 40180  Humanoid       6   Monarchy
+ 1410 40188  Humanoid       1   Balkanization
+ 1411 40206  Totally alien  3   Dictatorship
+ 1412 40217  Reptilian      4   Theocracy
+ 1413 40220  Totally alien  7   Bureaucracy
+ 1414 40240  Totally alien  4   Balkanization
+ 1415 40240  Rodent         1   Democracy
+ 1416 40276  Totally alien  7   Bureaucracy
+ 1417 40316  Serpentile     3   Dictatorship
+ 1418 40386  Humanoid       1   Theocracy
+ 1419 40394  Totally alien  1   Community
+ 1420 40416  Totally alien  6   Corporation
+ 1421 40480  Totally alien  1   Anarchy
+ 1422 40498  Reptilian      6   Corporation
+ 1423 40563  Humanoid       1   Democracy
+ 1424 40578  Ursoid         1   Monarchy
+ 1425 40578  Totally alien  4   Imperialism
+ 1426 40579  Reptilian      3   Technocracy
+ 1427 40592  Feline         7   Dictatorship
+ 1428 40631  Animal         5   Monarchy
+ 1429 40653  Totally alien  3   Theocracy
+ 1430 40654  Crustacean     6   Stochastic
+ 1431 40678  Totally alien  1   Democracy
+ 1432 40679  Feline         3   Republic
+ 1433 40693  Humanoid       3   Technocracy
+ 1434 40931  Canine         1   Balkanization
+ 1435 40943  Totally alien  7   Oligarchy
+ 1436 40963  Humanoid       7   Federation
+ 1437 40991  Humanoid       4   Monarchy
+ 1438 41018  Insectoid      7   Imperialism
+ 1439 41039  Totally alien  3   Balkanization
+ 1440 41094  Amphibian      5   Technocracy
+ 1441 41104  Totally alien  7   Dictatorship
+ 1442 41113  Serpentile     6   Imperialism
+ 1443 41158  Totally alien  7   Dictatorship
+ 1444 41166  Totally alien  6   Bureaucracy
+ 1445 41177  Humanoid       6   Monarchy
+ 1446 41193  Insectoid      6   Monarchy
+ 1447 41196  Humanoid       7   Dictatorship
+ 1448 41198  Totally alien  8   Republic
+ 1449 41213  Totally alien  6   Theocracy
+ 1450 41231  Totally alien  6   Theocracy
+ 1451 41254  Reptilian      1   Anarchy
+ 1452 41293  Totally alien  1   Community
+ 1453 41303  Porcine        1   Theocracy
+ 1454 41355  Mineral        6   Matriarchy
+ 1455 41356  Crustacean     1   Tribalism
+ 1456 41386  Totally alien  7   Theocracy
+ 1457 41400  Humanoid       7   Republic
+ 1458 41412  Totally alien  6   Theocracy
+ 1459 41413  Rodent         3   Theocracy
+ 1460 41425  Vegetal        1   Balkanization
+ 1461 41433  Amphibian      1   Tribalism
+ 1462 41450  Humanoid       4   Corporation
+ 1463 41457  Reptilian      7   Oligarchy
+ 1464 41459  Totally alien  6   Technocracy
+ 1465 41555  Reptilian      6   Technocracy
+ 1466 41606  Totally alien  6   Balkanization
+ 1467 41654  Humanoid       6   Technocracy
+ 1468 41691  Totally alien  1   Democracy
+ 1469 41717  Humanoid       6   Imperialism
+ 1470 41764  Reptilian      7   Utopia
+ 1471 41774  Vegetal        6   Corporation
+ 1472 41820  Reptilian      7   Republic
+ 1473 41822  Canine         7   Bureaucracy
+ 1474 41852  Humanoid       7   Corporation
+ 1475 41874  Totally alien  7   Balkanization
+ 1476 41878  Insectoid      1   Tribalism
+ 1477 41891  Animal         3   Democracy
+ 1478 41895  Reptilian      7   Imperialism
+ 1479 41958  Totally alien  5   Dictatorship
+ 1480 41981  Totally alien  3   Corporation
+ 1481 41988  Insectoid      1   Anarchy
+ 1482 42001  Vegetal        1   Anarchy
+ 1483 42008  Humanoid       3   Monarchy
+ 1484 42020  Humanoid       7   Theocracy
+ 1485 42048  Totally alien  1   Theocracy
+ 1486 42052  Serpentile     7   Imperialism
+ 1487 42076  Totally alien  1   Monarchy
+ 1488 42097  Crustacean     6   Balkanization
+ 1489 42107  Mineral        6   Imperialism
+ 1490 42123  Totally alien  6   Imperialism
+ 1491 42138  Animal         7   Dictatorship
+ 1492 42140  Insectoid      1   Monarchy
+ 1493 42165  Canine         1   Balkanization
+ 1494 42180  Porcine        7   Imperialism
+ 1495 42180  Totally alien  1   Theocracy
+ 1496 42194  Totally alien  1   Community
+ 1497 42298  Humanoid       1   Democracy
+ 1498 42300  Reptilian      6   Gerontocracy
+ 1499 42328  Reptilian      7   Republic
+ 1500 42351  Reptilian      7   Monarchy
+ 1501 42443  Humanoid       7   Technocracy
+ 1502 42454  Avian          1   Theocracy
+ 1503 42476  Totally alien  7   Corporation
+ 1504 42534  Humanoid       7   Corporation
+ 1505 42534  Humanoid       3   Technocracy
+ 1506 42565  Humanoid       3   Anarchy
+ 1507 42632  Humanoid       1   Anarchy
+ 1508 42642  Animal         7   Theocracy
+ 1509 42654  Energetic      4   Bureaucracy
+ 1510 42656  Totally alien  5   Oligarchy
+ 1511 42703  Animal         1   Monarchy
+ 1512 42720  Reptilian      7   Republic
+ 1513 42724  Serpentile     7   Theocracy
+ 1514 42744  Humanoid       4   Bureaucracy
+ 1515 42744  Animal         5   Gerontocracy
+ 1516 42783  Totally alien  7   Meritocracy
+ 1517 42793  Humanoid       7   Republic
+ 1518 42801  Porcine        7   Republic
+ 1519 42803  Humanoid       7   Monarchy
+ 1520 42836  Totally alien  2   Tribalism
+ 1521 42838  Porcine        7   Republic
+ 1522 42840  Totally alien  6   Monarchy
+ 1523 42870  Totally alien  3   Oligarchy
+ 1524 42884  Avian          7   Dictatorship
+ 1525 42895  Humanoid       7   Theocracy
+ 1526 42914  Humanoid       1   Monarchy
+ 1527 42929  Totally alien  1   Democracy
+ 1528 42994  Totally alien  1   Community
+ 1529 43002  Totally alien  5   Theocracy
+ 1530 43014  Totally alien  3   Bureaucracy
+ 1531 43034  Totally alien  4   Theocracy
+ 1532 43110  Totally alien  7   Monarchy
+ 1533 43112  Totally alien  6   Technocracy
+ 1534 43120  Reptilian      4   Oligarchy
+ 1535 43129  Totally alien  1   Anarchy
+ 1536 43154  Mineral        6   Balkanization
+ 1537 43162  Insectoid      1   Theocracy
+ 1538 43202  Totally alien  3   Dictatorship
+ 1539 43233  Totally alien  6   Bureaucracy
+ 1540 43239  Totally alien  1   Balkanization
+ 1541 43249  Insectoid      1   Monarchy
+ 1542 43290  Humanoid       6   Theocracy
+ 1543 43359  Totally alien  3   Imperialism
+ 1544 43366  Reptilian      3   Corporation
+ 1545 43409  Reptilian      3   Republic
+ 1546 43422  Totally alien  5   Dictatorship
+ 1547 43454  Humanoid       7   Corporation
+ 1548 43476  Humanoid       1   Democracy
+ 1549 43494  Totally alien  1   Balkanization
+ 1550 43531  Humanoid       7   Corporation
+ 1551 43541  Animal         6   Monarchy
+ 1552 43547  Vegetal        3   Balkanization
+ 1553 43562  Totally alien  7   Corporation
+ 1554 43598  Humanoid       5   Monarchy
+ 1555 43627  Totally alien  3   Monarchy
+ 1556 43678  Feline         6   Monarchy
+ 1557 43679  Totally alien  6   Dictatorship
+ 1558 43711  Reptilian      1   Tribalism
+ 1559 43713  Totally alien  7   Technocracy
+ 1560 43730  Totally alien  1   Tribalism
+ 1561 43760  Reptilian      7   Corporation
+ 1562 43779  Reptilian      3   Monarchy
+ 1563 43800  Totally alien  3   Corporation
+ 1564 43804  Humanoid       1   Tribalism
+ 1565 43856  Humanoid       2   Theocracy
+ 1566 43932  Totally alien  3   Theocracy
+ 1567 43944  Totally alien  3   Technocracy
+ 1568 43958  Rodent         8   Technocracy
+ 1569 44029  Reptilian      7   Republic
+ 1570 44041  Crustacean     1   Monarchy
+ 1571 44054  Totally alien  7   Technocracy
+ 1572 44074  Humanoid       2   Community
+ 1573 44089  Serpentile     7   Corporation
+ 1574 44114  Totally alien  4   Monarchy
+ 1575 44121  Totally alien  6   Theocracy
+ 1576 44143  Totally alien  7   Bureaucracy
+ 1577 44207  Reptilian      7   Corporation
+ 1578 44226  Reptilian      1   Tribalism
+ 1579 44235  Totally alien  6   Balkanization
+ 1580 44292  Gaseous        1   Theocracy
+ 1581 44309  Humanoid       7   Dictatorship
+ 1582 44327  Ursoid         7   Corporation
+ 1583 44365  Totally alien  3   Community
+ 1584 44367  Totally alien  1   Monarchy
+ 1585 44392  Humanoid       3   Tribalism
+ 1586 44397  Porcine        5   Corporation
+ 1587 44474  Serpentile     7   Theocracy
+ 1588 44479  Insectoid      1   Anarchy
+ 1589 44491  Mineral        1   Democracy
+ 1590 44492  Totally alien  3   Bureaucracy
+ 1591 44524  Totally alien  6   Imperialism
+ 1592 44536  Totally alien  7   Oligarchy
+ 1593 44541  Reptilian      5   Bureaucracy
+ 1594 44542  Totally alien  6   Theocracy
+ 1595 44550  Totally alien  7   Corporation
+ 1596 44573  Totally alien  7   Imperialism
+ 1597 44588  Avian          1   Democracy
+ 1598 44598  Totally alien  6   Bureaucracy
+ 1599 44646  Animal         7   Bureaucracy
+ 1600 44659  Mineral        7   Imperialism
+ 1601 44660  Vegetal        4   Matriarchy
+ 1602 44699  Humanoid       3   Balkanization
+ 1603 44737  Vegetal        4   Technocracy
+ 1604 44769  Humanoid       1   Democracy
+ 1605 44780  Humanoid       5   Technocracy
+ 1606 44799  Reptilian      7   Theocracy
+ 1607 44817  Picthinine     4   Dictatorship
+ 1608 44950  Totally alien  1   Democracy
+ 1609 45004  Serpentile     3   Theocracy
+ 1610 45006  Humanoid       7   Corporation
+ 1611 45018  Totally alien  7   Dictatorship
+ 1612 45043  Totally alien  4   Monarchy
+ 1613 45057  Totally alien  3   Ploutocracy
+ 1614 45067  Porcine        1   Monarchy
+ 1615 45074  Totally alien  7   Imperialism
+ 1616 45095  Totally alien  5   Technocracy
+ 1617 45139  Insectoid      7   Theocracy
+ 1618 45159  Totally alien  1   Tribalism
+ 1619 45208  Humanoid       5   Monarchy
+ 1620 45235  Totally alien  6   Theocracy
+ 1621 45255  Totally alien  1   Community
+ 1622 45269  Totally alien  7   Meritocracy
+ 1623 45289  Totally alien  1   Theocracy
+ 1624 45300  Totally alien  7   Technocracy
+ 1625 45361  Serpentile     7   Dictatorship
+ 1626 45363  Totally alien  2   Community
+ 1627 45419  Reptilian      3   Corporation
+ 1628 45442  Totally alien  3   Technocracy
+ 1629 45487  Humanoid       3   Monarchy
+ 1630 45550  Humanoid       3   Community
+ 1631 45558  Mineral        6   Corporation
+ 1632 45564  Totally alien  5   Gaming Oligarchy
+ 1633 45607  Totally alien  6   Imperialism
+ 1634 45619  Reptilian      7   Corporation
+ 1635 45649  Totally alien  6   Republic
+ 1636 45682  Reptilian      1   Monarchy
+ 1637 45737  Animal         5   Gerontocracy
+ 1638 45764  Porcine        3   Anarchy
+ 1639 45780  Humanoid       3   Balkanization
+ 1640 45821  Totally alien  3   Oligarchy
+ 1641 45868  Totally alien  7   Dictatorship
+ 1642 45870  Humanoid       7   Corporation
+ 1643 45904  Totally alien  7   Republic
+ 1644 45966  Humanoid       3   Democracy
+ 1645 46001  Totally alien  6   Gerontocracy
+ 1646 46007  Animal         7   Bureaucracy
+ 1647 46104  Totally alien  1   Theocracy
+ 1648 46105  Rodent         4   Bureaucracy
+ 1649 46116  Mineral        8   Corporation
+ 1650 46123  Mineral        4   Corporation
+ 1651 46130  Totally alien  6   Computer Oligarchy
+ 1652 46207  Insectoid      7   Bureaucracy
+ 1653 46208  Totally alien  7   Technocracy
+ 1654 46224  Porcine        1   Democracy
+ 1655 46300  Totally alien  3   Imperialism
+ 1656 46339  Animal         7   Theocracy
+ 1657 46353  Animal         7   Technocracy
+ 1658 46356  Reptilian      1   Community
+ 1659 46421  Totally alien  6   Corporation
+ 1660 46477  Mineral        3   Republic
+ 1661 46488  Rodent         3   Syndicate
+ 1662 46514  Totally alien  5   Balkanization
+ 1663 46563  Totally alien  6   Bureaucracy
+ 1664 46563  Totally alien  3   Dictatorship
+ 1665 46594  Insectoid      6   Republic
+ 1666 46614  Humanoid       6   Imperialism
+ 1667 46634  Reptilian      7   Theocracy
+ 1668 46653  Humanoid       7   Aristocracy
+ 1669 46699  Humanoid       5   Corporation
+ 1670 46771  Humanoid       3   Oligarchy
+ 1671 46776  Reptilian      7   Matriarchy
+ 1672 46796  Totally alien  7   Technocracy
+ 1673 46806  Totally alien  5   Monarchy
+ 1674 46811  Totally alien  4   Corporation
+ 1675 46814  Totally alien  7   Republic
+ 1676 46841  Totally alien  5   Bureaucracy
+ 1677 46852  Totally alien  1   Community
+ 1678 46861  Reptilian      3   Republic
+ 1679 46878  Totally alien  2   Community
+ 1680 46891  Totally alien  7   Theocracy
+ 1681 46983  Totally alien  7   Utopia
+ 1682 46999  Reptilian      1   Anarchy
+ 1683 47045  Mineral        5   Dictatorship
+ 1684 47104  Humanoid       7   Bureaucracy
+ 1685 47119  Totally alien  5   Monarchy
+ 1686 47126  Totally alien  6   Dictatorship
+ 1687 47129  Totally alien  3   Dictatorship
+ 1688 47143  Mineral        1   Theocracy
+ 1689 47157  Centauroid     7   Imperialism
+ 1690 47228  Totally alien  3   Balkanization
+ 1691 47316  Humanoid       5   Republic
+ 1692 47367  Animal         7   Monarchy
+ 1693 47374  Totally alien  7   Corporation
+ 1694 47376  Humanoid       1   Monarchy
+ 1695 47395  Totally alien  1   Democracy
+ 1696 47412  Reptilian      7   Technocracy
+ 1697 47453  Energetic      6   Corporation
+ 1698 47462  Mineral        7   Balkanization
+ 1699 47501  Totally alien  7   Bureaucracy
+ 1700 47525  Reptilian      7   Corporation
+ 1701 47543  Totally alien  6   Republic
+ 1702 47549  Humanoid       7   Ploutocracy
+ 1703 47559  Totally alien  2   Balkanization
+ 1704 47614  Feline         6   Imperialism
+ 1705 47626  Humanoid       7   Dictatorship
+ 1706 47678  Humanoid       7   Technocracy
+ 1707 47679  Humanoid       7   Theocracy
+ 1708 47687  Mineral        7   Corporation
+ 1709 47707  Humanoid       1   Balkanization
+ 1710 47794  Vegetal        3   Imperialism
+ 1711 47822  Totally alien  1   Democracy
+ 1712 47870  Humanoid       4   Syndicate
+ 1713 47917  Totally alien  6   Corporation
+ 1714 47931  Totally alien  1   Theocracy
+ 1715 47932  Totally alien  6   Dictatorship
+ 1716 47949  Humanoid       3   Theocracy
+ 1717 47952  Totally alien  1   Community
+ 1718 48078  Humanoid       1   Balkanization
+ 1719 48123  Mineral        7   Meritocracy
+ 1720 48126  Liquid         1   Democracy
+ 1721 48127  Insectoid      1   Balkanization
+ 1722 48260  Humanoid       3   Balkanization
+ 1723 48274  Totally alien  2   Tribalism
+ 1724 48277  Totally alien  6   Balkanization
+ 1725 48283  Canine         7   Corporation
+ 1726 48310  Porcine        1   Anarchy
+ 1727 48346  Humanoid       1   Democracy
+ 1728 48347  Humanoid       7   Theocracy
+ 1729 48363  Totally alien  5   Theocracy
+ 1730 48380  Totally alien  5   Dictatorship
+ 1731 48394  Humanoid       1   Community
+ 1732 48455  Amoebic        1   Democracy
+ 1733 48494  Humanoid       6   Bureaucracy
+ 1734 48506  Humanoid       3   Corporation
+ 1735 48549  Totally alien  7   Balkanization
+ 1736 48572  Totally alien  5   Meritocracy
+ 1737 48601  Humanoid       1   Tribalism
+ 1738 48620  Totally alien  1   Tribalism
+ 1739 48642  Reptilian      1   Anarchy
+ 1740 48692  Avian          1   Anarchy
+ 1741 48705  Insectoid      4   Dictatorship
+ 1742 48754  Avian          1   Democracy
+ 1743 48765  Avian          5   Ploutocracy
+ 1744 48780  Reptilian      3   Balkanization
+ 1745 48824  Totally alien  7   Bureaucracy
+ 1746 48839  Insectoid      2   Community
+ 1747 48875  Totally alien  7   Imperialism
+ 1748 48983  Humanoid       4   Oligarchy
+ 1749 48987  Totally alien  5   Theocracy
+ 1750 48992  Totally alien  7   Technocracy
+ 1751 49068  Totally alien  4   Bureaucracy
+ 1752 49155  Canine         6   Monarchy
+ 1753 49183  Humanoid       5   Meritocracy
+ 1754 49203  Totally alien  7   Syndicate
+ 1755 49216  Avian          5   Gerontocracy
+ 1756 49217  Amphibian      7   Republic
+ 1757 49224  Insectoid      5   Republic
+ 1758 49242  Totally alien  3   Republic
+ 1759 49261  Totally alien  6   Monarchy
+ 1760 49298  Totally alien  8   Imperialism
+ 1761 49299  Animal         5   Monarchy
+ 1762 49326  Totally alien  1   Community
+ 1763 49430  Insectoid      1   Tribalism
+ 1764 49461  Insectoid      1   Monarchy
+ 1765 49467  Centauroid     7   Technocracy
+ 1766 49499  Humanoid       1   Democracy
+ 1767 49522  Totally alien  1   Monarchy
+ 1768 49550  Mineral        1   Community
+ 1769 49550  Totally alien  1   Community
+ 1770 49563  Humanoid       1   Monarchy
+ 1771 49600  Totally alien  5   Imperialism
+ 1772 49642  Totally alien  5   Dictatorship
+ 1773 49645  Totally alien  3   Dictatorship
+ 1774 49647  Totally alien  1   Balkanization
+ 1775 49663  Mineral        1   Monarchy
+ 1776 49680  Vegetal        5   Bureaucracy
+ 1777 49737  Porcine        7   Matriarchy
+ 1778 49745  Reptilian      3   Theocracy
+ 1779 49783  Humanoid       4   Theocracy
+ 1780 49788  Centauroid     1   Community
+ 1781 49805  Amphibian      1   Tribalism
+ 1782 49806  Picthinine     1   Theocracy
+ 1783 49809  Totally alien  7   Technocracy
+ 1784 49810  Crustacean     7   Dictatorship
+ 1785 49828  Totally alien  5   Matriarchy
+ 1786 49832  Insectoid      1   Monarchy
+ 1787 49869  Serpentile     3   Monarchy
+ 1788 49877  Reptilian      6   Technocracy
+ 1789 49886  Animal         4   Dictatorship
+ 1790 49891  Humanoid       1   Theocracy
+ 1791 49965  Insectoid      5   Republic
+ 1792 50016  Insectoid      5   Balkanization
+ 1793 50115  Totally alien  5   Oligarchy
+ 1794 50127  Totally alien  1   Anarchy
+ 1795 50142  Humanoid       5   Theocracy
+ 1796 50160  Reptilian      7   Imperialism
+ 1797 50193  Humanoid       5   Imperialism
+ 1798 50227  Insectoid      6   Imperialism
+ 1799 50234  Totally alien  1   Anarchy
+ 1800 50281  Arachnid       1   Balkanization
+ 1801 50297  Animal         1   Balkanization
+ 1802 50330  Totally alien  3   Republic
+ 1803 50399  Reptilian      5   Imperialism
+ 1804 50446  Reptilian      6   Corporation
+ 1805 50484  Totally alien  6   Balkanization
+ 1806 50508  Humanoid       5   Matriarchy
+ 1807 50513  Totally alien  5   Balkanization
+ 1808 50538  Humanoid       7   Technocracy
+ 1809 50543  Humanoid       5   Republic
+ 1810 50633  Totally alien  1   Balkanization
+ 1811 50638  Mineral        4   Dictatorship
+ 1812 50661  Reptilian      1   Community
+ 1813 50808  Centauroid     1   Democracy
+ 1814 50854  Totally alien  7   Bureaucracy
+ 1815 50891  Totally alien  4   Imperialism
+ 1816 50907  Humanoid       5   Monarchy
+ 1817 50911  Reptilian      6   Computer Oligarchy
+ 1818 50943  Reptilian      7   Imperialism
+ 1819 51094  Insectoid      1   Tribalism
+ 1820 51128  Totally alien  5   Imperialism
+ 1821 51137  Energetic      6   Corporation
+ 1822 51148  Humanoid       3   Balkanization
+ 1823 51153  Serpentile     5   Theocracy
+ 1824 51159  Totally alien  2   Balkanization
+ 1825 51175  Totally alien  7   Dictatorship
+ 1826 51216  Humanoid       1   Anarchy
+ 1827 51313  Humanoid       6   Syndicate
+ 1828 51319  Totally alien  1   Democracy
+ 1829 51319  Totally alien  1   Democracy
+ 1830 51343  Totally alien  4   Bureaucracy
+ 1831 51361  Totally alien  1   Theocracy
+ 1832 51373  Reptilian      7   Corporation
+ 1833 51385  Reptilian      6   Technocracy
+ 1834 51399  Mineral        1   Community
+ 1835 51451  Humanoid       7   Meritocracy
+ 1836 51459  Porcine        3   Monarchy
+ 1837 51474  Totally alien  6   Balkanization
+ 1838 51496  Crustacean     7   Dictatorship
+ 1839 51511  Animal         2   Democracy
+ 1840 51524  Animal         3   Imperialism
+ 1841 51560  Totally alien  6   Theocracy
+ 1842 51567  Reptilian      7   Theocracy
+ 1843 51572  Totally alien  6   Monarchy
+ 1844 51626  Crustacean     1   Anarchy
+ 1845 51700  Humanoid       6   Aristocracy
+ 1846 51702  Mineral        6   Imperialism
+ 1847 51713  Totally alien  1   Balkanization
+ 1848 51719  Insectoid      7   Gaming Oligarchy
+ 1849 51744  Rodent         1   Anarchy
+ 1850 51753  Canine         2   Democracy
+ 1851 51824  Crustacean     3   Monarchy
+ 1852 51847  Humanoid       5   Monarchy
+ 1853 51894  Totally alien  7   Dictatorship
+ 1854 51953  Mineral        1   Monarchy
+ 1855 51969  Totally alien  6   Balkanization
+ 1856 51974  Insectoid      7   Theocracy
+ 1857 52003  Totally alien  1   Theocracy
+ 1858 52172  Arachnid       5   Monarchy
+ 1859 52203  Insectoid      3   Corporation
+ 1860 52242  Insectoid      1   Monarchy
+ 1861 52244  Humanoid       6   Technocracy
+ 1862 52276  Canine         3   Balkanization
+ 1863 52287  Totally alien  7   Oligarchy
+ 1864 52314  Totally alien  7   Republic
+ 1865 52359  Totally alien  7   Dictatorship
+ 1866 52374  Totally alien  1   Anarchy
+ 1867 52389  Humanoid       1   Tribalism
+ 1868 52450  Humanoid       7   Corporation
+ 1869 52454  Picthinine     6   Monarchy
+ 1870 52465  Totally alien  7   Monarchy
+ 1871 52523  Reptilian      6   Bureaucracy
+ 1872 52532  Animal         7   Bureaucracy
+ 1873 52613  Centauroid     7   Dictatorship
+ 1874 52616  Totally alien  7   Bureaucracy
+ 1875 52647  Humanoid       1   Tribalism
+ 1876 52648  Totally alien  1   Monarchy
+ 1877 52674  Insectoid      3   Ploutocracy
+ 1878 52729  Totally alien  1   Theocracy
+ 1879 52759  Mineral        1   Theocracy
+ 1880 52780  Liquid         7   Bureaucracy
+ 1881 52887  Centauroid     1   Monarchy
+ 1882 52944  Avian          1   Balkanization
+ 1883 52958  Totally alien  7   Technocracy
+ 1884 52988  Humanoid       5   Balkanization
+ 1885 53014  Mineral        1   Theocracy
+ 1886 53051  Humanoid       7   Republic
+ 1887 53064  Humanoid       3   Aristocracy
+ 1888 53104  Totally alien  7   Dictatorship
+ 1889 53112  Reptilian      2   Theocracy
+ 1890 53161  Crustacean     6   Dictatorship
+ 1891 53182  Reptilian      1   Democracy
+ 1892 53196  Reptilian      7   Dictatorship
+ 1893 53211  Humanoid       3   Republic
+ 1894 53250  Humanoid       7   Republic
+ 1895 53326  Totally alien  1   Balkanization
+ 1896 53385  Mineral        7   Dictatorship
+ 1897 53425  Totally alien  3   Imperialism
+ 1898 53478  Humanoid       4   Technocracy
+ 1899 53479  Totally alien  2   Balkanization
+ 1900 53488  Totally alien  6   Theocracy
+ 1901 53558  Totally alien  1   Community
+ 1902 53646  Totally alien  7   Dictatorship
+ 1903 53647  Amphibian      1   Balkanization
+ 1904 53681  Porcine        7   Theocracy
+ 1905 53684  Reptilian      6   Technocracy
+ 1906 53717  Porcine        6   Theocracy
+ 1907 53753  Totally alien  7   Imperialism
+ 1908 53760  Amphibian      6   Dictatorship
+ 1909 53779  Totally alien  5   Bureaucracy
+ 1910 53829  Totally alien  7   Technocracy
+ 1911 53846  Ursoid         4   Gaming Oligarchy
+ 1912 53861  Reptilian      1   Balkanization
+ 1913 53916  Humanoid       1   Community
+ 1914 53947  Totally alien  5   Imperialism
+ 1915 53950  Totally alien  1   Balkanization
+ 1916 53968  Totally alien  1   Tribalism
+ 1917 53981  Humanoid       3   Tribalism
+ 1918 54025  Humanoid       1   Balkanization
+ 1919 54030  Reptilian      1   Democracy
+ 1920 54031  Rodent         3   Imperialism
+ 1921 54053  Totally alien  1   Theocracy
+ 1922 54092  Porcine        6   Theocracy
+ 1923 54120  Reptilian      1   Balkanization
+ 1924 54126  Totally alien  1   Monarchy
+ 1925 54129  Porcine        1   Monarchy
+ 1926 54165  Totally alien  7   Bureaucracy
+ 1927 54173  Insectoid      7   Theocracy
+ 1928 54225  Humanoid       1   Democracy
+ 1929 54268  Humanoid       5   Technocracy
+ 1930 54296  Totally alien  1   Anarchy
+ 1931 54322  Humanoid       1   Democracy
+ 1932 54336  Porcine        7   Dictatorship
+ 1933 54363  Humanoid       6   Aristocracy
+ 1934 54381  Reptilian      1   Monarchy
+ 1935 54381  Totally alien  1   Balkanization
+ 1936 54384  Humanoid       1   Tribalism
+ 1937 54402  Mineral        7   Technocracy
+ 1938 54407  Reptilian      4   Technocracy
+ 1939 54448  Amphibian      7   Corporation
+ 1940 54562  Totally alien  6   Technocracy
+ 1941 54602  Humanoid       3   Republic
+ 1942 54708  Canine         7   Federation
+ 1943 54711  Totally alien  6   Ploutocracy
+ 1944 54740  Humanoid       1   Tribalism
+ 1945 54749  Totally alien  7   Corporation
+ 1946 54812  Humanoid       7   Matriarchy
+ 1947 54835  Totally alien  6   Technocracy
+ 1948 54841  Picthinine     1   Theocracy
+ 1949 54850  Mineral        7   Dictatorship
+ 1950 54870  Totally alien  5   Theocracy
+ 1951 54875  Humanoid       7   Bureaucracy
+ 1952 54887  Porcine        7   Computer Oligarchy
+ 1953 54907  Picthinine     2   Balkanization
+ 1954 54918  Totally alien  7   Oligarchy
+ 1955 54933  Arachnid       5   Imperialism
+ 1956 54973  Insectoid      4   Monarchy
+ 1957 54974  Mineral        7   Imperialism
+ 1958 54987  Insectoid      6   Oligarchy
+ 1959 55003  Totally alien  7   Republic
+ 1960 55050  Humanoid       1   Democracy
+ 1961 55079  Totally alien  1   Balkanization
+ 1962 55095  Humanoid       3   Monarchy
+ 1963 55132  Reptilian      3   Theocracy
+ 1964 55154  Humanoid       1   Community
+ 1965 55197  Humanoid       5   Syndicate
+ 1966 55218  Humanoid       3   Balkanization
+ 1967 55218  Totally alien  3   Anarchy
+ 1968 55218  Humanoid       7   Monarchy
+ 1969 55294  Porcine        6   Balkanization
+ 1970 55360  Totally alien  7   Bureaucracy
+ 1971 55370  Humanoid       1   Balkanization
+ 1972 55411  Totally alien  2   Tribalism
+ 1973 55434  Avian          1   Balkanization
+ 1974 55465  Arachnid       5   Technocracy
+ 1975 55521  Mineral        3   Oligarchy
+ 1976 55532  Totally alien  1   Democracy
+ 1977 55572  Vegetal        7   Monarchy
+ 1978 55626  Insectoid      7   Bureaucracy
+ 1979 55637  Totally alien  6   Imperialism
+ 1980 55778  Totally alien  7   Bureaucracy
+ 1981 55781  Totally alien  7   Oligarchy
+ 1982 55808  Humanoid       7   Technocracy
+ 1983 55811  Totally alien  3   Republic
+ 1984 55814  Reptilian      6   Dictatorship
+ 1985 55829  Totally alien  1   Balkanization
+ 1986 55842  Humanoid       6   Monarchy
+ 1987 55843  Amoebic        3   Utopia
+ 1988 55895  Insectoid      1   Theocracy
+ 1989 55920  Ursoid         6   Theocracy
+ 1990 55923  Feline         3   Bureaucracy
+ 1991 55977  Totally alien  3   Republic
+ 1992 56002  Arachnid       2   Anarchy
+ 1993 56052  Animal         3   Theocracy
+ 1994 56064  Amphibian      3   Theocracy
+ 1995 56113  Serpentile     1   Community
+ 1996 56152  Totally alien  7   Technocracy
+ 1997 56162  Totally alien  3   Balkanization
+ 1998 56242  Humanoid       1   Community
+ 1999 56269  Animal         7   Republic
+ 2000 56272  Totally alien  1   Monarchy
+ 2001 56279  Insectoid      4   Balkanization
+ 2002 56282  Rodent         5   Imperialism
+ 2003 56347  Reptilian      6   Bureaucracy
+ 2004 56352  Totally alien  8   Theocracy
+ 2005 56366  Reptilian      7   Imperialism
+ 2006 56416  Totally alien  1   Theocracy
+ 2007 56423  Humanoid       1   Anarchy
+ 2008 56520  Totally alien  7   Bureaucracy
+ 2009 56535  Humanoid       6   Dictatorship
+ 2010 56538  Totally alien  7   Imperialism
+ 2011 56548  Totally alien  7   Balkanization
+ 2012 56569  Humanoid       7   Imperialism
+ 2013 56578  Mechanoid      7   Theocracy
+ 2014 56668  Humanoid       6   Theocracy
+ 2015 56681  Humanoid       3   Monarchy
+ 2016 56703  Insectoid      1   Balkanization
+ 2017 56719  Reptilian      1   Tribalism
+ 2018 56769  Totally alien  3   Syndicate
+ 2019 56872  Feline         5   Balkanization
+ 2020 56880  Mineral        3   Technocracy
+ 2021 56881  Humanoid       7   Bureaucracy
+ 2022 56893  Totally alien  7   Balkanization
+ 2023 56896  Humanoid       4   Monarchy
+ 2024 56907  Reptilian      1   Community
+ 2025 56942  Totally alien  7   Imperialism
+ 2026 56943  Insectoid      5   Technocracy
+ 2027 56947  Totally alien  5   Corporation
+ 2028 57014  Porcine        4   Corporation
+ 2029 57020  Totally alien  1   Tribalism
+ 2030 57032  Totally alien  5   Dictatorship
+ 2031 57043  Totally alien  1   Monarchy
+ 2032 57052  Totally alien  6   Dictatorship
+ 2033 57067  Totally alien  3   Balkanization
+ 2034 57116  Mineral        6   Gerontocracy
+ 2035 57182  Mineral        6   Corporation
+ 2036 57190  Humanoid       6   Republic
+ 2037 57201  Animal         7   Theocracy
+ 2038 57228  Humanoid       1   Theocracy
+ 2039 57297  Porcine        4   Republic
+ 2040 57309  Humanoid       5   Theocracy
+ 2041 57334  Humanoid       5   Corporation
+ 2042 57351  Totally alien  5   Theocracy
+ 2043 57379  Totally alien  1   Democracy
+ 2044 57437  Reptilian      5   Imperialism
+ 2045 57446  Humanoid       1   Anarchy
+ 2046 57481  Amphibian      7   Balkanization
+ 2047 57487  Insectoid      4   Dictatorship
+ 2048 57558  Totally alien  1   Anarchy
+ 2049 57576  Humanoid       4   Technocracy
+ 2050 57629  Totally alien  7   Bureaucracy
+ 2051 57634  Totally alien  6   Balkanization
+ 2052 57669  Totally alien  3   Dictatorship
+ 2053 57673  Totally alien  3   Technocracy
+ 2054 57677  Rodent         1   Balkanization
+ 2055 57703  Reptilian      1   Anarchy
+ 2056 57743  Humanoid       7   Technocracy
+ 2057 57903  Porcine        3   Monarchy
+ 2058 57960  Totally alien  3   Balkanization
+ 2059 57990  Humanoid       8   Republic
+ 2060 58019  Totally alien  6   Republic
+ 2061 58021  Insectoid      1   Monarchy
+ 2062 58049  Vegetal        7   Corporation
+ 2063 58070  Insectoid      1   Monarchy
+ 2064 58080  Totally alien  4   Balkanization
+ 2065 58082  Reptilian      1   Monarchy
+ 2066 58083  Humanoid       1   Theocracy
+ 2067 58121  Totally alien  1   Democracy
+ 2068 58126  Totally alien  7   Bureaucracy
+ 2069 58136  Totally alien  3   Technocracy
+ 2070 58174  Totally alien  7   Federation
+ 2071 58178  Mineral        7   Republic
+ 2072 58200  Totally alien  1   Anarchy
+ 2073 58219  Mineral        4   Dictatorship
+ 2074 58273  Totally alien  3   Theocracy
+ 2075 58273  Humanoid       3   Balkanization
+ 2076 58279  Totally alien  1   Anarchy
+ 2077 58296  Vegetal        7   Aristocracy
+ 2078 58309  Mineral        7   Monarchy
+ 2079 58324  Totally alien  3   Bureaucracy
+ 2080 58358  Totally alien  6   Theocracy
+ 2081 58390  Totally alien  1   Theocracy
+ 2082 58411  Animal         1   Monarchy
+ 2083 58462  Reptilian      5   Balkanization
+ 2084 58477  Humanoid       7   Imperialism
+ 2085 58494  Totally alien  1   Balkanization
+ 2086 58508  Humanoid       7   Bureaucracy
+ 2087 58518  Totally alien  7   Bureaucracy
+ 2088 58542  Animal         7   Technocracy
+ 2089 58599  Totally alien  7   Republic
+ 2090 58607  Totally alien  2   Community
+ 2091 58622  Reptilian      1   Monarchy
+ 2092 58649  Totally alien  6   Imperialism
+ 2093 58682  Mineral        6   Monarchy
+ 2094 58724  Reptilian      6   Theocracy
+ 2095 58770  Totally alien  3   Bureaucracy
+ 2096 58869  Totally alien  1   Tribalism
+ 2097 58889  Insectoid      1   Democracy
+ 2098 58927  Totally alien  7   Technocracy
+ 2099 58955  Humanoid       1   Community
+ 2100 58967  Totally alien  4   Dictatorship
+ 2101 58973  Insectoid      8   Theocracy
+ 2102 59000  Feline         1   Community
+ 2103 59119  Feline         6   Monarchy
+ 2104 59154  Reptilian      1   Monarchy
+ 2105 59219  Mineral        7   Oligarchy
+ 2106 59226  Animal         6   Balkanization
+ 2107 59319  Totally alien  1   Anarchy
+ 2108 59326  Totally alien  3   Imperialism
+ 2109 59344  Humanoid       1   Tribalism
+ 2110 59362  Reptilian      7   Aristocracy
+ 2111 59380  Animal         3   Technocracy
+ 2112 59435  Crustacean     7   Imperialism
+ 2113 59478  Totally alien  1   Tribalism
+ 2114 59479  Totally alien  5   Theocracy
+ 2115 59494  Humanoid       1   Anarchy
+ 2116 59499  Humanoid       5   Theocracy
+ 2117 59564  Reptilian      1   Balkanization
+ 2118 59571  Gaseous        4   Corporation
+ 2119 59578  Reptilian      6   Bureaucracy
+ 2120 59611  Reptilian      7   Dictatorship
+ 2121 59654  Totally alien  6   Republic
+ 2122 59719  Humanoid       6   Dictatorship
+ 2123 59761  Feline         7   Republic
+ 2124 59787  Humanoid       5   Bureaucracy
+ 2125 59789  Humanoid       6   Theocracy
+ 2126 59803  Animal         6   Technocracy
+ 2127 59807  Mineral        6   Imperialism
+ 2128 59826  Reptilian      1   Balkanization
+ 2129 59871  Totally alien  1   Anarchy
+ 2130 59905  Totally alien  6   Matriarchy
+ 2131 59940  Totally alien  1   Tribalism
+ 2132 59984  Humanoid       3   Bureaucracy
+ 2133 60007  Amoebic        7   Balkanization
+ 2134 60036  Humanoid       1   Theocracy
+ 2135 60051  Humanoid       3   Technocracy
+ 2136 60075  Totally alien  3   Stochastic
+ 2137 60091  Animal         5   Matriarchy
+ 2138 60142  Totally alien  6   Technocracy
+ 2139 60184  Reptilian      1   Anarchy
+ 2140 60261  Humanoid       4   Imperialism
+ 2141 60265  Rodent         1   Tribalism
+ 2142 60271  Insectoid      5   Monarchy
+ 2143 60301  Humanoid       4   Aristocracy
+ 2144 60328  Humanoid       7   Theocracy
+ 2145 60350  Reptilian      1   Tribalism
+ 2146 60374  Totally alien  3   Monarchy
+ 2147 60381  Humanoid       3   Technocracy
+ 2148 60422  Totally alien  3   Theocracy
+ 2149 60496  Humanoid       1   Balkanization
+ 2150 60502  Insectoid      7   Technocracy
+ 2151 60537  Reptilian      7   Dictatorship
+ 2152 60593  Totally alien  1   Democracy
+ 2153 60598  Totally alien  1   Tribalism
+ 2154 60623  Totally alien  5   Utopia
+ 2155 60625  Totally alien  2   Balkanization
+ 2156 60699  Totally alien  7   Oligarchy
+ 2157 60730  Animal         7   Imperialism
+ 2158 60737  Totally alien  6   Imperialism
+ 2159 60772  Humanoid       5   Meritocracy
+ 2160 60785  Porcine        1   Democracy
+ 2161 60787  Totally alien  1   Theocracy
+ 2162 60859  Vegetal        7   Corporation
+ 2163 60902  Feline         3   Monarchy
+ 2164 60932  Totally alien  7   Corporation
+ 2165 60943  Crustacean     3   Anarchy
+ 2166 60948  Liquid         1   Monarchy
+ 2167 60974  Humanoid       3   Anarchy
+ 2168 61005  Totally alien  1   Balkanization
+ 2169 61010  Totally alien  1   Balkanization
+ 2170 61024  Reptilian      1   Community
+ 2171 61029  Insectoid      7   Technocracy
+ 2172 61077  Totally alien  6   Republic
+ 2173 61099  Reptilian      6   Theocracy
+ 2174 61176  Humanoid       2   Anarchy
+ 2175 61215  Humanoid       6   Corporation
+ 2176 61224  Totally alien  7   Republic
+ 2177 61243  Porcine        6   Dictatorship
+ 2178 61251  Totally alien  1   Monarchy
+ 2179 61267  Porcine        8   Technocracy
+ 2180 61307  Humanoid       7   Monarchy
+ 2181 61312  Totally alien  1   Balkanization
+ 2182 61331  Totally alien  7   Oligarchy
+ 2183 61356  Animal         7   Imperialism
+ 2184 61366  Totally alien  1   Community
+ 2185 61367  Insectoid      7   Monarchy
+ 2186 61402  Reptilian      1   Democracy
+ 2187 61435  Totally alien  7   Corporation
+ 2188 61439  Reptilian      7   Technocracy
+ 2189 61453  Totally alien  7   Balkanization
+ 2190 61500  Totally alien  6   Theocracy
+ 2191 61591  Serpentile     7   Imperialism
+ 2192 61606  Humanoid       7   Dictatorship
+ 2193 61644  Rodent         4   Technocracy
+ 2194 61649  Totally alien  1   Community
+ 2195 61659  Porcine        6   Corporation
+ 2196 61683  Insectoid      7   Gerontocracy
+ 2197 61691  Totally alien  7   Theocracy
+ 2198 61696  Totally alien  6   Theocracy
+ 2199 61706  Totally alien  1   Democracy
+ 2200 61715  Totally alien  6   Corporation
+ 2201 61726  Ursoid         7   Imperialism
+ 2202 61809  Mineral        3   Oligarchy
+ 2203 61936  Humanoid       7   Monarchy
+ 2204 61953  Totally alien  1   Tribalism
+ 2205 61979  Totally alien  8   Monarchy
+ 2206 62046  Humanoid       1   Tribalism
+ 2207 62083  Reptilian      6   Dictatorship
+ 2208 62107  Insectoid      1   Balkanization
+ 2209 62117  Totally alien  3   Balkanization
+ 2210 62134  Humanoid       7   Imperialism
+ 2211 62140  Humanoid       5   Bureaucracy
+ 2212 62145  Totally alien  1   Anarchy
+ 2213 62283  Crustacean     1   Balkanization
+ 2214 62297  Totally alien  1   Anarchy
+ 2215 62322  Totally alien  5   Monarchy
+ 2216 62374  Totally alien  7   Corporation
+ 2217 62389  Ursoid         4   Theocracy
+ 2218 62400  Humanoid       1   Anarchy
+ 2219 62439  Humanoid       7   Bureaucracy
+ 2220 62477  Insectoid      3   Monarchy
+ 2221 62493  Totally alien  6   Corporation
+ 2222 62501  Totally alien  6   Aristocracy
+ 2223 62565  Totally alien  7   Technocracy
+ 2224 62586  Mineral        6   Oligarchy
+ 2225 62603  Totally alien  1   Tribalism
+ 2226 62605  Totally alien  6   Republic
+ 2227 62623  Totally alien  4   Monarchy
+ 2228 62696  Reptilian      3   Bureaucracy
+ 2229 62700  Mineral        7   Oligarchy
+ 2230 62774  Avian          5   Corporation
+ 2231 62779  Animal         6   Dictatorship
+ 2232 62789  Insectoid      6   Technocracy
+ 2233 62815  Totally alien  3   Dictatorship
+ 2234 62838  Totally alien  7   Ploutocracy
+ 2235 62859  Humanoid       6   Theocracy
+ 2236 62876  Vegetal        1   Tribalism
+ 2237 62880  Porcine        4   Bureaucracy
+ 2238 62940  Totally alien  1   Tribalism
+ 2239 63047  Totally alien  7   Theocracy
+ 2240 63068  Humanoid       4   Theocracy
+ 2241 63095  Reptilian      7   Republic
+ 2242 63105  Animal         1   Balkanization
+ 2243 63106  Totally alien  6   Technocracy
+ 2244 63127  Humanoid       7   Matriarchy
+ 2245 63162  Reptilian      1   Community
+ 2246 63185  Mineral        6   Bureaucracy
+ 2247 63215  Humanoid       4   Matriarchy
+ 2248 63219  Humanoid       7   Imperialism
+ 2249 63262  Insectoid      1   Theocracy
+ 2250 63286  Insectoid      1   Democracy
+ 2251 63308  Totally alien  7   Imperialism
+ 2252 63312  Humanoid       1   Monarchy
+ 2253 63331  Humanoid       4   Republic
+ 2254 63352  Humanoid       7   Dictatorship
+ 2255 63361  Ursoid         7   Theocracy
+ 2256 63362  Reptilian      3   Balkanization
+ 2257 63401  Totally alien  5   Bureaucracy
+ 2258 63433  Insectoid      6   Technocracy
+ 2259 63469  Totally alien  3   Corporation
+ 2260 63475  Totally alien  1   Tribalism
+ 2261 63514  Humanoid       1   Monarchy
+ 2262 63568  Insectoid      1   Theocracy
+ 2263 63663  Insectoid      4   Dictatorship
+ 2264 63680  Humanoid       5   Theocracy
+ 2265 63693  Totally alien  7   Bureaucracy
+ 2266 63706  Reptilian      7   Balkanization
+ 2267 63729  Totally alien  7   Oligarchy
+ 2268 63734  Humanoid       7   Corporation
+ 2269 63743  Insectoid      1   Balkanization
+ 2270 63778  Humanoid       1   Democracy
+ 2271 63793  Humanoid       5   Balkanization
+ 2272 63814  Totally alien  1   Tribalism
+ 2273 63831  Vegetal        4   Corporation
+ 2274 63877  Humanoid       1   Democracy
+ 2275 63909  Totally alien  7   Theocracy
+ 2276 63914  Humanoid       6   Dictatorship
+ 2277 63989  Mineral        1   Democracy
+ 2278 64029  Reptilian      4   Technocracy
+ 2279 64043  Humanoid       4   Technocracy
+ 2280 64046  Totally alien  1   Theocracy
+ 2281 64051  Animal         6   Monarchy
+ 2282 64102  Reptilian      4   Technocracy
+ 2283 64140  Humanoid       3   Community
+ 2284 64223  Totally alien  4   Republic
+ 2285 64223  Crustacean     3   Oligarchy
+ 2286 64241  Mineral        7   Technocracy
+ 2287 64243  Ursoid         5   Imperialism
+ 2288 64248  Humanoid       7   Imperialism
+ 2289 64256  Insectoid      7   Theocracy
+ 2290 64272  Humanoid       7   Imperialism
+ 2291 64302  Totally alien  1   Monarchy
+ 2292 64335  Totally alien  1   Monarchy
+ 2293 64348  Totally alien  5   Corporation
+ 2294 64371  Humanoid       3   Monarchy
+ 2295 64374  Totally alien  4   Corporation
+ 2296 64376  Humanoid       7   Dictatorship
+ 2297 64419  Liquid         1   Balkanization
+ 2298 64488  Totally alien  1   Monarchy
+ 2299 64533  Humanoid       4   Imperialism
+ 2300 64599  Avian          6   Imperialism
+ 2301 64607  Reptilian      6   Balkanization
+ 2302 64625  Totally alien  7   Dictatorship
+ 2303 64660  Crustacean     3   Bureaucracy
+ 2304 64722  Humanoid       7   Utopia
+ 2305 64753  Crustacean     3   Monarchy
+ 2306 64766  Totally alien  3   Dictatorship
+ 2307 64773  Totally alien  7   Technocracy
+ 2308 64830  Totally alien  1   Balkanization
+ 2309 64940  Avian          1   Balkanization
+ 2310 65058  Animal         6   Bureaucracy
+ 2311 65149  Insectoid      4   Balkanization
+ 2312 65205  Reptilian      6   Theocracy
+ 2313 65216  Amphibian      5   Corporation
+ 2314 65245  Insectoid      5   Technocracy
+ 2315 65265  Totally alien  7   Imperialism
+ 2316 65284  Mineral        5   Matriarchy
+ 2317 65306  Totally alien  6   Stochastic
+ 2318 65339  Reptilian      1   Tribalism
+ 2319 65352  Insectoid      7   Theocracy
+ 2320 65446  Animal         5   Corporation
+ 2321 65514  Reptilian      7   Corporation
+ 2322 65568  Mineral        6   Bureaucracy
+ 2323 65589  Porcine        5   Republic
+ 2324 65601  Mineral        2   Anarchy
+ 2325 65604  Porcine        1   Anarchy
+ 2326 65662  Humanoid       5   Republic
+ 2327 65677  Reptilian      5   Republic
+ 2328 65700  Insectoid      7   Imperialism
+ 2329 65734  Totally alien  1   Balkanization
+ 2330 65789  Humanoid       6   Bureaucracy
+ 2331 65812  Arachnid       6   Theocracy
+ 2332 65821  Totally alien  7   Ploutocracy
+ 2333 65831  Canine         8   Imperialism
+ 2334 65936  Totally alien  7   Imperialism
+ 2335 65963  Totally alien  7   Republic
+ 2336 66012  Totally alien  5   Imperialism
+ 2337 66016  Avian          6   Balkanization
+ 2338 66049  Reptilian      3   Oligarchy
+ 2339 66065  Porcine        7   Republic
+ 2340 66085  Mineral        5   Monarchy
+ 2341 66127  Humanoid       6   Republic
+ 2342 66175  Totally alien  7   Imperialism
+ 2343 66196  Humanoid       7   Syndicate
+ 2344 66212  Totally alien  7   Technocracy
+ 2345 66217  Reptilian      6   Oligarchy
+ 2346 66276  Totally alien  7   Imperialism
+ 2347 66282  Reptilian      1   Anarchy
+ 2348 66292  Totally alien  5   Balkanization
+ 2349 66305  Totally alien  1   Community
+ 2350 66332  Reptilian      1   Monarchy
+ 2351 66353  Humanoid       3   Technocracy
+ 2352 66358  Porcine        7   Technocracy
+ 2353 66423  Serpentile     5   Monarchy
+ 2354 66449  Totally alien  5   Corporation
+ 2355 66452  Reptilian      5   Bureaucracy
+ 2356 66467  Centauroid     7   Theocracy
+ 2357 66504  Totally alien  8   Theocracy
+ 2358 66523  Rodent         1   Community
+ 2359 66579  Porcine        7   Dictatorship
+ 2360 66586  Arachnid       6   Syndicate
+ 2361 66604  Feline         1   Monarchy
+ 2362 66643  Mineral        5   Bureaucracy
+ 2363 66656  Humanoid       6   Theocracy
+ 2364 66699  Totally alien  1   Monarchy
+ 2365 66703  Crustacean     4   Technocracy
+ 2366 66721  Totally alien  7   Theocracy
+ 2367 66782  Reptilian      3   Balkanization
+ 2368 66805  Crustacean     1   Monarchy
+ 2369 66836  Humanoid       3   Syndicate
+ 2370 66853  Reptilian      3   Monarchy
+ 2371 66873  Humanoid       6   Monarchy
+ 2372 66898  Reptilian      1   Democracy
+ 2373 66919  Humanoid       1   Community
+ 2374 66940  Totally alien  3   Theocracy
+ 2375 66992  Reptilian      4   Balkanization
+ 2376 67001  Mineral        7   Technocracy
+ 2377 67074  Insectoid      7   Bureaucracy
+ 2378 67110  Vegetal        3   Balkanization
+ 2379 67115  Insectoid      1   Anarchy
+ 2380 67121  Humanoid       1   Tribalism
+ 2381 67153  Rodent         8   Balkanization
+ 2382 67160  Reptilian      7   Gerontocracy
+ 2383 67207  Mineral        1   Monarchy
+ 2384 67208  Totally alien  3   Tribalism
+ 2385 67210  Reptilian      5   Dictatorship
+ 2386 67215  Reptilian      5   Theocracy
+ 2387 67216  Totally alien  7   Republic
+ 2388 67219  Feline         7   Theocracy
+ 2389 67247  Humanoid       1   Theocracy
+ 2390 67250  Totally alien  6   Theocracy
+ 2391 67254  Totally alien  5   Corporation
+ 2392 67255  Reptilian      5   Bureaucracy
+ 2393 67285  Avian          6   Theocracy
+ 2394 67285  Reptilian      3   Theocracy
+ 2395 67299  Insectoid      1   Tribalism
+ 2396 67355  Totally alien  7   Imperialism
+ 2397 67428  Totally alien  7   Republic
+ 2398 67449  Reptilian      6   Computer Oligarchy
+ 2399 67461  Humanoid       7   Republic
+ 2400 67504  Animal         7   Dictatorship
+ 2401 67511  Totally alien  6   Republic
+ 2402 67512  Feline         6   Corporation
+ 2403 67536  Totally alien  7   Theocracy
+ 2404 67596  Totally alien  6   Imperialism
+ 2405 67600  Vegetal        7   Corporation
+ 2406 67647  Totally alien  3   Republic
+ 2407 67647  Totally alien  1   Tribalism
+ 2408 67682  Humanoid       6   Monarchy
+ 2409 67685  Totally alien  7   Corporation
+ 2410 67688  Porcine        4   Republic
+ 2411 67695  Totally alien  1   Monarchy
+ 2412 67754  Totally alien  4   Republic
+ 2413 67794  Humanoid       1   Balkanization
+ 2414 67876  Humanoid       7   Bureaucracy
+ 2415 67892  Totally alien  5   Technocracy
+ 2416 67893  Totally alien  6   Dictatorship
+ 2417 67895  Avian          3   Balkanization
+ 2418 67943  Totally alien  6   Technocracy
+ 2419 67948  Vegetal        3   Theocracy
+ 2420 67951  Insectoid      1   Theocracy
+ 2421 67989  Insectoid      6   Imperialism
+ 2422 68032  Canine         5   Corporation
+ 2423 68084  Avian          7   Theocracy
+ 2424 68094  Picthinine     5   Republic
+ 2425 68165  Humanoid       5   Matriarchy
+ 2426 68185  Humanoid       7   Corporation
+ 2427 68193  Totally alien  6   Balkanization
+ 2428 68203  Totally alien  7   Corporation
+ 2429 68207  Arachnid       1   Balkanization
+ 2430 68214  Totally alien  1   Balkanization
+ 2431 68250  Totally alien  5   Imperialism
+ 2432 68294  Humanoid       1   Anarchy
+ 2433 68294  Totally alien  1   Theocracy
+ 2434 68295  Insectoid      8   Oligarchy
+ 2435 68297  Canine         2   Tribalism
+ 2436 68322  Reptilian      7   Republic
+ 2437 68343  Reptilian      6   Theocracy
+ 2438 68405  Humanoid       3   Republic
+ 2439 68429  Canine         3   Oligarchy
+ 2440 68446  Totally alien  7   Theocracy
+ 2441 68447  Rodent         5   Balkanization
+ 2442 68465  Reptilian      1   Community
+ 2443 68465  Humanoid       3   Bureaucracy
+ 2444 68490  Amphibian      3   Theocracy
+ 2445 68495  Humanoid       1   Balkanization
+ 2446 68514  Insectoid      7   Theocracy
+ 2447 68582  Humanoid       2   Anarchy
+ 2448 68623  Totally alien  3   Theocracy
+ 2449 68651  Animal         7   Ploutocracy
+ 2450 68711  Porcine        4   Bureaucracy
+ 2451 68730  Rodent         1   Balkanization
+ 2452 68814  Arachnid       3   Balkanization
+ 2453 68818  Humanoid       1   Anarchy
+ 2454 68865  Humanoid       1   Democracy
+ 2455 68873  Totally alien  1   Community
+ 2456 68886  Porcine        4   Matriarchy
+ 2457 68898  Centauroid     1   Theocracy
+ 2458 68901  Humanoid       1   Monarchy
+ 2459 68947  Mineral        6   Balkanization
+ 2460 68957  Animal         6   Bureaucracy
+ 2461 68970  Porcine        6   Oligarchy
+ 2462 68975  Totally alien  6   Imperialism
+ 2463 68994  Humanoid       5   Corporation
+ 2464 69018  Humanoid       4   Technocracy
+ 2465 69024  Totally alien  4   Syndicate
+ 2466 69039  Animal         1   Community
+ 2467 69040  Humanoid       1   Anarchy
+ 2468 69041  Totally alien  8   Theocracy
+ 2469 69044  Reptilian      7   Bureaucracy
+ 2470 69064  Arachnid       5   Dictatorship
+ 2471 69067  Vegetal        7   Ploutocracy
+ 2472 69098  Animal         7   Dictatorship
+ 2473 69116  Insectoid      6   Theocracy
+ 2474 69158  Humanoid       1   Tribalism
+ 2475 69160  Insectoid      6   Monarchy
+ 2476 69179  Totally alien  1   Monarchy
+ 2477 69216  Humanoid       1   Tribalism
+ 2478 69231  Humanoid       5   Technocracy
+ 2479 69232  Mineral        7   Imperialism
+ 2480 69319  Totally alien  7   Oligarchy
+ 2481 69326  Totally alien  1   Theocracy
+ 2482 69433  Totally alien  7   Technocracy
+ 2483 69437  Totally alien  2   Community
+ 2484 69480  Feline         3   Bureaucracy
+ 2485 69555  Totally alien  6   Balkanization
+ 2486 69656  Totally alien  6   Monarchy
+ 2487 69706  Arachnid       1   Monarchy
+ 2488 69748  Totally alien  4   Dictatorship
+ 2489 69749  Mineral        5   Monarchy
+ 2490 69793  Humanoid       1   Community
+ 2491 69847  Totally alien  1   Theocracy
+ 2492 69860  Humanoid       1   Theocracy
+ 2493 69895  Totally alien  6   Imperialism
+ 2494 69916  Insectoid      3   Monarchy
+ 2495 69976  Reptilian      1   Democracy
+ 2496 69994  Totally alien  7   Federation
+ 2497 70012  Insectoid      5   Ploutocracy
+ 2498 70116  Totally alien  6   Theocracy
+ 2499 70117  Mineral        7   Corporation
+ 2500 70124  Humanoid       1   Monarchy
+ 2501 70150  Totally alien  7   Balkanization
+ 2502 70174  Totally alien  6   Technocracy
+ 2503 70211  Centauroid     3   Monarchy
+ 2504 70249  Avian          4   Aristocracy
+ 2505 70292  Humanoid       8   Federation
+ 2506 70311  Avian          7   Corporation
+ 2507 70350  Canine         6   Dictatorship
+ 2508 70371  Totally alien  4   Balkanization
+ 2509 70384  Totally alien  8   Computer Oligarchy
+ 2510 70387  Totally alien  6   Monarchy
+ 2511 70401  Totally alien  6   Balkanization
+ 2512 70420  Humanoid       1   Monarchy
+ 2513 70435  Reptilian      7   Republic
+ 2514 70447  Totally alien  1   Monarchy
+ 2515 70455  Totally alien  5   Syndicate
+ 2516 70456  Totally alien  7   Bureaucracy
+ 2517 70498  Totally alien  6   Imperialism
+ 2518 70516  Humanoid       6   Corporation
+ 2519 70630  Humanoid       1   Theocracy
+ 2520 70651  Totally alien  6   Republic
+ 2521 70685  Humanoid       1   Tribalism
+ 2522 70703  Picthinine     6   Republic
+ 2523 70710  Reptilian      1   Community
+ 2524 70713  Reptilian      6   Imperialism
+ 2525 70741  Insectoid      5   Oligarchy
+ 2526 70742  Totally alien  6   Republic
+ 2527 70756  Totally alien  6   Republic
+ 2528 70775  Animal         4   Monarchy
+ 2529 70815  Totally alien  7   Imperialism
+ 2530 70829  Humanoid       4   Imperialism
+ 2531 70842  Reptilian      7   Theocracy
+ 2532 70854  Totally alien  6   Republic
+ 2533 70855  Reptilian      3   Dictatorship
+ 2534 70883  Porcine        7   Corporation
+ 2535 70898  Totally alien  6   Technocracy
+ 2536 70908  Totally alien  5   Technocracy
+ 2537 70940  Totally alien  7   Imperialism
+ 2538 70945  Humanoid       5   Bureaucracy
+ 2539 70975  Mineral        7   Syndicate
+ 2540 71033  Totally alien  5   Monarchy
+ 2541 71071  Humanoid       4   Republic
+ 2542 71081  Reptilian      7   Technocracy
+ 2543 71091  Crustacean     1   Balkanization
+ 2544 71135  Humanoid       1   Anarchy
+ 2545 71143  Porcine        1   Community
+ 2546 71175  Mineral        7   Republic
+ 2547 71198  Totally alien  5   Imperialism
+ 2548 71206  Humanoid       4   Republic
+ 2549 71245  Mineral        7   Balkanization
+ 2550 71339  Humanoid       5   Imperialism
+ 2551 71352  Humanoid       7   Imperialism
+ 2552 71372  Totally alien  6   Balkanization
+ 2553 71374  Totally alien  4   Bureaucracy
+ 2554 71448  Energetic      4   Imperialism
+ 2555 71458  Totally alien  1   Democracy
+ 2556 71542  Totally alien  3   Democracy
+ 2557 71545  Totally alien  1   Anarchy
+ 2558 71596  Humanoid       7   Dictatorship
+ 2559 71612  Totally alien  6   Corporation
+ 2560 71635  Totally alien  4   Bureaucracy
+ 2561 71707  Totally alien  3   Theocracy
+ 2562 71724  Totally alien  1   Anarchy
+ 2563 71744  Totally alien  6   Oligarchy
+ 2564 71754  Reptilian      7   Technocracy
+ 2565 71778  Reptilian      1   Tribalism
+ 2566 71816  Totally alien  5   Imperialism
+
