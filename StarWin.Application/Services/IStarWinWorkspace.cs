@@ -21,4 +21,6 @@ public interface IStarWinWorkspace
     ArmyGeneratorSettings ArmySettings { get; }
 
     GurpsTemplate PreviewGurpsTemplate { get; }
+
+    Task ReloadAsync(CancellationToken cancellationToken = default);
 }

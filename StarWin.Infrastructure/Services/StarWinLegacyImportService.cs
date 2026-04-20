@@ -18,6 +18,8 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     private const int ColonyRecordSize = 28;
     private const int ContactRecordSize = 6;
     private const int EmpireRecordSize = 52;
+    private const int StarSystemSaveBatchSize = 500;
+    private const int WorldSaveBatchSize = 25_000;
     private readonly StarWinClassificationCatalog classificationCatalog = new();
     private readonly IndependentColonyEmpireFactory independentColonyEmpireFactory = new();
     private readonly SpaceHabitatConstructionService spaceHabitatConstructionService = new();
@@ -644,6 +646,10 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             var importedWorldsById = new Dictionary<int, World>();
             await ReportImportProgressAsync(progress, 42, "Writing star systems and worlds...", $"Preparing {importedSystems.Count:N0} star system record(s), {planets.Count:N0} planet record(s), and {moons.Count:N0} moon record(s).");
             var processedSystemCount = 0;
+            var batchHasChanges = isNewSector;
+            var batchSystemCount = 0;
+            var batchAstralBodyCount = 0;
+            var batchWorldCount = 0;
             foreach (var systemImport in importedSystems)
             {
                 processedSystemCount++;
@@ -676,38 +682,72 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                     addedAstralBodyCount += systemImport.System.AstralBodies.Count;
                     addedWorldCount += newWorlds.Count;
                     addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
-                    continue;
+                    batchHasChanges = true;
+                    batchSystemCount++;
+                    batchAstralBodyCount += systemImport.System.AstralBodies.Count;
+                    batchWorldCount += newWorlds.Count;
                 }
-
-                skippedSystemCount++;
-                if (!existingAstralBodyRoles.TryGetValue(systemImport.System.Id, out var existingRoles))
+                else
                 {
-                    existingRoles = [];
-                    existingAstralBodyRoles[systemImport.System.Id] = existingRoles;
+                    skippedSystemCount++;
+                    if (!existingAstralBodyRoles.TryGetValue(systemImport.System.Id, out var existingRoles))
+                    {
+                        existingRoles = [];
+                        existingAstralBodyRoles[systemImport.System.Id] = existingRoles;
+                    }
+
+                    foreach (var astralBody in systemImport.System.AstralBodies.Where(body => existingRoles.Add(body.Role)))
+                    {
+                        dbContext.Set<AstralBody>().Add(astralBody);
+                        dbContext.Entry(astralBody).Property("StarSystemId").CurrentValue = systemImport.System.Id;
+                        addedAstralBodyCount++;
+                        batchHasChanges = true;
+                        batchAstralBodyCount++;
+                    }
+
+                    foreach (var world in newWorlds)
+                    {
+                        dbContext.Worlds.Add(world);
+                    }
+
+                    addedWorldCount += newWorlds.Count;
+                    addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
+                    batchHasChanges = batchHasChanges || newWorlds.Count > 0;
+                    batchWorldCount += newWorlds.Count;
                 }
 
-                foreach (var astralBody in systemImport.System.AstralBodies.Where(body => existingRoles.Add(body.Role)))
+                if (batchHasChanges
+                    && (batchSystemCount >= StarSystemSaveBatchSize
+                        || batchWorldCount >= WorldSaveBatchSize
+                        || processedSystemCount == importedSystems.Count))
                 {
-                    dbContext.Set<AstralBody>().Add(astralBody);
-                    dbContext.Entry(astralBody).Property("StarSystemId").CurrentValue = systemImport.System.Id;
-                    addedAstralBodyCount++;
+                    var savePercent = CalculatePhasePercent(43, 59, processedSystemCount, importedSystems.Count);
+                    await FlushImportChangesAsync(
+                        progress,
+                        savePercent,
+                        "Saving star systems and worlds...",
+                        $"Committing batch {processedSystemCount:N0} of {importedSystems.Count:N0}: {batchSystemCount:N0} star system(s), {batchAstralBodyCount:N0} astral bodies, and {batchWorldCount:N0} world(s).",
+                        cancellationToken);
+                    batchHasChanges = false;
+                    batchSystemCount = 0;
+                    batchAstralBodyCount = 0;
+                    batchWorldCount = 0;
                 }
-
-                foreach (var world in newWorlds)
-                {
-                    dbContext.Worlds.Add(world);
-                }
-
-                addedWorldCount += newWorlds.Count;
-                addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
             }
 
-            await FlushImportChangesAsync(
-                progress,
-                59,
-                "Saving star systems and worlds...",
-                $"Committing {addedSystemCount:N0} star system(s), {addedAstralBodyCount:N0} astral bodie(s), and {addedWorldCount:N0} world(s).",
-                cancellationToken);
+            if (batchHasChanges)
+            {
+                await FlushImportChangesAsync(
+                    progress,
+                    59,
+                    "Saving star systems and worlds...",
+                    $"Committing final batch: {batchSystemCount:N0} star system(s), {batchAstralBodyCount:N0} astral bodies, and {batchWorldCount:N0} world(s).",
+                    cancellationToken);
+            }
+            else
+            {
+                await ReportImportProgressAsync(progress, 59, "Saving star systems and worlds...", $"Committed {addedSystemCount:N0} star system(s), {addedAstralBodyCount:N0} astral bodies, and {addedWorldCount:N0} world(s).");
+            }
 
             await ReportImportProgressAsync(progress, 60, "Writing alien races...", $"Preparing {aliens.Count:N0} alien race record(s).");
             foreach (var alienRecord in aliens)

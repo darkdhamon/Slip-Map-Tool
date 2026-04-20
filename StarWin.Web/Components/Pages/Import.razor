@@ -1,6 +1,7 @@
 @page "/import"
 @rendermode InteractiveServer
 @inject IStarWinLegacyImportService LegacyImportService
+@inject IStarWinWorkspace Workspace
 @inject NavigationManager Navigation
 
 <PageTitle>Import - Starforged Atlas</PageTitle>
@@ -299,6 +300,12 @@
 
             if (result.Success && result.SectorId is int sectorId)
             {
+                importLoadingStatus = "Refreshing Explorer workspace...";
+                importLoadingDetail = "Loading the imported sector into the Explorer sector list.";
+                importLoadingProgressPercent = 100;
+                StateHasChanged();
+                await Task.Yield();
+                await Workspace.ReloadAsync();
                 Navigation.NavigateTo($"/?sectorId={sectorId}", forceLoad: true);
             }
         }
