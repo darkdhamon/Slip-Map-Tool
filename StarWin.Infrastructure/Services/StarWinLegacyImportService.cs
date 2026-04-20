@@ -763,8 +763,12 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 && dbContext.StarSystems.Any(system => system.Id == world.StarSystemId && system.SectorId == sectorId)))
             .Include(colony => colony.Demographics)
             .ToListAsync(cancellationToken);
-        sectorColonies.AddRange(importedColonies.Where(colony => sectorColonies.All(existing => existing.Id != colony.Id)));
+        var sectorColonyIds = sectorColonies
+            .Select(colony => colony.Id)
+            .ToHashSet();
+        sectorColonies.AddRange(importedColonies.Where(colony => sectorColonyIds.Add(colony.Id)));
 
+        await ReportImportProgressAsync(progress, 85, "Deriving colony state...", $"Loaded {sectorColonies.Count:N0} sector colonie(s). Loading sector worlds.");
         var sectorWorlds = await dbContext.Worlds
             .Where(world => world.StarSystemId != null
                 && dbContext.StarSystems.Any(system => system.Id == world.StarSystemId && system.SectorId == sectorId))
@@ -774,17 +778,35 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             sectorWorlds.TryAdd(world.Id, world);
         }
 
+        await ReportImportProgressAsync(progress, 86, "Deriving colony state...", $"Loaded {sectorWorlds.Count:N0} sector world(s). Loading sector history.");
         var sectorHistory = await dbContext.HistoryEvents
             .Where(history => history.SectorId == sectorId)
             .ToListAsync(cancellationToken);
-        sectorHistory.AddRange(historyEvents.Where(history => !sectorHistory.Any(existing => BuildHistoryKey(existing) == BuildHistoryKey(history))));
+        var sectorHistoryKeys = sectorHistory
+            .Select(BuildHistoryKey)
+            .ToHashSet(StringComparer.Ordinal);
+        sectorHistory.AddRange(historyEvents.Where(history => sectorHistoryKeys.Add(BuildHistoryKey(history))));
+        var independenceEvents = BuildIndependenceEventIndex(sectorHistory);
 
-        await ReportImportProgressAsync(progress, 88, "Creating independent empires...", "Building empires for colonies whose history says they became independent.");
+        await ReportImportProgressAsync(progress, 88, "Creating independent empires...", $"Checking {sectorColonies.Count:N0} colonie(s) against indexed independence history.");
         var nextEmpireId = Math.Max(
             existingEmpireIds.Count == 0 ? 0 : existingEmpireIds.Max(),
             knownEmpires.Count == 0 ? 0 : knownEmpires.Keys.Max()) + 1;
-        foreach (var colony in sectorColonies.Where(colony => IsIndependentColony(colony, sectorHistory)))
+        var processedColonyStateCount = 0;
+        foreach (var colony in sectorColonies)
         {
+            processedColonyStateCount++;
+            if (processedColonyStateCount == 1 || processedColonyStateCount % 250 == 0 || processedColonyStateCount == sectorColonies.Count)
+            {
+                var colonyStatePercent = CalculatePhasePercent(88, 91, processedColonyStateCount, sectorColonies.Count);
+                await ReportImportProgressAsync(progress, colonyStatePercent, "Creating independent empires...", $"Checked {processedColonyStateCount:N0} of {sectorColonies.Count:N0} colonie(s).");
+            }
+
+            if (!IsIndependentColony(colony, independenceEvents))
+            {
+                continue;
+            }
+
             if (!independentEmpireColonyIds.Add(colony.Id)
                 || !sectorWorlds.TryGetValue(colony.WorldId, out var world)
                 || !knownAlienRaces.TryGetValue(colony.RaceId, out var foundingRace))
@@ -804,7 +826,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             }
 
             independentEmpire.Id = nextEmpireId++;
-            independentEmpire.Founding.FoundedCentury = FindIndependenceCentury(colony, sectorHistory);
+            independentEmpire.Founding.FoundedCentury = FindIndependenceCentury(colony, independenceEvents);
             AssignColonyToIndependentEmpire(colony, independentEmpire);
             dbContext.Empires.Add(independentEmpire);
             knownEmpires[independentEmpire.Id] = independentEmpire;
@@ -1724,44 +1746,30 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         return string.IsNullOrWhiteSpace(requestedName) ? "Imported Sector" : requestedName.Trim();
     }
 
-    private static bool IsIndependentColony(Colony colony, IReadOnlyList<HistoryEvent> sectorHistory)
+    private static bool IsIndependentColony(Colony colony, IndependenceEventIndex independenceEvents)
     {
         if (colony.PoliticalStatus == ColonyPoliticalStatus.Independent || colony.AllegianceId == ushort.MaxValue)
         {
             return true;
         }
 
-        return sectorHistory.Any(history => IsIndependenceEventForColony(history, colony));
+        return independenceEvents.HasIndependenceEvent(colony);
     }
 
-    private static int? FindIndependenceCentury(Colony colony, IReadOnlyList<HistoryEvent> sectorHistory)
+    private static int? FindIndependenceCentury(Colony colony, IndependenceEventIndex independenceEvents)
     {
-        return sectorHistory
-            .Where(history => IsIndependenceEventForColony(history, colony))
-            .OrderBy(history => history.Century)
-            .Select(history => (int?)history.Century)
-            .FirstOrDefault();
+        return independenceEvents.FindIndependenceCentury(colony);
     }
 
-    private static bool IsIndependenceEventForColony(HistoryEvent history, Colony colony)
+    private static IndependenceEventIndex BuildIndependenceEventIndex(IEnumerable<HistoryEvent> sectorHistory)
     {
-        if (!LooksLikeIndependenceEvent(history))
+        var index = new IndependenceEventIndex();
+        foreach (var history in sectorHistory.Where(LooksLikeIndependenceEvent))
         {
-            return false;
+            index.Add(history);
         }
 
-        if (history.ColonyId == colony.Id || history.PlanetId == colony.WorldId)
-        {
-            return true;
-        }
-
-        var colonyIsAlreadyIndependent = colony.PoliticalStatus == ColonyPoliticalStatus.Independent
-            || colony.AllegianceId == ushort.MaxValue;
-        return colonyIsAlreadyIndependent
-            && history.RaceId == colony.RaceId
-            && (history.EmpireId == colony.ParentEmpireId
-                || history.EmpireId == colony.FoundingEmpireId
-                || history.EmpireId == colony.AllegianceId);
+        return index;
     }
 
     private static bool LooksLikeIndependenceEvent(HistoryEvent history)
@@ -1772,6 +1780,89 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             || text.Contains("liberat", StringComparison.OrdinalIgnoreCase)
             || text.Contains("revolt", StringComparison.OrdinalIgnoreCase);
     }
+
+    private sealed class IndependenceEventIndex
+    {
+        private readonly Dictionary<int, int> colonyCenturies = [];
+        private readonly Dictionary<int, int> worldCenturies = [];
+        private readonly Dictionary<IndependenceRaceEmpireKey, int> raceEmpireCenturies = [];
+
+        public void Add(HistoryEvent history)
+        {
+            AddMinimumCentury(colonyCenturies, history.ColonyId, history.Century);
+            AddMinimumCentury(worldCenturies, history.PlanetId, history.Century);
+
+            if (history.RaceId is { } raceId && history.EmpireId is { } empireId)
+            {
+                AddMinimumCentury(
+                    raceEmpireCenturies,
+                    new IndependenceRaceEmpireKey(raceId, empireId),
+                    history.Century);
+            }
+        }
+
+        public bool HasIndependenceEvent(Colony colony)
+        {
+            return FindIndependenceCentury(colony) is not null;
+        }
+
+        public int? FindIndependenceCentury(Colony colony)
+        {
+            var bestCentury = GetMinimumCentury(colonyCenturies, colony.Id);
+            bestCentury = MinNullable(bestCentury, GetMinimumCentury(worldCenturies, colony.WorldId));
+
+            if (colony.PoliticalStatus == ColonyPoliticalStatus.Independent || colony.AllegianceId == ushort.MaxValue)
+            {
+                bestCentury = MinNullable(bestCentury, FindRaceEmpireCentury(colony, colony.ParentEmpireId));
+                bestCentury = MinNullable(bestCentury, FindRaceEmpireCentury(colony, colony.FoundingEmpireId));
+                bestCentury = MinNullable(bestCentury, colony.AllegianceId == ushort.MaxValue
+                    ? null
+                    : FindRaceEmpireCentury(colony, colony.AllegianceId));
+            }
+
+            return bestCentury;
+        }
+
+        private int? FindRaceEmpireCentury(Colony colony, int? empireId)
+        {
+            return empireId is { } id
+                ? GetMinimumCentury(raceEmpireCenturies, new IndependenceRaceEmpireKey(colony.RaceId, id))
+                : null;
+        }
+
+        private static void AddMinimumCentury<TKey>(Dictionary<TKey, int> centuries, TKey? key, int century)
+            where TKey : struct
+        {
+            if (key is not { } value)
+            {
+                return;
+            }
+
+            if (!centuries.TryGetValue(value, out var existingCentury) || century < existingCentury)
+            {
+                centuries[value] = century;
+            }
+        }
+
+        private static int? GetMinimumCentury<TKey>(IReadOnlyDictionary<TKey, int> centuries, TKey key)
+            where TKey : notnull
+        {
+            return centuries.TryGetValue(key, out var century)
+                ? century
+                : null;
+        }
+
+        private static int? MinNullable(int? first, int? second)
+        {
+            return first is null
+                ? second
+                : second is null
+                    ? first
+                    : Math.Min(first.Value, second.Value);
+        }
+    }
+
+    private readonly record struct IndependenceRaceEmpireKey(int RaceId, int EmpireId);
 
     private static bool HasSpaceHabitatFacility(Colony colony)
     {
