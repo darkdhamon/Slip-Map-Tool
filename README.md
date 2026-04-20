@@ -1,6 +1,9 @@
-# Read Me
+# Starforged Atlas
 
-## Slip Map
-This application was originally created to be used along side Star Generator v2.0, and is used to simulate a Slipstream network between star systems.
-## Star Generator v2.0
-Starwin is created by Aina Rasolomalala
+Starforged Atlas is a modern web and desktop atlas for science-fiction campaign sectors, built from the legacy StarWin and Slip Map codebases.
+
+## Legacy Sources
+
+The original Slip Map application was created to be used alongside Star Generator v2.0 and simulated a slipstream network between star systems.
+
+StarWin, originally Star Generator for Windows, was created by Aina Rasolomalala.

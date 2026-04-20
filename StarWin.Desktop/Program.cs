@@ -38,7 +38,7 @@ try
     }
 
     var window = new PhotinoWindow()
-        .SetTitle("StarWin")
+        .SetTitle("Starforged Atlas")
         .SetUseOsDefaultSize(false)
         .SetSize(1280, 840)
         .Load(localUrl);
@@ -63,10 +63,10 @@ internal static class StarWinDesktopPaths
     public static string GetDatabasePath()
     {
         var dataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var starWinRoot = Path.Combine(dataRoot, "StarWin");
-        Directory.CreateDirectory(starWinRoot);
+        var atlasRoot = Path.Combine(dataRoot, "Starforged Atlas");
+        Directory.CreateDirectory(atlasRoot);
 
-        return Path.Combine(starWinRoot, "starwin.db");
+        return Path.Combine(atlasRoot, "starforged-atlas.db");
     }
 
     public static string GetWebContentRoot()

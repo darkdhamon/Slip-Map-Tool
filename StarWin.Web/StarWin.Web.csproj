@@ -19,6 +19,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <AssemblyTitle>Starforged Atlas Web</AssemblyTitle>
+    <Product>Starforged Atlas</Product>
   </PropertyGroup>
 
 </Project>
