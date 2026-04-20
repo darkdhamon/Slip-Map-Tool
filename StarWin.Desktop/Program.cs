@@ -1,14 +1,18 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Photino.NET;
 using StarWin.Web;
 
+const string WebView2Arguments = "--disable-gpu --disable-gpu-compositing --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows";
+
 var port = GetAvailablePort();
 var localUrl = $"http://127.0.0.1:{port}";
 var databasePath = StarWinDesktopPaths.GetDatabasePath();
+var webViewDataPath = StarWinDesktopPaths.GetWebViewDataPath();
 var smokeTest = args.Contains("--smoke-test", StringComparer.OrdinalIgnoreCase);
 
 var builder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
@@ -23,6 +27,7 @@ builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
 {
     ["StarWin:DatabaseProvider"] = "Sqlite",
     ["StarWin:ApplyMigrationsOnStartup"] = "true",
+    ["StarforgedAtlas:HostKind"] = "Desktop",
     ["ConnectionStrings:StarWin"] = $"Data Source={databasePath}"
 });
 
@@ -41,6 +46,16 @@ try
         .SetTitle("Starforged Atlas")
         .SetUseOsDefaultSize(false)
         .SetSize(1280, 840);
+
+    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    {
+        Environment.SetEnvironmentVariable(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            WebView2Arguments);
+
+        window.SetTemporaryFilesPath(webViewDataPath);
+        window.SetBrowserControlInitParameters(WebView2Arguments);
+    }
 
     var iconPath = StarWinDesktopPaths.GetIconPath();
     if (File.Exists(iconPath))
@@ -69,11 +84,15 @@ internal static class StarWinDesktopPaths
 {
     public static string GetDatabasePath()
     {
-        var dataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var atlasRoot = Path.Combine(dataRoot, "Starforged Atlas");
-        Directory.CreateDirectory(atlasRoot);
+        return Path.Combine(GetApplicationDataRoot(), "starforged-atlas.db");
+    }
 
-        return Path.Combine(atlasRoot, "starforged-atlas.db");
+    public static string GetWebViewDataPath()
+    {
+        var webViewRoot = Path.Combine(GetApplicationDataRoot(), "WebView2");
+        Directory.CreateDirectory(webViewRoot);
+
+        return webViewRoot;
     }
 
     public static string GetWebContentRoot()
@@ -103,5 +122,14 @@ internal static class StarWinDesktopPaths
         }
 
         return null;
+    }
+
+    private static string GetApplicationDataRoot()
+    {
+        var dataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var atlasRoot = Path.Combine(dataRoot, "Starforged Atlas");
+        Directory.CreateDirectory(atlasRoot);
+
+        return atlasRoot;
     }
 }

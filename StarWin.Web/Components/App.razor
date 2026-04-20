@@ -1,4 +1,6 @@
 ﻿<!DOCTYPE html>
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+
 <html lang="en">
 
 <head>
@@ -15,10 +17,17 @@
     <HeadOutlet />
 </head>
 
-<body>
+<body class="@BodyClass">
     <Routes />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
 </html>
+
+@code {
+    private string? BodyClass =>
+        string.Equals(Configuration["StarforgedAtlas:HostKind"], "Desktop", StringComparison.OrdinalIgnoreCase)
+            ? "atlas-desktop-shell"
+            : null;
+}

@@ -65,6 +65,16 @@ body > * {
     z-index: 1;
 }
 
+body.atlas-desktop-shell {
+    background: linear-gradient(180deg, #030712 0%, #07111f 45%, #020617 100%);
+    overflow-x: hidden;
+}
+
+body.atlas-desktop-shell::before,
+body.atlas-desktop-shell::after {
+    display: none;
+}
+
 button,
 input,
 select {
