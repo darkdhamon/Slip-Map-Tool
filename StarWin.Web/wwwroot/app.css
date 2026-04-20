@@ -652,7 +652,8 @@ dd {
 
 .content-grid {
     grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-    align-items: start;
+    align-items: stretch;
+    min-height: calc(100vh - 168px);
 }
 
 .generator-layout {
@@ -1182,7 +1183,9 @@ dd {
 }
 
 .record-list {
-    max-height: 720px;
+    align-content: start;
+    height: 100%;
+    max-height: calc(100vh - 168px);
     overflow: auto;
 }
 
@@ -2027,6 +2030,15 @@ dd {
 
     .timeline-filter-panel {
         position: static;
+    }
+
+    .content-grid {
+        min-height: 0;
+    }
+
+    .record-list {
+        height: auto;
+        max-height: none;
     }
 
     .section-tabs {
