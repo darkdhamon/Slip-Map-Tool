@@ -21,7 +21,7 @@
             <div class="segmented-control" role="group" aria-label="Import source">
                 @foreach (var source in importSources)
                 {
-                    <button type="button" class="@(selectedSource == source.Key ? "active" : null)" @onclick="() => selectedSource = source.Key">@source.Label</button>
+                    <button type="button" class="@(selectedSource == source.Key ? "active" : null)" @onclick="() => selectedSource = source.Key" disabled="@importLoadingVisible">@source.Label</button>
                 }
             </div>
 
@@ -51,8 +51,8 @@
             </div>
 
             <div class="parent-actions import-actions">
-                <button type="button" @onclick="PrepareImportPreview">Preview import</button>
-                <button type="button" @onclick="ImportPackage">Import</button>
+                <button type="button" @onclick="PrepareImportPreview" disabled="@importLoadingVisible">Preview import</button>
+                <button type="button" @onclick="ImportPackage" disabled="@importLoadingVisible">Import</button>
             </div>
         </article>
 
@@ -136,6 +136,25 @@
             }
         </article>
     </section>
+
+    @if (importLoadingVisible)
+    {
+        <div class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="@importLoadingLabel">
+            <section class="loading-modal">
+                <span class="panel-kicker">@importLoadingLabel</span>
+                <h2>@importLoadingStatus</h2>
+                <div class="loading-meter" aria-hidden="true">
+                    <span></span>
+                </div>
+                <ol>
+                    @foreach (var step in importLoadingSteps)
+                    {
+                        <li>@step</li>
+                    }
+                </ol>
+            </section>
+        </div>
+    }
 </section>
 
 @code {
@@ -156,6 +175,10 @@
     private bool includeSlipMapLinks = true;
     private string statusTitle = "Ready";
     private string statusMessage = "Select an import package to prepare a validation preview.";
+    private bool importLoadingVisible;
+    private string importLoadingLabel = "Import";
+    private string importLoadingStatus = string.Empty;
+    private IReadOnlyList<string> importLoadingSteps = [];
     private StarWinLegacyImportPreview? starWinPreview;
     private IBrowserFile? selectedFile;
 
@@ -191,7 +214,18 @@
         {
             try
             {
+                await ShowImportLoadingAsync(
+                    "Previewing import",
+                    "Reading package manifest...",
+                    [
+                        "Opening the uploaded StarWin 2 archive.",
+                        "Matching sector file groups.",
+                        "Sampling star systems for validation."
+                    ]);
+
                 await using var stream = selectedFile.OpenReadStream(512 * 1024 * 1024);
+                importLoadingStatus = "Validating StarWin sector files...";
+                StateHasChanged();
                 starWinPreview = await LegacyImportService.PreviewStarWinZipAsync(stream, selectedFile.Name);
                 if (starWinPreview.Sectors.Count > 0 && string.IsNullOrWhiteSpace(targetSectorName))
                 {
@@ -207,6 +241,10 @@
             {
                 statusTitle = "Preview failed";
                 statusMessage = exception.Message;
+            }
+            finally
+            {
+                HideImportLoading();
             }
 
             return;
@@ -234,7 +272,18 @@
 
         try
         {
+            await ShowImportLoadingAsync(
+                "Importing package",
+                "Preparing sector import...",
+                [
+                    "Opening the uploaded StarWin 2 archive.",
+                    "Importing systems, worlds, colonies, empires, and history.",
+                    "Saving imported records to the atlas database."
+                ]);
+
             await using var stream = selectedFile.OpenReadStream(512 * 1024 * 1024);
+            importLoadingStatus = "Writing imported records...";
+            StateHasChanged();
             var result = await LegacyImportService.ImportStarWinZipAsync(stream, selectedFile.Name, targetSectorName);
             starWinPreview = result.Preview;
             statusTitle = result.Success ? "Import complete" : "Import failed";
@@ -250,6 +299,29 @@
             statusTitle = "Import failed";
             statusMessage = exception.Message;
         }
+        finally
+        {
+            HideImportLoading();
+        }
+    }
+
+    private async Task ShowImportLoadingAsync(string label, string status, IReadOnlyList<string> steps)
+    {
+        importLoadingLabel = label;
+        importLoadingStatus = status;
+        importLoadingSteps = steps;
+        importLoadingVisible = true;
+        StateHasChanged();
+
+        await Task.Yield();
+    }
+
+    private void HideImportLoading()
+    {
+        importLoadingVisible = false;
+        importLoadingLabel = "Import";
+        importLoadingStatus = string.Empty;
+        importLoadingSteps = [];
     }
 
     private static string DisplayBytes(long bytes)
