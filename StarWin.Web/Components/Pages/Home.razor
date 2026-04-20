@@ -1189,7 +1189,7 @@
 
 @code {
     private const int DefaultSectorMapViewDistanceParsecs = 5;
-    private const int SectorMapMaximumRenderedSystems = 1_000;
+    private const int SectorMapUnrestrictedRenderedSystems = int.MaxValue;
     private const int SectorMapMinimumRenderedSystems = 150;
     private const int ColonyBatchSize = 120;
     private const int ExplorerListBatchSize = 120;
@@ -1291,7 +1291,7 @@
     private decimal ownedHyperlaneBaseMaximumLengthParsecs = 1.2m;
     private string sectorConfigurationStatus = string.Empty;
     private int sectorMapViewDistanceParsecs = DefaultSectorMapViewDistanceParsecs;
-    private int sectorMapRenderLimit = SectorMapMaximumRenderedSystems;
+    private int sectorMapRenderLimit = SectorMapUnrestrictedRenderedSystems;
     private string sectorMapPerformanceStatus = string.Empty;
 
     private IReadOnlyDictionary<int, AlienRace>? alienRacesById;
@@ -1581,7 +1581,7 @@
     [JSInvokable]
     public Task ReduceSectorMapRenderLimit(int suggestedMaximumSystems, double averageFrameMilliseconds, int previousMaximumSystems)
     {
-        var nextLimit = Math.Clamp(suggestedMaximumSystems, SectorMapMinimumRenderedSystems, SectorMapMaximumRenderedSystems);
+        var nextLimit = Math.Clamp(suggestedMaximumSystems, SectorMapMinimumRenderedSystems, SectorMapUnrestrictedRenderedSystems);
         if (nextLimit >= sectorMapRenderLimit)
         {
             return Task.CompletedTask;
@@ -1787,7 +1787,7 @@
 
     private void ResetSectorMapPerformanceLimit()
     {
-        sectorMapRenderLimit = SectorMapMaximumRenderedSystems;
+        sectorMapRenderLimit = SectorMapUnrestrictedRenderedSystems;
         sectorMapPerformanceStatus = string.Empty;
         renderedMapRenderLimit = 0;
     }
@@ -3057,7 +3057,6 @@
             sector = sector.Name,
             viewDistanceParsecs = sectorMapViewDistanceParsecs,
             fadeStartParsecs = Math.Max(0, sectorMapViewDistanceParsecs - 1),
-            maximumRenderedSystems = sectorMapRenderLimit,
             labelDistanceParsecs = SectorMapMaximumLabelDistanceParsecs,
             routeDistanceParsecs = routeDistance,
             ownedRouteDistanceParsecs = ownedRouteDistance,

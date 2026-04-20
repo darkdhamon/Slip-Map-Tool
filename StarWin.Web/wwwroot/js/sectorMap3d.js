@@ -29,7 +29,6 @@ export async function renderSectorMap(host, sector, selectedSystemId, dotNetRefe
 
     state.dotNetReference = dotNetReference;
     state.systems = sector.systems ?? [];
-    state.maximumRenderedSystems = Number(sector.maximumRenderedSystems ?? state.systems.length);
     resetPerformanceMonitor(state);
     rebuildScene(state, sector, selectedSystemId);
     focusSystem(state, selectedSystemId);
@@ -111,7 +110,6 @@ function createMap(host, THREE) {
         animationFrame: 0,
         dotNetReference: null,
         systems: [],
-        maximumRenderedSystems: 0,
         systemPositions: new Map(),
         performance: createPerformanceMonitor(),
         target: new THREE.Vector3(36, 18, 36),
@@ -990,7 +988,7 @@ function trackMapPerformance(state, timestamp) {
 
     const averageFrameMilliseconds = monitor.samples.reduce((sum, sample) => sum + sample, 0) / monitor.samples.length;
     const slowFrames = monitor.samples.filter(sample => sample >= slowFrameMilliseconds).length;
-    const currentLimit = Number(state.maximumRenderedSystems || state.systems.length || 0);
+    const currentLimit = Number(state.systems.length || 0);
     const suggestedLimit = Math.max(minimumAdaptiveSystemLimit, Math.floor(currentLimit * 0.72));
     const hasSustainedLag = averageFrameMilliseconds >= slowAverageMilliseconds
         || slowFrames / monitor.samples.length >= slowFrameRatio;
