@@ -1001,5 +1001,5 @@ function trackMapPerformance(state, timestamp) {
     }
 
     monitor.reported = true;
-    state.dotNetReference?.invokeMethodAsync("ReduceSectorMapRenderLimit", suggestedLimit, averageFrameMilliseconds);
+    state.dotNetReference?.invokeMethodAsync("ReduceSectorMapRenderLimit", suggestedLimit, averageFrameMilliseconds, currentLimit);
 }

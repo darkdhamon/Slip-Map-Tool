@@ -1579,7 +1579,7 @@
     }
 
     [JSInvokable]
-    public Task ReduceSectorMapRenderLimit(int suggestedMaximumSystems, double averageFrameMilliseconds)
+    public Task ReduceSectorMapRenderLimit(int suggestedMaximumSystems, double averageFrameMilliseconds, int previousMaximumSystems)
     {
         var nextLimit = Math.Clamp(suggestedMaximumSystems, SectorMapMinimumRenderedSystems, SectorMapMaximumRenderedSystems);
         if (nextLimit >= sectorMapRenderLimit)
@@ -1588,7 +1588,7 @@
         }
 
         sectorMapRenderLimit = nextLimit;
-        sectorMapPerformanceStatus = $"Performance mode: showing closest {sectorMapRenderLimit:N0} systems after slow map frames ({averageFrameMilliseconds:0} ms avg).";
+        sectorMapPerformanceStatus = $"The map reduced visible systems from {previousMaximumSystems:N0} to {sectorMapRenderLimit:N0} to improve performance after slow frames ({averageFrameMilliseconds:0} ms avg).";
         renderedOverview = false;
         return InvokeAsync(StateHasChanged);
     }
