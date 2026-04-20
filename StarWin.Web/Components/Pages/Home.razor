@@ -235,59 +235,11 @@
             </section>
             break;
         case "Systems":
-            <section class="content-grid">
-                <div class="record-list">
-                    <section class="record-filter-panel">
-                        <label>
-                            Search
-                            <input placeholder="Name, ID, coordinates..."
-                                   @bind="systemQuery"
-                                   @bind:event="oninput"
-                                   @bind:after="ResetSystemWindow" />
-                        </label>
-                        <label>
-                            Allegiance
-                            <select @bind="systemEmpireId" @bind:after="ResetSystemWindow">
-                                <option value="@TimelineAllFilterId">All allegiances</option>
-                                @foreach (var empire in sectorEmpires)
-                                {
-                                    <option value="@empire.Id">@empire.Name</option>
-                                }
-                            </select>
-                        </label>
-                        <button type="button" class="timeline-clear-button" @onclick="ClearSystemFilters">Clear filters</button>
-                    </section>
-                    @{
-                        var systemWindow = GetFilteredSystems(sectorCache.SystemsByName)
-                            .Take(systemVisibleCount + 1)
-                            .ToList();
-                        var hasMoreSystems = systemWindow.Count > systemVisibleCount;
-                        var visibleSystems = systemWindow.Take(systemVisibleCount).ToList();
-                        systemHasMoreRecords = hasMoreSystems;
-                    }
-                    <div class="timeline-count">Showing @visibleSystems.Count system@(visibleSystems.Count == 1 ? string.Empty : "s")@(hasMoreSystems ? "+" : string.Empty)</div>
-                    @if (visibleSystems.Count == 0)
-                    {
-                        <article class="timeline-event-card">
-                            <span class="timeline-century">No matches</span>
-                            <p>Adjust the filters to widen the system list.</p>
-                        </article>
-                    }
-                    @foreach (var system in visibleSystems)
-                    {
-                        <button type="button" class="record-row @(selectedSystem?.Id == system.Id ? "active" : null)" @onclick="() => SelectSystem(system.Id)">
-                            <strong>@system.Name</strong>
-                            <span>@DisplayCoordinates(system.Coordinates)</span>
-                        </button>
-                    }
-                    @if (hasMoreSystems)
-                    {
-                        <div @ref="systemLoadMoreElement" class="timeline-load-more">
-                            <button type="button" @onclick="LoadMoreSystems">Load more</button>
-                        </div>
-                    }
-                </div>
-
+            <ExplorerSystemsSection SectorCache="sectorCache"
+                                    Empires="sectorEmpires"
+                                    SectorId="@sector.Id"
+                                    SelectedSystemId="@(selectedSystem?.Id ?? 0)"
+                                    SystemSelected="SelectSystem">
                 @if (selectedSystem is not null)
                 {
                     <article class="detail-panel">
@@ -339,7 +291,7 @@
                         </div>
                     </article>
                 }
-            </section>
+            </ExplorerSystemsSection>
             break;
         case "Worlds":
             <section class="content-grid">
@@ -952,7 +904,6 @@
     private IReadOnlyList<StarWinSearchResult> searchResults = [];
     private ElementReference sectorMapElement;
     private ElementReference colonyLoadMoreElement;
-    private ElementReference systemLoadMoreElement;
     private ElementReference worldLoadMoreElement;
     private ElementReference raceLoadMoreElement;
     private ElementReference empireLoadMoreElement;
@@ -977,11 +928,6 @@
     private int colonyVisibleCount = ColonyBatchSize;
     private bool colonyHasMoreRecords;
     private bool colonyObserverConfigured;
-    private string systemQuery = string.Empty;
-    private int systemEmpireId = TimelineAllFilterId;
-    private int systemVisibleCount = ExplorerListBatchSize;
-    private bool systemHasMoreRecords;
-    private bool systemObserverConfigured;
     private string worldQuery = string.Empty;
     private string worldKind = string.Empty;
     private string worldType = string.Empty;
@@ -1073,12 +1019,10 @@
         if (activeSection == "Systems")
         {
             renderedOverview = false;
-            await ConfigureRecordObserverAsync("system", systemHasMoreRecords, () => systemObserverConfigured, value => systemObserverConfigured = value, systemLoadMoreElement, "LoadMoreSystems");
             await CompleteSectionLoadingIfReadyAsync();
             return;
         }
 
-        systemObserverConfigured = false;
         if (activeSection == "Worlds")
         {
             renderedOverview = false;
@@ -1407,16 +1351,6 @@
         ResetColonyWindow();
     }
 
-    [JSInvokable]
-    public Task LoadMoreSystems()
-    {
-        systemVisibleCount += ExplorerListBatchSize;
-        systemObserverConfigured = false;
-        StateHasChanged();
-        return Task.CompletedTask;
-    }
-
-    [JSInvokable]
     public Task LoadMoreWorlds()
     {
         worldVisibleCount += ExplorerListBatchSize;
@@ -1443,12 +1377,6 @@
         return Task.CompletedTask;
     }
 
-    private void ResetSystemWindow()
-    {
-        systemVisibleCount = ExplorerListBatchSize;
-        systemObserverConfigured = false;
-    }
-
     private void ResetWorldWindow()
     {
         worldVisibleCount = ExplorerListBatchSize;
@@ -1465,13 +1393,6 @@
     {
         empireVisibleCount = ExplorerListBatchSize;
         empireObserverConfigured = false;
-    }
-
-    private void ClearSystemFilters()
-    {
-        systemQuery = string.Empty;
-        systemEmpireId = TimelineAllFilterId;
-        ResetSystemWindow();
     }
 
     private void ClearWorldFilters()
@@ -1737,38 +1658,6 @@
             || ContainsTimelineQuery(item.Colony.ExportResource, query)
             || ContainsTimelineQuery(item.Colony.ImportResource, query)
             || item.Colony.Demographics.Any(demographic => ContainsTimelineQuery(demographic.RaceName, query));
-    }
-
-    private IEnumerable<StarSystem> GetFilteredSystems(IEnumerable<StarSystem> systems)
-    {
-        return systems.Where(SystemMatches);
-    }
-
-    private bool SystemMatches(StarSystem system)
-    {
-        if (systemEmpireId != TimelineAllFilterId && system.AllegianceId != systemEmpireId)
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(systemQuery))
-        {
-            return true;
-        }
-
-        var query = systemQuery.Trim();
-        return ContainsTimelineQuery(system.Name, query)
-            || ContainsTimelineQuery(system.Id.ToString(), query)
-            || ContainsTimelineQuery(system.LegacySystemId?.ToString(), query)
-            || ContainsTimelineQuery(DisplayCoordinates(system.Coordinates), query)
-            || ContainsTimelineQuery(DisplayAllegiance(system.AllegianceId), query)
-            || system.AstralBodies.Any(body =>
-                ContainsTimelineQuery(body.Kind.ToString(), query)
-                || ContainsTimelineQuery(body.Classification, query)
-                || ContainsTimelineQuery(body.Role.ToString(), query))
-            || system.Worlds.Any(world =>
-                ContainsTimelineQuery(world.Name, query)
-                || ContainsTimelineQuery(world.WorldType, query));
     }
 
     private IEnumerable<ExplorerWorldRecord> GetFilteredExplorerWorldRecords(StarSystem? system)

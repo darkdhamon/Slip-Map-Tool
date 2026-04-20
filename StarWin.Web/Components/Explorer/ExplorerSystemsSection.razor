@@ -1,0 +1,224 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<section class="content-grid">
+    <div class="record-list">
+        <section class="record-filter-panel">
+            <label>
+                Search
+                <input placeholder="Name, ID, coordinates..."
+                       @bind="systemQuery"
+                       @bind:event="oninput"
+                       @bind:after="ResetSystemWindow" />
+            </label>
+            <label>
+                Allegiance
+                <select @bind="systemEmpireId" @bind:after="ResetSystemWindow">
+                    <option value="@AllFilterId">All allegiances</option>
+                    @foreach (var empire in Empires)
+                    {
+                        <option value="@empire.Id">@empire.Name</option>
+                    }
+                </select>
+            </label>
+            <button type="button" class="timeline-clear-button" @onclick="ClearSystemFilters">Clear filters</button>
+        </section>
+        @{
+            var systemWindow = SectorCache.SystemsByName
+                .Where(SystemMatches)
+                .Take(systemVisibleCount + 1)
+                .ToList();
+            var hasMoreSystems = systemWindow.Count > systemVisibleCount;
+            var visibleSystems = systemWindow.Take(systemVisibleCount).ToList();
+            systemHasMoreRecords = hasMoreSystems;
+        }
+        <div class="timeline-count">Showing @visibleSystems.Count system@(visibleSystems.Count == 1 ? string.Empty : "s")@(hasMoreSystems ? "+" : string.Empty)</div>
+        @if (visibleSystems.Count == 0)
+        {
+            <article class="timeline-event-card">
+                <span class="timeline-century">No matches</span>
+                <p>Adjust the filters to widen the system list.</p>
+            </article>
+        }
+        @foreach (var system in visibleSystems)
+        {
+            <button type="button" class="record-row @(SelectedSystemId == system.Id ? "active" : null)" @onclick="() => SystemSelected.InvokeAsync(system.Id)">
+                <strong>@system.Name</strong>
+                <span>@DisplayCoordinates(system.Coordinates)</span>
+            </button>
+        }
+        @if (hasMoreSystems)
+        {
+            <div @ref="systemLoadMoreElement" class="timeline-load-more">
+                <button type="button" @onclick="LoadMoreSystems">Load more</button>
+            </div>
+        }
+    </div>
+
+    @ChildContent
+</section>
+
+@code {
+    private const int ExplorerListBatchSize = 120;
+    private const int AllFilterId = -1;
+
+    [Parameter, EditorRequired]
+    public ExplorerSectorCache SectorCache { get; set; } = default!;
+
+    [Parameter]
+    public IReadOnlyList<Empire> Empires { get; set; } = [];
+
+    [Parameter]
+    public int SectorId { get; set; }
+
+    [Parameter]
+    public int SelectedSystemId { get; set; }
+
+    [Parameter]
+    public EventCallback<int> SystemSelected { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private readonly Dictionary<int, string> empireNamesById = [];
+    private ElementReference systemLoadMoreElement;
+    private DotNetObjectReference<ExplorerSystemsSection>? dotNetReference;
+    private IJSObjectReference? scrollModule;
+    private int renderedSectorId;
+    private string systemQuery = string.Empty;
+    private int systemEmpireId = AllFilterId;
+    private int systemVisibleCount = ExplorerListBatchSize;
+    private bool systemHasMoreRecords;
+    private bool systemObserverConfigured;
+
+    protected override void OnParametersSet()
+    {
+        empireNamesById.Clear();
+        foreach (var empire in Empires)
+        {
+            empireNamesById[empire.Id] = empire.Name;
+        }
+
+        if (renderedSectorId != 0 && renderedSectorId != SectorId)
+        {
+            ClearSystemFilters();
+        }
+
+        renderedSectorId = SectorId;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await ConfigureSystemObserverAsync();
+    }
+
+    private async Task ConfigureSystemObserverAsync()
+    {
+        if (!systemHasMoreRecords)
+        {
+            systemObserverConfigured = false;
+            if (scrollModule is not null)
+            {
+                await scrollModule.InvokeVoidAsync("disconnectLoadMore", "system");
+            }
+
+            return;
+        }
+
+        if (systemObserverConfigured)
+        {
+            return;
+        }
+
+        scrollModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/timelineInfiniteScroll.js");
+        dotNetReference ??= DotNetObjectReference.Create(this);
+        await scrollModule.InvokeVoidAsync("observeLoadMore", "system", systemLoadMoreElement, dotNetReference, "LoadMoreSystems");
+        systemObserverConfigured = true;
+    }
+
+    [JSInvokable]
+    public Task LoadMoreSystems()
+    {
+        systemVisibleCount += ExplorerListBatchSize;
+        systemObserverConfigured = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private void ResetSystemWindow()
+    {
+        systemVisibleCount = ExplorerListBatchSize;
+        systemObserverConfigured = false;
+    }
+
+    private void ClearSystemFilters()
+    {
+        systemQuery = string.Empty;
+        systemEmpireId = AllFilterId;
+        ResetSystemWindow();
+    }
+
+    private bool SystemMatches(StarSystem system)
+    {
+        if (systemEmpireId != AllFilterId && system.AllegianceId != systemEmpireId)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(systemQuery))
+        {
+            return true;
+        }
+
+        var query = systemQuery.Trim();
+        return ContainsQuery(system.Name, query)
+            || ContainsQuery(system.Id.ToString(), query)
+            || ContainsQuery(system.LegacySystemId?.ToString(), query)
+            || ContainsQuery(DisplayCoordinates(system.Coordinates), query)
+            || ContainsQuery(DisplayAllegiance(system.AllegianceId), query)
+            || system.AstralBodies.Any(body =>
+                ContainsQuery(body.Kind.ToString(), query)
+                || ContainsQuery(body.Classification, query)
+                || ContainsQuery(body.Role.ToString(), query))
+            || system.Worlds.Any(world =>
+                ContainsQuery(world.Name, query)
+                || ContainsQuery(world.WorldType, query));
+    }
+
+    private static bool ContainsQuery(string? value, string query)
+    {
+        return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private string DisplayAllegiance(ushort allegianceId)
+    {
+        if (allegianceId == ushort.MaxValue)
+        {
+            return "Independent";
+        }
+
+        return empireNamesById.TryGetValue(allegianceId, out var empireName) ? empireName : allegianceId.ToString();
+    }
+
+    private static string DisplayCoordinates(Coordinates coordinates)
+    {
+        return $"{coordinates.XParsecs:0.#}, {coordinates.YParsecs:0.#}, {coordinates.ZParsecs:0.#}";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (scrollModule is not null)
+        {
+            try
+            {
+                await scrollModule.InvokeVoidAsync("disconnectLoadMore", "system");
+                await scrollModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        dotNetReference?.Dispose();
+    }
+}
