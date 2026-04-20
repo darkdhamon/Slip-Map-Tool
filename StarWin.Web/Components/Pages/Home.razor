@@ -186,15 +186,14 @@
                     {
                         <article class="fullscreen-system-overlay">
                             <span class="panel-kicker">Current system</span>
-                            <EditableEntityName Name="@selectedSystem.Name"
-                                                Label="System"
-                                                NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.StarSystem, selectedSystem.Id, name)" />
+                            <h2>@selectedSystem.Name</h2>
                             <dl class="data-list">
                                 <div><dt>Coordinates</dt><dd>@DisplayCoordinates(selectedSystem.Coordinates)</dd></div>
                                 <div><dt>Allegiance</dt><dd>@DisplayAllegiance(selectedSystem.AllegianceId)</dd></div>
                                 <div><dt>Astral bodies</dt><dd>@selectedSystem.AstralBodies.Count</dd></div>
                                 <div><dt>Worlds</dt><dd>@selectedSystem.Worlds.Count</dd></div>
                             </dl>
+                            <button type="button" class="overlay-action" @onclick="RecenterSectorMap">Recenter map</button>
                             <button type="button" class="overlay-action" @onclick="OpenSelectedSystemRecord">Open system record</button>
                         </article>
                     }
@@ -1565,6 +1564,17 @@
 
         sectorMapModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/sectorMap3d.js");
         await sectorMapModule.InvokeVoidAsync("toggleMapFullscreen", sectorMapElement);
+    }
+
+    private async Task RecenterSectorMap()
+    {
+        if (!sectorMapRequested || selectedSystemId == 0)
+        {
+            return;
+        }
+
+        sectorMapModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/sectorMap3d.js");
+        await sectorMapModule.InvokeVoidAsync("recenterSectorMap", sectorMapElement, selectedSystemId);
     }
 
     [JSInvokable]
@@ -3051,7 +3061,13 @@
         var mappedSystems = GetSectorMapSystems(sector, focusedSystemId, routePlan).ToList();
         var routeDistance = GetHyperlaneRouteDistanceParsecs(sector);
         var ownedRouteDistance = GetOwnedHyperlaneBaseLengthParsecs(sector);
-        var routes = BuildSectorMapRoutes(mappedSystems, routeDistance, ownedRouteDistance, EmpiresById);
+        var routes = BuildVisibleSectorMapRoutes(
+            mappedSystems,
+            routeDistance,
+            ownedRouteDistance,
+            EmpiresById,
+            selectedSystemId,
+            routePlan);
 
         return new
         {
@@ -3470,11 +3486,41 @@
 
     private int GetSectorMapRouteCount(StarWinSector sector, StarSystem? focusedSystem)
     {
-        return BuildSectorMapRoutes(
-            GetSectorMapSystems(sector, focusedSystem?.Id ?? 0),
+        var focusedSystemId = focusedSystem?.Id ?? 0;
+        var routePlan = GetPlottedRoutePlan(sector);
+        return BuildVisibleSectorMapRoutes(
+            GetSectorMapSystems(sector, focusedSystemId, routePlan),
             GetHyperlaneRouteDistanceParsecs(sector),
             GetOwnedHyperlaneBaseLengthParsecs(sector),
-            EmpiresById).Count;
+            EmpiresById,
+            focusedSystemId,
+            routePlan).Count;
+    }
+
+    private static IReadOnlyList<SectorMapRoute> BuildVisibleSectorMapRoutes(
+        IReadOnlyList<StarSystem> systems,
+        double routeDistanceParsecs,
+        double ownedRouteDistanceParsecs,
+        IReadOnlyDictionary<int, Empire> empiresById,
+        int selectedSystemId,
+        SectorMapRoutePlan? routePlan)
+    {
+        var routes = BuildSectorMapRoutes(systems, routeDistanceParsecs, ownedRouteDistanceParsecs, empiresById);
+        if (routes.All(route => !route.IsGold))
+        {
+            return routes;
+        }
+
+        var routePathKeys = routePlan?.Legs
+            .Select(leg => GetSectorMapRouteKey(leg.Source.Id, leg.Target.Id))
+            .ToHashSet() ?? [];
+
+        return routes
+            .Where(route => !route.IsGold
+                || route.Source.Id == selectedSystemId
+                || route.Target.Id == selectedSystemId
+                || routePathKeys.Contains(GetSectorMapRouteKey(route.Source.Id, route.Target.Id)))
+            .ToList();
     }
 
     private static IReadOnlyList<SectorMapRoute> BuildSectorMapRoutes(

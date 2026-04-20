@@ -49,6 +49,15 @@ export function toggleMapFullscreen(host) {
     host.requestFullscreen();
 }
 
+export function recenterSectorMap(host, systemId) {
+    const state = maps.get(host);
+    if (!state) {
+        return;
+    }
+
+    focusSystem(state, systemId);
+}
+
 export function disposeSectorMap(host) {
     const state = maps.get(host);
     if (!state) {
