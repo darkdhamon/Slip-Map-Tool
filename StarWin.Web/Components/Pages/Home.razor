@@ -1189,6 +1189,7 @@
 
 @code {
     private const int DefaultSectorMapViewDistanceParsecs = 5;
+    private const int MaximumSectorMapViewDistanceParsecs = 20;
     private const int SectorMapUnrestrictedRenderedSystems = int.MaxValue;
     private const int SectorMapMinimumRenderedSystems = 150;
     private const int ColonyBatchSize = 120;
@@ -3675,23 +3676,7 @@
 
     private static int GetSectorMapMaximumViewDistance(StarWinSector sector)
     {
-        if (sector.Systems.Count < 2)
-        {
-            return DefaultSectorMapViewDistanceParsecs;
-        }
-
-        var minX = sector.Systems.Min(system => system.Coordinates.XParsecs);
-        var maxX = sector.Systems.Max(system => system.Coordinates.XParsecs);
-        var minY = sector.Systems.Min(system => system.Coordinates.YParsecs);
-        var maxY = sector.Systems.Max(system => system.Coordinates.YParsecs);
-        var minZ = sector.Systems.Min(system => system.Coordinates.ZParsecs);
-        var maxZ = sector.Systems.Max(system => system.Coordinates.ZParsecs);
-        var diagonal = Math.Sqrt(
-            Math.Pow(maxX - minX, 2)
-            + Math.Pow(maxY - minY, 2)
-            + Math.Pow(maxZ - minZ, 2));
-
-        return Math.Max(DefaultSectorMapViewDistanceParsecs, (int)Math.Ceiling(diagonal));
+        return MaximumSectorMapViewDistanceParsecs;
     }
 
     private static double CalculateParsecDistance(Coordinates origin, Coordinates target)
