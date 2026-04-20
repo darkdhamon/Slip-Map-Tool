@@ -9,8 +9,10 @@ namespace StarWin.Infrastructure.Services;
 
 public sealed class StarWinDatabaseWorkspace : IStarWinWorkspace
 {
-    public StarWinDatabaseWorkspace(StarWinDbContext dbContext)
+    public StarWinDatabaseWorkspace(IDbContextFactory<StarWinDbContext> dbContextFactory)
     {
+        using var dbContext = dbContextFactory.CreateDbContext();
+
         Sectors = dbContext.Sectors
             .AsNoTracking()
             .AsSplitQuery()

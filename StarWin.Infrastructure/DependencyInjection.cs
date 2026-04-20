@@ -14,10 +14,13 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddDbContext<StarWinDbContext>(options =>
+        services.AddDbContext<StarWinDbContext>(
+            options => options.UseSqlServer(configuration.GetConnectionString("StarWin")),
+            optionsLifetime: ServiceLifetime.Singleton);
+        services.AddDbContextFactory<StarWinDbContext>(options =>
             options.UseSqlServer(configuration.GetConnectionString("StarWin")));
 
-        services.AddScoped<IStarWinWorkspace, StarWinDatabaseWorkspace>();
+        services.AddSingleton<IStarWinWorkspace, StarWinDatabaseWorkspace>();
         services.AddScoped<IStarWinSearchService, StarWinSearchService>();
         services.AddScoped<IStarWinImageService, StarWinImageService>();
         services.AddScoped<IStarWinLegacyImportService, StarWinLegacyImportService>();

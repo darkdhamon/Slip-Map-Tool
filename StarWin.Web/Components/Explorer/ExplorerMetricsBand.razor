@@ -1,0 +1,39 @@
+<section class="metrics-band" aria-label="sector summary">
+    <article>
+        <span>Systems</span>
+        <strong>@SystemCount</strong>
+    </article>
+    <article>
+        <span>Worlds</span>
+        <strong>@WorldCount</strong>
+    </article>
+    <article>
+        <span>Colonies</span>
+        <strong>@ColonyCount</strong>
+    </article>
+    <article>
+        <span>Empires</span>
+        <strong>@EmpireCount</strong>
+    </article>
+    <article>
+        <span>Races</span>
+        <strong>@RaceCount</strong>
+    </article>
+</section>
+
+@code {
+    [Parameter]
+    public int SystemCount { get; set; }
+
+    [Parameter]
+    public int WorldCount { get; set; }
+
+    [Parameter]
+    public int ColonyCount { get; set; }
+
+    [Parameter]
+    public int EmpireCount { get; set; }
+
+    [Parameter]
+    public int RaceCount { get; set; }
+}

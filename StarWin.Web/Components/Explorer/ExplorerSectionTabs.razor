@@ -1,0 +1,111 @@
+<nav class="section-tabs" aria-label="StarWin sections">
+    @foreach (var sectionName in Sections)
+    {
+        <button type="button"
+                class="@(ActiveSection == sectionName ? "active" : null)"
+                @onclick="() => SectionSelected.InvokeAsync(sectionName)"
+                disabled="@IsLoading">
+            @sectionName
+        </button>
+    }
+</nav>
+
+@if (IsLoading)
+{
+    <div class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="Loading section">
+        <section class="loading-modal">
+            <span class="panel-kicker">Loading @LoadingTarget</span>
+            <h2>@LoadingStatus</h2>
+            <div class="loading-meter" aria-hidden="true">
+                <span></span>
+            </div>
+            <ol>
+                @foreach (var step in GetSectionLoadingSteps(LoadingTarget))
+                {
+                    <li>@step</li>
+                }
+            </ol>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public IReadOnlyList<string> Sections { get; set; } = [];
+
+    [Parameter]
+    public string ActiveSection { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    [Parameter]
+    public string LoadingTarget { get; set; } = string.Empty;
+
+    [Parameter]
+    public string LoadingStatus { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> SectionSelected { get; set; }
+
+    private static IReadOnlyList<string> GetSectionLoadingSteps(string sectionName)
+    {
+        return sectionName switch
+        {
+            "Overview" =>
+            [
+                "Restoring the sector summary.",
+                "Checking whether the 3D map has been requested.",
+                "Preparing the selected system record."
+            ],
+            "Timeline" =>
+            [
+                "Preparing chronology filters.",
+                "Reading the cached sector history index.",
+                "Linking events to systems, worlds, races, empires, and colonies."
+            ],
+            "Configuration" =>
+            [
+                "Loading sector travel settings.",
+                "Calculating visible hyperlane counts.",
+                "Preparing editable configuration fields."
+            ],
+            "Systems" =>
+            [
+                "Sorting systems by name.",
+                "Applying system filters.",
+                "Preparing the selected system detail panel."
+            ],
+            "Worlds" =>
+            [
+                "Collecting worlds and habitats for the selected system.",
+                "Applying world filters.",
+                "Preparing orbit and environment details."
+            ],
+            "Colonies" =>
+            [
+                "Sorting colonies by population.",
+                "Applying civilization filters.",
+                "Preparing demographics, trade, and government summaries."
+            ],
+            "Aliens" =>
+            [
+                "Filtering races for the current sector.",
+                "Resolving homeworld and empire links.",
+                "Preparing biology and culture summaries."
+            ],
+            "Empires" =>
+            [
+                "Filtering empires for the current sector.",
+                "Resolving race memberships and diplomatic contacts.",
+                "Preparing military, colony, and founding records."
+            ],
+            _ =>
+            [
+                "Preparing section data.",
+                "Rendering records.",
+                "Finishing layout."
+            ]
+        };
+    }
+}

@@ -1,3 +1,4 @@
+using StarWin.Application.Services;
 using StarWin.Infrastructure;
 using StarWin.Web.Components;
 
@@ -14,6 +15,8 @@ if (app.Environment.IsDevelopment())
 {
     await app.Services.SeedStarWinDevelopmentDataAsync();
 }
+
+_ = app.Services.GetRequiredService<IStarWinWorkspace>();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
