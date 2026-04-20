@@ -1,83 +1,174 @@
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
-using Photino.NET;
 using StarWin.Web;
 
-const string WebView2Arguments = "--disable-gpu --disable-gpu-compositing --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows";
+#if WINDOWS
+using System.Drawing;
+using System.Windows.Forms;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
+#else
+using Photino.NET;
+#endif
 
-var port = GetAvailablePort();
-var localUrl = $"http://127.0.0.1:{port}";
-var databasePath = StarWinDesktopPaths.GetDatabasePath();
-var webViewDataPath = StarWinDesktopPaths.GetWebViewDataPath();
-var smokeTest = args.Contains("--smoke-test", StringComparer.OrdinalIgnoreCase);
-
-var builder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
+internal static class Program
 {
-    Args = args,
-    ApplicationName = typeof(StarWinWebHost).Assembly.GetName().Name,
-    ContentRootPath = StarWinDesktopPaths.GetWebContentRoot()
-});
+    private const string WebView2Arguments = "--disable-gpu --disable-gpu-compositing --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows";
 
-builder.WebHost.UseUrls(localUrl);
-builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-{
-    ["StarWin:DatabaseProvider"] = "Sqlite",
-    ["StarWin:ApplyMigrationsOnStartup"] = "true",
-    ["StarforgedAtlas:HostKind"] = "Desktop",
-    ["ConnectionStrings:StarWin"] = $"Data Source={databasePath}"
-});
-
-var app = StarWinWebHost.Build(builder);
-await StarWinWebHost.InitializeAsync(app);
-await app.StartAsync();
-
-try
-{
-    if (smokeTest)
+    [STAThread]
+    public static async Task Main(string[] args)
     {
-        return;
+        var port = GetAvailablePort();
+        var localUrl = $"http://127.0.0.1:{port}";
+        var databasePath = StarWinDesktopPaths.GetDatabasePath();
+        var webViewDataPath = StarWinDesktopPaths.GetWebViewDataPath();
+        var smokeTest = args.Contains("--smoke-test", StringComparer.OrdinalIgnoreCase);
+
+        var builder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            ApplicationName = typeof(StarWinWebHost).Assembly.GetName().Name,
+            ContentRootPath = StarWinDesktopPaths.GetWebContentRoot()
+        });
+
+        builder.WebHost.UseUrls(localUrl);
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["StarWin:DatabaseProvider"] = "Sqlite",
+            ["StarWin:ApplyMigrationsOnStartup"] = "true",
+            ["StarforgedAtlas:HostKind"] = "Desktop",
+            ["ConnectionStrings:StarWin"] = $"Data Source={databasePath}"
+        });
+
+        var app = StarWinWebHost.Build(builder);
+        await StarWinWebHost.InitializeAsync(app);
+        await app.StartAsync();
+
+        try
+        {
+            if (smokeTest)
+            {
+                return;
+            }
+
+            RunDesktopShell(localUrl, webViewDataPath, StarWinDesktopPaths.GetIconPath());
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
     }
 
-    var window = new PhotinoWindow()
-        .SetTitle("Starforged Atlas")
-        .SetUseOsDefaultSize(false)
-        .SetSize(1280, 840);
-
-    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+    private static int GetAvailablePort()
     {
-        Environment.SetEnvironmentVariable(
-            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-            WebView2Arguments);
-
-        window.SetTemporaryFilesPath(webViewDataPath);
-        window.SetBrowserControlInitParameters(WebView2Arguments);
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        return ((IPEndPoint)listener.LocalEndpoint).Port;
     }
 
-    var iconPath = StarWinDesktopPaths.GetIconPath();
-    if (File.Exists(iconPath))
+#if WINDOWS
+    private static void RunDesktopShell(string localUrl, string webViewDataPath, string iconPath)
     {
-        window.SetIconFile(iconPath);
+        Exception? shellException = null;
+        var shellThread = new Thread(() =>
+        {
+            try
+            {
+                RunWindowsFormsShell(localUrl, webViewDataPath, iconPath);
+            }
+            catch (Exception ex)
+            {
+                shellException = ex;
+            }
+        });
+
+        shellThread.SetApartmentState(ApartmentState.STA);
+        shellThread.Start();
+        shellThread.Join();
+
+        if (shellException is not null)
+        {
+            throw shellException;
+        }
     }
 
-    window.Load(localUrl);
+    private static void RunWindowsFormsShell(string localUrl, string webViewDataPath, string iconPath)
+    {
+        Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", WebView2Arguments);
 
-    window.WaitForClose();
-}
-finally
-{
-    await app.StopAsync();
-    await app.DisposeAsync();
-}
+        ApplicationConfiguration.Initialize();
 
-static int GetAvailablePort()
-{
-    using var listener = new TcpListener(IPAddress.Loopback, 0);
-    listener.Start();
-    return ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var form = new Form
+        {
+            Text = "Starforged Atlas",
+            Width = 1280,
+            Height = 840,
+            StartPosition = FormStartPosition.CenterScreen
+        };
+
+        if (File.Exists(iconPath))
+        {
+            form.Icon = new Icon(iconPath);
+        }
+
+        var webView = new WebView2
+        {
+            Dock = DockStyle.Fill,
+            DefaultBackgroundColor = Color.FromArgb(3, 7, 18)
+        };
+
+        form.Controls.Add(webView);
+        form.Shown += async (_, _) =>
+        {
+            try
+            {
+                Console.WriteLine("Initializing Windows WebView2 desktop shell.");
+                var options = new CoreWebView2EnvironmentOptions(WebView2Arguments);
+                var environment = await CoreWebView2Environment.CreateAsync(
+                    browserExecutableFolder: null,
+                    userDataFolder: webViewDataPath,
+                    options);
+
+                await webView.EnsureCoreWebView2Async(environment);
+                Console.WriteLine($"Windows WebView2 desktop shell loaded {localUrl}.");
+                webView.CoreWebView2.Navigate(localUrl);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(ex);
+                MessageBox.Show(
+                    form,
+                    ex.Message,
+                    "Starforged Atlas failed to start",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                form.Close();
+            }
+        };
+
+        Application.Run(form);
+    }
+#else
+    private static void RunDesktopShell(string localUrl, string webViewDataPath, string iconPath)
+    {
+        var window = new PhotinoWindow()
+            .SetTitle("Starforged Atlas")
+            .SetUseOsDefaultSize(false)
+            .SetSize(1280, 840);
+
+        if (File.Exists(iconPath))
+        {
+            window.SetIconFile(iconPath);
+        }
+
+        window.Load(localUrl);
+        window.WaitForClose();
+    }
+#endif
 }
 
 internal static class StarWinDesktopPaths
