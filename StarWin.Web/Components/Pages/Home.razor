@@ -355,36 +355,31 @@
                         <input maxlength="160" @bind="sectorName" />
                     </label>
                     <label>
-                        Basic hyperlane
-                        <input value="Basic Hyperlane" readonly />
+                        TL6 basic hyperlane
+                        <input value="@($"{Format(GetHyperlaneMaximumDistanceForStarWinTechLevel(6))} pc")" readonly />
                     </label>
                     <label>
-                        Basic maximum length
-                        <input type="number"
-                               min="0.1"
-                               max="100"
-                               step="0.1"
-                               @bind="basicHyperlaneMaximumLengthParsecs" />
+                        TL7 hyperlane
+                        <input value="@($"{Format(GetHyperlaneMaximumDistanceForStarWinTechLevel(7))} pc")" readonly />
                     </label>
                     <label>
-                        Owned hyperlane
-                        <input value="Owned Hyperlane" readonly />
+                        TL8 hyperlane
+                        <input value="@($"{Format(GetHyperlaneMaximumDistanceForStarWinTechLevel(8))} pc")" readonly />
                     </label>
                     <label>
-                        Owned base maximum length
-                        <input type="number"
-                               min="0.1"
-                               max="150"
-                               step="0.1"
-                               @bind="ownedHyperlaneBaseMaximumLengthParsecs" />
+                        TL9 hyperlane
+                        <input value="@($"{Format(GetHyperlaneMaximumDistanceForStarWinTechLevel(9))} pc")" readonly />
+                    </label>
+                    <label>
+                        TL10 hyperlane
+                        <input value="Unlimited between own colonies" readonly />
                     </label>
                 </div>
                 <dl class="field-grid">
-                    <div><dt>Basic default</dt><dd>1 parsec</dd></div>
-                    <div><dt>Owned default</dt><dd>@Format(GetDefaultOwnedHyperlaneBaseLengthParsecs(sector)) parsecs</dd></div>
-                    <div><dt>Owned rule</dt><dd>Same empire controls colonies in both systems</dd></div>
-                    <div><dt>Tech level</dt><dd>GURPS TL = StarWin import TL + 2</dd></div>
-                    <div><dt>Gold hyperlanes</dt><dd>GURPS TL 12 empires connect every system where they own a colony</dd></div>
+                    <div><dt>Route rule</dt><dd>Same TL6+ empire controls colonies in both systems</dd></div>
+                    <div><dt>Buffer</dt><dd>@Format(HyperlaneRangeBufferParsecs) parsec added to finite TL ranges</dd></div>
+                    <div><dt>Tech level</dt><dd>Uses imported StarWin tech level</dd></div>
+                    <div><dt>Unlimited routes</dt><dd>StarWin TL10 empires connect every system where they own a colony</dd></div>
                     <div><dt>Current map routes</dt><dd>@GetSectorMapRouteCount(sector, selectedSystem) visible hyperlanes</dd></div>
                     <div><dt>Last saved</dt><dd>@DisplayDateTime(sector.Configuration.UpdatedAtUtc)</dd></div>
                 </dl>
@@ -1195,6 +1190,7 @@
     private const int ExplorerListBatchSize = 120;
     private const int TimelineAllFilterId = -1;
     private const double MaximumVoidRouteDistanceParsecs = 3;
+    private const double HyperlaneRangeBufferParsecs = 0.5;
     private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
 
     [SupplyParameterFromQuery(Name = "sectorId")]
@@ -3025,19 +3021,17 @@
 
     private static double GetHyperlaneRouteDistanceParsecs(StarWinSector sector)
     {
-        return (double)Math.Max(0.1m, sector.Configuration.BasicHyperlaneMaximumLengthParsecs);
+        return GetHyperlaneMaximumDistanceForStarWinTechLevel(6);
     }
 
     private static double GetDefaultOwnedHyperlaneBaseLengthParsecs(StarWinSector sector)
     {
-        return GetHyperlaneRouteDistanceParsecs(sector) * 1.2;
+        return GetHyperlaneMaximumDistanceForStarWinTechLevel(7);
     }
 
     private static double GetOwnedHyperlaneBaseLengthParsecs(StarWinSector sector)
     {
-        return (double)(sector.Configuration.OwnedHyperlaneBaseMaximumLengthParsecs <= 0
-            ? sector.Configuration.BasicHyperlaneMaximumLengthParsecs * 1.2m
-            : sector.Configuration.OwnedHyperlaneBaseMaximumLengthParsecs);
+        return GetHyperlaneMaximumDistanceForStarWinTechLevel(9);
     }
 
     private static string DisplayResultType(StarWinSearchResultType type)
@@ -3108,6 +3102,7 @@
                 sourceId = route.Source.Id,
                 targetId = route.Target.Id,
                 distanceParsecs = route.DistanceParsecs,
+                hyperlaneTechLevel = route.HyperlaneTechLevel,
                 isOwned = route.IsOwned,
                 isGold = route.IsGold
             }).ToArray(),
@@ -3116,6 +3111,7 @@
                 sourceId = leg.Source.Id,
                 targetId = leg.Target.Id,
                 distanceParsecs = leg.DistanceParsecs,
+                hyperlaneTechLevel = leg.HyperlaneTechLevel,
                 isHyperlane = leg.IsHyperlane,
                 isOwned = leg.IsOwned,
                 isGold = leg.IsGold
@@ -3306,8 +3302,8 @@
         var adjacency = systems.ToDictionary(system => system.Id, _ => new List<SectorMapRouteLeg>());
         foreach (var route in BuildSectorMapRoutes(systems, routeDistanceParsecs, ownedRouteDistanceParsecs, empiresById))
         {
-            adjacency[route.Source.Id].Add(new SectorMapRouteLeg(route.Source, route.Target, route.DistanceParsecs, true, route.IsOwned, route.IsGold));
-            adjacency[route.Target.Id].Add(new SectorMapRouteLeg(route.Target, route.Source, route.DistanceParsecs, true, route.IsOwned, route.IsGold));
+            adjacency[route.Source.Id].Add(new SectorMapRouteLeg(route.Source, route.Target, route.DistanceParsecs, true, route.IsOwned, route.IsGold, route.HyperlaneTechLevel));
+            adjacency[route.Target.Id].Add(new SectorMapRouteLeg(route.Target, route.Source, route.DistanceParsecs, true, route.IsOwned, route.IsGold, route.HyperlaneTechLevel));
         }
 
         return adjacency;
@@ -3453,7 +3449,7 @@
     {
         return legs
             .Reverse()
-            .Select(leg => new SectorMapRouteLeg(leg.Target, leg.Source, leg.DistanceParsecs, leg.IsHyperlane, leg.IsOwned, leg.IsGold))
+            .Select(leg => new SectorMapRouteLeg(leg.Target, leg.Source, leg.DistanceParsecs, leg.IsHyperlane, leg.IsOwned, leg.IsGold, leg.HyperlaneTechLevel))
             .ToList();
     }
 
@@ -3469,7 +3465,12 @@
             return "gold-hyperlane";
         }
 
-        return leg.IsOwned ? "owned-hyperlane" : "basic-hyperlane";
+        return leg.HyperlaneTechLevel switch
+        {
+            6 => "basic-hyperlane",
+            7 or 8 or 9 => "owned-hyperlane",
+            _ => leg.IsOwned ? "owned-hyperlane" : "basic-hyperlane"
+        };
     }
 
     private static string GetRouteLegTierLabel(SectorMapRouteLeg leg)
@@ -3481,10 +3482,17 @@
 
         if (leg.IsGold)
         {
-            return "Gold hyperlane";
+            return "TL10 unlimited hyperlane";
         }
 
-        return leg.IsOwned ? "Owned hyperlane" : "Basic hyperlane";
+        return leg.HyperlaneTechLevel switch
+        {
+            6 => "TL6 basic hyperlane",
+            7 => "TL7 hyperlane",
+            8 => "TL8 hyperlane",
+            9 => "TL9 hyperlane",
+            _ => leg.IsOwned ? "Owned hyperlane" : "Basic hyperlane"
+        };
     }
 
     private int GetSectorMapSystemCount(StarWinSector sector, StarSystem? focusedSystem)
@@ -3549,7 +3557,9 @@
             return [];
         }
 
-        var maximumRouteDistanceParsecs = Math.Max(routeDistanceParsecs, ownedRouteDistanceParsecs * GetMaximumOwnedHyperlaneTechMultiplier(empiresById));
+        var maximumRouteDistanceParsecs = Math.Max(
+            routeDistanceParsecs,
+            GetHyperlaneMaximumDistanceForStarWinTechLevel(9));
         var cellSize = Math.Max(0.1, maximumRouteDistanceParsecs);
         var cells = systems
             .GroupBy(system => (
@@ -3585,16 +3595,17 @@
                             }
 
                             var distance = CalculateParsecDistance(system.Coordinates, candidate.Coordinates);
-                            if (distance <= routeDistanceParsecs)
+                            if (TryGetSharedHyperlaneTier(system, candidate, empiresById, out var hyperlaneTechLevel, out var maximumDistanceParsecs)
+                                && !IsUnlimitedHyperlaneTechLevel(hyperlaneTechLevel)
+                                && distance <= maximumDistanceParsecs)
                             {
-                                routes.Add(new SectorMapRoute(system, candidate, distance, false, false));
-                                continue;
-                            }
-
-                            if (TryGetOwnedHyperlaneMaximumDistance(system, candidate, ownedRouteDistanceParsecs, empiresById, out var ownedMaximumDistance)
-                                && distance <= ownedMaximumDistance)
-                            {
-                                routes.Add(new SectorMapRoute(system, candidate, distance, true, false));
+                                routes.Add(new SectorMapRoute(
+                                    system,
+                                    candidate,
+                                    distance,
+                                    hyperlaneTechLevel > 6,
+                                    false,
+                                    hyperlaneTechLevel));
                             }
                         }
                     }
@@ -3602,19 +3613,19 @@
             }
         }
 
-        AddGoldHyperlaneRoutes(systems, routes, empiresById);
+        AddUnlimitedHyperlaneRoutes(systems, routes, empiresById);
 
         return routes;
     }
 
-    private static void AddGoldHyperlaneRoutes(
+    private static void AddUnlimitedHyperlaneRoutes(
         IReadOnlyList<StarSystem> systems,
         List<SectorMapRoute> routes,
         IReadOnlyDictionary<int, Empire> empiresById)
     {
         var goldRouteKeys = new HashSet<(int SourceId, int TargetId)>();
         var goldEmpireIds = empiresById.Values
-            .Where(IsGoldHyperlaneEmpire)
+            .Where(empire => IsUnlimitedHyperlaneTechLevel(empire.CivilizationProfile.TechLevel))
             .Select(empire => empire.Id)
             .ToHashSet();
         if (goldEmpireIds.Count == 0)
@@ -3651,8 +3662,9 @@
                         source,
                         target,
                         CalculateParsecDistance(source.Coordinates, target.Coordinates),
-                        false,
-                        true));
+                        true,
+                        true,
+                        10));
                 }
             }
         }
@@ -3663,13 +3675,14 @@
         return sourceId < targetId ? (sourceId, targetId) : (targetId, sourceId);
     }
 
-    private static bool TryGetOwnedHyperlaneMaximumDistance(
+    private static bool TryGetSharedHyperlaneTier(
         StarSystem source,
         StarSystem target,
-        double ownedRouteDistanceParsecs,
         IReadOnlyDictionary<int, Empire> empiresById,
+        out int hyperlaneTechLevel,
         out double maximumDistanceParsecs)
     {
+        hyperlaneTechLevel = 0;
         maximumDistanceParsecs = 0;
         var sharedEmpireIds = GetControlledColonyEmpireIds(source)
             .Intersect(GetControlledColonyEmpireIds(target))
@@ -3679,11 +3692,14 @@
             return false;
         }
 
-        maximumDistanceParsecs = sharedEmpireIds
-            .Select(empireId => GetOwnedHyperlaneMaximumDistance(ownedRouteDistanceParsecs, empiresById.GetValueOrDefault(empireId)))
+        hyperlaneTechLevel = sharedEmpireIds
+            .Select(empireId => (int)(empiresById.GetValueOrDefault(empireId)?.CivilizationProfile.TechLevel ?? 0))
+            .Where(techLevel => techLevel >= 6)
             .DefaultIfEmpty(0)
             .Max();
-        return maximumDistanceParsecs > 0;
+
+        maximumDistanceParsecs = GetHyperlaneMaximumDistanceForStarWinTechLevel(hyperlaneTechLevel);
+        return hyperlaneTechLevel >= 6;
     }
 
     private static IEnumerable<int> GetControlledColonyEmpireIds(StarSystem system)
@@ -3707,27 +3723,26 @@
         }
     }
 
-    private static double GetMaximumOwnedHyperlaneTechMultiplier(IReadOnlyDictionary<int, Empire> empiresById)
+    private static double GetHyperlaneMaximumDistanceForStarWinTechLevel(int techLevel)
     {
-        return empiresById.Count == 0
-            ? 1
-            : empiresById.Values.Max(empire => GetOwnedHyperlaneTechMultiplier(empire));
+        var baseRange = techLevel switch
+        {
+            6 => 1,
+            7 => 2,
+            8 => 3,
+            9 => 5,
+            10 => double.PositiveInfinity,
+            _ => 0
+        };
+
+        return double.IsPositiveInfinity(baseRange)
+            ? baseRange
+            : baseRange + HyperlaneRangeBufferParsecs;
     }
 
-    private static double GetOwnedHyperlaneMaximumDistance(double ownedRouteDistanceParsecs, Empire? empire)
+    private static bool IsUnlimitedHyperlaneTechLevel(int techLevel)
     {
-        return ownedRouteDistanceParsecs * GetOwnedHyperlaneTechMultiplier(empire);
-    }
-
-    private static double GetOwnedHyperlaneTechMultiplier(Empire? empire)
-    {
-        var techLevel = empire?.CivilizationProfile.TechLevel ?? 10;
-        return 1 + Math.Max(0, techLevel - 10) * 0.05;
-    }
-
-    private static bool IsGoldHyperlaneEmpire(Empire empire)
-    {
-        return GetGurpsTechLevel(empire) >= 12;
+        return techLevel >= 10;
     }
 
     private static int GetGurpsTechLevel(Empire empire)
@@ -3809,7 +3824,13 @@
 
     private sealed record ColonyListing(StarWinSector Sector, StarSystem System, World World, Colony Colony);
 
-    private sealed record SectorMapRoute(StarSystem Source, StarSystem Target, double DistanceParsecs, bool IsOwned, bool IsGold);
+    private sealed record SectorMapRoute(
+        StarSystem Source,
+        StarSystem Target,
+        double DistanceParsecs,
+        bool IsOwned,
+        bool IsGold,
+        int HyperlaneTechLevel);
 
     private sealed record SectorMapRoutePlan(
         StarSystem Origin,
@@ -3834,7 +3855,8 @@
         double DistanceParsecs,
         bool IsHyperlane,
         bool IsOwned = false,
-        bool IsGold = false);
+        bool IsGold = false,
+        int HyperlaneTechLevel = 0);
 
     private sealed record RouteGraphCacheKey(
         int SectorId,
