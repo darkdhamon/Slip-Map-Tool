@@ -630,256 +630,273 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         var skippedEmpireCount = 0;
         var skippedColonyCount = 0;
         var skippedHistoryCount = 0;
+        var originalAutoDetectChanges = dbContext.ChangeTracker.AutoDetectChangesEnabled;
+        dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+        await using var importTransaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        await ReportImportProgressAsync(progress, 42, "Writing star systems and worlds...", $"Preparing {importedSystems.Count:N0} star system record(s), {planets.Count:N0} planet record(s), and {moons.Count:N0} moon record(s).");
-        var processedSystemCount = 0;
-        foreach (var systemImport in importedSystems)
+        try
         {
-            processedSystemCount++;
-            if (processedSystemCount == 1 || processedSystemCount % 250 == 0 || processedSystemCount == importedSystems.Count)
+            if (isNewSector)
             {
-                var systemPercent = CalculatePhasePercent(42, 58, processedSystemCount, importedSystems.Count);
-                await ReportImportProgressAsync(progress, systemPercent, "Writing star systems and worlds...", $"Processed {processedSystemCount:N0} of {importedSystems.Count:N0} star system record(s).");
+                dbContext.Sectors.Add(sector);
             }
 
-            var worlds = BuildWorlds(systemImport, planets, moons, sectorId);
-            var newWorlds = worlds
-                .Where(world => !existingWorldIds.Contains(world.Id))
-                .ToList();
-            skippedWorldCount += worlds.Count - newWorlds.Count;
-            foreach (var world in newWorlds)
+            var importedWorldsById = new Dictionary<int, World>();
+            await ReportImportProgressAsync(progress, 42, "Writing star systems and worlds...", $"Preparing {importedSystems.Count:N0} star system record(s), {planets.Count:N0} planet record(s), and {moons.Count:N0} moon record(s).");
+            var processedSystemCount = 0;
+            foreach (var systemImport in importedSystems)
             {
-                existingWorldIds.Add(world.Id);
-            }
+                processedSystemCount++;
+                if (processedSystemCount == 1 || processedSystemCount % 250 == 0 || processedSystemCount == importedSystems.Count)
+                {
+                    var systemPercent = CalculatePhasePercent(42, 58, processedSystemCount, importedSystems.Count);
+                    await ReportImportProgressAsync(progress, systemPercent, "Writing star systems and worlds...", $"Processed {processedSystemCount:N0} of {importedSystems.Count:N0} star system record(s).");
+                }
 
-            if (existingSystemIds.Add(systemImport.System.Id))
-            {
+                var worlds = BuildWorlds(systemImport, planets, moons, sectorId);
+                var newWorlds = worlds
+                    .Where(world => !existingWorldIds.Contains(world.Id))
+                    .ToList();
+                skippedWorldCount += worlds.Count - newWorlds.Count;
                 foreach (var world in newWorlds)
                 {
-                    systemImport.System.Worlds.Add(world);
+                    existingWorldIds.Add(world.Id);
+                    importedWorldsById[world.Id] = world;
                 }
 
-                sector.Systems.Add(systemImport.System);
-                addedSystemCount++;
-                addedAstralBodyCount += systemImport.System.AstralBodies.Count;
+                if (existingSystemIds.Add(systemImport.System.Id))
+                {
+                    foreach (var world in newWorlds)
+                    {
+                        systemImport.System.Worlds.Add(world);
+                    }
+
+                    dbContext.StarSystems.Add(systemImport.System);
+                    addedSystemCount++;
+                    addedAstralBodyCount += systemImport.System.AstralBodies.Count;
+                    addedWorldCount += newWorlds.Count;
+                    addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
+                    continue;
+                }
+
+                skippedSystemCount++;
+                if (!existingAstralBodyRoles.TryGetValue(systemImport.System.Id, out var existingRoles))
+                {
+                    existingRoles = [];
+                    existingAstralBodyRoles[systemImport.System.Id] = existingRoles;
+                }
+
+                foreach (var astralBody in systemImport.System.AstralBodies.Where(body => existingRoles.Add(body.Role)))
+                {
+                    dbContext.Set<AstralBody>().Add(astralBody);
+                    dbContext.Entry(astralBody).Property("StarSystemId").CurrentValue = systemImport.System.Id;
+                    addedAstralBodyCount++;
+                }
+
+                foreach (var world in newWorlds)
+                {
+                    dbContext.Worlds.Add(world);
+                }
+
                 addedWorldCount += newWorlds.Count;
                 addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
-                continue;
             }
 
-            skippedSystemCount++;
-            if (!existingAstralBodyRoles.TryGetValue(systemImport.System.Id, out var existingRoles))
+            await FlushImportChangesAsync(
+                progress,
+                59,
+                "Saving star systems and worlds...",
+                $"Committing {addedSystemCount:N0} star system(s), {addedAstralBodyCount:N0} astral bodie(s), and {addedWorldCount:N0} world(s).",
+                cancellationToken);
+
+            await ReportImportProgressAsync(progress, 60, "Writing alien races...", $"Preparing {aliens.Count:N0} alien race record(s).");
+            foreach (var alienRecord in aliens)
             {
-                existingRoles = [];
-                existingAstralBodyRoles[systemImport.System.Id] = existingRoles;
-            }
-
-            foreach (var astralBody in systemImport.System.AstralBodies.Where(body => existingRoles.Add(body.Role)))
-            {
-                dbContext.Set<AstralBody>().Add(astralBody);
-                dbContext.Entry(astralBody).Property("StarSystemId").CurrentValue = systemImport.System.Id;
-                addedAstralBodyCount++;
-            }
-
-            foreach (var world in newWorlds)
-            {
-                dbContext.Worlds.Add(world);
-            }
-
-            addedWorldCount += newWorlds.Count;
-            addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
-        }
-
-        await ReportImportProgressAsync(progress, 60, "Writing alien races...", $"Preparing {aliens.Count:N0} alien race record(s).");
-        foreach (var alienRecord in aliens)
-        {
-            if (!existingRaceIds.Add(alienRecord.LegacyId))
-            {
-                skippedAlienCount++;
-                continue;
-            }
-
-            var alienRace = CreateAlienRace(alienRecord, sectorId);
-            dbContext.AlienRaces.Add(alienRace);
-            knownAlienRaces[alienRace.Id] = alienRace;
-            addedAlienCount++;
-        }
-
-        await ReportImportProgressAsync(progress, 66, "Writing empires and contacts...", $"Preparing {empires.Count:N0} empire record(s) and {contacts.Count:N0} contact record(s).");
-        foreach (var empireRecord in empires)
-        {
-            if (!existingEmpireIds.Add(empireRecord.LegacyId))
-            {
-                skippedEmpireCount++;
-                continue;
-            }
-
-            var empire = CreateEmpire(empireRecord, aliens, contacts, sectorId);
-            dbContext.Empires.Add(empire);
-            knownEmpires[empire.Id] = empire;
-            addedEmpireCount++;
-            addedContactCount += empire.Contacts.Count;
-        }
-
-        var importedColonies = new List<Colony>();
-        var importedWorldsById = importedSystems
-            .SelectMany(system => system.System.Worlds)
-            .ToDictionary(world => world.Id);
-        var importedSystemsById = importedSystems
-            .ToDictionary(system => system.System.Id, system => system.System);
-        await ReportImportProgressAsync(progress, 72, "Writing colonies...", $"Preparing {colonies.Count:N0} colony record(s).");
-        foreach (var colonyRecord in colonies)
-        {
-            var colony = CreateColony(colonyRecord, aliens, sectorId);
-            if (!existingWorldIds.Contains(colony.WorldId) || !existingColonyWorldIds.Add(colony.WorldId))
-            {
-                skippedColonyCount++;
-                continue;
-            }
-
-            dbContext.Colonies.Add(colony);
-            importedColonies.Add(colony);
-            addedColonyCount++;
-        }
-
-        await ReportImportProgressAsync(progress, 78, "Writing history events...", $"Preparing {historyEvents.Count:N0} history event record(s).");
-        foreach (var historyEvent in historyEvents)
-        {
-            var historyKey = BuildHistoryKey(historyEvent);
-            if (!existingHistoryKeys.Add(historyKey))
-            {
-                skippedHistoryCount++;
-                continue;
-            }
-
-            dbContext.HistoryEvents.Add(historyEvent);
-            addedHistoryCount++;
-        }
-
-        await ReportImportProgressAsync(progress, 84, "Deriving colony state...", "Loading sector colonies, worlds, and history for independent colony analysis.");
-        var sectorColonies = await dbContext.Colonies
-            .Where(colony => dbContext.Worlds.Any(world => world.Id == colony.WorldId
-                && world.StarSystemId != null
-                && dbContext.StarSystems.Any(system => system.Id == world.StarSystemId && system.SectorId == sectorId)))
-            .Include(colony => colony.Demographics)
-            .ToListAsync(cancellationToken);
-        var sectorColonyIds = sectorColonies
-            .Select(colony => colony.Id)
-            .ToHashSet();
-        sectorColonies.AddRange(importedColonies.Where(colony => sectorColonyIds.Add(colony.Id)));
-
-        await ReportImportProgressAsync(progress, 85, "Deriving colony state...", $"Loaded {sectorColonies.Count:N0} sector colonie(s). Loading sector worlds.");
-        var sectorWorlds = await dbContext.Worlds
-            .Where(world => world.StarSystemId != null
-                && dbContext.StarSystems.Any(system => system.Id == world.StarSystemId && system.SectorId == sectorId))
-            .ToDictionaryAsync(world => world.Id, cancellationToken);
-        foreach (var world in importedWorldsById.Values)
-        {
-            sectorWorlds.TryAdd(world.Id, world);
-        }
-
-        await ReportImportProgressAsync(progress, 86, "Deriving colony state...", $"Loaded {sectorWorlds.Count:N0} sector world(s). Loading sector history.");
-        var sectorHistory = await dbContext.HistoryEvents
-            .Where(history => history.SectorId == sectorId)
-            .ToListAsync(cancellationToken);
-        var sectorHistoryKeys = sectorHistory
-            .Select(BuildHistoryKey)
-            .ToHashSet(StringComparer.Ordinal);
-        sectorHistory.AddRange(historyEvents.Where(history => sectorHistoryKeys.Add(BuildHistoryKey(history))));
-        var independenceEvents = BuildIndependenceEventIndex(sectorHistory);
-
-        await ReportImportProgressAsync(progress, 88, "Creating independent empires...", $"Checking {sectorColonies.Count:N0} colonie(s) against indexed independence history.");
-        var nextEmpireId = Math.Max(
-            existingEmpireIds.Count == 0 ? 0 : existingEmpireIds.Max(),
-            knownEmpires.Count == 0 ? 0 : knownEmpires.Keys.Max()) + 1;
-        var processedColonyStateCount = 0;
-        foreach (var colony in sectorColonies)
-        {
-            processedColonyStateCount++;
-            if (processedColonyStateCount == 1 || processedColonyStateCount % 250 == 0 || processedColonyStateCount == sectorColonies.Count)
-            {
-                var colonyStatePercent = CalculatePhasePercent(88, 91, processedColonyStateCount, sectorColonies.Count);
-                await ReportImportProgressAsync(progress, colonyStatePercent, "Creating independent empires...", $"Checked {processedColonyStateCount:N0} of {sectorColonies.Count:N0} colonie(s).");
-            }
-
-            if (!IsIndependentColony(colony, independenceEvents))
-            {
-                continue;
-            }
-
-            if (!independentEmpireColonyIds.Add(colony.Id)
-                || !sectorWorlds.TryGetValue(colony.WorldId, out var world)
-                || !knownAlienRaces.TryGetValue(colony.RaceId, out var foundingRace))
-            {
-                continue;
-            }
-
-            var parentEmpire = ResolveEmpire(knownEmpires, colony.ParentEmpireId ?? colony.FoundingEmpireId);
-            var independentEmpire = independentColonyEmpireFactory.CreateEmpireFromIndependentColony(
-                colony,
-                world,
-                foundingRace,
-                parentEmpire);
-            while (!existingEmpireIds.Add(nextEmpireId))
-            {
-                nextEmpireId++;
-            }
-
-            independentEmpire.Id = nextEmpireId++;
-            independentEmpire.Founding.FoundedCentury = FindIndependenceCentury(colony, independenceEvents);
-            AssignColonyToIndependentEmpire(colony, independentEmpire);
-            dbContext.Empires.Add(independentEmpire);
-            knownEmpires[independentEmpire.Id] = independentEmpire;
-            addedIndependentEmpireCount++;
-        }
-
-        await ReportImportProgressAsync(progress, 92, "Creating space habitats...", "Creating habitat satellites from imported colony facilities.");
-        var nextSpaceHabitatId = (await dbContext.SpaceHabitats
-            .Select(habitat => (int?)habitat.Id)
-            .MaxAsync(cancellationToken) ?? 0) + 1;
-        foreach (var colony in importedColonies.Where(HasSpaceHabitatFacility))
-        {
-            if (!existingSpaceHabitatWorldIds.Add(colony.WorldId)
-                || !sectorWorlds.TryGetValue(colony.WorldId, out var world))
-            {
-                continue;
-            }
-
-            var spaceHabitat = CreateSpaceHabitat(colony, world, knownEmpires);
-            spaceHabitat.Id = nextSpaceHabitatId++;
-            dbContext.SpaceHabitats.Add(spaceHabitat);
-            if (world.StarSystemId is { } starSystemId)
-            {
-                dbContext.Entry(spaceHabitat).Property("StarSystemId").CurrentValue = starSystemId;
-                if (importedSystemsById.TryGetValue(starSystemId, out var starSystem))
+                if (!existingRaceIds.Add(alienRecord.LegacyId))
                 {
-                    starSystem.SpaceHabitats.Add(spaceHabitat);
+                    skippedAlienCount++;
+                    continue;
                 }
+
+                var alienRace = CreateAlienRace(alienRecord, sectorId);
+                dbContext.AlienRaces.Add(alienRace);
+                knownAlienRaces[alienRace.Id] = alienRace;
+                addedAlienCount++;
             }
 
-            addedSpaceHabitatCount++;
-        }
-
-        await ReportImportProgressAsync(progress, 96, "Preparing import summary...", "Recording the import history event and final change summary.");
-        if (addedSystemCount > 0 || addedAstralBodyCount > 0 || addedWorldCount > 0 || addedAlienCount > 0 || addedEmpireCount > 0 || addedColonyCount > 0 || addedHistoryCount > 0 || addedIndependentEmpireCount > 0 || addedSpaceHabitatCount > 0)
-        {
-            sector.History.Add(new HistoryEvent
+            await ReportImportProgressAsync(progress, 66, "Writing empires and contacts...", $"Preparing {empires.Count:N0} empire record(s) and {contacts.Count:N0} contact record(s).");
+            foreach (var empireRecord in empires)
             {
-                SectorId = sector.Id,
-                Century = 0,
-                EventType = "Legacy Import",
-                Description = $"Merged {addedSystemCount:N0} missing star systems, {addedAstralBodyCount:N0} missing astral bodies, {addedWorldCount:N0} missing worlds, {addedAlienCount:N0} alien races, {addedEmpireCount:N0} empires, {addedColonyCount:N0} colonies, {addedHistoryCount:N0} history events, {addedIndependentEmpireCount:N0} independent colony empires, and {addedSpaceHabitatCount:N0} space habitats from {packageName}. Existing records were not overwritten."
-            });
-        }
+                if (!existingEmpireIds.Add(empireRecord.LegacyId))
+                {
+                    skippedEmpireCount++;
+                    continue;
+                }
 
-        if (isNewSector)
+                var empire = CreateEmpire(empireRecord, aliens, contacts, sectorId);
+                dbContext.Empires.Add(empire);
+                knownEmpires[empire.Id] = empire;
+                addedEmpireCount++;
+                addedContactCount += empire.Contacts.Count;
+            }
+
+            await FlushImportChangesAsync(
+                progress,
+                71,
+                "Saving races, empires, and contacts...",
+                $"Committing {addedAlienCount:N0} alien race(s), {addedEmpireCount:N0} empire(s), and {addedContactCount:N0} contact(s).",
+                cancellationToken);
+
+            var importedColonies = new List<Colony>();
+            await ReportImportProgressAsync(progress, 72, "Writing colonies...", $"Preparing {colonies.Count:N0} colony record(s).");
+            foreach (var colonyRecord in colonies)
+            {
+                var colony = CreateColony(colonyRecord, aliens, sectorId);
+                if (!existingWorldIds.Contains(colony.WorldId) || !existingColonyWorldIds.Add(colony.WorldId))
+                {
+                    skippedColonyCount++;
+                    continue;
+                }
+
+                dbContext.Colonies.Add(colony);
+                importedColonies.Add(colony);
+                addedColonyCount++;
+            }
+
+            await ReportImportProgressAsync(progress, 78, "Writing history events...", $"Preparing {historyEvents.Count:N0} history event record(s).");
+            foreach (var historyEvent in historyEvents)
+            {
+                var historyKey = BuildHistoryKey(historyEvent);
+                if (!existingHistoryKeys.Add(historyKey))
+                {
+                    skippedHistoryCount++;
+                    continue;
+                }
+
+                dbContext.HistoryEvents.Add(historyEvent);
+                addedHistoryCount++;
+            }
+
+            await FlushImportChangesAsync(
+                progress,
+                83,
+                "Saving colonies and history...",
+                $"Committing {addedColonyCount:N0} colonie(s) and {addedHistoryCount:N0} history event(s).",
+                cancellationToken);
+
+            await ReportImportProgressAsync(progress, 84, "Deriving colony state...", "Loading sector colonies, worlds, and history for independent colony analysis.");
+            var sectorColonies = await dbContext.Colonies
+                .Where(colony => dbContext.Worlds.Any(world => world.Id == colony.WorldId
+                    && world.StarSystemId != null
+                    && dbContext.StarSystems.Any(system => system.Id == world.StarSystemId && system.SectorId == sectorId)))
+                .Include(colony => colony.Demographics)
+                .ToListAsync(cancellationToken);
+
+            await ReportImportProgressAsync(progress, 85, "Deriving colony state...", $"Loaded {sectorColonies.Count:N0} sector colonie(s). Loading sector worlds.");
+            var sectorWorlds = await dbContext.Worlds
+                .Where(world => world.StarSystemId != null
+                    && dbContext.StarSystems.Any(system => system.Id == world.StarSystemId && system.SectorId == sectorId))
+                .ToDictionaryAsync(world => world.Id, cancellationToken);
+
+            await ReportImportProgressAsync(progress, 86, "Deriving colony state...", $"Loaded {sectorWorlds.Count:N0} sector world(s). Loading sector history.");
+            var sectorHistory = await dbContext.HistoryEvents
+                .Where(history => history.SectorId == sectorId)
+                .ToListAsync(cancellationToken);
+            var independenceEvents = BuildIndependenceEventIndex(sectorHistory);
+
+            await ReportImportProgressAsync(progress, 88, "Creating independent empires...", $"Checking {sectorColonies.Count:N0} colonie(s) against indexed independence history.");
+            var nextEmpireId = Math.Max(
+                existingEmpireIds.Count == 0 ? 0 : existingEmpireIds.Max(),
+                knownEmpires.Count == 0 ? 0 : knownEmpires.Keys.Max()) + 1;
+            var processedColonyStateCount = 0;
+            foreach (var colony in sectorColonies)
+            {
+                processedColonyStateCount++;
+                if (processedColonyStateCount == 1 || processedColonyStateCount % 250 == 0 || processedColonyStateCount == sectorColonies.Count)
+                {
+                    var colonyStatePercent = CalculatePhasePercent(88, 91, processedColonyStateCount, sectorColonies.Count);
+                    await ReportImportProgressAsync(progress, colonyStatePercent, "Creating independent empires...", $"Checked {processedColonyStateCount:N0} of {sectorColonies.Count:N0} colonie(s).");
+                }
+
+                if (!IsIndependentColony(colony, independenceEvents))
+                {
+                    continue;
+                }
+
+                if (!independentEmpireColonyIds.Add(colony.Id)
+                    || !sectorWorlds.TryGetValue(colony.WorldId, out var world)
+                    || !knownAlienRaces.TryGetValue(colony.RaceId, out var foundingRace))
+                {
+                    continue;
+                }
+
+                var parentEmpire = ResolveEmpire(knownEmpires, colony.ParentEmpireId ?? colony.FoundingEmpireId);
+                var independentEmpire = independentColonyEmpireFactory.CreateEmpireFromIndependentColony(
+                    colony,
+                    world,
+                    foundingRace,
+                    parentEmpire);
+                while (!existingEmpireIds.Add(nextEmpireId))
+                {
+                    nextEmpireId++;
+                }
+
+                independentEmpire.Id = nextEmpireId++;
+                independentEmpire.Founding.FoundedCentury = FindIndependenceCentury(colony, independenceEvents);
+                AssignColonyToIndependentEmpire(colony, independentEmpire);
+                dbContext.Empires.Add(independentEmpire);
+                knownEmpires[independentEmpire.Id] = independentEmpire;
+                addedIndependentEmpireCount++;
+            }
+
+            await ReportImportProgressAsync(progress, 92, "Creating space habitats...", "Creating habitat satellites from imported colony facilities.");
+            var nextSpaceHabitatId = (await dbContext.SpaceHabitats
+                .Select(habitat => (int?)habitat.Id)
+                .MaxAsync(cancellationToken) ?? 0) + 1;
+            foreach (var colony in importedColonies.Where(HasSpaceHabitatFacility))
+            {
+                if (!existingSpaceHabitatWorldIds.Add(colony.WorldId)
+                    || !sectorWorlds.TryGetValue(colony.WorldId, out var world))
+                {
+                    continue;
+                }
+
+                var spaceHabitat = CreateSpaceHabitat(colony, world, knownEmpires);
+                spaceHabitat.Id = nextSpaceHabitatId++;
+                dbContext.SpaceHabitats.Add(spaceHabitat);
+                if (world.StarSystemId is { } starSystemId)
+                {
+                    dbContext.Entry(spaceHabitat).Property("StarSystemId").CurrentValue = starSystemId;
+                }
+
+                addedSpaceHabitatCount++;
+            }
+
+            await ReportImportProgressAsync(progress, 96, "Preparing import summary...", "Recording the import history event and final change summary.");
+            if (addedSystemCount > 0 || addedAstralBodyCount > 0 || addedWorldCount > 0 || addedAlienCount > 0 || addedEmpireCount > 0 || addedColonyCount > 0 || addedHistoryCount > 0 || addedIndependentEmpireCount > 0 || addedSpaceHabitatCount > 0)
+            {
+                dbContext.HistoryEvents.Add(new HistoryEvent
+                {
+                    SectorId = sector.Id,
+                    Century = 0,
+                    EventType = "Legacy Import",
+                    Description = $"Merged {addedSystemCount:N0} missing star systems, {addedAstralBodyCount:N0} missing astral bodies, {addedWorldCount:N0} missing worlds, {addedAlienCount:N0} alien races, {addedEmpireCount:N0} empires, {addedColonyCount:N0} colonies, {addedHistoryCount:N0} history events, {addedIndependentEmpireCount:N0} independent colony empires, and {addedSpaceHabitatCount:N0} space habitats from {packageName}. Existing records were not overwritten."
+                });
+            }
+
+            await FlushImportChangesAsync(
+                progress,
+                100,
+                "Saving derived records...",
+                $"Committing {addedIndependentEmpireCount:N0} independent empire(s), {addedSpaceHabitatCount:N0} habitat(s), and the import summary.",
+                cancellationToken,
+                clearChangeTracker: false);
+            await importTransaction.CommitAsync(cancellationToken);
+        }
+        finally
         {
-            dbContext.Sectors.Add(sector);
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = originalAutoDetectChanges;
         }
-
-        await ReportImportProgressAsync(progress, 98, "Saving database changes...", "Committing imported records to the atlas database.");
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await ReportImportProgressAsync(progress, 100, "Import complete.", "The database commit finished.");
 
         return new StarWinLegacyImportResult(
             true,
@@ -906,6 +923,34 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             detail));
 
         await Task.Yield();
+    }
+
+    private async Task FlushImportChangesAsync(
+        IProgress<StarWinLegacyImportProgress>? progress,
+        int percentComplete,
+        string status,
+        string detail,
+        CancellationToken cancellationToken,
+        bool clearChangeTracker = true)
+    {
+        dbContext.ChangeTracker.DetectChanges();
+        var pendingChanges = dbContext.ChangeTracker
+            .Entries()
+            .Count(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+        await ReportImportProgressAsync(
+            progress,
+            Math.Clamp(percentComplete - 1, 0, 100),
+            status,
+            $"{detail} {pendingChanges:N0} pending database change(s).");
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (clearChangeTracker)
+        {
+            dbContext.ChangeTracker.Clear();
+        }
+
+        await ReportImportProgressAsync(progress, percentComplete, status, "Database changes committed.");
     }
 
     private static int CalculatePhasePercent(int startPercent, int endPercent, int processedCount, int totalCount)
