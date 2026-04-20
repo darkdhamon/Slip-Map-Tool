@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting.StaticWebAssets;
 using StarWin.Application.Services;
 using StarWin.Infrastructure;
 using StarWin.Web.Components;
@@ -19,6 +20,8 @@ public static class StarWinWebHost
 
     public static WebApplication Build(WebApplicationBuilder builder)
     {
+        StaticWebAssetsLoader.UseStaticWebAssets(builder.Environment, builder.Configuration);
+
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
         builder.Services.AddStarWinInfrastructure(builder.Configuration);
