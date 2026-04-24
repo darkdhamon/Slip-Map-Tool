@@ -18,7 +18,11 @@ public static class SectorRoutePlanner
         }
 
         var eligibleSystems = sector.Systems
-            .Select(system => new HyperlaneEligibleSystem(system, GetSystemEmpires(system, empiresById).ToList()))
+            .Select(system =>
+            {
+                var empires = GetSystemEmpires(system, empiresById).ToList();
+                return new HyperlaneEligibleSystem(system, empires, GetMaximumReachParsecs(sector.Configuration, empires));
+            })
             .Where(item => item.Empires.Any(empire => empire.CivilizationProfile.TechLevel >= 6))
             .ToList();
         if (eligibleSystems.Count < 2)
@@ -37,6 +41,12 @@ public static class SectorRoutePlanner
             {
                 var target = eligibleSystems[targetIndex];
                 var distanceParsecs = CalculateParsecDistance(source.System.Coordinates, target.System.Coordinates);
+                if ((source.MaximumReachParsecs >= 0 && distanceParsecs > source.MaximumReachParsecs)
+                    || (target.MaximumReachParsecs >= 0 && distanceParsecs > target.MaximumReachParsecs))
+                {
+                    continue;
+                }
+
                 if (!TryResolveHyperlaneRule(
                         source.System,
                         source.Empires,
@@ -301,42 +311,116 @@ public static class SectorRoutePlanner
         }
 
         var selectedRoutes = new List<SectorHyperlaneRouteDefinition>();
+        var selectedRouteKeys = new HashSet<(int SourceSystemId, int TargetSystemId)>();
         var limitedConnectionsBySystemId = new Dictionary<int, int>();
         var crossEmpireConnectionsBySystemId = new Dictionary<int, int>();
         var maximumConnections = Math.Max(0, configuration.Tl9AndBelowMaximumConnectionsPerSystem);
         var additionalCrossEmpireConnections = Math.Max(0, configuration.AdditionalCrossEmpireConnectionsPerSystem);
-
-        foreach (var candidate in candidates
+        var candidateCountsBySystemId = candidates
+            .SelectMany(route => new[]
+            {
+                route.SourceSystemId,
+                route.TargetSystemId
+            })
+            .GroupBy(systemId => systemId)
+            .ToDictionary(group => group.Key, group => group.Count());
+        var prioritizedCandidates = candidates
+            .OrderBy(route => GetCandidateScarcity(candidateCountsBySystemId, route))
+            .ThenByDescending(route => route.TechnologyLevel)
+            .ThenBy(route => IsCrossEmpireRoute(route))
+            .ThenBy(route => route.DistanceParsecs)
+            .ThenBy(route => route.SourceSystemId)
+            .ThenBy(route => route.TargetSystemId)
+            .ToList();
+        var remainingCandidates = candidates
             .OrderByDescending(route => route.TechnologyLevel)
             .ThenBy(route => IsCrossEmpireRoute(route))
             .ThenBy(route => route.DistanceParsecs)
             .ThenBy(route => route.SourceSystemId)
-            .ThenBy(route => route.TargetSystemId))
+            .ThenBy(route => route.TargetSystemId)
+            .ToList();
+        var firstPassStandardLimit = maximumConnections <= 1
+            ? maximumConnections
+            : Math.Max(1, maximumConnections / 2);
+
+        foreach (var candidate in prioritizedCandidates)
         {
             if (candidate.TechnologyLevel >= 10)
             {
-                selectedRoutes.Add(candidate);
+                AddSelectedRoute(selectedRoutes, selectedRouteKeys, candidate);
                 continue;
             }
 
-            var isCrossEmpire = IsCrossEmpireRoute(candidate);
-            var sourceAllocation = TryAllocateConnection(candidate.SourceSystemId, isCrossEmpire, maximumConnections, additionalCrossEmpireConnections, limitedConnectionsBySystemId, crossEmpireConnectionsBySystemId);
-            if (sourceAllocation == ConnectionAllocation.None)
+            if (!TryAllocateRoute(
+                    candidate,
+                    firstPassStandardLimit,
+                    additionalCrossEmpireConnections,
+                    limitedConnectionsBySystemId,
+                    crossEmpireConnectionsBySystemId))
             {
                 continue;
             }
 
-            var targetAllocation = TryAllocateConnection(candidate.TargetSystemId, isCrossEmpire, maximumConnections, additionalCrossEmpireConnections, limitedConnectionsBySystemId, crossEmpireConnectionsBySystemId);
-            if (targetAllocation == ConnectionAllocation.None)
+            AddSelectedRoute(selectedRoutes, selectedRouteKeys, candidate);
+        }
+
+        foreach (var candidate in remainingCandidates)
+        {
+            if (selectedRouteKeys.Contains(GetRouteKey(candidate)))
             {
-                ReleaseConnection(candidate.SourceSystemId, sourceAllocation, limitedConnectionsBySystemId, crossEmpireConnectionsBySystemId);
                 continue;
             }
 
-            selectedRoutes.Add(candidate);
+            if (candidate.TechnologyLevel >= 10)
+            {
+                AddSelectedRoute(selectedRoutes, selectedRouteKeys, candidate);
+                continue;
+            }
+
+            if (!HasAvailableConnectionCapacity(candidate.SourceSystemId, maximumConnections, additionalCrossEmpireConnections, limitedConnectionsBySystemId, crossEmpireConnectionsBySystemId)
+                && !HasAvailableConnectionCapacity(candidate.TargetSystemId, maximumConnections, additionalCrossEmpireConnections, limitedConnectionsBySystemId, crossEmpireConnectionsBySystemId))
+            {
+                continue;
+            }
+
+            if (!TryAllocateRoute(
+                    candidate,
+                    maximumConnections,
+                    additionalCrossEmpireConnections,
+                    limitedConnectionsBySystemId,
+                    crossEmpireConnectionsBySystemId))
+            {
+                continue;
+            }
+
+            AddSelectedRoute(selectedRoutes, selectedRouteKeys, candidate);
         }
 
         return selectedRoutes;
+    }
+
+    private static bool TryAllocateRoute(
+        SectorHyperlaneRouteDefinition candidate,
+        int maximumConnections,
+        int additionalCrossEmpireConnections,
+        IDictionary<int, int> limitedConnectionsBySystemId,
+        IDictionary<int, int> crossEmpireConnectionsBySystemId)
+    {
+        var isCrossEmpire = IsCrossEmpireRoute(candidate);
+        var sourceAllocation = TryAllocateConnection(candidate.SourceSystemId, isCrossEmpire, maximumConnections, additionalCrossEmpireConnections, limitedConnectionsBySystemId, crossEmpireConnectionsBySystemId);
+        if (sourceAllocation == ConnectionAllocation.None)
+        {
+            return false;
+        }
+
+        var targetAllocation = TryAllocateConnection(candidate.TargetSystemId, isCrossEmpire, maximumConnections, additionalCrossEmpireConnections, limitedConnectionsBySystemId, crossEmpireConnectionsBySystemId);
+        if (targetAllocation == ConnectionAllocation.None)
+        {
+            ReleaseConnection(candidate.SourceSystemId, sourceAllocation, limitedConnectionsBySystemId, crossEmpireConnectionsBySystemId);
+            return false;
+        }
+
+        return true;
     }
 
     private static ConnectionAllocation TryAllocateConnection(
@@ -403,6 +487,63 @@ public static class SectorRoutePlanner
             && secondaryOwnerEmpireId != primaryOwnerEmpireId;
     }
 
+    private static double GetMaximumReachParsecs(
+        SectorConfiguration configuration,
+        IReadOnlyList<Empire> empires)
+    {
+        var maximumReach = 0d;
+        foreach (var empire in empires.Where(empire => empire.CivilizationProfile.TechLevel >= 6))
+        {
+            var reach = GetMaximumDistanceParsecs(configuration, empire.CivilizationProfile.TechLevel);
+            if (reach < 0)
+            {
+                return -1d;
+            }
+
+            maximumReach = Math.Max(maximumReach, reach);
+        }
+
+        return maximumReach;
+    }
+
+    private static bool HasAvailableConnectionCapacity(
+        int systemId,
+        int maximumConnections,
+        int additionalCrossEmpireConnections,
+        IDictionary<int, int> limitedConnectionsBySystemId,
+        IDictionary<int, int> crossEmpireConnectionsBySystemId)
+    {
+        return GetConnectionCount(limitedConnectionsBySystemId, systemId) < maximumConnections
+            || GetConnectionCount(crossEmpireConnectionsBySystemId, systemId) < additionalCrossEmpireConnections;
+    }
+
+    private static void AddSelectedRoute(
+        ICollection<SectorHyperlaneRouteDefinition> selectedRoutes,
+        ISet<(int SourceSystemId, int TargetSystemId)> selectedRouteKeys,
+        SectorHyperlaneRouteDefinition candidate)
+    {
+        if (selectedRouteKeys.Add(GetRouteKey(candidate)))
+        {
+            selectedRoutes.Add(candidate);
+        }
+    }
+
+    private static (int SourceSystemId, int TargetSystemId) GetRouteKey(SectorHyperlaneRouteDefinition route)
+    {
+        return route.SourceSystemId <= route.TargetSystemId
+            ? (route.SourceSystemId, route.TargetSystemId)
+            : (route.TargetSystemId, route.SourceSystemId);
+    }
+
+    private static int GetCandidateScarcity(
+        IReadOnlyDictionary<int, int> candidateCountsBySystemId,
+        SectorHyperlaneRouteDefinition route)
+    {
+        var sourceCount = candidateCountsBySystemId.TryGetValue(route.SourceSystemId, out var sourceValue) ? sourceValue : int.MaxValue;
+        var targetCount = candidateCountsBySystemId.TryGetValue(route.TargetSystemId, out var targetValue) ? targetValue : int.MaxValue;
+        return Math.Min(sourceCount, targetCount);
+    }
+
     private static int GetConnectionCount(IDictionary<int, int> connectionsBySystemId, int systemId)
     {
         return connectionsBySystemId.TryGetValue(systemId, out var value) ? value : 0;
@@ -417,7 +558,8 @@ public static class SectorRoutePlanner
 
     private sealed record HyperlaneEligibleSystem(
         StarSystem System,
-        IReadOnlyList<Empire> Empires);
+        IReadOnlyList<Empire> Empires,
+        double MaximumReachParsecs);
 }
 
 public sealed record SectorHyperlaneRouteDefinition(
