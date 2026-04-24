@@ -7,6 +7,7 @@ const slowAverageMilliseconds = 100;
 const slowFrameRatio = 0.32;
 const minimumAdaptiveSystemLimit = 150;
 const compactSystemScale = 0.38;
+const systemCoordinateScale = 8;
 
 async function loadThree() {
     if (!threePromise) {
@@ -177,7 +178,10 @@ function rebuildScene(state, sector, selectedSystemId) {
 
     for (const system of sector.systems ?? []) {
         const cluster = new THREE.Group();
-        cluster.position.set(system.x * 8, system.z * 6, system.y * 12);
+        cluster.position.set(
+            system.x * systemCoordinateScale,
+            system.z * systemCoordinateScale,
+            system.y * systemCoordinateScale);
         cluster.userData = { systemId: system.id, systemName: system.name };
         state.systemPositions.set(system.id, cluster.position.clone());
         state.systemClusters.set(system.id, cluster);
