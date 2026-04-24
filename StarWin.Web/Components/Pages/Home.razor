@@ -16,6 +16,8 @@
 @{
     var sector = GetSelectedSector();
     var mapSector = GetMapSector();
+    var mapPanelTitle = GetMapPanelTitle(sector);
+    var mapContextActionLabel = GetMapContextActionLabel();
     var sectorSummary = GetSectorSummary(sector);
     var sectorCache = ShouldUseFullSectorCache(activeSection) ? GetSectorCache(sector) : null;
     var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
@@ -155,7 +157,7 @@
                     {
                         <article class="map-request-panel">
                             <span class="panel-kicker">3D Sector Map</span>
-                            <h2>@mapSector.Name</h2>
+                            <h2>@mapPanelTitle</h2>
                             <p>The interactive map is available on request so large imported sectors do not slow down the explorer while you browse records.</p>
                             <label class="switch-field">
                                 <input type="checkbox"
@@ -163,7 +165,7 @@
                                        @onchange="ToggleAutoLoadSectorMap" />
                                 <span>Auto-load map this session</span>
                             </label>
-                            <button type="button" class="overlay-action" @onclick="RefreshSectorMapContextAsync" disabled="@mapContextRefreshing">Refresh map context</button>
+                            <button type="button" class="overlay-action" @onclick="RefreshSectorMapContextAsync" disabled="@mapContextRefreshing">@mapContextActionLabel</button>
                             <button type="button" class="overlay-action" @onclick="LoadSectorMap">Load 3D map</button>
                             @if (!string.IsNullOrWhiteSpace(mapContextStatus))
                             {
@@ -202,7 +204,7 @@
                                        @bind:event="oninput" />
                                 <strong>@sectorMapViewDistanceParsecs pc</strong>
                             </label>
-                            <button type="button" class="overlay-action" @onclick="RefreshSectorMapContextAsync" disabled="@mapContextRefreshing">Refresh map context</button>
+                            <button type="button" class="overlay-action" @onclick="RefreshSectorMapContextAsync" disabled="@mapContextRefreshing">@mapContextActionLabel</button>
                             @if (!string.IsNullOrWhiteSpace(mapContextStatus))
                             {
                                 <small>@mapContextStatus</small>
@@ -1621,6 +1623,33 @@
     </div>
 }
 
+@if (mapContextRefreshing)
+{
+    var mapContextLoadingLabel = Workspace.IsLoaded ? "Refreshing map context" : "Loading map context";
+    var mapContextLoadingStatus = Workspace.IsLoaded
+        ? "Refreshing the cached 3D sector map data."
+        : "Loading the cached 3D sector map data for the first time.";
+
+    <div class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="@mapContextLoadingLabel">
+        <section class="loading-modal">
+            <span class="panel-kicker">@mapContextLoadingLabel</span>
+            <h2>@mapContextLoadingStatus</h2>
+            @if (!string.IsNullOrWhiteSpace(mapContextStatus))
+            {
+                <p class="loading-progress-detail">@mapContextStatus</p>
+            }
+            <div class="loading-meter" aria-hidden="true">
+                <span></span>
+            </div>
+            <ol>
+                <li>Load the current sector cache from the database.</li>
+                <li>Refresh system, route, and civilization references for the map.</li>
+                <li>Prepare the 3D map so the selected sector can render.</li>
+            </ol>
+        </section>
+    </div>
+}
+
 @code {
     private const int DefaultSectorMapViewDistanceParsecs = 5;
     private const int MaximumSectorMapViewDistanceParsecs = 20;
@@ -1968,6 +1997,23 @@
         return Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
     }
 
+    private string GetMapPanelTitle(StarWinSector selectedSector)
+    {
+        if (Workspace.IsLoaded)
+        {
+            return GetMapSector().Name;
+        }
+
+        return selectedSector.Id > 0
+            ? selectedSector.Name
+            : "Load map context";
+    }
+
+    private string GetMapContextActionLabel()
+    {
+        return Workspace.IsLoaded ? "Refresh map context" : "Load map context";
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -2055,8 +2101,7 @@
             {
                 if (autoLoadSectorMap)
                 {
-                    sectorMapRequested = true;
-                    renderedOverview = false;
+                    await LoadSectorMap();
                     StateHasChanged();
                     return;
                 }
@@ -2176,13 +2221,17 @@
 
     private async Task LoadSectorMap()
     {
-        sectorMapRequested = true;
-        renderedOverview = false;
-
-        if (Workspace.Sectors.Count == 0)
+        if (!Workspace.IsLoaded)
         {
             await RefreshSectorMapContextAsync();
+            if (!Workspace.IsLoaded)
+            {
+                return;
+            }
         }
+
+        sectorMapRequested = true;
+        renderedOverview = false;
     }
 
     private async Task RefreshSectorMapContextAsync()
@@ -2192,9 +2241,13 @@
             return;
         }
 
+        var loadingMapContext = !Workspace.IsLoaded;
         mapContextRefreshing = true;
-        mapContextStatus = "Refreshing cached sector map context...";
+        mapContextStatus = loadingMapContext
+            ? "Loading cached sector map context..."
+            : "Refreshing cached sector map context...";
         StateHasChanged();
+        await Task.Yield();
 
         try
         {
@@ -2202,7 +2255,9 @@
             generatedSectorRouteCache.Clear();
             routeGraphCaches.Clear();
             renderedOverview = false;
-            mapContextStatus = "Sector map context refreshed.";
+            mapContextStatus = loadingMapContext
+                ? "Sector map context loaded."
+                : "Sector map context refreshed.";
         }
         catch (Exception ex)
         {
@@ -2454,7 +2509,7 @@
         SelectDefaultCivilizationRecords(sector);
         LoadSectorConfigurationForm(sector);
         ClearSelectedRoute();
-        sectorMapRequested = autoLoadSectorMap;
+        sectorMapRequested = autoLoadSectorMap && Workspace.IsLoaded;
         _ = PersistExplorerSessionAsync();
     }
 
@@ -2898,7 +2953,7 @@
 
         selectedSectorId = sector.Id;
         autoLoadSectorMap = storedSelection.AutoLoadSectorMap;
-        sectorMapRequested = autoLoadSectorMap;
+        sectorMapRequested = autoLoadSectorMap && Workspace.IsLoaded;
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;
