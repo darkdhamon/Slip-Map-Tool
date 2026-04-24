@@ -2247,6 +2247,7 @@
             ? "Loading cached sector map context..."
             : "Refreshing cached sector map context...";
         StateHasChanged();
+        await Task.Yield();
 
         try
         {
