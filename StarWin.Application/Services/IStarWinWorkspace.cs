@@ -6,6 +6,8 @@ namespace StarWin.Application.Services;
 
 public interface IStarWinWorkspace
 {
+    bool IsLoaded { get; }
+
     IReadOnlyList<StarWinSector> Sectors { get; }
 
     StarWinSector CurrentSector { get; }
