@@ -51,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<IStarWinSpaceHabitatService, StarWinSpaceHabitatService>();
         services.AddScoped<IStarWinLegacyImportService, StarWinLegacyImportService>();
         services.AddScoped<IStarWinSectorConfigurationService, StarWinSectorConfigurationService>();
+        services.AddScoped<IStarWinSectorRouteService, StarWinSectorRouteService>();
 
         return services;
     }

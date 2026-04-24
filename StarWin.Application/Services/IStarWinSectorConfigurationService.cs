@@ -11,7 +11,6 @@ public interface IStarWinSectorConfigurationService
 
     Task<SectorConfiguration> SaveHyperlaneSettingsAsync(
         int sectorId,
-        decimal basicMaximumLengthParsecs,
-        decimal ownedBaseMaximumLengthParsecs,
+        SectorConfiguration configuration,
         CancellationToken cancellationToken = default);
 }

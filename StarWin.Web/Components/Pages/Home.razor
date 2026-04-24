@@ -4,11 +4,13 @@
 @inject IStarWinSearchService SearchService
 @inject IStarWinImageService ImageService
 @inject IStarWinSectorConfigurationService SectorConfigurationService
+@inject IStarWinSectorRouteService SectorRouteService
 @inject IStarWinEntityNameService EntityNameService
 @inject IStarWinIndependentColonyService IndependentColonyService
 @inject IStarWinSpaceHabitatService SpaceHabitatService
 @inject IJSRuntime JS
 @implements IAsyncDisposable
+@using StarWin.Domain.Services
 
 @{
     var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
@@ -226,12 +228,41 @@
                                 <button type="button" @onclick="PlotSelectedRouteAsync" disabled="@sectionLoadingVisible">Plot route</button>
                                 <button type="button" @onclick="ClearSelectedRoute">Clear route</button>
                             </div>
+                            <div class="form-grid">
+                                <label>
+                                    Optimization
+                                    <select @bind="routeOptimizationMode">
+                                        <option value="@RouteOptimizationMode.ShortestDistance">Shortest distance</option>
+                                        <option value="@RouteOptimizationMode.ShortestTravelTime">Shortest travel time</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Avoid empires
+                                    <select multiple size="5" @onchange="UpdateAvoidedEmpires">
+                                        @foreach (var empire in sectorEmpires.OrderBy(empire => empire.Name))
+                                        {
+                                            <option value="@empire.Id" selected="@avoidedEmpireIds.Contains(empire.Id)">@empire.Name</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label>
+                                    Avoid systems
+                                    <select multiple size="5" @onchange="UpdateAvoidedSystems">
+                                        @foreach (var system in sector.Systems.OrderBy(system => system.Name).ThenBy(system => system.Id))
+                                        {
+                                            <option value="@system.Id" selected="@avoidedSystemIds.Contains(system.Id)">@system.Name</option>
+                                        }
+                                    </select>
+                                </label>
+                            </div>
                             @if (selectedRoutePlan is { } fullscreenRoutePlan)
                             {
                                 <dl class="field-grid">
                                     <div><dt>Origin</dt><dd>@fullscreenRoutePlan.Origin.Name</dd></div>
                                     <div><dt>Destination</dt><dd>@fullscreenRoutePlan.Destination.Name</dd></div>
                                     <div><dt>Route distance</dt><dd>@Format(fullscreenRoutePlan.TotalDistanceParsecs) pc</dd></div>
+                                    <div><dt>Travel time</dt><dd>@FormatTravelTime(fullscreenRoutePlan.TotalTravelTimeYears)</dd></div>
+                                    <div><dt>Hyperlane jumps</dt><dd>@fullscreenRoutePlan.HyperlaneJumpCount</dd></div>
                                     <div><dt>Off-lane legs</dt><dd>@fullscreenRoutePlan.OffHyperlaneLegCount</dd></div>
                                 </dl>
                                 <div class="route-leg-list compact">
@@ -242,14 +273,14 @@
                                                 @onclick="() => SelectSystem(leg.Target.Id)">
                                             <span>@GetRouteLegTierLabel(leg)</span>
                                             <strong>@leg.Source.Name to @leg.Target.Name</strong>
-                                            <small>@Format(leg.DistanceParsecs) pc</small>
+                                            <small>@Format(leg.DistanceParsecs) pc • @FormatTravelTime(leg.TravelTimeYears) • @GetRouteLegOwnerLabel(leg)</small>
                                         </button>
                                     }
                                 </div>
                             }
                             else if (routeDestinationSystemId is not 0)
                             {
-                                <p>No route could be plotted without a void flight over @Format(MaximumVoidRouteDistanceParsecs) parsecs.</p>
+                                <p>No route could be plotted without an off-lane flight over @Format(GetOffLaneMaximumDistanceParsecs(sector)) parsecs.</p>
                             }
                         </article>
                     }
@@ -300,6 +331,33 @@
                             <button type="button" @onclick="PlotSelectedRouteAsync" disabled="@sectionLoadingVisible">Plot route</button>
                             <button type="button" @onclick="ClearSelectedRoute">Clear route</button>
                         </div>
+                        <div class="form-grid">
+                            <label>
+                                Optimization
+                                <select @bind="routeOptimizationMode">
+                                    <option value="@RouteOptimizationMode.ShortestDistance">Shortest distance</option>
+                                    <option value="@RouteOptimizationMode.ShortestTravelTime">Shortest travel time</option>
+                                </select>
+                            </label>
+                            <label>
+                                Avoid empires
+                                <select multiple size="5" @onchange="UpdateAvoidedEmpires">
+                                    @foreach (var empire in sectorEmpires.OrderBy(empire => empire.Name))
+                                    {
+                                        <option value="@empire.Id" selected="@avoidedEmpireIds.Contains(empire.Id)">@empire.Name</option>
+                                    }
+                                </select>
+                            </label>
+                            <label>
+                                Avoid systems
+                                <select multiple size="5" @onchange="UpdateAvoidedSystems">
+                                    @foreach (var system in sector.Systems.OrderBy(system => system.Name).ThenBy(system => system.Id))
+                                    {
+                                        <option value="@system.Id" selected="@avoidedSystemIds.Contains(system.Id)">@system.Name</option>
+                                    }
+                                </select>
+                            </label>
+                        </div>
                         @if (selectedRoutePlan is { } routePlan)
                         {
                             <dl class="field-grid">
@@ -307,10 +365,11 @@
                                 <div><dt>Destination</dt><dd>@routePlan.Destination.Name</dd></div>
                                 <div><dt>Direct distance</dt><dd>@Format(routePlan.DirectDistanceParsecs) pc</dd></div>
                                 <div><dt>Route distance</dt><dd>@Format(routePlan.TotalDistanceParsecs) pc</dd></div>
+                                <div><dt>Travel time</dt><dd>@FormatTravelTime(routePlan.TotalTravelTimeYears)</dd></div>
                                 <div><dt>Extra travel</dt><dd>@Format(routePlan.ExtraDistanceParsecs) pc</dd></div>
-                                <div><dt>Hyperlane legs</dt><dd>@routePlan.HyperlaneLegCount</dd></div>
+                                <div><dt>Hyperlane jumps</dt><dd>@routePlan.HyperlaneJumpCount</dd></div>
                                 <div><dt>Off-lane legs</dt><dd>@routePlan.OffHyperlaneLegCount</dd></div>
-                                <div><dt>Void limit</dt><dd>@Format(MaximumVoidRouteDistanceParsecs) pc</dd></div>
+                                <div><dt>Off-lane limit</dt><dd>@Format(GetOffLaneMaximumDistanceParsecs(sector)) pc</dd></div>
                             </dl>
                             <div class="route-leg-list">
                                 @foreach (var leg in routePlan.Legs)
@@ -320,14 +379,14 @@
                                             @onclick="() => SelectSystem(leg.Target.Id)">
                                         <span>@GetRouteLegTierLabel(leg)</span>
                                         <strong>@leg.Source.Name to @leg.Target.Name</strong>
-                                        <small>@Format(leg.DistanceParsecs) pc</small>
+                                        <small>@Format(leg.DistanceParsecs) pc • @FormatTravelTime(leg.TravelTimeYears) • @GetRouteLegOwnerLabel(leg)</small>
                                     </button>
                                 }
                             </div>
                         }
                         else if (routeDestinationSystemId is not 0)
                         {
-                            <p>No route could be plotted without a void flight over @Format(MaximumVoidRouteDistanceParsecs) parsecs.</p>
+                            <p>No route could be plotted without an off-lane flight over @Format(GetOffLaneMaximumDistanceParsecs(sector)) parsecs.</p>
                         }
                     </article>
                 </div>
@@ -355,36 +414,102 @@
                         <input maxlength="160" @bind="sectorName" />
                     </label>
                     <label>
-                        TL6 basic hyperlane
-                        <input value="@($"{Format(GetHyperlaneMaximumDistanceForStarWinTechLevel(6))} pc")" readonly />
+                        Off-lane distance
+                        <input type="number" min="0.1" step="0.1" @bind="offLaneMaximumDistanceParsecs" />
                     </label>
                     <label>
-                        TL7 hyperlane
-                        <input value="@($"{Format(GetHyperlaneMaximumDistanceForStarWinTechLevel(7))} pc")" readonly />
+                        TL6 name
+                        <input maxlength="80" @bind="tl6HyperlaneName" />
                     </label>
                     <label>
-                        TL8 hyperlane
-                        <input value="@($"{Format(GetHyperlaneMaximumDistanceForStarWinTechLevel(8))} pc")" readonly />
+                        TL6 distance
+                        <input type="number" min="0.1" step="0.1" @bind="tl6MaximumDistanceParsecs" />
                     </label>
                     <label>
-                        TL9 hyperlane
-                        <input value="@($"{Format(GetHyperlaneMaximumDistanceForStarWinTechLevel(9))} pc")" readonly />
+                        TL6 off-lane speed
+                        <input type="number" min="0.1" step="0.25" @bind="tl6OffLaneSpeedMultiplier" />
                     </label>
                     <label>
-                        TL10 hyperlane
-                        <input value="Unlimited between own colonies" readonly />
+                        TL6 hyperlane modifier
+                        <input type="number" min="0.1" step="0.05" @bind="tl6HyperlaneSpeedModifier" />
+                    </label>
+                    <label>
+                        TL7 name
+                        <input maxlength="80" @bind="tl7HyperlaneName" />
+                    </label>
+                    <label>
+                        TL7 distance
+                        <input type="number" min="0.1" step="0.1" @bind="tl7MaximumDistanceParsecs" />
+                    </label>
+                    <label>
+                        TL7 off-lane speed
+                        <input type="number" min="0.1" step="0.25" @bind="tl7OffLaneSpeedMultiplier" />
+                    </label>
+                    <label>
+                        TL7 hyperlane modifier
+                        <input type="number" min="0.1" step="0.05" @bind="tl7HyperlaneSpeedModifier" />
+                    </label>
+                    <label>
+                        TL8 name
+                        <input maxlength="80" @bind="tl8HyperlaneName" />
+                    </label>
+                    <label>
+                        TL8 distance
+                        <input type="number" min="0.1" step="0.1" @bind="tl8MaximumDistanceParsecs" />
+                    </label>
+                    <label>
+                        TL8 off-lane speed
+                        <input type="number" min="0.1" step="0.25" @bind="tl8OffLaneSpeedMultiplier" />
+                    </label>
+                    <label>
+                        TL8 hyperlane modifier
+                        <input type="number" min="0.1" step="0.05" @bind="tl8HyperlaneSpeedModifier" />
+                    </label>
+                    <label>
+                        TL9 name
+                        <input maxlength="80" @bind="tl9HyperlaneName" />
+                    </label>
+                    <label>
+                        TL9 distance
+                        <input type="number" min="0.1" step="0.1" @bind="tl9MaximumDistanceParsecs" />
+                    </label>
+                    <label>
+                        TL9 off-lane speed
+                        <input type="number" min="0.1" step="0.25" @bind="tl9OffLaneSpeedMultiplier" />
+                    </label>
+                    <label>
+                        TL9 hyperlane modifier
+                        <input type="number" min="0.1" step="0.05" @bind="tl9HyperlaneSpeedModifier" />
+                    </label>
+                    <label>
+                        TL10 name
+                        <input maxlength="80" @bind="tl10HyperlaneName" />
+                    </label>
+                    <label>
+                        TL10 distance (`-1` = unlimited)
+                        <input type="number" step="0.1" @bind="tl10MaximumDistanceParsecs" />
+                    </label>
+                    <label>
+                        TL10 off-lane speed
+                        <input type="number" min="0.1" step="0.25" @bind="tl10OffLaneSpeedMultiplier" />
+                    </label>
+                    <label>
+                        TL10 hyperlane modifier
+                        <input type="number" min="0.1" step="0.05" @bind="tl10HyperlaneSpeedModifier" />
                     </label>
                 </div>
                 <dl class="field-grid">
-                    <div><dt>Route rule</dt><dd>Shared empire colonies use that empire's TL tier; different empires use the TL6 basic range</dd></div>
-                    <div><dt>Buffer</dt><dd>@Format(HyperlaneRangeBufferParsecs) parsec added to finite TL ranges</dd></div>
-                    <div><dt>Tech level</dt><dd>Uses imported StarWin tech level</dd></div>
-                    <div><dt>Unlimited routes</dt><dd>StarWin TL10 empires connect every system where they own a colony</dd></div>
+                    <div><dt>Route rule</dt><dd>Shared empires use the highest TL present in both systems; otherwise cross-empire routes use the best lower TL between endpoint empires</dd></div>
+                    <div><dt>Off-lane scope</dt><dd>Sector-wide today, with ship-specific overrides planned later</dd></div>
+                    <div><dt>Current saved routes</dt><dd>@sector.SavedRoutes.Count hyperlane segments</dd></div>
                     <div><dt>Current map routes</dt><dd>@GetSectorMapRouteCount(sector, selectedSystem) visible hyperlanes</dd></div>
                     <div><dt>Last saved</dt><dd>@DisplayDateTime(sector.Configuration.UpdatedAtUtc)</dd></div>
                 </dl>
                 <div class="parent-actions">
                     <button type="button" @onclick="SaveSectorConfiguration">Save configuration</button>
+                    <button type="button" @onclick="SaveCurrentRoutesAsync" disabled="@sectionLoadingVisible">
+                        @(sector.SavedRoutes.Count == 0 ? "Save Current Routes" : "Update Current Routes")
+                    </button>
                     <button type="button" @onclick="() => ConvertIndependentColoniesAsync(sector.Id)" disabled="@sectionLoadingVisible">Convert independent colonies</button>
                     <button type="button" @onclick="() => LoadSectorConfigurationForm(sector)">Reset form</button>
                 </div>
@@ -1189,8 +1314,6 @@
     private const int ColonyBatchSize = 120;
     private const int ExplorerListBatchSize = 120;
     private const int TimelineAllFilterId = -1;
-    private const double MaximumVoidRouteDistanceParsecs = 3;
-    private const double HyperlaneRangeBufferParsecs = 0.5;
     private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
 
     [SupplyParameterFromQuery(Name = "sectorId")]
@@ -1224,9 +1347,9 @@
     private int renderedSystemId;
     private int renderedViewDistanceParsecs;
     private int renderedMapRenderLimit;
-    private double renderedRouteDistanceParsecs;
     private int renderedRouteOriginSystemId;
     private int renderedRouteDestinationSystemId;
+    private long renderedRouteConfigurationStamp;
     private bool renderedOverview;
     private bool sectorMapRequested;
     private bool autoLoadSectorMap;
@@ -1234,9 +1357,10 @@
     private int plottedRouteSectorId;
     private int plottedRouteOriginSystemId;
     private int plottedRouteDestinationSystemId;
-    private double plottedRouteDistanceParsecs;
-    private double plottedOwnedRouteDistanceParsecs;
+    private RouteOptimizationMode plottedRouteOptimizationMode = RouteOptimizationMode.ShortestDistance;
+    private long plottedRouteConfigurationStamp;
     private readonly Dictionary<RouteGraphCacheKey, IReadOnlyDictionary<int, List<SectorMapRouteLeg>>> routeGraphCaches = [];
+    private readonly Dictionary<int, IReadOnlyList<SectorMapRoute>> generatedSectorRouteCache = [];
     private bool browserSessionRestored;
     private bool browserSessionReady;
     private IReadOnlyList<EntityImage> entityImages = [];
@@ -1282,12 +1406,34 @@
     private bool empireObserverConfigured;
     private bool showEmpireFilters;
     private string sectorName = string.Empty;
-    private decimal basicHyperlaneMaximumLengthParsecs = 1m;
-    private decimal ownedHyperlaneBaseMaximumLengthParsecs = 1.2m;
+    private decimal offLaneMaximumDistanceParsecs = 2m;
+    private string tl6HyperlaneName = "Basic Hyperlane";
+    private decimal tl6MaximumDistanceParsecs = 1m;
+    private decimal tl6OffLaneSpeedMultiplier = 2m;
+    private decimal tl6HyperlaneSpeedModifier = 2m;
+    private string tl7HyperlaneName = "Enhanced Hyperlane";
+    private decimal tl7MaximumDistanceParsecs = 1.2m;
+    private decimal tl7OffLaneSpeedMultiplier = 4m;
+    private decimal tl7HyperlaneSpeedModifier = 2.25m;
+    private string tl8HyperlaneName = "Advanced Hyperlane";
+    private decimal tl8MaximumDistanceParsecs = 1.4m;
+    private decimal tl8OffLaneSpeedMultiplier = 8m;
+    private decimal tl8HyperlaneSpeedModifier = 2.5m;
+    private string tl9HyperlaneName = "Prime Hyperlane";
+    private decimal tl9MaximumDistanceParsecs = 1.6m;
+    private decimal tl9OffLaneSpeedMultiplier = 16m;
+    private decimal tl9HyperlaneSpeedModifier = 2.75m;
+    private string tl10HyperlaneName = "Ascendant Hyperlane";
+    private decimal tl10MaximumDistanceParsecs = -1m;
+    private decimal tl10OffLaneSpeedMultiplier = 32m;
+    private decimal tl10HyperlaneSpeedModifier = 3m;
     private string sectorConfigurationStatus = string.Empty;
     private int sectorMapViewDistanceParsecs = DefaultSectorMapViewDistanceParsecs;
     private int sectorMapRenderLimit = SectorMapUnrestrictedRenderedSystems;
     private string sectorMapPerformanceStatus = string.Empty;
+    private RouteOptimizationMode routeOptimizationMode = RouteOptimizationMode.ShortestDistance;
+    private HashSet<int> avoidedEmpireIds = [];
+    private HashSet<int> avoidedSystemIds = [];
 
     private IReadOnlyDictionary<int, AlienRace>? alienRacesById;
     private IReadOnlyDictionary<int, Empire>? empiresById;
@@ -1436,7 +1582,7 @@
             && renderedMapRenderLimit == sectorMapRenderLimit
             && renderedRouteOriginSystemId == routeOriginSystemId
             && renderedRouteDestinationSystemId == routeDestinationSystemId
-            && Math.Abs(renderedRouteDistanceParsecs - GetHyperlaneRouteDistanceParsecs(sector)) < 0.001)
+            && renderedRouteConfigurationStamp == GetRouteConfigurationStamp(sector))
         {
             await CompleteSectionLoadingIfReadyAsync();
             return;
@@ -1456,9 +1602,9 @@
         renderedSystemId = selectedSystemId;
         renderedViewDistanceParsecs = sectorMapViewDistanceParsecs;
         renderedMapRenderLimit = sectorMapRenderLimit;
-        renderedRouteDistanceParsecs = GetHyperlaneRouteDistanceParsecs(sector);
         renderedRouteOriginSystemId = routeOriginSystemId;
         renderedRouteDestinationSystemId = routeDestinationSystemId;
+        renderedRouteConfigurationStamp = GetRouteConfigurationStamp(sector);
         renderedOverview = true;
         await CompleteSectionLoadingIfReadyAsync();
     }
@@ -1842,8 +1988,8 @@
         plottedRouteSectorId = 0;
         plottedRouteOriginSystemId = 0;
         plottedRouteDestinationSystemId = 0;
-        plottedRouteDistanceParsecs = 0;
-        plottedOwnedRouteDistanceParsecs = 0;
+        plottedRouteOptimizationMode = RouteOptimizationMode.ShortestDistance;
+        plottedRouteConfigurationStamp = 0;
     }
 
     private async Task ConvertIndependentColoniesAsync(int sectorId)
@@ -1956,15 +2102,17 @@
 
         var adjacency = await GetRouteAdjacencyAsync(sector);
 
-        sectionLoadingStatus = "Minimizing any unavoidable void crossing...";
+        sectionLoadingStatus = routeOptimizationMode == RouteOptimizationMode.ShortestTravelTime
+            ? "Optimizing total travel time..."
+            : "Optimizing total travel distance...";
         StateHasChanged();
         await Task.Yield();
         plottedRoutePlan = await Task.Run(() => BuildHyperlanePreferredRoute(origin, destination, adjacency));
         plottedRouteSectorId = sector.Id;
         plottedRouteOriginSystemId = origin.Id;
         plottedRouteDestinationSystemId = destination.Id;
-        plottedRouteDistanceParsecs = GetHyperlaneRouteDistanceParsecs(sector);
-        plottedOwnedRouteDistanceParsecs = GetOwnedHyperlaneBaseLengthParsecs(sector);
+        plottedRouteOptimizationMode = routeOptimizationMode;
+        plottedRouteConfigurationStamp = GetRouteConfigurationStamp(sector);
 
         sectorMapRequested = true;
         renderedOverview = false;
@@ -2273,8 +2421,27 @@
     private void LoadSectorConfigurationForm(StarWinSector sector)
     {
         sectorName = sector.Name;
-        basicHyperlaneMaximumLengthParsecs = Math.Round(sector.Configuration.BasicHyperlaneMaximumLengthParsecs, 3);
-        ownedHyperlaneBaseMaximumLengthParsecs = Math.Round((decimal)GetOwnedHyperlaneBaseLengthParsecs(sector), 3);
+        offLaneMaximumDistanceParsecs = Math.Round(sector.Configuration.OffLaneMaximumDistanceParsecs, 3);
+        tl6HyperlaneName = sector.Configuration.Tl6HyperlaneName;
+        tl6MaximumDistanceParsecs = Math.Round(sector.Configuration.Tl6MaximumDistanceParsecs, 3);
+        tl6OffLaneSpeedMultiplier = Math.Round(sector.Configuration.Tl6OffLaneSpeedMultiplier, 3);
+        tl6HyperlaneSpeedModifier = Math.Round(sector.Configuration.Tl6HyperlaneSpeedModifier, 3);
+        tl7HyperlaneName = sector.Configuration.Tl7HyperlaneName;
+        tl7MaximumDistanceParsecs = Math.Round(sector.Configuration.Tl7MaximumDistanceParsecs, 3);
+        tl7OffLaneSpeedMultiplier = Math.Round(sector.Configuration.Tl7OffLaneSpeedMultiplier, 3);
+        tl7HyperlaneSpeedModifier = Math.Round(sector.Configuration.Tl7HyperlaneSpeedModifier, 3);
+        tl8HyperlaneName = sector.Configuration.Tl8HyperlaneName;
+        tl8MaximumDistanceParsecs = Math.Round(sector.Configuration.Tl8MaximumDistanceParsecs, 3);
+        tl8OffLaneSpeedMultiplier = Math.Round(sector.Configuration.Tl8OffLaneSpeedMultiplier, 3);
+        tl8HyperlaneSpeedModifier = Math.Round(sector.Configuration.Tl8HyperlaneSpeedModifier, 3);
+        tl9HyperlaneName = sector.Configuration.Tl9HyperlaneName;
+        tl9MaximumDistanceParsecs = Math.Round(sector.Configuration.Tl9MaximumDistanceParsecs, 3);
+        tl9OffLaneSpeedMultiplier = Math.Round(sector.Configuration.Tl9OffLaneSpeedMultiplier, 3);
+        tl9HyperlaneSpeedModifier = Math.Round(sector.Configuration.Tl9HyperlaneSpeedModifier, 3);
+        tl10HyperlaneName = sector.Configuration.Tl10HyperlaneName;
+        tl10MaximumDistanceParsecs = Math.Round(sector.Configuration.Tl10MaximumDistanceParsecs, 3);
+        tl10OffLaneSpeedMultiplier = Math.Round(sector.Configuration.Tl10OffLaneSpeedMultiplier, 3);
+        tl10HyperlaneSpeedModifier = Math.Round(sector.Configuration.Tl10HyperlaneSpeedModifier, 3);
         sectorConfigurationStatus = string.Empty;
     }
 
@@ -2294,18 +2461,53 @@
 
         var configuration = await SectorConfigurationService.SaveHyperlaneSettingsAsync(
             sector.Id,
-            basicHyperlaneMaximumLengthParsecs,
-            ownedHyperlaneBaseMaximumLengthParsecs);
+            new SectorConfiguration
+            {
+                SectorId = sector.Id,
+                OffLaneMaximumDistanceParsecs = offLaneMaximumDistanceParsecs,
+                Tl6HyperlaneName = tl6HyperlaneName,
+                Tl6MaximumDistanceParsecs = tl6MaximumDistanceParsecs,
+                Tl6OffLaneSpeedMultiplier = tl6OffLaneSpeedMultiplier,
+                Tl6HyperlaneSpeedModifier = tl6HyperlaneSpeedModifier,
+                Tl7HyperlaneName = tl7HyperlaneName,
+                Tl7MaximumDistanceParsecs = tl7MaximumDistanceParsecs,
+                Tl7OffLaneSpeedMultiplier = tl7OffLaneSpeedMultiplier,
+                Tl7HyperlaneSpeedModifier = tl7HyperlaneSpeedModifier,
+                Tl8HyperlaneName = tl8HyperlaneName,
+                Tl8MaximumDistanceParsecs = tl8MaximumDistanceParsecs,
+                Tl8OffLaneSpeedMultiplier = tl8OffLaneSpeedMultiplier,
+                Tl8HyperlaneSpeedModifier = tl8HyperlaneSpeedModifier,
+                Tl9HyperlaneName = tl9HyperlaneName,
+                Tl9MaximumDistanceParsecs = tl9MaximumDistanceParsecs,
+                Tl9OffLaneSpeedMultiplier = tl9OffLaneSpeedMultiplier,
+                Tl9HyperlaneSpeedModifier = tl9HyperlaneSpeedModifier,
+                Tl10HyperlaneName = tl10HyperlaneName,
+                Tl10MaximumDistanceParsecs = tl10MaximumDistanceParsecs,
+                Tl10OffLaneSpeedMultiplier = tl10OffLaneSpeedMultiplier,
+                Tl10HyperlaneSpeedModifier = tl10HyperlaneSpeedModifier
+            });
 
         sector.Name = savedSectorName;
-        sector.Configuration.BasicHyperlaneMaximumLengthParsecs = configuration.BasicHyperlaneMaximumLengthParsecs;
-        sector.Configuration.OwnedHyperlaneBaseMaximumLengthParsecs = configuration.OwnedHyperlaneBaseMaximumLengthParsecs;
-        sector.Configuration.UpdatedAtUtc = configuration.UpdatedAtUtc;
+        sector.Configuration = configuration;
         LoadSectorConfigurationForm(sector);
-        sectorConfigurationStatus = $"{savedSectorName} saved. Basic hyperlanes now connect systems up to {configuration.BasicHyperlaneMaximumLengthParsecs:0.###} parsecs; owned hyperlanes start at {configuration.OwnedHyperlaneBaseMaximumLengthParsecs:0.###} parsecs before tech-level bonuses.";
+        sectorConfigurationStatus = $"{savedSectorName} saved. Off-lane distance is {configuration.OffLaneMaximumDistanceParsecs:0.###} parsecs, and TL6-TL10 travel tiers now use the current sector configuration.";
         routeGraphCaches.Clear();
+        generatedSectorRouteCache.Remove(sector.Id);
         ClearPlottedRoutePlan();
         renderedOverview = false;
+    }
+
+    private async Task SaveCurrentRoutesAsync()
+    {
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var result = await SectorRouteService.SaveCurrentRoutesAsync(sector.Id);
+        await Workspace.ReloadAsync();
+        generatedSectorRouteCache.Remove(sector.Id);
+        routeGraphCaches.Clear();
+        ClearPlottedRoutePlan();
+        sectorConfigurationStatus = result.ReplacedExistingRoutes
+            ? $"Updated {result.RouteCount:N0} saved route segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sector.Name}."
+            : $"Saved {result.RouteCount:N0} route segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sector.Name}.";
     }
 
     private void RunSearch()
@@ -3019,21 +3221,6 @@
         return value == default ? "Not saved" : value.ToLocalTime().ToString("g");
     }
 
-    private static double GetHyperlaneRouteDistanceParsecs(StarWinSector sector)
-    {
-        return GetHyperlaneMaximumDistanceForStarWinTechLevel(6);
-    }
-
-    private static double GetDefaultOwnedHyperlaneBaseLengthParsecs(StarWinSector sector)
-    {
-        return GetHyperlaneMaximumDistanceForStarWinTechLevel(7);
-    }
-
-    private static double GetOwnedHyperlaneBaseLengthParsecs(StarWinSector sector)
-    {
-        return GetHyperlaneMaximumDistanceForStarWinTechLevel(9);
-    }
-
     private static string DisplayResultType(StarWinSearchResultType type)
     {
         return type switch
@@ -3052,13 +3239,9 @@
         var routePlan = GetPlottedRoutePlan(sector);
         var routeSystemIds = routePlan?.Systems.Select(system => system.Id).ToHashSet() ?? [];
         var mappedSystems = GetSectorMapSystems(sector, focusedSystemId, routePlan).ToList();
-        var routeDistance = GetHyperlaneRouteDistanceParsecs(sector);
-        var ownedRouteDistance = GetOwnedHyperlaneBaseLengthParsecs(sector);
         var routes = BuildVisibleSectorMapRoutes(
+            sector,
             mappedSystems,
-            routeDistance,
-            ownedRouteDistance,
-            EmpiresById,
             selectedSystemId,
             routePlan);
 
@@ -3067,9 +3250,7 @@
             sector = sector.Name,
             viewDistanceParsecs = sectorMapViewDistanceParsecs,
             fadeStartParsecs = Math.Max(0, sectorMapViewDistanceParsecs - 1),
-            routeDistanceParsecs = routeDistance,
-            ownedRouteDistanceParsecs = ownedRouteDistance,
-            maximumVoidRouteDistanceParsecs = MaximumVoidRouteDistanceParsecs,
+            offLaneDistanceParsecs = GetOffLaneMaximumDistanceParsecs(sector),
             totalSystemCount = sector.Systems.Count,
             visibleSystemCount = mappedSystems.Count,
             visibleRouteCount = routes.Count,
@@ -3084,7 +3265,7 @@
                 z = system.Coordinates.ZParsecs,
                 distanceFromFocus = focusedSystem is null
                     ? 0
-                    : CalculateParsecDistance(focusedSystem.Coordinates, system.Coordinates),
+                    : SectorRoutePlanner.CalculateParsecDistance(focusedSystem.Coordinates, system.Coordinates),
                 isRouteSystem = routeSystemIds.Contains(system.Id),
                 showLabel = focusedSystem is null || system.Id == focusedSystem.Id || routeSystemIds.Contains(system.Id),
                 bodies = system.AstralBodies.Take(3).Select(body => new
@@ -3099,22 +3280,26 @@
             }).ToArray(),
             routes = routes.Select(route => new
             {
-                sourceId = route.Source.Id,
-                targetId = route.Target.Id,
+                sourceId = route.SourceSystemId,
+                targetId = route.TargetSystemId,
                 distanceParsecs = route.DistanceParsecs,
-                hyperlaneTechLevel = route.HyperlaneTechLevel,
-                isOwned = route.IsOwned,
-                isGold = route.IsGold
+                travelTimeYears = route.TravelTimeYears,
+                hyperlaneTechLevel = route.TechnologyLevel,
+                tierName = route.TierName,
+                primaryOwnerEmpireName = route.PrimaryOwnerEmpireName,
+                secondaryOwnerEmpireName = route.SecondaryOwnerEmpireName
             }).ToArray(),
             routePath = (routePlan?.Legs ?? []).Select(leg => new
             {
                 sourceId = leg.Source.Id,
                 targetId = leg.Target.Id,
                 distanceParsecs = leg.DistanceParsecs,
-                hyperlaneTechLevel = leg.HyperlaneTechLevel,
+                travelTimeYears = leg.TravelTimeYears,
+                hyperlaneTechLevel = leg.TechnologyLevel,
+                tierName = leg.TierName,
                 isHyperlane = leg.IsHyperlane,
-                isOwned = leg.IsOwned,
-                isGold = leg.IsGold
+                primaryOwnerEmpireName = leg.PrimaryOwnerEmpireName,
+                secondaryOwnerEmpireName = leg.SecondaryOwnerEmpireName
             }).ToArray()
         };
     }
@@ -3133,7 +3318,7 @@
             .Select(system => new
             {
                 System = system,
-                Distance = CalculateParsecDistance(focusedSystem.Coordinates, system.Coordinates)
+                Distance = SectorRoutePlanner.CalculateParsecDistance(focusedSystem.Coordinates, system.Coordinates)
             })
             .Where(item => item.Distance <= sectorMapViewDistanceParsecs)
             .OrderBy(item => item.Distance)
@@ -3163,8 +3348,8 @@
             || plottedRouteSectorId != sector.Id
             || plottedRouteOriginSystemId != routeOriginSystemId
             || plottedRouteDestinationSystemId != routeDestinationSystemId
-            || Math.Abs(plottedRouteDistanceParsecs - GetHyperlaneRouteDistanceParsecs(sector)) >= 0.001
-            || Math.Abs(plottedOwnedRouteDistanceParsecs - GetOwnedHyperlaneBaseLengthParsecs(sector)) >= 0.001)
+            || plottedRouteOptimizationMode != routeOptimizationMode
+            || plottedRouteConfigurationStamp != GetRouteConfigurationStamp(sector))
         {
             return null;
         }
@@ -3176,29 +3361,91 @@
     {
         var cacheKey = new RouteGraphCacheKey(
             sector.Id,
-            Math.Round(GetHyperlaneRouteDistanceParsecs(sector), 3),
-            Math.Round(GetOwnedHyperlaneBaseLengthParsecs(sector), 3),
-            MaximumVoidRouteDistanceParsecs);
+            GetRouteConfigurationStamp(sector));
         if (routeGraphCaches.TryGetValue(cacheKey, out var cachedAdjacency))
         {
             return cachedAdjacency;
         }
 
-        var systems = sector.Systems.ToList();
-        var routeDistanceParsecs = GetHyperlaneRouteDistanceParsecs(sector);
-        var ownedRouteDistanceParsecs = GetOwnedHyperlaneBaseLengthParsecs(sector);
-        var empiresById = EmpiresById;
         var adjacency = await Task.Run(() => BuildRouteAdjacency(
-            systems,
-            routeDistanceParsecs,
-            ownedRouteDistanceParsecs,
-            empiresById,
-            MaximumVoidRouteDistanceParsecs));
+            sector,
+            EmpiresById));
         routeGraphCaches[cacheKey] = adjacency;
         return adjacency;
     }
 
-    private static SectorMapRoutePlan? BuildHyperlanePreferredRoute(
+    private Dictionary<int, List<SectorMapRouteLeg>> BuildRouteAdjacency(
+        StarWinSector sector,
+        IReadOnlyDictionary<int, Empire> empiresById)
+    {
+        var adjacency = sector.Systems.ToDictionary(system => system.Id, _ => new List<SectorMapRouteLeg>());
+        var systemsById = sector.Systems.ToDictionary(system => system.Id);
+
+        foreach (var route in GetSectorHyperlaneRoutes(sector))
+        {
+            if (!systemsById.TryGetValue(route.SourceSystemId, out var source)
+                || !systemsById.TryGetValue(route.TargetSystemId, out var target))
+            {
+                continue;
+            }
+
+            var leg = new SectorMapRouteLeg(
+                source,
+                target,
+                route.DistanceParsecs,
+                route.TravelTimeYears,
+                true,
+                route.TechnologyLevel,
+                route.TierName,
+                route.PrimaryOwnerEmpireId,
+                route.PrimaryOwnerEmpireName,
+                route.SecondaryOwnerEmpireId,
+                route.SecondaryOwnerEmpireName);
+            adjacency[source.Id].Add(leg);
+            adjacency[target.Id].Add(leg with { Source = target, Target = source });
+        }
+
+        var offLaneMaximumDistanceParsecs = GetOffLaneMaximumDistanceParsecs(sector);
+        if (sector.Systems.Count < 2 || offLaneMaximumDistanceParsecs <= 0)
+        {
+            return adjacency;
+        }
+
+        for (var sourceIndex = 0; sourceIndex < sector.Systems.Count; sourceIndex++)
+        {
+            var source = sector.Systems[sourceIndex];
+            for (var targetIndex = sourceIndex + 1; targetIndex < sector.Systems.Count; targetIndex++)
+            {
+                var target = sector.Systems[targetIndex];
+                var distanceParsecs = SectorRoutePlanner.CalculateParsecDistance(source.Coordinates, target.Coordinates);
+                if (distanceParsecs > offLaneMaximumDistanceParsecs)
+                {
+                    continue;
+                }
+
+                var technologyLevel = ResolveOffLaneTechnologyLevel(source, target, empiresById);
+                var travelTimeYears = SectorRoutePlanner.CalculateOffLaneTravelTimeYears(
+                    sector.Configuration,
+                    technologyLevel,
+                    distanceParsecs);
+
+                var leg = new SectorMapRouteLeg(
+                    source,
+                    target,
+                    distanceParsecs,
+                    travelTimeYears,
+                    false,
+                    technologyLevel,
+                    "Off-lane");
+                adjacency[source.Id].Add(leg);
+                adjacency[target.Id].Add(leg with { Source = target, Target = source });
+            }
+        }
+
+        return adjacency;
+    }
+
+    private SectorMapRoutePlan? BuildHyperlanePreferredRoute(
         StarSystem origin,
         StarSystem destination,
         IReadOnlyDictionary<int, List<SectorMapRouteLeg>> adjacency)
@@ -3218,70 +3465,6 @@
         return null;
     }
 
-    private static Dictionary<int, List<SectorMapRouteLeg>> BuildRouteAdjacency(
-        IReadOnlyList<StarSystem> systems,
-        double routeDistanceParsecs,
-        double ownedRouteDistanceParsecs,
-        IReadOnlyDictionary<int, Empire> empiresById,
-        double maximumVoidRouteDistanceParsecs)
-    {
-        var adjacency = BuildHyperlaneAdjacency(systems, routeDistanceParsecs, ownedRouteDistanceParsecs, empiresById);
-        if (systems.Count < 2 || maximumVoidRouteDistanceParsecs <= routeDistanceParsecs)
-        {
-            return adjacency;
-        }
-
-        var cellSize = Math.Max(0.1, maximumVoidRouteDistanceParsecs);
-        var cells = systems
-            .GroupBy(system => GetRouteCell(system, cellSize))
-            .ToDictionary(group => group.Key, group => group.ToList());
-
-        foreach (var source in systems)
-        {
-            var originCell = GetRouteCell(source, cellSize);
-            for (var x = originCell.X - 1; x <= originCell.X + 1; x++)
-            {
-                for (var y = originCell.Y - 1; y <= originCell.Y + 1; y++)
-                {
-                    for (var z = originCell.Z - 1; z <= originCell.Z + 1; z++)
-                    {
-                        if (!cells.TryGetValue((x, y, z), out var candidates))
-                        {
-                            continue;
-                        }
-
-                        foreach (var target in candidates)
-                        {
-                            if (target.Id <= source.Id)
-                            {
-                                continue;
-                            }
-
-                            var voidDistance = CalculateParsecDistance(source.Coordinates, target.Coordinates);
-                            if (voidDistance <= routeDistanceParsecs || voidDistance > maximumVoidRouteDistanceParsecs)
-                            {
-                                continue;
-                            }
-
-                            adjacency[source.Id].Add(new SectorMapRouteLeg(source, target, voidDistance, false));
-                            adjacency[target.Id].Add(new SectorMapRouteLeg(target, source, voidDistance, false));
-                        }
-                    }
-                }
-            }
-        }
-
-        return adjacency;
-    }
-
-    private static (int X, int Y, int Z) GetRouteCell(StarSystem system, double cellSize)
-    {
-        return (
-            X: (int)Math.Floor(system.Coordinates.XParsecs / cellSize),
-            Y: (int)Math.Floor(system.Coordinates.YParsecs / cellSize),
-            Z: (int)Math.Floor(system.Coordinates.ZParsecs / cellSize));
-    }
-
     private static SectorMapRoutePlan BuildRoutePlan(StarSystem origin, StarSystem destination, IReadOnlyList<SectorMapRouteLeg> legs)
     {
         var routeSystems = legs
@@ -3293,67 +3476,11 @@
         return new SectorMapRoutePlan(origin, destination, routeSystems, legs);
     }
 
-    private static Dictionary<int, List<SectorMapRouteLeg>> BuildHyperlaneAdjacency(
-        IReadOnlyList<StarSystem> systems,
-        double routeDistanceParsecs,
-        double ownedRouteDistanceParsecs,
-        IReadOnlyDictionary<int, Empire> empiresById)
-    {
-        var adjacency = systems.ToDictionary(system => system.Id, _ => new List<SectorMapRouteLeg>());
-        foreach (var route in BuildSectorMapRoutes(systems, routeDistanceParsecs, ownedRouteDistanceParsecs, empiresById))
-        {
-            adjacency[route.Source.Id].Add(new SectorMapRouteLeg(route.Source, route.Target, route.DistanceParsecs, true, route.IsOwned, route.IsGold, route.HyperlaneTechLevel));
-            adjacency[route.Target.Id].Add(new SectorMapRouteLeg(route.Target, route.Source, route.DistanceParsecs, true, route.IsOwned, route.IsGold, route.HyperlaneTechLevel));
-        }
-
-        return adjacency;
-    }
-
-    private static HyperlaneSearchResult SearchHyperlaneRoutes(
-        StarSystem origin,
-        IReadOnlyDictionary<int, List<SectorMapRouteLeg>> adjacency)
-    {
-        var distances = adjacency.Keys.ToDictionary(systemId => systemId, _ => double.PositiveInfinity);
-        var previousLegs = new Dictionary<int, SectorMapRouteLeg>();
-        var queue = new PriorityQueue<int, double>();
-        var settledSystemIds = new HashSet<int>();
-
-        distances[origin.Id] = 0;
-        queue.Enqueue(origin.Id, 0);
-
-        while (queue.Count > 0)
-        {
-            var systemId = queue.Dequeue();
-            if (!settledSystemIds.Add(systemId))
-            {
-                continue;
-            }
-
-            foreach (var leg in adjacency[systemId])
-            {
-                var nextSystemId = leg.Target.Id;
-                var nextDistance = distances[systemId] + leg.DistanceParsecs;
-                if (nextDistance >= distances[nextSystemId])
-                {
-                    continue;
-                }
-
-                distances[nextSystemId] = nextDistance;
-                previousLegs[nextSystemId] = leg;
-                queue.Enqueue(nextSystemId, nextDistance);
-            }
-        }
-
-        return new HyperlaneSearchResult(distances, previousLegs);
-    }
-
-    private static PreferredRouteSearchResult SearchPreferredRoute(
+    private PreferredRouteSearchResult SearchPreferredRoute(
         StarSystem origin,
         int destinationSystemId,
         IReadOnlyDictionary<int, List<SectorMapRouteLeg>> adjacency)
     {
-        const double voidLegPenalty = 1_000_000;
-        const double voidDistancePenalty = 1_000;
         var costs = adjacency.Keys.ToDictionary(systemId => systemId, _ => double.PositiveInfinity);
         var previousLegs = new Dictionary<int, SectorMapRouteLeg>();
         var queue = new PriorityQueue<int, double>();
@@ -3378,8 +3505,14 @@
             foreach (var leg in adjacency[systemId])
             {
                 var nextSystemId = leg.Target.Id;
-                var legCost = leg.DistanceParsecs
-                    + (leg.IsHyperlane ? 0 : voidLegPenalty + leg.DistanceParsecs * voidDistancePenalty);
+                if (ShouldSkipLeg(origin.Id, destinationSystemId, leg))
+                {
+                    continue;
+                }
+
+                var legCost = routeOptimizationMode == RouteOptimizationMode.ShortestTravelTime
+                    ? leg.TravelTimeYears
+                    : leg.DistanceParsecs;
                 var nextCost = costs[systemId] + legCost;
                 if (nextCost >= costs[nextSystemId])
                 {
@@ -3395,29 +3528,33 @@
         return new PreferredRouteSearchResult(costs, previousLegs);
     }
 
-    private static IReadOnlyList<SectorMapRouteLeg>? BuildHyperlanePath(HyperlaneSearchResult searchResult, int originSystemId, int targetSystemId)
+    private bool ShouldSkipLeg(int originSystemId, int destinationSystemId, SectorMapRouteLeg leg)
     {
-        if (originSystemId == targetSystemId)
+        if (avoidedSystemIds.Contains(leg.Target.Id)
+            && leg.Target.Id != destinationSystemId
+            && leg.Target.Id != originSystemId)
         {
-            return [];
+            return true;
         }
 
-        if (!searchResult.PreviousLegs.ContainsKey(targetSystemId))
+        if (avoidedSystemIds.Contains(leg.Source.Id)
+            && leg.Source.Id != destinationSystemId
+            && leg.Source.Id != originSystemId)
         {
-            return null;
+            return true;
         }
 
-        var legs = new List<SectorMapRouteLeg>();
-        var currentSystemId = targetSystemId;
-        while (currentSystemId != originSystemId)
+        if (leg.PrimaryOwnerEmpireId is int primaryOwnerEmpireId && avoidedEmpireIds.Contains(primaryOwnerEmpireId))
         {
-            var leg = searchResult.PreviousLegs[currentSystemId];
-            legs.Add(leg);
-            currentSystemId = leg.Source.Id;
+            return true;
         }
 
-        legs.Reverse();
-        return legs;
+        if (leg.SecondaryOwnerEmpireId is int secondaryOwnerEmpireId && avoidedEmpireIds.Contains(secondaryOwnerEmpireId))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static IReadOnlyList<SectorMapRouteLeg>? BuildRoutePath(PreferredRouteSearchResult searchResult, int originSystemId, int targetSystemId)
@@ -3445,14 +3582,6 @@
         return legs;
     }
 
-    private static IReadOnlyList<SectorMapRouteLeg> ReverseRouteLegs(IReadOnlyList<SectorMapRouteLeg> legs)
-    {
-        return legs
-            .Reverse()
-            .Select(leg => new SectorMapRouteLeg(leg.Target, leg.Source, leg.DistanceParsecs, leg.IsHyperlane, leg.IsOwned, leg.IsGold, leg.HyperlaneTechLevel))
-            .ToList();
-    }
-
     private static string GetRouteLegCssClass(SectorMapRouteLeg leg)
     {
         if (!leg.IsHyperlane)
@@ -3460,16 +3589,14 @@
             return "off-lane";
         }
 
-        if (leg.IsGold)
-        {
-            return "gold-hyperlane";
-        }
-
-        return leg.HyperlaneTechLevel switch
+        return leg.TechnologyLevel switch
         {
             6 => "basic-hyperlane",
-            7 or 8 or 9 => "owned-hyperlane",
-            _ => leg.IsOwned ? "owned-hyperlane" : "basic-hyperlane"
+            7 => "owned-hyperlane",
+            8 => "prime-hyperlane",
+            9 => "prime-hyperlane",
+            10 => "gold-hyperlane",
+            _ => "basic-hyperlane"
         };
     }
 
@@ -3477,22 +3604,22 @@
     {
         if (!leg.IsHyperlane)
         {
-            return "Off-lane";
+            return $"Off-lane TL{leg.TechnologyLevel}";
         }
 
-        if (leg.IsGold)
+        return $"TL{leg.TechnologyLevel} {leg.TierName}";
+    }
+
+    private static string GetRouteLegOwnerLabel(SectorMapRouteLeg leg)
+    {
+        if (string.IsNullOrWhiteSpace(leg.PrimaryOwnerEmpireName))
         {
-            return "TL10 unlimited hyperlane";
+            return "No owner";
         }
 
-        return leg.HyperlaneTechLevel switch
-        {
-            6 => "TL6 basic hyperlane",
-            7 => "TL7 hyperlane",
-            8 => "TL8 hyperlane",
-            9 => "TL9 hyperlane",
-            _ => leg.IsOwned ? "Owned hyperlane" : "Basic hyperlane"
-        };
+        return string.IsNullOrWhiteSpace(leg.SecondaryOwnerEmpireName)
+            ? leg.PrimaryOwnerEmpireName
+            : $"{leg.PrimaryOwnerEmpireName} / {leg.SecondaryOwnerEmpireName}";
     }
 
     private int GetSectorMapSystemCount(StarWinSector sector, StarSystem? focusedSystem)
@@ -3504,7 +3631,7 @@
     {
         var focused = focusedSystem ?? sector.Systems.FirstOrDefault();
         return focused is not null
-            && sector.Systems.Count(system => CalculateParsecDistance(focused.Coordinates, system.Coordinates) <= sectorMapViewDistanceParsecs) > sectorMapRenderLimit;
+            && sector.Systems.Count(system => SectorRoutePlanner.CalculateParsecDistance(focused.Coordinates, system.Coordinates) <= sectorMapViewDistanceParsecs) > sectorMapRenderLimit;
     }
 
     private int GetSectorMapRouteCount(StarWinSector sector, StarSystem? focusedSystem)
@@ -3512,173 +3639,72 @@
         var focusedSystemId = focusedSystem?.Id ?? 0;
         var routePlan = GetPlottedRoutePlan(sector);
         return BuildVisibleSectorMapRoutes(
+            sector,
             GetSectorMapSystems(sector, focusedSystemId, routePlan),
-            GetHyperlaneRouteDistanceParsecs(sector),
-            GetOwnedHyperlaneBaseLengthParsecs(sector),
-            EmpiresById,
             focusedSystemId,
             routePlan).Count;
     }
 
-    private static IReadOnlyList<SectorMapRoute> BuildVisibleSectorMapRoutes(
+    private IReadOnlyList<SectorMapRoute> BuildVisibleSectorMapRoutes(
+        StarWinSector sector,
         IReadOnlyList<StarSystem> systems,
-        double routeDistanceParsecs,
-        double ownedRouteDistanceParsecs,
-        IReadOnlyDictionary<int, Empire> empiresById,
         int selectedSystemId,
         SectorMapRoutePlan? routePlan)
     {
-        var routes = BuildSectorMapRoutes(systems, routeDistanceParsecs, ownedRouteDistanceParsecs, empiresById);
-        if (routes.All(route => !route.IsGold))
-        {
-            return routes;
-        }
-
+        var systemIds = systems.Select(system => system.Id).ToHashSet();
         var routePathKeys = routePlan?.Legs
+            .Where(leg => leg.IsHyperlane)
             .Select(leg => GetSectorMapRouteKey(leg.Source.Id, leg.Target.Id))
             .ToHashSet() ?? [];
 
-        return routes
-            .Where(route => !route.IsGold
-                || route.Source.Id == selectedSystemId
-                || route.Target.Id == selectedSystemId
-                || routePathKeys.Contains(GetSectorMapRouteKey(route.Source.Id, route.Target.Id)))
+        return GetSectorHyperlaneRoutes(sector)
+            .Where(route => systemIds.Contains(route.SourceSystemId) && systemIds.Contains(route.TargetSystemId))
+            .Where(route => route.TechnologyLevel < 10
+                || route.SourceSystemId == selectedSystemId
+                || route.TargetSystemId == selectedSystemId
+                || routePathKeys.Contains(GetSectorMapRouteKey(route.SourceSystemId, route.TargetSystemId)))
             .ToList();
     }
 
-    private static IReadOnlyList<SectorMapRoute> BuildSectorMapRoutes(
-        IReadOnlyList<StarSystem> systems,
-        double routeDistanceParsecs,
-        double ownedRouteDistanceParsecs,
-        IReadOnlyDictionary<int, Empire> empiresById)
+    private IReadOnlyList<SectorMapRoute> GetSectorHyperlaneRoutes(StarWinSector sector)
     {
-        if (systems.Count < 2)
+        if (sector.SavedRoutes.Count > 0)
         {
-            return [];
-        }
-
-        var maximumRouteDistanceParsecs = Math.Max(
-            routeDistanceParsecs,
-            GetHyperlaneMaximumDistanceForStarWinTechLevel(9));
-        var cellSize = Math.Max(0.1, maximumRouteDistanceParsecs);
-        var cells = systems
-            .GroupBy(system => (
-                X: (int)Math.Floor(system.Coordinates.XParsecs / cellSize),
-                Y: (int)Math.Floor(system.Coordinates.YParsecs / cellSize),
-                Z: (int)Math.Floor(system.Coordinates.ZParsecs / cellSize)))
-            .ToDictionary(group => group.Key, group => group.ToList());
-        var routes = new List<SectorMapRoute>();
-
-        foreach (var system in systems)
-        {
-            var originCell = (
-                X: (int)Math.Floor(system.Coordinates.XParsecs / cellSize),
-                Y: (int)Math.Floor(system.Coordinates.YParsecs / cellSize),
-                Z: (int)Math.Floor(system.Coordinates.ZParsecs / cellSize));
-
-            for (var x = originCell.X - 1; x <= originCell.X + 1; x++)
-            {
-                for (var y = originCell.Y - 1; y <= originCell.Y + 1; y++)
-                {
-                    for (var z = originCell.Z - 1; z <= originCell.Z + 1; z++)
-                    {
-                        if (!cells.TryGetValue((x, y, z), out var candidates))
-                        {
-                            continue;
-                        }
-
-                        foreach (var candidate in candidates)
-                        {
-                            if (candidate.Id <= system.Id)
-                            {
-                                continue;
-                            }
-
-                            var distance = CalculateParsecDistance(system.Coordinates, candidate.Coordinates);
-                            var hasSharedTier = TryGetSharedHyperlaneTier(
-                                system,
-                                candidate,
-                                empiresById,
-                                out var hyperlaneTechLevel,
-                                out var maximumDistanceParsecs);
-                            if (!hasSharedTier)
-                            {
-                                hyperlaneTechLevel = 6;
-                                maximumDistanceParsecs = GetHyperlaneMaximumDistanceForStarWinTechLevel(hyperlaneTechLevel);
-                            }
-
-                            if (!IsUnlimitedHyperlaneTechLevel(hyperlaneTechLevel)
-                                && distance <= maximumDistanceParsecs)
-                            {
-                                routes.Add(new SectorMapRoute(
-                                    system,
-                                    candidate,
-                                    distance,
-                                    hyperlaneTechLevel > 6,
-                                    false,
-                                    hyperlaneTechLevel));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        AddUnlimitedHyperlaneRoutes(systems, routes, empiresById);
-
-        return routes;
-    }
-
-    private static void AddUnlimitedHyperlaneRoutes(
-        IReadOnlyList<StarSystem> systems,
-        List<SectorMapRoute> routes,
-        IReadOnlyDictionary<int, Empire> empiresById)
-    {
-        var goldRouteKeys = new HashSet<(int SourceId, int TargetId)>();
-        var goldEmpireIds = empiresById.Values
-            .Where(empire => IsUnlimitedHyperlaneTechLevel(empire.CivilizationProfile.TechLevel))
-            .Select(empire => empire.Id)
-            .ToHashSet();
-        if (goldEmpireIds.Count == 0)
-        {
-            return;
-        }
-
-        var systemsByGoldEmpire = systems
-            .SelectMany(system => GetControlledColonyEmpireIds(system)
-                .Where(goldEmpireIds.Contains)
-                .Select(empireId => new { EmpireId = empireId, System = system }))
-            .GroupBy(item => item.EmpireId, item => item.System);
-
-        foreach (var empireSystems in systemsByGoldEmpire)
-        {
-            var ownedSystems = empireSystems
-                .DistinctBy(system => system.Id)
-                .OrderBy(system => system.Id)
+            return sector.SavedRoutes
+                .Select(route => new SectorMapRoute(
+                    route.SourceSystemId,
+                    route.TargetSystemId,
+                    (double)route.DistanceParsecs,
+                    (double)route.TravelTimeYears,
+                    route.TechnologyLevel,
+                    route.TierName,
+                    route.PrimaryOwnerEmpireId,
+                    route.PrimaryOwnerEmpireName,
+                    route.SecondaryOwnerEmpireId,
+                    route.SecondaryOwnerEmpireName))
                 .ToList();
-            for (var sourceIndex = 0; sourceIndex < ownedSystems.Count; sourceIndex++)
-            {
-                var source = ownedSystems[sourceIndex];
-                for (var targetIndex = sourceIndex + 1; targetIndex < ownedSystems.Count; targetIndex++)
-                {
-                    var target = ownedSystems[targetIndex];
-                    var routeKey = GetSectorMapRouteKey(source.Id, target.Id);
-                    if (!goldRouteKeys.Add(routeKey))
-                    {
-                        continue;
-                    }
-
-                    routes.RemoveAll(route => GetSectorMapRouteKey(route.Source.Id, route.Target.Id) == routeKey);
-                    routes.Add(new SectorMapRoute(
-                        source,
-                        target,
-                        CalculateParsecDistance(source.Coordinates, target.Coordinates),
-                        true,
-                        true,
-                        10));
-                }
-            }
         }
+
+        if (generatedSectorRouteCache.TryGetValue(sector.Id, out var cachedRoutes))
+        {
+            return cachedRoutes;
+        }
+
+        var routes = SectorRoutePlanner.BuildHyperlaneRoutes(sector, EmpiresById)
+            .Select(route => new SectorMapRoute(
+                route.SourceSystemId,
+                route.TargetSystemId,
+                route.DistanceParsecs,
+                route.TravelTimeYears,
+                route.TechnologyLevel,
+                route.TierName,
+                route.PrimaryOwnerEmpireId,
+                route.PrimaryOwnerEmpireName,
+                route.SecondaryOwnerEmpireId,
+                route.SecondaryOwnerEmpireName))
+            .ToList();
+        generatedSectorRouteCache[sector.Id] = routes;
+        return routes;
     }
 
     private static (int SourceId, int TargetId) GetSectorMapRouteKey(int sourceId, int targetId)
@@ -3686,74 +3712,78 @@
         return sourceId < targetId ? (sourceId, targetId) : (targetId, sourceId);
     }
 
-    private static bool TryGetSharedHyperlaneTier(
+    private static int ResolveOffLaneTechnologyLevel(
         StarSystem source,
         StarSystem target,
-        IReadOnlyDictionary<int, Empire> empiresById,
-        out int hyperlaneTechLevel,
-        out double maximumDistanceParsecs)
+        IReadOnlyDictionary<int, Empire> empiresById)
     {
-        hyperlaneTechLevel = 0;
-        maximumDistanceParsecs = 0;
-        var sharedEmpireIds = GetControlledColonyEmpireIds(source)
-            .Intersect(GetControlledColonyEmpireIds(target))
-            .ToList();
-        if (sharedEmpireIds.Count == 0)
+        if (SectorRoutePlanner.TryResolveHyperlaneRule(source, target, new SectorConfiguration(), empiresById, out var tier, out _))
         {
-            return false;
+            return tier;
         }
 
-        hyperlaneTechLevel = sharedEmpireIds
-            .Select(empireId => (int)(empiresById.GetValueOrDefault(empireId)?.CivilizationProfile.TechLevel ?? 0))
-            .Where(techLevel => techLevel >= 6)
-            .DefaultIfEmpty(0)
-            .Max();
-
-        maximumDistanceParsecs = GetHyperlaneMaximumDistanceForStarWinTechLevel(hyperlaneTechLevel);
-        return hyperlaneTechLevel >= 6;
+        return 6;
     }
 
-    private static IEnumerable<int> GetControlledColonyEmpireIds(StarSystem system)
+    private static double GetOffLaneMaximumDistanceParsecs(StarWinSector sector)
     {
-        return system.Worlds
-            .Where(world => world.Colony is not null)
-            .SelectMany(world => GetControlledColonyEmpireIds(world.Colony!))
-            .Distinct();
+        return (double)sector.Configuration.OffLaneMaximumDistanceParsecs;
     }
 
-    private static IEnumerable<int> GetControlledColonyEmpireIds(Colony colony)
+    private long GetRouteConfigurationStamp(StarWinSector sector)
     {
-        if (colony.ControllingEmpireId is int controllingEmpireId)
+        return HashCode.Combine(
+            sector.Configuration.UpdatedAtUtc.Ticks,
+            sector.SavedRoutes.Count,
+            routeOptimizationMode,
+            string.Join(',', avoidedEmpireIds.OrderBy(id => id)),
+            string.Join(',', avoidedSystemIds.OrderBy(id => id)));
+    }
+
+    private void UpdateAvoidedEmpires(ChangeEventArgs args)
+    {
+        avoidedEmpireIds = ParseMultiSelectIds(args);
+        ClearPlottedRoutePlan();
+    }
+
+    private void UpdateAvoidedSystems(ChangeEventArgs args)
+    {
+        avoidedSystemIds = ParseMultiSelectIds(args);
+        ClearPlottedRoutePlan();
+    }
+
+    private static HashSet<int> ParseMultiSelectIds(ChangeEventArgs args)
+    {
+        if (args.Value is IEnumerable<string> values)
         {
-            yield return controllingEmpireId;
+            return values
+                .Select(value => int.TryParse(value, out var id) ? id : 0)
+                .Where(id => id > 0)
+                .ToHashSet();
         }
 
-        if (colony.AllegianceId != ushort.MaxValue)
+        var singleValue = args.Value?.ToString();
+        if (int.TryParse(singleValue, out var singleId) && singleId > 0)
         {
-            yield return colony.AllegianceId;
+            return [singleId];
         }
+
+        return [];
     }
 
-    private static double GetHyperlaneMaximumDistanceForStarWinTechLevel(int techLevel)
+    private static string FormatTravelTime(double years)
     {
-        var baseRange = techLevel switch
+        if (years < 1d / 365d)
         {
-            6 => 1,
-            7 => 2,
-            8 => 3,
-            9 => 5,
-            10 => double.PositiveInfinity,
-            _ => 0
-        };
+            return $"{years * 24d * 365d:0.##} hours";
+        }
 
-        return double.IsPositiveInfinity(baseRange)
-            ? baseRange
-            : baseRange + HyperlaneRangeBufferParsecs;
-    }
+        if (years < 1d)
+        {
+            return $"{years * 365d:0.##} days";
+        }
 
-    private static bool IsUnlimitedHyperlaneTechLevel(int techLevel)
-    {
-        return techLevel >= 10;
+        return $"{years:0.##} years";
     }
 
     private static int GetGurpsTechLevel(Empire empire)
@@ -3766,13 +3796,10 @@
         return MaximumSectorMapViewDistanceParsecs;
     }
 
-    private static double CalculateParsecDistance(Coordinates origin, Coordinates target)
+    private enum RouteOptimizationMode
     {
-        var deltaX = origin.XParsecs - target.XParsecs;
-        var deltaY = origin.YParsecs - target.YParsecs;
-        var deltaZ = origin.ZParsecs - target.ZParsecs;
-
-        return Math.Sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+        ShortestDistance,
+        ShortestTravelTime
     }
 
     private static IEnumerable<OrbitalSatellite> GetAstralBodySatellites(StarSystem system, int astralBodySequence)
@@ -3836,12 +3863,16 @@
     private sealed record ColonyListing(StarWinSector Sector, StarSystem System, World World, Colony Colony);
 
     private sealed record SectorMapRoute(
-        StarSystem Source,
-        StarSystem Target,
+        int SourceSystemId,
+        int TargetSystemId,
         double DistanceParsecs,
-        bool IsOwned,
-        bool IsGold,
-        int HyperlaneTechLevel);
+        double TravelTimeYears,
+        int TechnologyLevel,
+        string TierName,
+        int? PrimaryOwnerEmpireId,
+        string PrimaryOwnerEmpireName,
+        int? SecondaryOwnerEmpireId,
+        string SecondaryOwnerEmpireName);
 
     private sealed record SectorMapRoutePlan(
         StarSystem Origin,
@@ -3849,13 +3880,15 @@
         IReadOnlyList<StarSystem> Systems,
         IReadOnlyList<SectorMapRouteLeg> Legs)
     {
-        public double DirectDistanceParsecs => CalculateParsecDistance(Origin.Coordinates, Destination.Coordinates);
+        public double DirectDistanceParsecs => SectorRoutePlanner.CalculateParsecDistance(Origin.Coordinates, Destination.Coordinates);
 
         public double TotalDistanceParsecs => Legs.Sum(leg => leg.DistanceParsecs);
 
+        public double TotalTravelTimeYears => Legs.Sum(leg => leg.TravelTimeYears);
+
         public double ExtraDistanceParsecs => Math.Max(0, TotalDistanceParsecs - DirectDistanceParsecs);
 
-        public int HyperlaneLegCount => Legs.Count(leg => leg.IsHyperlane);
+        public int HyperlaneJumpCount => Legs.Count(leg => leg.IsHyperlane);
 
         public int OffHyperlaneLegCount => Legs.Count(leg => !leg.IsHyperlane);
     }
@@ -3864,20 +3897,18 @@
         StarSystem Source,
         StarSystem Target,
         double DistanceParsecs,
+        double TravelTimeYears,
         bool IsHyperlane,
-        bool IsOwned = false,
-        bool IsGold = false,
-        int HyperlaneTechLevel = 0);
+        int TechnologyLevel = 0,
+        string TierName = "Off-lane",
+        int? PrimaryOwnerEmpireId = null,
+        string PrimaryOwnerEmpireName = "",
+        int? SecondaryOwnerEmpireId = null,
+        string SecondaryOwnerEmpireName = "");
 
     private sealed record RouteGraphCacheKey(
         int SectorId,
-        double RouteDistanceParsecs,
-        double OwnedRouteDistanceParsecs,
-        double MaximumVoidRouteDistanceParsecs);
-
-    private sealed record HyperlaneSearchResult(
-        IReadOnlyDictionary<int, double> Distances,
-        IReadOnlyDictionary<int, SectorMapRouteLeg> PreviousLegs);
+        long ConfigurationStamp);
 
     private sealed record PreferredRouteSearchResult(
         IReadOnlyDictionary<int, double> Costs,

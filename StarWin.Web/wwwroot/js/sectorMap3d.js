@@ -126,10 +126,9 @@ function createMap(host, THREE) {
         hoverLabel: null,
         performance: createPerformanceMonitor(),
         target: new THREE.Vector3(36, 18, 36),
-        cameraOffset: new THREE.Vector3(84, 70, 82),
+        baseCameraOffset: new THREE.Vector3(84, 70, 82),
+        orbitRotation: new THREE.Quaternion(),
         radius: 116,
-        theta: 0.72,
-        phi: 0.92,
         roll: 0,
         drag: null
     };
@@ -241,12 +240,7 @@ function addRouteLines(state, sector, selectedSystemId) {
         return;
     }
 
-    const standardPositions = [];
-    const selectedPositions = [];
-    const ownedPositions = [];
-    const selectedOwnedPositions = [];
-    const goldPositions = [];
-    const selectedGoldPositions = [];
+    const routeBuckets = new Map();
 
     for (const route of routes) {
         const source = state.systemPositions.get(route.sourceId);
@@ -256,120 +250,36 @@ function addRouteLines(state, sector, selectedSystemId) {
         }
 
         const selected = route.sourceId === selectedSystemId || route.targetId === selectedSystemId;
-        const bucket = route.isGold
-            ? selected ? selectedGoldPositions : goldPositions
-            : route.isOwned
-                ? selected ? selectedOwnedPositions : ownedPositions
-                : selected ? selectedPositions : standardPositions;
-        bucket.push(source.x, source.y, source.z, target.x, target.y, target.z);
-    }
-
-    if (standardPositions.length) {
-        state.routeGroup.add(createRouteLineSegments(
-            THREE,
-            standardPositions,
-            0x22d3ee,
-            routePath.length ? 0.14 : 0.5,
-            true));
-        if (!routePath.length) {
-            state.routeGroup.add(createRouteLineSegments(
-                THREE,
-                standardPositions,
-                0xa7f3d0,
-                0.26,
-                false));
+        const bucketKey = `${route.hyperlaneTechLevel ?? 6}:${selected ? "selected" : "normal"}`;
+        if (!routeBuckets.has(bucketKey)) {
+            routeBuckets.set(bucketKey, []);
         }
+
+        routeBuckets.get(bucketKey).push(source.x, source.y, source.z, target.x, target.y, target.z);
     }
 
-    if (selectedPositions.length) {
+    for (const [bucketKey, positions] of routeBuckets.entries()) {
+        const [tierText, stateText] = bucketKey.split(":");
+        const selected = stateText === "selected";
+        const palette = getHyperlanePalette(Number(tierText || 6), selected);
         state.routeGroup.add(createRouteLineSegments(
             THREE,
-            selectedPositions,
-            0x67e8f9,
-            routePath.length ? 0.22 : 0.96,
+            positions,
+            palette.primary,
+            routePath.length ? (selected ? 0.3 : 0.16) : (selected ? 0.92 : 0.48),
             true));
         if (!routePath.length) {
             state.routeGroup.add(createRouteLineSegments(
                 THREE,
-                selectedPositions,
-                0xecfeff,
-                0.55,
-            false));
-        }
-    }
-
-    if (ownedPositions.length) {
-        state.routeGroup.add(createRouteLineSegments(
-            THREE,
-            ownedPositions,
-            0xa855f7,
-            routePath.length ? 0.22 : 0.68,
-            true));
-        if (!routePath.length) {
-            state.routeGroup.add(createRouteLineSegments(
-                THREE,
-                ownedPositions,
-                0xd8b4fe,
-                0.36,
-                false));
-        }
-    }
-
-    if (selectedOwnedPositions.length) {
-        state.routeGroup.add(createRouteLineSegments(
-            THREE,
-            selectedOwnedPositions,
-            0xc084fc,
-            routePath.length ? 0.34 : 1,
-            true));
-        if (!routePath.length) {
-            state.routeGroup.add(createRouteLineSegments(
-                THREE,
-                selectedOwnedPositions,
-                0xf5d0fe,
-                0.58,
-            false));
-        }
-    }
-
-    if (goldPositions.length) {
-        state.routeGroup.add(createRouteLineSegments(
-            THREE,
-            goldPositions,
-            0xfbbf24,
-            routePath.length ? 0.28 : 0.8,
-            true));
-        if (!routePath.length) {
-            state.routeGroup.add(createRouteLineSegments(
-                THREE,
-                goldPositions,
-                0xfef3c7,
-                0.42,
-                false));
-        }
-    }
-
-    if (selectedGoldPositions.length) {
-        state.routeGroup.add(createRouteLineSegments(
-            THREE,
-            selectedGoldPositions,
-            0xfacc15,
-            routePath.length ? 0.42 : 1,
-            true));
-        if (!routePath.length) {
-            state.routeGroup.add(createRouteLineSegments(
-                THREE,
-                selectedGoldPositions,
-                0xfffbeb,
-                0.62,
+                positions,
+                palette.secondary,
+                selected ? 0.54 : 0.26,
                 false));
         }
     }
 
     if (routePath.length) {
-        const basicHyperlanePositions = [];
-        const ownedHyperlanePositions = [];
-        const goldHyperlanePositions = [];
+        const tierPositions = new Map();
         const offLanePositions = [];
         for (const route of routePath) {
             const source = state.systemPositions.get(route.sourceId);
@@ -378,29 +288,19 @@ function addRouteLines(state, sector, selectedSystemId) {
                 continue;
             }
 
-            const bucket = route.isGold
-                ? goldHyperlanePositions
-                : route.isOwned
-                    ? ownedHyperlanePositions
-                    : route.isHyperlane
-                        ? basicHyperlanePositions
-                        : offLanePositions;
+            const bucket = route.isHyperlane
+                ? (tierPositions.get(route.hyperlaneTechLevel ?? 6) ?? [])
+                : offLanePositions;
+            if (route.isHyperlane && !tierPositions.has(route.hyperlaneTechLevel ?? 6)) {
+                tierPositions.set(route.hyperlaneTechLevel ?? 6, bucket);
+            }
             bucket.push(source.x, source.y, source.z, target.x, target.y, target.z);
         }
 
-        if (basicHyperlanePositions.length) {
-            state.routeGroup.add(createRouteLineSegments(THREE, basicHyperlanePositions, 0x22d3ee, 1, false, 2.6));
-            state.routeGroup.add(createRouteLineSegments(THREE, basicHyperlanePositions, 0xecfeff, 0.62, true, 1.25));
-        }
-
-        if (ownedHyperlanePositions.length) {
-            state.routeGroup.add(createRouteLineSegments(THREE, ownedHyperlanePositions, 0xa855f7, 1, false, 2.6));
-            state.routeGroup.add(createRouteLineSegments(THREE, ownedHyperlanePositions, 0xf5d0fe, 0.62, true, 1.25));
-        }
-
-        if (goldHyperlanePositions.length) {
-            state.routeGroup.add(createRouteLineSegments(THREE, goldHyperlanePositions, 0xfbbf24, 1, false, 2.6));
-            state.routeGroup.add(createRouteLineSegments(THREE, goldHyperlanePositions, 0xfffbeb, 0.62, true, 1.25));
+        for (const [tier, positions] of tierPositions.entries()) {
+            const palette = getHyperlanePalette(Number(tier || 6), true);
+            state.routeGroup.add(createRouteLineSegments(THREE, positions, palette.primary, 1, false, 2.6));
+            state.routeGroup.add(createRouteLineSegments(THREE, positions, palette.secondary, 0.62, true, 1.25));
         }
 
         if (offLanePositions.length) {
@@ -408,6 +308,21 @@ function addRouteLines(state, sector, selectedSystemId) {
             state.routeGroup.add(createRouteLineSegments(THREE, offLanePositions, 0xef4444, 1, true, 1.8, false));
             state.routeGroup.add(createRouteLineSegments(THREE, offLanePositions, 0xff0000, 0.62, false, 5.2, true));
         }
+    }
+}
+
+function getHyperlanePalette(technologyLevel, selected) {
+    switch (technologyLevel) {
+        case 7:
+            return selected ? { primary: 0x34d399, secondary: 0xdcfce7 } : { primary: 0x059669, secondary: 0xa7f3d0 };
+        case 8:
+            return selected ? { primary: 0xf59e0b, secondary: 0xfef3c7 } : { primary: 0xd97706, secondary: 0xfcd34d };
+        case 9:
+            return selected ? { primary: 0xef4444, secondary: 0xfee2e2 } : { primary: 0xdc2626, secondary: 0xfca5a5 };
+        case 10:
+            return selected ? { primary: 0xeab308, secondary: 0xfef9c3 } : { primary: 0xca8a04, secondary: 0xfde047 };
+        default:
+            return selected ? { primary: 0x38bdf8, secondary: 0xe0f2fe } : { primary: 0x0ea5e9, secondary: 0x7dd3fc };
     }
 }
 
@@ -1025,8 +940,10 @@ function handleKeyDown(state, event) {
 }
 
 function updateCamera(state) {
-    state.cameraOffset.setLength(state.radius);
-    state.camera.position.copy(state.target).add(state.cameraOffset);
+    const offset = state.baseCameraOffset.clone().setLength(state.radius).applyQuaternion(state.orbitRotation);
+    const up = new state.THREE.Vector3(0, 1, 0).applyQuaternion(state.orbitRotation).normalize();
+    state.camera.position.copy(state.target).add(offset);
+    state.camera.up.copy(up);
     state.camera.lookAt(state.target);
     if (state.roll) {
         state.camera.rotateZ(state.roll);
@@ -1035,24 +952,18 @@ function updateCamera(state) {
 
 function rotateCameraOffset(state, yawDelta, pitchDelta) {
     const THREE = state.THREE;
-    const offset = state.cameraOffset;
+    const offset = state.baseCameraOffset.clone().applyQuaternion(state.orbitRotation).normalize();
+    const cameraUp = new THREE.Vector3(0, 1, 0).applyQuaternion(state.orbitRotation).normalize();
     const forward = offset.clone().multiplyScalar(-1).normalize();
-    const cameraUp = state.camera.up.clone().applyQuaternion(state.camera.quaternion).normalize();
     const right = new THREE.Vector3().crossVectors(forward, cameraUp).normalize();
 
     if (Math.abs(yawDelta) > 0) {
-        offset.applyAxisAngle(cameraUp, yawDelta);
+        state.orbitRotation.premultiply(new THREE.Quaternion().setFromAxisAngle(cameraUp, yawDelta));
     }
 
     if (Math.abs(pitchDelta) > 0) {
-        offset.applyAxisAngle(right, pitchDelta);
-        const normalized = offset.clone().normalize();
-        if (Math.abs(normalized.dot(cameraUp)) > 0.985) {
-            offset.applyAxisAngle(right, -pitchDelta);
-        }
+        state.orbitRotation.premultiply(new THREE.Quaternion().setFromAxisAngle(right, pitchDelta));
     }
-
-    offset.setLength(state.radius);
 }
 
 function resize(state) {

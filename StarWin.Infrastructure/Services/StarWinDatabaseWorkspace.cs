@@ -56,6 +56,7 @@ public sealed class StarWinDatabaseWorkspace : IStarWinWorkspace
                         .ThenInclude(colony => colony!.Demographics)
             .Include(sector => sector.Systems)
                 .ThenInclude(system => system.SpaceHabitats)
+            .Include(sector => sector.SavedRoutes)
             .Include(sector => sector.History)
             .OrderBy(sector => sector.Name)
                 .ToListAsync(cancellationToken);

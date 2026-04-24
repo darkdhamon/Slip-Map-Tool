@@ -10,5 +10,7 @@ public sealed class StarWinSector
 
     public IList<StarSystem> Systems { get; } = new List<StarSystem>();
 
+    public IList<SectorSavedRoute> SavedRoutes { get; } = new List<SectorSavedRoute>();
+
     public IList<HistoryEvent> History { get; } = new List<HistoryEvent>();
 }

@@ -30,6 +30,8 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
 
     public DbSet<EntityNote> EntityNotes => Set<EntityNote>();
 
+    public DbSet<SectorSavedRoute> SectorSavedRoutes => Set<SectorSavedRoute>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ConfigureStarMap(modelBuilder);
@@ -56,6 +58,7 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
                 .HasForeignKey<SectorConfiguration>(configuration => configuration.SectorId)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(sector => sector.Systems).WithOne().HasForeignKey(system => system.SectorId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(sector => sector.SavedRoutes).WithOne().HasForeignKey(route => route.SectorId).OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(sector => sector.History).WithOne().HasForeignKey(historyEvent => historyEvent.SectorId).OnDelete(DeleteBehavior.NoAction);
         });
 
@@ -63,8 +66,39 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
         {
             entity.ToTable("SectorConfigurations");
             entity.HasKey(configuration => configuration.SectorId);
-            entity.Property(configuration => configuration.BasicHyperlaneMaximumLengthParsecs).HasPrecision(8, 3);
-            entity.Property(configuration => configuration.OwnedHyperlaneBaseMaximumLengthParsecs).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.OffLaneMaximumDistanceParsecs).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl6HyperlaneName).HasMaxLength(80);
+            entity.Property(configuration => configuration.Tl6MaximumDistanceParsecs).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl6OffLaneSpeedMultiplier).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl6HyperlaneSpeedModifier).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl7HyperlaneName).HasMaxLength(80);
+            entity.Property(configuration => configuration.Tl7MaximumDistanceParsecs).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl7OffLaneSpeedMultiplier).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl7HyperlaneSpeedModifier).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl8HyperlaneName).HasMaxLength(80);
+            entity.Property(configuration => configuration.Tl8MaximumDistanceParsecs).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl8OffLaneSpeedMultiplier).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl8HyperlaneSpeedModifier).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl9HyperlaneName).HasMaxLength(80);
+            entity.Property(configuration => configuration.Tl9MaximumDistanceParsecs).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl9OffLaneSpeedMultiplier).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl9HyperlaneSpeedModifier).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl10HyperlaneName).HasMaxLength(80);
+            entity.Property(configuration => configuration.Tl10MaximumDistanceParsecs).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl10OffLaneSpeedMultiplier).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl10HyperlaneSpeedModifier).HasPrecision(8, 3);
+        });
+
+        modelBuilder.Entity<SectorSavedRoute>(entity =>
+        {
+            entity.ToTable("SectorSavedRoutes");
+            entity.HasKey(route => route.Id);
+            entity.HasIndex(route => new { route.SectorId, route.SourceSystemId, route.TargetSystemId }).IsUnique();
+            entity.Property(route => route.DistanceParsecs).HasPrecision(8, 3);
+            entity.Property(route => route.TravelTimeYears).HasPrecision(12, 6);
+            entity.Property(route => route.TierName).HasMaxLength(80);
+            entity.Property(route => route.PrimaryOwnerEmpireName).HasMaxLength(160);
+            entity.Property(route => route.SecondaryOwnerEmpireName).HasMaxLength(160);
         });
 
         modelBuilder.Entity<StarSystem>(entity =>
