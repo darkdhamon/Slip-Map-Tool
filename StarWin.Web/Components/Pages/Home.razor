@@ -36,9 +36,12 @@
     var selectedRoutePlan = activeSection == "Overview"
         ? GetPlottedRoutePlan(sector)
         : null;
-    var savedHyperlanes = GetOrderedSavedRoutes(sector);
-    var selectedHyperlane = savedHyperlanes.FirstOrDefault(route => route.Id == selectedHyperlaneId);
-    var savedHyperlaneReport = GetSavedHyperlaneNetworkReport(sector);
+    var hyperlaneSectionCache = ShouldUseHyperlaneSectionCache(activeSection) ? GetHyperlaneSectionCache(sector) : null;
+    var savedHyperlanes = activeSection == "Hyperlanes" ? hyperlaneSectionCache?.Routes ?? [] : [];
+    var selectedHyperlane = activeSection == "Hyperlanes"
+        ? savedHyperlanes.FirstOrDefault(route => route.Id == selectedHyperlaneId)
+        : null;
+    var savedHyperlaneReport = hyperlaneSectionCache?.NetworkReport ?? SectorHyperlaneNetworkReport.Empty;
 }
 
 <PageTitle>Starforged Atlas</PageTitle>
@@ -1617,6 +1620,7 @@
 
     private readonly string[] sections = ["Overview", "Timeline", "Configuration", "Hyperlanes", "Systems", "Worlds", "Colonies", "Aliens", "Empires"];
     private readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
+    private readonly Dictionary<int, HyperlaneSectionCache> hyperlaneSectionCaches = [];
     private string activeSection = "Overview";
     private string sectionLoadingTarget = string.Empty;
     private string sectionLoadingStatus = string.Empty;
@@ -1765,9 +1769,50 @@
         return sectorCacheBuilder.GetSummary(sector);
     }
 
+    private HyperlaneSectionCache GetHyperlaneSectionCache(StarWinSector sector)
+    {
+        var cacheStamp = GetHyperlaneSectionCacheStamp(sector);
+        if (hyperlaneSectionCaches.TryGetValue(sector.Id, out var existingCache)
+            && existingCache.Stamp == cacheStamp)
+        {
+            return existingCache;
+        }
+
+        var systemsById = sector.Systems.ToDictionary(system => system.Id);
+        var routes = sector.SavedRoutes
+            .OrderBy(route => systemsById.TryGetValue(route.SourceSystemId, out var sourceSystem) ? sourceSystem.Name : string.Empty)
+            .ThenBy(route => systemsById.TryGetValue(route.TargetSystemId, out var targetSystem) ? targetSystem.Name : string.Empty)
+            .ThenBy(route => route.SourceSystemId)
+            .ThenBy(route => route.TargetSystemId)
+            .ToList();
+        var report = SectorRoutePlanner.BuildHyperlaneNetworkReport(
+            sector,
+            EmpiresById,
+            sector.SavedRoutes.Select(route => new SectorHyperlaneRouteDefinition(
+                route.SourceSystemId,
+                route.TargetSystemId,
+                (double)route.DistanceParsecs,
+                (double)route.TravelTimeYears,
+                route.TechnologyLevel,
+                route.TierName,
+                route.PrimaryOwnerEmpireId,
+                route.PrimaryOwnerEmpireName,
+                route.SecondaryOwnerEmpireId,
+                route.SecondaryOwnerEmpireName)));
+
+        var cache = new HyperlaneSectionCache(cacheStamp, routes, report);
+        hyperlaneSectionCaches[sector.Id] = cache;
+        return cache;
+    }
+
     private static bool ShouldUseFullSectorCache(string sectionName)
     {
         return sectionName is "Timeline" or "Systems" or "Colonies" or "Aliens" or "Empires";
+    }
+
+    private static bool ShouldUseHyperlaneSectionCache(string sectionName)
+    {
+        return sectionName is "Configuration" or "Hyperlanes";
     }
 
     private IReadOnlyDictionary<int, AlienRace> AlienRacesById =>
@@ -2833,6 +2878,7 @@
         sectorConfigurationStatus = $"{savedSectorName} saved. Off-lane distance is {configuration.OffLaneMaximumDistanceParsecs:0.###} parsecs, and TL6-TL10 travel tiers now use the current sector configuration.";
         routeGraphCaches.Clear();
         generatedSectorRouteCache.Remove(sector.Id);
+        hyperlaneSectionCaches.Remove(sector.Id);
         ClearPlottedRoutePlan();
         renderedOverview = false;
     }
@@ -2878,6 +2924,7 @@
             LoadSectorConfigurationForm(reloadedSector);
             generatedSectorRouteCache.Remove(sector.Id);
             routeGraphCaches.Clear();
+            hyperlaneSectionCaches.Remove(sector.Id);
             ClearPlottedRoutePlan();
             sectorConfigurationStatus = result.ReplacedExistingRoutes
                 ? $"Updated {result.RouteCount:N0} saved hyperlane segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sector.Name}. {result.GeneratedRouteCount:N0} regenerated, {result.PreservedUserRouteCount:N0} user-persisted kept, {result.NetworkReport.DistinctNetworkCount:N0} network{(result.NetworkReport.DistinctNetworkCount == 1 ? string.Empty : "s")}, {result.NetworkReport.StrandedSystemCount:N0} stranded system{(result.NetworkReport.StrandedSystemCount == 1 ? string.Empty : "s")}."
@@ -2990,6 +3037,7 @@
             await Workspace.ReloadAsync();
             generatedSectorRouteCache.Remove(sector.Id);
             routeGraphCaches.Clear();
+            hyperlaneSectionCaches.Remove(sector.Id);
             ClearPlottedRoutePlan();
 
             var reloadedSector = Workspace.Sectors.FirstOrDefault(item => item.Id == sector.Id) ?? Workspace.CurrentSector;
@@ -3027,6 +3075,7 @@
             await Workspace.ReloadAsync();
             generatedSectorRouteCache.Remove(sector.Id);
             routeGraphCaches.Clear();
+            hyperlaneSectionCaches.Remove(sector.Id);
             ClearPlottedRoutePlan();
 
             var reloadedSector = Workspace.Sectors.FirstOrDefault(item => item.Id == sector.Id) ?? Workspace.CurrentSector;
@@ -3041,7 +3090,7 @@
 
     private void LoadHyperlaneForm(StarWinSector sector, SectorSavedRoute? route = null)
     {
-        var orderedRoutes = GetOrderedSavedRoutes(sector);
+        var orderedRoutes = GetHyperlaneSectionCache(sector).Routes;
         var routeToLoad = route
             ?? orderedRoutes.FirstOrDefault(item => item.Id == selectedHyperlaneId)
             ?? orderedRoutes.FirstOrDefault();
@@ -4252,35 +4301,6 @@
                 || routePathKeys.Contains(GetSectorMapRouteKey(route.SourceSystemId, route.TargetSystemId))));
     }
 
-    private IReadOnlyList<SectorSavedRoute> GetOrderedSavedRoutes(StarWinSector sector)
-    {
-        var systemsById = sector.Systems.ToDictionary(system => system.Id);
-        return sector.SavedRoutes
-            .OrderBy(route => systemsById.TryGetValue(route.SourceSystemId, out var sourceSystem) ? sourceSystem.Name : string.Empty)
-            .ThenBy(route => systemsById.TryGetValue(route.TargetSystemId, out var targetSystem) ? targetSystem.Name : string.Empty)
-            .ThenBy(route => route.SourceSystemId)
-            .ThenBy(route => route.TargetSystemId)
-            .ToList();
-    }
-
-    private SectorHyperlaneNetworkReport GetSavedHyperlaneNetworkReport(StarWinSector sector)
-    {
-        return SectorRoutePlanner.BuildHyperlaneNetworkReport(
-            sector,
-            EmpiresById,
-            sector.SavedRoutes.Select(route => new SectorHyperlaneRouteDefinition(
-                route.SourceSystemId,
-                route.TargetSystemId,
-                (double)route.DistanceParsecs,
-                (double)route.TravelTimeYears,
-                route.TechnologyLevel,
-                route.TierName,
-                route.PrimaryOwnerEmpireId,
-                route.PrimaryOwnerEmpireName,
-                route.SecondaryOwnerEmpireId,
-                route.SecondaryOwnerEmpireName)));
-    }
-
     private string FormatHyperlaneOwnerSummary(SectorSavedRoute route)
     {
         if (string.IsNullOrWhiteSpace(route.PrimaryOwnerEmpireName)
@@ -4295,6 +4315,18 @@
         }
 
         return $"{route.PrimaryOwnerEmpireName} + {route.SecondaryOwnerEmpireName}";
+    }
+
+    private static long GetHyperlaneSectionCacheStamp(StarWinSector sector)
+    {
+        var routeCount = sector.SavedRoutes.Count;
+        if (routeCount == 0)
+        {
+            return 0;
+        }
+
+        var maxGeneratedAtTicks = sector.SavedRoutes.Max(route => route.GeneratedAtUtc.Ticks);
+        return HashCode.Combine(routeCount, maxGeneratedAtTicks);
     }
 
     private IReadOnlyList<SectorMapRoute> BuildVisibleSectorMapRoutes(
@@ -4561,6 +4593,11 @@
     private sealed record RouteGraphCacheKey(
         int SectorId,
         long ConfigurationStamp);
+
+    private sealed record HyperlaneSectionCache(
+        long Stamp,
+        IReadOnlyList<SectorSavedRoute> Routes,
+        SectorHyperlaneNetworkReport NetworkReport);
 
     private sealed record PreferredRouteSearchResult(
         IReadOnlyDictionary<int, double> Costs,
