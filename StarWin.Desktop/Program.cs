@@ -12,6 +12,7 @@ using StarWin.Web;
 
 #if WINDOWS
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -742,8 +743,6 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
 
     private sealed class SplashForm : Form
     {
-        private static readonly Color TransparentChromaKey = Color.Magenta;
-
         private readonly Label titleLabel;
         private readonly Label detailLabel;
         private readonly ProgressBar progressBar;
@@ -761,13 +760,17 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             ShowInTaskbar = false;
             Width = splashImage?.Width ?? 760;
             Height = splashImage?.Height ?? 760;
-            BackColor = TransparentChromaKey;
+            BackColor = Color.Black;
             ForeColor = Color.FromArgb(226, 232, 240);
             TopMost = true;
             DoubleBuffered = true;
-            TransparencyKey = TransparentChromaKey;
             BackgroundImage = splashImage;
-            BackgroundImageLayout = ImageLayout.Zoom;
+            BackgroundImageLayout = ImageLayout.None;
+
+            if (splashImage is not null)
+            {
+                Region = BuildRegionFromAlpha(splashImage);
+            }
 
             titleLabel = new Label
             {
@@ -826,7 +829,7 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             progressBar.Value = 100;
         }
 
-        private static Image? LoadSplashBackgroundImage()
+        private static Bitmap? LoadSplashBackgroundImage()
         {
             var splashImagePath = StarWinDesktopPaths.GetSplashImagePath();
             if (!File.Exists(splashImagePath))
@@ -836,12 +839,45 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
 
             try
             {
-                return Image.FromFile(splashImagePath);
+                return new Bitmap(splashImagePath);
             }
             catch
             {
                 return null;
             }
+        }
+
+        private static Region BuildRegionFromAlpha(Bitmap bitmap)
+        {
+            var path = new GraphicsPath();
+            const byte alphaThreshold = 10;
+
+            for (var y = 0; y < bitmap.Height; y++)
+            {
+                var startX = -1;
+                for (var x = 0; x < bitmap.Width; x++)
+                {
+                    var pixel = bitmap.GetPixel(x, y);
+                    var isOpaque = pixel.A > alphaThreshold;
+
+                    if (isOpaque && startX < 0)
+                    {
+                        startX = x;
+                    }
+                    else if (!isOpaque && startX >= 0)
+                    {
+                        path.AddRectangle(new Rectangle(startX, y, x - startX, 1));
+                        startX = -1;
+                    }
+                }
+
+                if (startX >= 0)
+                {
+                    path.AddRectangle(new Rectangle(startX, y, bitmap.Width - startX, 1));
+                }
+            }
+
+            return new Region(path);
         }
     }
 }
