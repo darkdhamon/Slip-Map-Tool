@@ -38,10 +38,18 @@
         : null;
     var hyperlaneSectionCache = ShouldUseHyperlaneSectionCache(activeSection) ? GetHyperlaneSectionCache(sector) : null;
     var savedHyperlanes = activeSection == "Hyperlanes" ? hyperlaneSectionCache?.Routes ?? [] : [];
+    var hyperlaneWindow = activeSection == "Hyperlanes"
+        ? savedHyperlanes.Take(hyperlaneVisibleCount + 1).ToList()
+        : [];
+    var hasMoreHyperlanes = activeSection == "Hyperlanes" && hyperlaneWindow.Count > hyperlaneVisibleCount;
+    var visibleHyperlanes = activeSection == "Hyperlanes"
+        ? hyperlaneWindow.Take(hyperlaneVisibleCount).ToList()
+        : [];
     var selectedHyperlane = activeSection == "Hyperlanes"
         ? savedHyperlanes.FirstOrDefault(route => route.Id == selectedHyperlaneId)
         : null;
     var savedHyperlaneReport = hyperlaneSectionCache?.NetworkReport ?? SectorHyperlaneNetworkReport.Empty;
+    hyperlaneHasMoreRecords = hasMoreHyperlanes;
 }
 
 <PageTitle>Starforged Atlas</PageTitle>
@@ -676,7 +684,8 @@
                     else
                     {
                         <div class="hyperlane-record-list">
-                            @foreach (var route in savedHyperlanes)
+                            <div class="timeline-count">Showing @visibleHyperlanes.Count saved hyperlane@(visibleHyperlanes.Count == 1 ? string.Empty : "s")@(hasMoreHyperlanes ? "+" : string.Empty)</div>
+                            @foreach (var route in visibleHyperlanes)
                             {
                                 var sourceSystem = sector.Systems.FirstOrDefault(system => system.Id == route.SourceSystemId);
                                 var targetSystem = sector.Systems.FirstOrDefault(system => system.Id == route.TargetSystemId);
@@ -691,6 +700,12 @@
                                         <span class="hyperlane-badge">User-persisted</span>
                                     }
                                 </button>
+                            }
+                            @if (hasMoreHyperlanes)
+                            {
+                                <div @ref="hyperlaneLoadMoreElement" class="timeline-load-more">
+                                    <button type="button" @onclick="LoadMoreHyperlanes">Load more</button>
+                                </div>
                             }
                         </div>
                     }
@@ -1641,6 +1656,7 @@
     private ElementReference worldLoadMoreElement;
     private ElementReference raceLoadMoreElement;
     private ElementReference empireLoadMoreElement;
+    private ElementReference hyperlaneLoadMoreElement;
     private DotNetObjectReference<Home>? dotNetReference;
     private IJSObjectReference? sectorMapModule;
     private IJSObjectReference? timelineScrollModule;
@@ -1706,6 +1722,9 @@
     private bool empireHasMoreRecords;
     private bool empireObserverConfigured;
     private bool showEmpireFilters;
+    private int hyperlaneVisibleCount = ExplorerListBatchSize;
+    private bool hyperlaneHasMoreRecords;
+    private bool hyperlaneObserverConfigured;
     private string sectorName = string.Empty;
     private decimal offLaneMaximumDistanceParsecs = 2m;
     private int tl9AndBelowMaximumConnectionsPerSystem = 4;
@@ -1914,6 +1933,15 @@
             }
 
             empireObserverConfigured = false;
+            if (activeSection == "Hyperlanes")
+            {
+                renderedOverview = false;
+                await ConfigureRecordObserverAsync("hyperlane", hyperlaneHasMoreRecords, () => hyperlaneObserverConfigured, value => hyperlaneObserverConfigured = value, hyperlaneLoadMoreElement, "LoadMoreHyperlanes");
+                await CompleteSectionLoadingIfReadyAsync();
+                return;
+            }
+
+            hyperlaneObserverConfigured = false;
             if (activeSection != "Overview")
             {
                 renderedOverview = false;
@@ -1983,6 +2011,7 @@
             worldObserverConfigured = false;
             raceObserverConfigured = false;
             empireObserverConfigured = false;
+            hyperlaneObserverConfigured = false;
             StateHasChanged();
         }
     }
@@ -2629,6 +2658,15 @@
         return Task.CompletedTask;
     }
 
+    [JSInvokable]
+    public Task LoadMoreHyperlanes()
+    {
+        hyperlaneVisibleCount += ExplorerListBatchSize;
+        hyperlaneObserverConfigured = false;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
     private void ResetWorldWindow()
     {
         worldVisibleCount = ExplorerListBatchSize;
@@ -2645,6 +2683,12 @@
     {
         empireVisibleCount = ExplorerListBatchSize;
         empireObserverConfigured = false;
+    }
+
+    private void ResetHyperlaneWindow()
+    {
+        hyperlaneVisibleCount = ExplorerListBatchSize;
+        hyperlaneObserverConfigured = false;
     }
 
     private void ClearWorldFilters()
@@ -2800,6 +2844,7 @@
 
     private void LoadSectorConfigurationForm(StarWinSector sector)
     {
+        ResetHyperlaneWindow();
         sectorName = sector.Name;
         offLaneMaximumDistanceParsecs = Math.Round(sector.Configuration.OffLaneMaximumDistanceParsecs, 3);
         tl9AndBelowMaximumConnectionsPerSystem = sector.Configuration.Tl9AndBelowMaximumConnectionsPerSystem;
