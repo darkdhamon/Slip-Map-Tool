@@ -46,7 +46,7 @@ public static class StarWinWebHost
 
     public static async Task InitializeAsync(WebApplication app)
     {
-        if (app.Configuration.GetValue<bool>("StarWin:ApplyMigrationsOnStartup"))
+        if (ShouldApplyMigrationsOnStartup(app.Configuration))
         {
             await app.Services.MigrateStarWinDatabaseAsync();
         }
@@ -57,5 +57,17 @@ public static class StarWinWebHost
         }
 
         _ = app.Services.GetRequiredService<IStarWinWorkspace>();
+    }
+
+    private static bool ShouldApplyMigrationsOnStartup(IConfiguration configuration)
+    {
+        var configuredValue = configuration.GetValue<bool?>("StarWin:ApplyMigrationsOnStartup");
+        if (configuredValue.HasValue)
+        {
+            return configuredValue.Value;
+        }
+
+        var provider = configuration["StarWin:DatabaseProvider"] ?? "SqlServer";
+        return provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase);
     }
 }
