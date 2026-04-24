@@ -420,191 +420,215 @@
                 <h2>@sector.Name</h2>
                 <p class="panel-note">Configure sector-level travel assumptions used by the map and future civilization systems.</p>
                 <div class="configuration-groups">
-                    <section class="configuration-group">
+                    <section class="configuration-card-group">
                         <div class="configuration-group-header">
                             <div>
-                                <span class="panel-kicker">General</span>
-                                <h3>Sector and route defaults</h3>
+                                <span class="panel-kicker">Defaults</span>
+                                <h3>Sector and route controls</h3>
                             </div>
-                            <p>These values affect the whole sector and feed both live routing and saved hyperlane caches.</p>
+                            <p>Use compact cards for the values that affect the whole sector before diving into per-tier tuning.</p>
                         </div>
-                        <div class="form-grid">
-                            <label>
-                                Sector name
-                                <input maxlength="160" @bind="sectorName" />
-                            </label>
-                            <label>
-                                Off-lane distance
-                                <input type="number" min="0.1" step="0.1" @bind="offLaneMaximumDistanceParsecs" />
-                            </label>
-                            <label>
-                                TL9 and below max connections
-                                <input type="number" min="0" step="1" @bind="tl9AndBelowMaximumConnectionsPerSystem" />
-                            </label>
-                            <label>
-                                Extra cross-empire connections
-                                <input type="number" min="0" step="1" @bind="additionalCrossEmpireConnectionsPerSystem" />
-                            </label>
+                        <div class="configuration-card-grid configuration-card-grid-wide">
+                            <section class="configuration-card">
+                                <div class="configuration-card-header">
+                                    <span class="panel-kicker">General</span>
+                                    <h4>Sector defaults</h4>
+                                </div>
+                                <div class="form-grid compact-card-grid">
+                                    <label>
+                                        Sector name
+                                        <input maxlength="160" @bind="sectorName" />
+                                    </label>
+                                    <label>
+                                        Off-lane distance
+                                        <input type="number" min="0.1" step="0.1" @bind="offLaneMaximumDistanceParsecs" />
+                                    </label>
+                                </div>
+                            </section>
+
+                            <section class="configuration-card">
+                                <div class="configuration-card-header">
+                                    <span class="panel-kicker">Connections</span>
+                                    <h4>Hyperlane caps</h4>
+                                </div>
+                                <div class="form-grid compact-card-grid">
+                                    <label>
+                                        TL9 and below max connections
+                                        <input type="number" min="0" step="1" @bind="tl9AndBelowMaximumConnectionsPerSystem" />
+                                    </label>
+                                    <label>
+                                        Extra cross-empire connections
+                                        <input type="number" min="0" step="1" @bind="additionalCrossEmpireConnectionsPerSystem" />
+                                    </label>
+                                </div>
+                            </section>
+
+                            <section class="configuration-card configuration-card-metrics">
+                                <div class="configuration-card-header">
+                                    <span class="panel-kicker">Routing</span>
+                                    <h4>Live route summary</h4>
+                                </div>
+                                <dl class="field-grid compact-field-grid">
+                                    <div><dt>Route rule</dt><dd>Shared empires use the highest TL present in both systems; otherwise cross-empire routes use the best lower TL between endpoint empires</dd></div>
+                                    <div><dt>Connection cap</dt><dd>@tl9AndBelowMaximumConnectionsPerSystem standard links plus @additionalCrossEmpireConnectionsPerSystem cross-empire bonus</dd></div>
+                                    <div><dt>Off-lane scope</dt><dd>Sector-wide today, with ship-specific overrides planned later</dd></div>
+                                    <div><dt>Current map routes</dt><dd>@GetConfigurationRouteSummary(sector, selectedSystem)</dd></div>
+                                </dl>
+                            </section>
+
+                            <section class="configuration-card configuration-card-metrics">
+                                <div class="configuration-card-header">
+                                    <span class="panel-kicker">Networks</span>
+                                    <h4>Saved route report</h4>
+                                </div>
+                                <dl class="field-grid compact-field-grid">
+                                    <div><dt>Current saved routes</dt><dd>@sector.SavedRoutes.Count persisted hyperlane segments</dd></div>
+                                    <div><dt>Hyperlane networks</dt><dd>@savedHyperlaneReport.DistinctNetworkCount distinct network@(savedHyperlaneReport.DistinctNetworkCount == 1 ? string.Empty : "s")</dd></div>
+                                    <div><dt>Stranded systems</dt><dd>@savedHyperlaneReport.StrandedSystemCount TL6+ eligible system@(savedHyperlaneReport.StrandedSystemCount == 1 ? string.Empty : "s") still disconnected</dd></div>
+                                    <div><dt>Last saved</dt><dd>@DisplayDateTime(sector.Configuration.UpdatedAtUtc)</dd></div>
+                                </dl>
+                            </section>
                         </div>
                     </section>
 
-                    <section class="configuration-group">
+                    <section class="configuration-card-group">
                         <div class="configuration-group-header">
                             <div>
-                                <span class="panel-kicker">Travel</span>
-                                <h3>Off-lane and route behavior</h3>
+                                <span class="panel-kicker">Hyperlanes</span>
+                                <h3>Tier cards</h3>
                             </div>
-                            <p>Off-lane travel stays transient during planning. Only hyperlane segments are saved to the database.</p>
+                            <p>Each TL tier now lives in its own card so related settings stay together and the page stays much more scan-friendly.</p>
                         </div>
-                        <dl class="field-grid compact-field-grid">
-                            <div><dt>Route rule</dt><dd>Shared empires use the highest TL present in both systems; otherwise cross-empire routes use the best lower TL between endpoint empires</dd></div>
-                            <div><dt>Connection cap</dt><dd>@tl9AndBelowMaximumConnectionsPerSystem standard links plus @additionalCrossEmpireConnectionsPerSystem cross-empire bonus</dd></div>
-                            <div><dt>Off-lane scope</dt><dd>Sector-wide today, with ship-specific overrides planned later</dd></div>
-                            <div><dt>Current saved routes</dt><dd>@sector.SavedRoutes.Count persisted hyperlane segments</dd></div>
-                            <div><dt>Current map routes</dt><dd>@GetConfigurationRouteSummary(sector, selectedSystem)</dd></div>
-                            <div><dt>Hyperlane networks</dt><dd>@savedHyperlaneReport.DistinctNetworkCount distinct network@(savedHyperlaneReport.DistinctNetworkCount == 1 ? string.Empty : "s")</dd></div>
-                            <div><dt>Stranded systems</dt><dd>@savedHyperlaneReport.StrandedSystemCount TL6+ eligible system@(savedHyperlaneReport.StrandedSystemCount == 1 ? string.Empty : "s") still disconnected</dd></div>
-                            <div><dt>Last saved</dt><dd>@DisplayDateTime(sector.Configuration.UpdatedAtUtc)</dd></div>
-                        </dl>
-                    </section>
+                        <div class="configuration-card-grid configuration-tier-grid">
+                            <section class="configuration-card configuration-tier-card">
+                                <div class="configuration-card-header">
+                                    <span class="panel-kicker">TL6</span>
+                                    <h4>@tl6HyperlaneName</h4>
+                                </div>
+                                <p class="configuration-card-copy">Basic network defaults for early hyperlane infrastructure.</p>
+                                <div class="form-grid compact-card-grid">
+                                    <label>
+                                        Tier name
+                                        <input maxlength="80" @bind="tl6HyperlaneName" />
+                                    </label>
+                                    <label>
+                                        Maximum distance
+                                        <input type="number" min="0.1" step="0.1" @bind="tl6MaximumDistanceParsecs" />
+                                    </label>
+                                    <label>
+                                        Off-lane speed
+                                        <input type="number" min="0.1" step="0.25" @bind="tl6OffLaneSpeedMultiplier" />
+                                    </label>
+                                    <label>
+                                        Hyperlane modifier
+                                        <input type="number" min="0.1" step="0.05" @bind="tl6HyperlaneSpeedModifier" />
+                                    </label>
+                                </div>
+                            </section>
 
-                    <section class="configuration-group">
-                        <div class="configuration-group-header">
-                            <div>
-                                <span class="panel-kicker">TL6</span>
-                                <h3>@tl6HyperlaneName</h3>
-                            </div>
-                            <p>Configure the TL6 hyperlane label, distance cap, off-lane speed, and hyperlane travel modifier.</p>
-                        </div>
-                        <div class="form-grid">
-                            <label>
-                                Tier name
-                                <input maxlength="80" @bind="tl6HyperlaneName" />
-                            </label>
-                            <label>
-                                Maximum distance
-                                <input type="number" min="0.1" step="0.1" @bind="tl6MaximumDistanceParsecs" />
-                            </label>
-                            <label>
-                                Off-lane speed
-                                <input type="number" min="0.1" step="0.25" @bind="tl6OffLaneSpeedMultiplier" />
-                            </label>
-                            <label>
-                                Hyperlane modifier
-                                <input type="number" min="0.1" step="0.05" @bind="tl6HyperlaneSpeedModifier" />
-                            </label>
-                        </div>
-                    </section>
+                            <section class="configuration-card configuration-tier-card">
+                                <div class="configuration-card-header">
+                                    <span class="panel-kicker">TL7</span>
+                                    <h4>@tl7HyperlaneName</h4>
+                                </div>
+                                <p class="configuration-card-copy">Enhanced routes with stronger off-lane performance and longer reach.</p>
+                                <div class="form-grid compact-card-grid">
+                                    <label>
+                                        Tier name
+                                        <input maxlength="80" @bind="tl7HyperlaneName" />
+                                    </label>
+                                    <label>
+                                        Maximum distance
+                                        <input type="number" min="0.1" step="0.1" @bind="tl7MaximumDistanceParsecs" />
+                                    </label>
+                                    <label>
+                                        Off-lane speed
+                                        <input type="number" min="0.1" step="0.25" @bind="tl7OffLaneSpeedMultiplier" />
+                                    </label>
+                                    <label>
+                                        Hyperlane modifier
+                                        <input type="number" min="0.1" step="0.05" @bind="tl7HyperlaneSpeedModifier" />
+                                    </label>
+                                </div>
+                            </section>
 
-                    <section class="configuration-group">
-                        <div class="configuration-group-header">
-                            <div>
-                                <span class="panel-kicker">TL7</span>
-                                <h3>@tl7HyperlaneName</h3>
-                            </div>
-                            <p>Configure the TL7 hyperlane label, distance cap, off-lane speed, and hyperlane travel modifier.</p>
-                        </div>
-                        <div class="form-grid">
-                            <label>
-                                Tier name
-                                <input maxlength="80" @bind="tl7HyperlaneName" />
-                            </label>
-                            <label>
-                                Maximum distance
-                                <input type="number" min="0.1" step="0.1" @bind="tl7MaximumDistanceParsecs" />
-                            </label>
-                            <label>
-                                Off-lane speed
-                                <input type="number" min="0.1" step="0.25" @bind="tl7OffLaneSpeedMultiplier" />
-                            </label>
-                            <label>
-                                Hyperlane modifier
-                                <input type="number" min="0.1" step="0.05" @bind="tl7HyperlaneSpeedModifier" />
-                            </label>
-                        </div>
-                    </section>
+                            <section class="configuration-card configuration-tier-card">
+                                <div class="configuration-card-header">
+                                    <span class="panel-kicker">TL8</span>
+                                    <h4>@tl8HyperlaneName</h4>
+                                </div>
+                                <p class="configuration-card-copy">Advanced mid-sector travel settings for higher-throughput lane networks.</p>
+                                <div class="form-grid compact-card-grid">
+                                    <label>
+                                        Tier name
+                                        <input maxlength="80" @bind="tl8HyperlaneName" />
+                                    </label>
+                                    <label>
+                                        Maximum distance
+                                        <input type="number" min="0.1" step="0.1" @bind="tl8MaximumDistanceParsecs" />
+                                    </label>
+                                    <label>
+                                        Off-lane speed
+                                        <input type="number" min="0.1" step="0.25" @bind="tl8OffLaneSpeedMultiplier" />
+                                    </label>
+                                    <label>
+                                        Hyperlane modifier
+                                        <input type="number" min="0.1" step="0.05" @bind="tl8HyperlaneSpeedModifier" />
+                                    </label>
+                                </div>
+                            </section>
 
-                    <section class="configuration-group">
-                        <div class="configuration-group-header">
-                            <div>
-                                <span class="panel-kicker">TL8</span>
-                                <h3>@tl8HyperlaneName</h3>
-                            </div>
-                            <p>Configure the TL8 hyperlane label, distance cap, off-lane speed, and hyperlane travel modifier.</p>
-                        </div>
-                        <div class="form-grid">
-                            <label>
-                                Tier name
-                                <input maxlength="80" @bind="tl8HyperlaneName" />
-                            </label>
-                            <label>
-                                Maximum distance
-                                <input type="number" min="0.1" step="0.1" @bind="tl8MaximumDistanceParsecs" />
-                            </label>
-                            <label>
-                                Off-lane speed
-                                <input type="number" min="0.1" step="0.25" @bind="tl8OffLaneSpeedMultiplier" />
-                            </label>
-                            <label>
-                                Hyperlane modifier
-                                <input type="number" min="0.1" step="0.05" @bind="tl8HyperlaneSpeedModifier" />
-                            </label>
-                        </div>
-                    </section>
+                            <section class="configuration-card configuration-tier-card">
+                                <div class="configuration-card-header">
+                                    <span class="panel-kicker">TL9</span>
+                                    <h4>@tl9HyperlaneName</h4>
+                                </div>
+                                <p class="configuration-card-copy">Prime long-haul lanes for powerful interstellar route networks.</p>
+                                <div class="form-grid compact-card-grid">
+                                    <label>
+                                        Tier name
+                                        <input maxlength="80" @bind="tl9HyperlaneName" />
+                                    </label>
+                                    <label>
+                                        Maximum distance
+                                        <input type="number" min="0.1" step="0.1" @bind="tl9MaximumDistanceParsecs" />
+                                    </label>
+                                    <label>
+                                        Off-lane speed
+                                        <input type="number" min="0.1" step="0.25" @bind="tl9OffLaneSpeedMultiplier" />
+                                    </label>
+                                    <label>
+                                        Hyperlane modifier
+                                        <input type="number" min="0.1" step="0.05" @bind="tl9HyperlaneSpeedModifier" />
+                                    </label>
+                                </div>
+                            </section>
 
-                    <section class="configuration-group">
-                        <div class="configuration-group-header">
-                            <div>
-                                <span class="panel-kicker">TL9</span>
-                                <h3>@tl9HyperlaneName</h3>
-                            </div>
-                            <p>Configure the TL9 hyperlane label, distance cap, off-lane speed, and hyperlane travel modifier.</p>
-                        </div>
-                        <div class="form-grid">
-                            <label>
-                                Tier name
-                                <input maxlength="80" @bind="tl9HyperlaneName" />
-                            </label>
-                            <label>
-                                Maximum distance
-                                <input type="number" min="0.1" step="0.1" @bind="tl9MaximumDistanceParsecs" />
-                            </label>
-                            <label>
-                                Off-lane speed
-                                <input type="number" min="0.1" step="0.25" @bind="tl9OffLaneSpeedMultiplier" />
-                            </label>
-                            <label>
-                                Hyperlane modifier
-                                <input type="number" min="0.1" step="0.05" @bind="tl9HyperlaneSpeedModifier" />
-                            </label>
-                        </div>
-                    </section>
-
-                    <section class="configuration-group">
-                        <div class="configuration-group-header">
-                            <div>
-                                <span class="panel-kicker">TL10</span>
-                                <h3>@tl10HyperlaneName</h3>
-                            </div>
-                            <p>Configure the TL10 hyperlane label, unlimited range flag, off-lane speed, and hyperlane travel modifier.</p>
-                        </div>
-                        <div class="form-grid">
-                            <label>
-                                Tier name
-                                <input maxlength="80" @bind="tl10HyperlaneName" />
-                            </label>
-                            <label>
-                                Maximum distance (`-1` = unlimited)
-                                <input type="number" step="0.1" @bind="tl10MaximumDistanceParsecs" />
-                            </label>
-                            <label>
-                                Off-lane speed
-                                <input type="number" min="0.1" step="0.25" @bind="tl10OffLaneSpeedMultiplier" />
-                            </label>
-                            <label>
-                                Hyperlane modifier
-                                <input type="number" min="0.1" step="0.05" @bind="tl10HyperlaneSpeedModifier" />
-                            </label>
+                            <section class="configuration-card configuration-tier-card">
+                                <div class="configuration-card-header">
+                                    <span class="panel-kicker">TL10</span>
+                                    <h4>@tl10HyperlaneName</h4>
+                                </div>
+                                <p class="configuration-card-copy">Ascendant-tier travel, including the configurable unlimited-range flag.</p>
+                                <div class="form-grid compact-card-grid">
+                                    <label>
+                                        Tier name
+                                        <input maxlength="80" @bind="tl10HyperlaneName" />
+                                    </label>
+                                    <label>
+                                        Maximum distance (`-1` = unlimited)
+                                        <input type="number" step="0.1" @bind="tl10MaximumDistanceParsecs" />
+                                    </label>
+                                    <label>
+                                        Off-lane speed
+                                        <input type="number" min="0.1" step="0.25" @bind="tl10OffLaneSpeedMultiplier" />
+                                    </label>
+                                    <label>
+                                        Hyperlane modifier
+                                        <input type="number" min="0.1" step="0.05" @bind="tl10HyperlaneSpeedModifier" />
+                                    </label>
+                                </div>
+                            </section>
                         </div>
                     </section>
                 </div>

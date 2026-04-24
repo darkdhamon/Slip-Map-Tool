@@ -1934,17 +1934,40 @@ dd {
 
 .configuration-groups {
     display: grid;
-    gap: 18px;
+    gap: 22px;
     margin-bottom: 18px;
 }
 
+.configuration-card-group {
+    display: grid;
+    gap: 16px;
+}
+
+.configuration-card-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.configuration-card-grid-wide {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.configuration-tier-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.configuration-card,
 .configuration-group {
     display: grid;
     gap: 14px;
     border: 1px solid rgba(125, 211, 252, 0.16);
     border-radius: 8px;
-    background: rgba(3, 10, 24, 0.42);
-    padding: 16px;
+    background:
+        linear-gradient(180deg, rgba(8, 18, 34, 0.92), rgba(4, 12, 24, 0.88)),
+        radial-gradient(circle at top right, rgba(34, 211, 238, 0.08), transparent 42%);
+    padding: 18px;
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
 }
 
 .configuration-group-header {
@@ -1952,14 +1975,44 @@ dd {
     gap: 6px;
 }
 
+.configuration-card-header {
+    display: grid;
+    gap: 4px;
+}
+
 .configuration-group-header h3 {
     margin: 4px 0 0;
     color: #f8fbff;
 }
 
+.configuration-card-header h4 {
+    margin: 2px 0 0;
+    color: #f8fbff;
+    font-size: 1.2rem;
+}
+
 .configuration-group-header p {
     margin: 0;
     color: var(--muted);
+}
+
+.configuration-card-copy {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.compact-card-grid {
+    grid-template-columns: 1fr;
+}
+
+.configuration-card-metrics .field-grid {
+    margin: 0;
+}
+
+.configuration-card-metrics dd,
+.configuration-tier-card dd {
+    line-height: 1.5;
 }
 
 .hyperlane-layout {
@@ -2248,6 +2301,12 @@ dd {
         grid-template-columns: 1fr;
     }
 
+    .configuration-card-grid,
+    .configuration-card-grid-wide,
+    .configuration-tier-grid {
+        grid-template-columns: 1fr;
+    }
+
     .timeline-filter-panel {
         position: static;
     }
@@ -2292,6 +2351,11 @@ dd {
     .toggle-grid,
     .metrics-band {
         grid-template-columns: 1fr;
+    }
+
+    .configuration-card,
+    .configuration-group {
+        padding: 16px;
     }
 
     .sector-map {
