@@ -7,7 +7,7 @@ using StarWin.Infrastructure.Data;
 
 namespace StarWin.Infrastructure.Services;
 
-public sealed class StarWinIndependentColonyService(StarWinDbContext dbContext) : IStarWinIndependentColonyService
+public sealed class StarWinIndependentColonyService(IDbContextFactory<StarWinDbContext> dbContextFactory) : IStarWinIndependentColonyService
 {
     private readonly IndependentColonyEmpireFactory independentColonyEmpireFactory = new();
 
@@ -15,6 +15,7 @@ public sealed class StarWinIndependentColonyService(StarWinDbContext dbContext) 
         int sectorId,
         CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var independentEmpires = await dbContext.Empires
             .Where(empire => empire.Founding.Origin == EmpireOrigin.IndependentColony
                 && empire.Founding.FoundingColonyId != null)
