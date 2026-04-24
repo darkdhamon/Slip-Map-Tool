@@ -12,6 +12,16 @@ If `dev` does not exist yet, create it from `master`, then create the feature or
 
 Do not start coding for an issue-driven conversation until I explicitly ask you to begin the coding process.
 
+GitHub project workflow uses the `Starforged Atlas Task Board`.
+
+When an assigned issue is in `Backlog`, move it to `Ready` after research is complete.
+
+When I explicitly tell you to implement the changes, move the issue from `Ready` to `In progress`.
+
+When I tell you to promote the work to `dev`, move the issue from `In progress` to `In review`.
+
+When a pull request that promotes work to `main` is completed, move all issues connected to that pull request from `In review` to `Done`.
+
 Do not use default Visual Studio installation, Use Visual Studio 2026 Insider Preview.
 
 After every code change, commit and push the changes.

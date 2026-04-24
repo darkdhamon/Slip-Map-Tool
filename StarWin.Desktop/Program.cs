@@ -179,19 +179,6 @@ internal static class Program
             form.Icon = new Icon(iconPath);
         }
 
-        if (startupReporter is DesktopStartupSplashScreen splashScreen)
-        {
-            form.HandleCreated += (_, _) => splashScreen.AttachToShell(form.Handle);
-            form.Activated += (_, _) => splashScreen.Promote();
-            form.VisibleChanged += (_, _) =>
-            {
-                if (form.Visible)
-                {
-                    splashScreen.Promote();
-                }
-            };
-        }
-
         var webView = new WebView2
         {
             Dock = DockStyle.Fill,
@@ -710,16 +697,6 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
         return new DesktopStartupSplashScreen();
     }
 
-    public void AttachToShell(IntPtr shellHandle)
-    {
-        if (form?.IsHandleCreated != true)
-        {
-            return;
-        }
-
-        form.BeginInvoke(new Action(() => form.AttachToShell(shellHandle)));
-    }
-
     public void Promote()
     {
         if (form?.IsHandleCreated != true)
@@ -937,12 +914,6 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             return new Region(path);
         }
 
-        public void AttachToShell(IntPtr shellWindowHandle)
-        {
-            shellHandle = shellWindowHandle;
-            PromoteAboveShell();
-        }
-
         public void PromoteAboveShell()
         {
             if (!IsHandleCreated || IsDisposed)
@@ -962,20 +933,6 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
                 | NativeMethods.SetWindowPosFlags.NoSize
                 | NativeMethods.SetWindowPosFlags.ShowWindow);
             BringToFront();
-
-            if (shellHandle != IntPtr.Zero && NativeMethods.IsWindow(shellHandle))
-            {
-                NativeMethods.SetWindowPos(
-                    shellHandle,
-                    Handle,
-                    0,
-                    0,
-                    0,
-                    0,
-                    NativeMethods.SetWindowPosFlags.NoMove
-                    | NativeMethods.SetWindowPosFlags.NoSize
-                    | NativeMethods.SetWindowPosFlags.NoActivate);
-            }
         }
 
         private void CenterOverlay()
@@ -990,8 +947,6 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             Left = primaryBounds.Left + ((primaryBounds.Width - Width) / 2);
             Top = primaryBounds.Top + ((primaryBounds.Height - Height) / 2);
         }
-
-        private IntPtr shellHandle;
     }
 
     private sealed class FrostedOverlayPanel : Panel
@@ -1094,10 +1049,6 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
     private static class NativeMethods
     {
         public static readonly IntPtr HwndTopMost = new(-1);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool IsWindow(IntPtr hWnd);
 
         [DllImport("user32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
