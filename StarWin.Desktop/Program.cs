@@ -776,38 +776,38 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             titleLabel = new OutlinedLabel
             {
                 AutoSize = false,
-                Left = 170,
-                Top = 640,
-                Width = 440,
+                Left = 150,
+                Top = 520,
+                Width = 500,
                 Height = 56,
-                Font = new Font("Segoe UI Semibold", 20f, FontStyle.Bold),
+                Font = new Font("Segoe UI Semibold", 21f, FontStyle.Bold),
                 BackColor = Color.Transparent,
                 ForeColor = Color.FromArgb(248, 250, 252),
-                ShadowColor = Color.FromArgb(220, 3, 7, 18),
-                OutlineColor = Color.FromArgb(180, 2, 6, 23),
+                ShadowColor = Color.FromArgb(230, 2, 6, 16),
+                OutlineColor = Color.FromArgb(210, 1, 4, 14),
                 Text = "Preparing desktop shell"
             };
 
             detailLabel = new OutlinedLabel
             {
                 AutoSize = false,
-                Left = 170,
-                Top = 702,
-                Width = 430,
-                Height = 74,
-                Font = new Font("Segoe UI Semibold", 12.5f, FontStyle.Regular),
+                Left = 150,
+                Top = 584,
+                Width = 470,
+                Height = 68,
+                Font = new Font("Segoe UI Semibold", 13f, FontStyle.Regular),
                 BackColor = Color.Transparent,
-                ForeColor = Color.FromArgb(226, 232, 240),
-                ShadowColor = Color.FromArgb(220, 3, 7, 18),
-                OutlineColor = Color.FromArgb(180, 2, 6, 23),
+                ForeColor = Color.FromArgb(235, 241, 248),
+                ShadowColor = Color.FromArgb(230, 2, 6, 16),
+                OutlineColor = Color.FromArgb(210, 1, 4, 14),
                 Text = "Checking for a shared local backend."
             };
 
             progressBar = new ProgressBar
             {
-                Left = 170,
-                Top = 792,
-                Width = 560,
+                Left = 150,
+                Top = 664,
+                Width = 500,
                 Height = 18,
                 Style = ProgressBarStyle.Marquee,
                 MarqueeAnimationSpeed = 28
@@ -916,10 +916,14 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             var flags = TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis;
 
             TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X + 2, bounds.Y + 2, bounds.Width, bounds.Height), ShadowColor, flags);
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X - 1, bounds.Y - 1, bounds.Width, bounds.Height), OutlineColor, flags);
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X, bounds.Y - 1, bounds.Width, bounds.Height), OutlineColor, flags);
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X + 1, bounds.Y - 1, bounds.Width, bounds.Height), OutlineColor, flags);
             TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X - 1, bounds.Y, bounds.Width, bounds.Height), OutlineColor, flags);
             TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X + 1, bounds.Y, bounds.Width, bounds.Height), OutlineColor, flags);
-            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X, bounds.Y - 1, bounds.Width, bounds.Height), OutlineColor, flags);
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X - 1, bounds.Y + 1, bounds.Width, bounds.Height), OutlineColor, flags);
             TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X, bounds.Y + 1, bounds.Width, bounds.Height), OutlineColor, flags);
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X + 1, bounds.Y + 1, bounds.Width, bounds.Height), OutlineColor, flags);
             TextRenderer.DrawText(e.Graphics, Text, Font, bounds, ForeColor, flags);
         }
     }
