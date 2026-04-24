@@ -1,0 +1,129 @@
+@using System.Collections.Generic
+
+<div class="multi-select-combo-field">
+    <label>@Label</label>
+    <details class="multi-select-combo">
+        <summary class="multi-select-combo__summary">@GetSummaryText()</summary>
+        <div class="multi-select-combo__panel">
+            <div class="multi-select-combo__toolbar">
+                <input class="multi-select-combo__search"
+                       type="search"
+                       placeholder="@SearchPlaceholder"
+                       @bind="filterText" />
+                @if (SelectedCount > 0)
+                {
+                    <button type="button" class="multi-select-combo__clear" @onclick="ClearSelectionAsync">Clear</button>
+                }
+            </div>
+            <div class="multi-select-combo__list" role="listbox" aria-multiselectable="true">
+                @if (FilteredOptions.Count == 0)
+                {
+                    <p class="multi-select-combo__empty">@EmptyText</p>
+                }
+                else
+                {
+                    @foreach (var option in FilteredOptions)
+                    {
+                        <label class="multi-select-combo__option">
+                            <input type="checkbox"
+                                   checked="@IsSelected(option.Key)"
+                                   @onchange="args => ToggleOptionAsync(option.Key, args)" />
+                            <span>@option.Value</span>
+                        </label>
+                    }
+                }
+            </div>
+        </div>
+    </details>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Placeholder { get; set; } = "Select options...";
+
+    [Parameter]
+    public string SearchPlaceholder { get; set; } = "Filter options...";
+
+    [Parameter]
+    public string EmptyText { get; set; } = "No matching options.";
+
+    [Parameter]
+    public IEnumerable<KeyValuePair<int, string>> Options { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyCollection<int> SelectedIds { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<HashSet<int>> SelectedIdsChanged { get; set; }
+
+    private string filterText = string.Empty;
+
+    private IReadOnlyList<KeyValuePair<int, string>> NormalizedOptions =>
+        Options
+            .OrderBy(option => option.Value, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(option => option.Key)
+            .ToArray();
+
+    private IReadOnlyList<KeyValuePair<int, string>> FilteredOptions =>
+        string.IsNullOrWhiteSpace(filterText)
+            ? NormalizedOptions
+            : NormalizedOptions
+                .Where(option => option.Value.Contains(filterText, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+    private int SelectedCount => SelectedIds?.Count ?? 0;
+
+    private bool IsSelected(int id)
+    {
+        return SelectedIds?.Contains(id) == true;
+    }
+
+    private string GetSummaryText()
+    {
+        if (SelectedCount == 0)
+        {
+            return Placeholder;
+        }
+
+        var selectedLabels = NormalizedOptions
+            .Where(option => IsSelected(option.Key))
+            .Select(option => option.Value)
+            .Take(2)
+            .ToArray();
+
+        return SelectedCount switch
+        {
+            1 => selectedLabels[0],
+            2 => string.Join(", ", selectedLabels),
+            _ => $"{string.Join(", ", selectedLabels)} +{SelectedCount - selectedLabels.Length} more"
+        };
+    }
+
+    private async Task ToggleOptionAsync(int id, ChangeEventArgs args)
+    {
+        var updatedSelection = SelectedIds?.ToHashSet() ?? [];
+        var isSelected = args.Value is bool checkedValue
+            ? checkedValue
+            : string.Equals(args.Value?.ToString(), "true", StringComparison.OrdinalIgnoreCase);
+
+        if (isSelected)
+        {
+            updatedSelection.Add(id);
+        }
+        else
+        {
+            updatedSelection.Remove(id);
+        }
+
+        await SelectedIdsChanged.InvokeAsync(updatedSelection);
+    }
+
+    private async Task ClearSelectionAsync()
+    {
+        filterText = string.Empty;
+        await SelectedIdsChanged.InvokeAsync([]);
+    }
+}

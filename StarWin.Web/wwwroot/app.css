@@ -1214,6 +1214,127 @@ dd {
     box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
 }
 
+.multi-select-combo-field {
+    display: grid;
+    gap: 6px;
+}
+
+.multi-select-combo {
+    position: relative;
+}
+
+.multi-select-combo[open] {
+    z-index: 30;
+}
+
+.multi-select-combo__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 40px;
+    border: 1px solid rgba(125, 211, 252, 0.38);
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.76);
+    color: var(--ink);
+    padding: 8px 10px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.multi-select-combo__summary::-webkit-details-marker {
+    display: none;
+}
+
+.multi-select-combo__summary::after {
+    content: "▾";
+    color: var(--accent);
+    font-size: 0.9rem;
+}
+
+.multi-select-combo[open] .multi-select-combo__summary {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
+.multi-select-combo__panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    border: 1px solid rgba(125, 211, 252, 0.28);
+    border-radius: 10px;
+    background: rgba(2, 6, 23, 0.96);
+    box-shadow: 0 20px 35px rgba(2, 6, 23, 0.45);
+    padding: 10px;
+}
+
+.multi-select-combo__toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.multi-select-combo__search {
+    flex: 1 1 auto;
+}
+
+.multi-select-combo__clear {
+    flex: 0 0 auto;
+    border: 1px solid rgba(125, 211, 252, 0.32);
+    border-radius: 6px;
+    background: rgba(8, 47, 73, 0.4);
+    color: var(--ink);
+    padding: 8px 12px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.multi-select-combo__list {
+    display: grid;
+    gap: 6px;
+    max-height: 240px;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.multi-select-combo__option {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    border-radius: 8px;
+    background: rgba(8, 47, 73, 0.22);
+    color: var(--ink);
+    padding: 8px 10px;
+}
+
+.multi-select-combo__option input {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+}
+
+.multi-select-combo__option span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.multi-select-combo__empty {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
 .route-leg-list {
     display: grid;
     gap: 8px;

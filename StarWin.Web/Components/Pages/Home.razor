@@ -258,24 +258,18 @@
                                         <option value="@RouteOptimizationMode.ShortestTravelTime">Shortest travel time</option>
                                     </select>
                                 </label>
-                                <label>
-                                    Avoid empires
-                                    <select multiple size="5" @onchange="UpdateAvoidedEmpires">
-                                        @foreach (var empire in sectorEmpires.OrderBy(empire => empire.Name))
-                                        {
-                                            <option value="@empire.Id" selected="@avoidedEmpireIds.Contains(empire.Id)">@empire.Name</option>
-                                        }
-                                    </select>
-                                </label>
-                                <label>
-                                    Avoid systems
-                                    <select multiple size="5" @onchange="UpdateAvoidedSystems">
-                                        @foreach (var system in sector.Systems.OrderBy(system => system.Name).ThenBy(system => system.Id))
-                                        {
-                                            <option value="@system.Id" selected="@avoidedSystemIds.Contains(system.Id)">@system.Name</option>
-                                        }
-                                    </select>
-                                </label>
+                                <MultiSelectCombo Label="Avoid empires"
+                                                  Placeholder="Avoid selected empires..."
+                                                  SearchPlaceholder="Search empires..."
+                                                  Options="@GetRouteEmpireOptions()"
+                                                  SelectedIds="avoidedEmpireIds"
+                                                  SelectedIdsChanged="UpdateAvoidedEmpires" />
+                                <MultiSelectCombo Label="Avoid systems"
+                                                  Placeholder="Avoid selected systems..."
+                                                  SearchPlaceholder="Search systems..."
+                                                  Options="@GetRouteSystemOptions()"
+                                                  SelectedIds="avoidedSystemIds"
+                                                  SelectedIdsChanged="UpdateAvoidedSystems" />
                             </div>
                             @if (selectedRoutePlan is { } fullscreenRoutePlan)
                             {
@@ -361,24 +355,18 @@
                                     <option value="@RouteOptimizationMode.ShortestTravelTime">Shortest travel time</option>
                                 </select>
                             </label>
-                            <label>
-                                Avoid empires
-                                <select multiple size="5" @onchange="UpdateAvoidedEmpires">
-                                    @foreach (var empire in sectorEmpires.OrderBy(empire => empire.Name))
-                                    {
-                                        <option value="@empire.Id" selected="@avoidedEmpireIds.Contains(empire.Id)">@empire.Name</option>
-                                    }
-                                </select>
-                            </label>
-                            <label>
-                                Avoid systems
-                                <select multiple size="5" @onchange="UpdateAvoidedSystems">
-                                    @foreach (var system in sector.Systems.OrderBy(system => system.Name).ThenBy(system => system.Id))
-                                    {
-                                        <option value="@system.Id" selected="@avoidedSystemIds.Contains(system.Id)">@system.Name</option>
-                                    }
-                                </select>
-                            </label>
+                            <MultiSelectCombo Label="Avoid empires"
+                                              Placeholder="Avoid selected empires..."
+                                              SearchPlaceholder="Search empires..."
+                                              Options="@GetRouteEmpireOptions()"
+                                              SelectedIds="avoidedEmpireIds"
+                                              SelectedIdsChanged="UpdateAvoidedEmpires" />
+                            <MultiSelectCombo Label="Avoid systems"
+                                              Placeholder="Avoid selected systems..."
+                                              SearchPlaceholder="Search systems..."
+                                              Options="@GetRouteSystemOptions()"
+                                              SelectedIds="avoidedSystemIds"
+                                              SelectedIdsChanged="UpdateAvoidedSystems" />
                         </div>
                         @if (selectedRoutePlan is { } routePlan)
                         {
@@ -4459,6 +4447,11 @@
         return (double)sector.Configuration.OffLaneMaximumDistanceParsecs;
     }
 
+    private StarWinSector GetSelectedSector()
+    {
+        return Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+    }
+
     private long GetRouteConfigurationStamp(StarWinSector sector)
     {
         return HashCode.Combine(
@@ -4469,35 +4462,40 @@
             string.Join(',', avoidedSystemIds.OrderBy(id => id)));
     }
 
-    private void UpdateAvoidedEmpires(ChangeEventArgs args)
+    private IEnumerable<KeyValuePair<int, string>> GetRouteEmpireOptions()
     {
-        avoidedEmpireIds = ParseMultiSelectIds(args);
+        var sector = GetSelectedSector();
+        var sectorSummary = GetSectorSummary(sector);
+        var sectorCache = ShouldUseFullSectorCache(activeSection) ? GetSectorCache(sector) : null;
+        var sectorEmpireIds = sectorCache?.EmpireIds ?? sectorSummary.EmpireIds;
+
+        return Workspace.Empires
+            .Where(empire => sectorEmpireIds.Contains(empire.Id))
+            .OrderBy(empire => empire.Name)
+            .ThenBy(empire => empire.Id)
+            .Select(empire => new KeyValuePair<int, string>(empire.Id, empire.Name));
+    }
+
+    private IEnumerable<KeyValuePair<int, string>> GetRouteSystemOptions()
+    {
+        var sector = GetSelectedSector();
+
+        return sector.Systems
+            .OrderBy(system => system.Name)
+            .ThenBy(system => system.Id)
+            .Select(system => new KeyValuePair<int, string>(system.Id, system.Name));
+    }
+
+    private void UpdateAvoidedEmpires(HashSet<int> selectedIds)
+    {
+        avoidedEmpireIds = selectedIds;
         ClearPlottedRoutePlan();
     }
 
-    private void UpdateAvoidedSystems(ChangeEventArgs args)
+    private void UpdateAvoidedSystems(HashSet<int> selectedIds)
     {
-        avoidedSystemIds = ParseMultiSelectIds(args);
+        avoidedSystemIds = selectedIds;
         ClearPlottedRoutePlan();
-    }
-
-    private static HashSet<int> ParseMultiSelectIds(ChangeEventArgs args)
-    {
-        if (args.Value is IEnumerable<string> values)
-        {
-            return values
-                .Select(value => int.TryParse(value, out var id) ? id : 0)
-                .Where(id => id > 0)
-                .ToHashSet();
-        }
-
-        var singleValue = args.Value?.ToString();
-        if (int.TryParse(singleValue, out var singleId) && singleId > 0)
-        {
-            return [singleId];
-        }
-
-        return [];
     }
 
     private static string FormatTravelTime(double years)
