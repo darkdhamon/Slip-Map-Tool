@@ -1353,69 +1353,124 @@
                 @if (selectedRace is not null)
                 {
                     var gurpsTemplate = BuildGurpsTemplate(selectedRace);
-                    <article class="detail-panel">
+                    var homeWorld = FindWorld(selectedRace.HomePlanetId);
+                    var raceMemberships = GetRaceEmpireMemberships(selectedRace, sectorEmpires).ToList();
+                    var raceHighlights = GetRaceHighlights(selectedRace).ToList();
+                    <article class="detail-panel alien-detail-panel">
                         <span class="panel-kicker">Alien biology</span>
                         <EditableEntityName Name="@selectedRace.Name"
                                             Label="Race"
                                             NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.AlienRace, selectedRace.Id, name)" />
-                        @RenderImagePanel(EntityImageTargetKind.AlienRace, selectedRace.Id, "Race images", true)
-                        <div class="parent-actions">
-                            @if (FindWorld(selectedRace.HomePlanetId) is World homeWorld)
-                            {
-                                <button type="button" @onclick="() => SelectWorld(homeWorld.Id)">Homeworld: @homeWorld.Name</button>
-                            }
-                        </div>
-                        <dl class="field-grid">
-                            <div><dt>Appearance</dt><dd>@selectedRace.AppearanceType</dd></div>
-                            <div><dt>Biology</dt><dd>@selectedRace.BodyChemistry</dd></div>
-                            <div><dt>Environment</dt><dd>@selectedRace.EnvironmentType</dd></div>
-                            <div><dt>Government</dt><dd>@selectedRace.GovernmentType</dd></div>
-                            <div><dt>Reproduction</dt><dd>@selectedRace.ReproductionMethod</dd></div>
-                            <div><dt>Diet</dt><dd>@selectedRace.Diet</dd></div>
-                            <div><dt>Mass</dt><dd>@selectedRace.MassKg kg</dd></div>
-                            <div><dt>Size</dt><dd>@selectedRace.SizeCm cm</dd></div>
-                            <div><dt>Limb pairs</dt><dd>@selectedRace.LimbPairCount</dd></div>
-                            <div><dt>Body</dt><dd>@selectedRace.BiologyProfile.Body</dd></div>
-                            <div><dt>Mind</dt><dd>@selectedRace.BiologyProfile.Mind</dd></div>
-                            <div><dt>Speed</dt><dd>@selectedRace.BiologyProfile.Speed</dd></div>
-                            <div><dt>Psi</dt><dd>@selectedRace.BiologyProfile.PsiRating</dd></div>
-                            <div><dt>Faith</dt><dd>@selectedRace.Religion</dd></div>
-                        </dl>
-
-                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.AlienRace"
-                                          TargetId="selectedRace.Id"
-                                          Title="Alien notes" />
-
-                        <section class="relationship-section">
-                            <h3>Empire memberships</h3>
-                            <div class="relationship-list">
-                                @foreach (var membership in GetRaceEmpireMemberships(selectedRace, sectorEmpires))
+                        <div class="alien-overview-grid">
+                            <section class="alien-summary-card alien-summary-card-primary">
+                                <div class="parent-actions">
+                                    @if (homeWorld is not null)
+                                    {
+                                        <button type="button" @onclick="() => SelectWorld(homeWorld.Id)">Homeworld: @homeWorld.Name</button>
+                                    }
+                                </div>
+                                <dl class="field-grid alien-field-grid alien-field-grid-primary">
+                                    <div><dt>Appearance</dt><dd>@DisplayText(selectedRace.AppearanceType)</dd></div>
+                                    <div><dt>Environment</dt><dd>@DisplayText(selectedRace.EnvironmentType)</dd></div>
+                                    <div><dt>Biology</dt><dd>@DisplayText(selectedRace.BodyChemistry)</dd></div>
+                                    <div><dt>Body cover</dt><dd>@DisplayText(selectedRace.BodyCoverType)</dd></div>
+                                    <div><dt>Mass</dt><dd>@selectedRace.MassKg kg</dd></div>
+                                    <div><dt>Size</dt><dd>@selectedRace.SizeCm cm</dd></div>
+                                    <div><dt>Limb pairs</dt><dd>@selectedRace.LimbPairCount</dd></div>
+                                    <div><dt>Lifespan</dt><dd>@selectedRace.BiologyProfile.Lifespan</dd></div>
+                                    <div><dt>Body</dt><dd>@selectedRace.BiologyProfile.Body</dd></div>
+                                    <div><dt>Mind</dt><dd>@selectedRace.BiologyProfile.Mind</dd></div>
+                                    <div><dt>Speed</dt><dd>@selectedRace.BiologyProfile.Speed</dd></div>
+                                    <div><dt>Psi</dt><dd>@selectedRace.BiologyProfile.PsiRating</dd></div>
+                                </dl>
+                                @if (raceHighlights.Count > 0)
                                 {
-                                    <button type="button" class="relationship-row" @onclick="() => SelectEmpire(membership.Empire.Id)">
-                                        <strong>@membership.Empire.Name</strong>
-                                        <span>@membership.Membership.Role; @membership.Membership.PopulationMillions million</span>
-                                    </button>
+                                    <div class="tag-group alien-tag-group">
+                                        @foreach (var highlight in raceHighlights)
+                                        {
+                                            <span>@highlight</span>
+                                        }
+                                    </div>
                                 }
-                            </div>
-                        </section>
+                            </section>
 
-                        <section class="relationship-section">
-                            <h3>GURPS template</h3>
-                            <dl class="field-grid">
-                                <div><dt>Edition</dt><dd>@DisplayGurpsEdition(gurpsTemplate.Edition)</dd></div>
-                                <div><dt>Total cost</dt><dd>@DisplayPoints(gurpsTemplate.TotalPointCost)</dd></div>
-                                <div><dt>Source</dt><dd>StarWin conversion</dd></div>
-                            </dl>
-                            <p>@gurpsTemplate.Notes</p>
-                            <div class="gurps-grid">
-                                @RenderGurpsTraitGroup("Attributes", gurpsTemplate.AttributeModifiers)
-                                @RenderGurpsTraitGroup("Secondary", gurpsTemplate.SecondaryCharacteristicModifiers)
-                                @RenderGurpsTraitGroup("Advantages", gurpsTemplate.Advantages)
-                                @RenderGurpsTraitGroup("Disadvantages", gurpsTemplate.Disadvantages)
-                                @RenderGurpsTraitGroup("Features", gurpsTemplate.Features)
-                                @RenderGurpsTraitGroup("Skills", gurpsTemplate.Skills)
+                            @RenderImagePanel(EntityImageTargetKind.AlienRace, selectedRace.Id, "Race images", true, compactWhenEmpty: true, panelClass: "alien-image-panel")
+                        </div>
+
+                        <div class="alien-secondary-grid">
+                            <section class="alien-summary-card">
+                                <h3>Society</h3>
+                                <dl class="field-grid alien-field-grid">
+                                    <div><dt>Government</dt><dd>@DisplayText(selectedRace.GovernmentType)</dd></div>
+                                    <div><dt>Diet</dt><dd>@DisplayText(selectedRace.Diet)</dd></div>
+                                    <div><dt>Faith</dt><dd>@DisplayText(selectedRace.Religion)</dd></div>
+                                    <div><dt>Devotion</dt><dd>@selectedRace.DevotionLevel</dd></div>
+                                    <div><dt>Reproduction</dt><dd>@DisplayText(selectedRace.Reproduction)</dd></div>
+                                    <div><dt>Method</dt><dd>@DisplayText(selectedRace.ReproductionMethod)</dd></div>
+                                </dl>
+                            </section>
+
+                            <section class="alien-summary-card">
+                                <h3>Derived data</h3>
+                                <dl class="field-grid alien-field-grid">
+                                    <div><dt>Edition</dt><dd>@DisplayGurpsEdition(gurpsTemplate.Edition)</dd></div>
+                                    <div><dt>Total cost</dt><dd>@DisplayPoints(gurpsTemplate.TotalPointCost)</dd></div>
+                                    <div><dt>Trait entries</dt><dd>@CountGurpsTraits(gurpsTemplate)</dd></div>
+                                    <div><dt>Memberships</dt><dd>@raceMemberships.Count</dd></div>
+                                    <div><dt>Source</dt><dd>StarWin conversion</dd></div>
+                                </dl>
+                                @if (!string.IsNullOrWhiteSpace(gurpsTemplate.Notes))
+                                {
+                                    <p>@gurpsTemplate.Notes</p>
+                                }
+                            </section>
+                        </div>
+
+                        <details class="alien-disclosure-card" @(raceMemberships.Count > 0 ? null : "open")>
+                            <summary>Empire memberships <span>@raceMemberships.Count</span></summary>
+                            @if (raceMemberships.Count == 0)
+                            {
+                                <p class="alien-empty-state">No empire memberships in this sector.</p>
+                            }
+                            else
+                            {
+                                <div class="relationship-list">
+                                    @foreach (var membership in raceMemberships)
+                                    {
+                                        <button type="button" class="relationship-row" @onclick="() => SelectEmpire(membership.Empire.Id)">
+                                            <strong>@membership.Empire.Name</strong>
+                                            <span>@membership.Membership.Role; @membership.Membership.PopulationMillions million</span>
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </details>
+
+                        <details class="alien-disclosure-card">
+                            <summary>Notes</summary>
+                            <EntityNotesPanel TargetKind="EntityNoteTargetKind.AlienRace"
+                                              TargetId="selectedRace.Id"
+                                              Title="Alien notes" />
+                        </details>
+
+                        <details class="alien-disclosure-card">
+                            <summary>GURPS template <span>@CountGurpsTraits(gurpsTemplate) entries</span></summary>
+                            <div class="alien-gurps-body">
+                                @if (!string.IsNullOrWhiteSpace(gurpsTemplate.Notes))
+                                {
+                                    <p>@gurpsTemplate.Notes</p>
+                                }
+                                <div class="gurps-grid">
+                                    @RenderGurpsTraitGroup("Attributes", gurpsTemplate.AttributeModifiers)
+                                    @RenderGurpsTraitGroup("Secondary", gurpsTemplate.SecondaryCharacteristicModifiers)
+                                    @RenderGurpsTraitGroup("Advantages", gurpsTemplate.Advantages)
+                                    @RenderGurpsTraitGroup("Disadvantages", gurpsTemplate.Disadvantages)
+                                    @RenderGurpsTraitGroup("Quirks", gurpsTemplate.Quirks)
+                                    @RenderGurpsTraitGroup("Features", gurpsTemplate.Features)
+                                    @RenderGurpsTraitGroup("Skills", gurpsTemplate.Skills)
+                                </div>
                             </div>
-                        </section>
+                        </details>
                     </article>
                 }
             </section>
@@ -3811,10 +3866,27 @@
         }
     }
 
-    private RenderFragment RenderImagePanel(EntityImageTargetKind targetKind, int targetId, string title, bool allowMultiple)
+    private RenderFragment RenderImagePanel(
+        EntityImageTargetKind targetKind,
+        int targetId,
+        string title,
+        bool allowMultiple,
+        bool compactWhenEmpty = false,
+        string? panelClass = null)
     {
         var images = GetEntityImages(targetKind, targetId);
-        return @<section class="entity-image-panel">
+        var panelClasses = new List<string> { "entity-image-panel" };
+        if (compactWhenEmpty && images.Count == 0)
+        {
+            panelClasses.Add("compact-empty");
+        }
+
+        if (!string.IsNullOrWhiteSpace(panelClass))
+        {
+            panelClasses.Add(panelClass);
+        }
+
+        return @<section class="@string.Join(" ", panelClasses)">
             <div class="image-panel-header">
                 <h4>@title</h4>
                 <span>@(allowMultiple ? "Multiple allowed" : "One image")</span>
@@ -3965,6 +4037,45 @@
     private static string DisplayDateTime(DateTime value)
     {
         return value == default ? "Not saved" : value.ToLocalTime().ToString("g");
+    }
+
+    private static string DisplayText(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "N/A" : value;
+    }
+
+    private static IEnumerable<string> GetRaceHighlights(AlienRace race)
+    {
+        if (!string.IsNullOrWhiteSpace(race.BodyCoverType))
+        {
+            yield return $"Body cover: {race.BodyCoverType}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(race.Reproduction))
+        {
+            yield return $"Reproduction: {race.Reproduction}";
+        }
+
+        if (race.DevotionLevel != AlienDevotionLevel.None)
+        {
+            yield return $"{race.DevotionLevel} devotion";
+        }
+
+        if (race.BiologyProfile.Lifespan > 0)
+        {
+            yield return $"Lifespan {race.BiologyProfile.Lifespan}";
+        }
+    }
+
+    private static int CountGurpsTraits(GurpsTemplate template)
+    {
+        return template.AttributeModifiers.Count
+            + template.SecondaryCharacteristicModifiers.Count
+            + template.Advantages.Count
+            + template.Disadvantages.Count
+            + template.Quirks.Count
+            + template.Features.Count
+            + template.Skills.Count;
     }
 
     private static string DisplayResultType(StarWinSearchResultType type)

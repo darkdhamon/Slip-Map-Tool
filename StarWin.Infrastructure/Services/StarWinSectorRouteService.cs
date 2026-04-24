@@ -7,13 +7,14 @@ using StarWin.Infrastructure.Data;
 
 namespace StarWin.Infrastructure.Services;
 
-public sealed class StarWinSectorRouteService(StarWinDbContext dbContext) : IStarWinSectorRouteService
+public sealed class StarWinSectorRouteService(IDbContextFactory<StarWinDbContext> dbContextFactory) : IStarWinSectorRouteService
 {
     public async Task<SectorRouteSaveResult> SaveCurrentRoutesAsync(
         int sectorId,
         IProgress<SectorRouteSaveProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         progress?.Report(new SectorRouteSaveProgress("Loading sector", "Reading the active sector and travel configuration.", 10));
         await Task.Yield();
 
@@ -110,6 +111,7 @@ public sealed class StarWinSectorRouteService(StarWinDbContext dbContext) : ISta
         SectorManualRouteSaveRequest request,
         CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         if (request.SourceSystemId <= 0 || request.TargetSystemId <= 0)
         {
             throw new InvalidOperationException("Hyperlanes require valid source and target systems.");
@@ -203,6 +205,7 @@ public sealed class StarWinSectorRouteService(StarWinDbContext dbContext) : ISta
         int routeId,
         CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var route = await dbContext.SectorSavedRoutes
             .FirstOrDefaultAsync(item => item.SectorId == sectorId && item.Id == routeId, cancellationToken)
             ?? throw new InvalidOperationException("Saved hyperlane was not found.");

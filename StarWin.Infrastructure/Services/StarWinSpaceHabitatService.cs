@@ -5,7 +5,7 @@ using StarWin.Infrastructure.Data;
 
 namespace StarWin.Infrastructure.Services;
 
-public sealed class StarWinSpaceHabitatService(StarWinDbContext dbContext) : IStarWinSpaceHabitatService
+public sealed class StarWinSpaceHabitatService(IDbContextFactory<StarWinDbContext> dbContextFactory) : IStarWinSpaceHabitatService
 {
     public async Task<SpaceHabitat> CreateOrbitingAstralBodyAsync(
         int starSystemId,
@@ -14,6 +14,7 @@ public sealed class StarWinSpaceHabitatService(StarWinDbContext dbContext) : ISt
         string? name,
         CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var system = await dbContext.StarSystems
             .Include(item => item.AstralBodies)
             .FirstOrDefaultAsync(item => item.Id == starSystemId, cancellationToken)
@@ -29,7 +30,7 @@ public sealed class StarWinSpaceHabitatService(StarWinDbContext dbContext) : ISt
         var body = system.AstralBodies.ElementAt(astralBodySequence);
         var habitat = new SpaceHabitat
         {
-            Id = await GetNextSpaceHabitatIdAsync(cancellationToken),
+            Id = await GetNextSpaceHabitatIdAsync(dbContext, cancellationToken),
             Name = NormalizeHabitatName(name, $"{body.Role} Habitat"),
             OrbitTargetKind = OrbitTargetKind.AstralBody,
             OrbitTargetId = astralBodySequence,
@@ -49,6 +50,7 @@ public sealed class StarWinSpaceHabitatService(StarWinDbContext dbContext) : ISt
         string? name,
         CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var world = await dbContext.Worlds.FirstOrDefaultAsync(item => item.Id == worldId, cancellationToken)
             ?? throw new InvalidOperationException("World was not found.");
         if (world.StarSystemId is null)
@@ -60,7 +62,7 @@ public sealed class StarWinSpaceHabitatService(StarWinDbContext dbContext) : ISt
             ?? throw new InvalidOperationException("Empire was not found.");
         var habitat = new SpaceHabitat
         {
-            Id = await GetNextSpaceHabitatIdAsync(cancellationToken),
+            Id = await GetNextSpaceHabitatIdAsync(dbContext, cancellationToken),
             Name = NormalizeHabitatName(name, $"{world.Name} Habitat"),
             OrbitTargetKind = OrbitTargetKind.World,
             OrbitTargetId = world.Id,
@@ -74,7 +76,7 @@ public sealed class StarWinSpaceHabitatService(StarWinDbContext dbContext) : ISt
         return habitat;
     }
 
-    private async Task<int> GetNextSpaceHabitatIdAsync(CancellationToken cancellationToken)
+    private async Task<int> GetNextSpaceHabitatIdAsync(StarWinDbContext dbContext, CancellationToken cancellationToken)
     {
         return (await dbContext.SpaceHabitats
             .Select(habitat => (int?)habitat.Id)

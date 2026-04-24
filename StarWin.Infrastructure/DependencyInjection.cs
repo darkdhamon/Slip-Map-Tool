@@ -43,6 +43,7 @@ public static class DependencyInjection
 
         services.AddDbContext<StarWinDbContext>(
             ConfigureDatabase,
+            contextLifetime: ServiceLifetime.Scoped,
             optionsLifetime: ServiceLifetime.Singleton);
         services.AddDbContextFactory<StarWinDbContext>(ConfigureDatabase);
 

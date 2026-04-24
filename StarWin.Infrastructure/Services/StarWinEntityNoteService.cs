@@ -5,13 +5,14 @@ using StarWin.Infrastructure.Data;
 
 namespace StarWin.Infrastructure.Services;
 
-public sealed class StarWinEntityNoteService(StarWinDbContext dbContext) : IStarWinEntityNoteService
+public sealed class StarWinEntityNoteService(IDbContextFactory<StarWinDbContext> dbContextFactory) : IStarWinEntityNoteService
 {
     public async Task<EntityNote?> GetNoteAsync(
         EntityNoteTargetKind targetKind,
         int targetId,
         CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         return await dbContext.EntityNotes
             .AsNoTracking()
             .FirstOrDefaultAsync(
@@ -25,6 +26,7 @@ public sealed class StarWinEntityNoteService(StarWinDbContext dbContext) : IStar
         string markdown,
         CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var normalizedMarkdown = markdown.Trim();
         var existingNote = await dbContext.EntityNotes
             .FirstOrDefaultAsync(

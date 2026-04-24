@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.StaticWebAssets;
+using Microsoft.Extensions.Configuration;
 using StarWin.Application.Services;
 using StarWin.Infrastructure;
 using StarWin.Web.Components;
@@ -21,6 +22,7 @@ public static class StarWinWebHost
     public static WebApplication Build(WebApplicationBuilder builder)
     {
         StaticWebAssetsLoader.UseStaticWebAssets(builder.Environment, builder.Configuration);
+        ApplyDevelopmentDatabaseDefaults(builder);
 
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
@@ -73,4 +75,40 @@ public static class StarWinWebHost
         var provider = configuration["StarWin:DatabaseProvider"] ?? "SqlServer";
         return provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase);
     }
+
+    private static void ApplyDevelopmentDatabaseDefaults(WebApplicationBuilder builder)
+    {
+        if (!builder.Environment.IsDevelopment())
+        {
+            return;
+        }
+
+        var hostKind = builder.Configuration["StarforgedAtlas:HostKind"];
+        if (string.Equals(hostKind, "Desktop", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var provider = builder.Configuration["StarWin:DatabaseProvider"] ?? "SqlServer";
+        var connectionString = builder.Configuration.GetConnectionString("StarWin");
+        if (!provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(connectionString, DefaultLocalDbConnectionString, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var sharedDesktopDatabasePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Starforged Atlas",
+            "starforged-atlas.db");
+
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["StarWin:DatabaseProvider"] = "Sqlite",
+            ["ConnectionStrings:StarWin"] = $"Data Source={sharedDesktopDatabasePath}"
+        });
+    }
+
+    private const string DefaultLocalDbConnectionString =
+        "Server=(localdb)\\mssqllocaldb;Database=StarWin;Trusted_Connection=True;MultipleActiveResultSets=true";
 }
