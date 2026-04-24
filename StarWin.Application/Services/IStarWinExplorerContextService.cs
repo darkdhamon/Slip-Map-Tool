@@ -5,7 +5,8 @@ namespace StarWin.Application.Services;
 
 public interface IStarWinExplorerContextService
 {
-    Task<StarWinExplorerContext> LoadAsync(CancellationToken cancellationToken = default);
+    Task<StarWinExplorerContext> LoadShellAsync(CancellationToken cancellationToken = default);
+    Task<StarWinSector?> LoadSectorAsync(int sectorId, bool includeHistory = false, CancellationToken cancellationToken = default);
 }
 
 public sealed record StarWinExplorerContext(

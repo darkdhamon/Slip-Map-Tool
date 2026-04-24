@@ -1727,6 +1727,8 @@
     private readonly string[] sections = ["Overview", "Timeline", "Configuration", "Hyperlanes", "Systems", "Worlds", "Colonies", "Aliens", "Empires"];
     private readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
     private readonly Dictionary<int, HyperlaneSectionCache> hyperlaneSectionCaches = [];
+    private readonly HashSet<int> sectorsWithDetailLoaded = [];
+    private readonly HashSet<int> sectorsWithHistoryLoaded = [];
     private StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     private string activeSection = "Overview";
     private string sectionLoadingTarget = string.Empty;
@@ -1985,7 +1987,9 @@
         var previousRaceId = selectedRaceId;
         var previousEmpireId = selectedEmpireId;
 
-        explorerContext = await ExplorerContextService.LoadAsync(cancellationToken);
+        explorerContext = await ExplorerContextService.LoadShellAsync(cancellationToken);
+        sectorsWithDetailLoaded.Clear();
+        sectorsWithHistoryLoaded.Clear();
         ResetExplorerCaches(previousSectorIds);
         ResetHyperlaneWindow();
 
@@ -2006,6 +2010,7 @@
         }
 
         var selectedSector = ExplorerSectors.FirstOrDefault(sector => sector.Id == previousSectorId) ?? explorerContext.CurrentSector;
+        selectedSector = await EnsureSectorDataLoadedAsync(selectedSector.Id, activeSection, cancellationToken) ?? selectedSector;
         selectedSectorId = selectedSector.Id;
         selectedSystemId = selectedSector.Systems.Any(system => system.Id == previousSystemId)
             ? previousSystemId
@@ -2058,6 +2063,73 @@
         worldsById = null;
         routeGraphCaches.Clear();
         renderedOverview = false;
+    }
+
+    private async Task<StarWinSector?> EnsureSectorDataLoadedAsync(
+        int sectorId,
+        string sectionName,
+        CancellationToken cancellationToken = default)
+    {
+        var requiresDetailedData = RequiresDetailedSectorData(sectionName);
+        var requiresHistoryData = RequiresHistoryData(sectionName);
+        if (sectorId <= 0
+            || !requiresDetailedData
+            || (sectorsWithDetailLoaded.Contains(sectorId)
+                && (!requiresHistoryData || sectorsWithHistoryLoaded.Contains(sectorId))))
+        {
+            return ExplorerSectors.FirstOrDefault(sector => sector.Id == sectorId);
+        }
+
+        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiresHistoryData, cancellationToken);
+        if (detailedSector is null)
+        {
+            return ExplorerSectors.FirstOrDefault(sector => sector.Id == sectorId);
+        }
+
+        MergeSectorIntoExplorerContext(detailedSector);
+        sectorsWithDetailLoaded.Add(sectorId);
+        if (requiresHistoryData)
+        {
+            sectorsWithHistoryLoaded.Add(sectorId);
+        }
+
+        ResetExplorerCaches([sectorId]);
+        return detailedSector;
+    }
+
+    private void MergeSectorIntoExplorerContext(StarWinSector sector)
+    {
+        var sectors = ExplorerSectors.ToList();
+        var existingSectorIndex = sectors.FindIndex(item => item.Id == sector.Id);
+        if (existingSectorIndex >= 0)
+        {
+            sectors[existingSectorIndex] = sector;
+        }
+        else
+        {
+            sectors.Add(sector);
+            sectors = sectors.OrderBy(item => item.Name).ToList();
+        }
+
+        var currentSector = explorerContext.CurrentSector.Id == sector.Id
+            ? sector
+            : sectors.FirstOrDefault(item => item.Id == explorerContext.CurrentSector.Id) ?? sector;
+
+        explorerContext = explorerContext with
+        {
+            Sectors = sectors,
+            CurrentSector = currentSector
+        };
+    }
+
+    private static bool RequiresDetailedSectorData(string sectionName)
+    {
+        return sectionName is "Overview" or "Timeline" or "Systems" or "Worlds" or "Colonies" or "Aliens" or "Empires";
+    }
+
+    private static bool RequiresHistoryData(string sectionName)
+    {
+        return sectionName == "Timeline";
     }
 
     private StarWinSector GetMapSector()
@@ -2261,6 +2333,10 @@
         StateHasChanged();
 
         await Task.Delay(80);
+
+        sectionLoadingStatus = $"Loading {sectionName} data...";
+        StateHasChanged();
+        await EnsureSectorDataLoadedAsync(selectedSectorId, sectionName);
 
         sectionLoadingStatus = $"Rendering {sectionName}...";
         SetActiveSection(sectionName);
@@ -2595,8 +2671,14 @@
         SetActiveSection("Empires");
     }
 
-    private void SelectDefaultSystem()
+    private async Task SelectDefaultSystem()
     {
+        var loadedSector = await EnsureSectorDataLoadedAsync(selectedSectorId, activeSection);
+        if (loadedSector is not null)
+        {
+            selectedSectorId = loadedSector.Id;
+        }
+
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
@@ -2611,7 +2693,7 @@
         ClearSelectedRoute();
         sectorMapRequested = autoLoadSectorMap && Workspace.IsLoaded;
         SyncCurrentExplorerRoute(replaceHistory: true);
-        _ = PersistExplorerSessionAsync();
+        await PersistExplorerSessionAsync();
     }
 
     private void SelectDefaultWorld()
