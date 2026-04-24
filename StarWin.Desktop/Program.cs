@@ -14,6 +14,7 @@ using StarWin.Web;
 #if WINDOWS
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -176,6 +177,19 @@ internal static class Program
         if (File.Exists(iconPath))
         {
             form.Icon = new Icon(iconPath);
+        }
+
+        if (startupReporter is DesktopStartupSplashScreen splashScreen)
+        {
+            form.HandleCreated += (_, _) => splashScreen.AttachToShell(form.Handle);
+            form.Activated += (_, _) => splashScreen.Promote();
+            form.VisibleChanged += (_, _) =>
+            {
+                if (form.Visible)
+                {
+                    splashScreen.Promote();
+                }
+            };
         }
 
         var webView = new WebView2
@@ -696,6 +710,26 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
         return new DesktopStartupSplashScreen();
     }
 
+    public void AttachToShell(IntPtr shellHandle)
+    {
+        if (form?.IsHandleCreated != true)
+        {
+            return;
+        }
+
+        form.BeginInvoke(new Action(() => form.AttachToShell(shellHandle)));
+    }
+
+    public void Promote()
+    {
+        if (form?.IsHandleCreated != true)
+        {
+            return;
+        }
+
+        form.BeginInvoke(new Action(() => form.PromoteAboveShell()));
+    }
+
     public void Report(string title, string detail)
     {
         if (form?.IsHandleCreated != true)
@@ -703,7 +737,11 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             return;
         }
 
-        form.BeginInvoke(new Action(() => form.UpdateStatus(title, detail, false)));
+        form.BeginInvoke(new Action(() =>
+        {
+            form.UpdateStatus(title, detail, false);
+            form.PromoteAboveShell();
+        }));
     }
 
     public void Fail(string title, string detail)
@@ -754,7 +792,7 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             var splashImage = LoadSplashBackgroundImage();
 
             Text = "Starting Starforged Atlas";
-            StartPosition = FormStartPosition.CenterScreen;
+            StartPosition = FormStartPosition.Manual;
             FormBorderStyle = FormBorderStyle.None;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -827,7 +865,9 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             Controls.Add(contentPanel);
 
             Layout += (_, _) => CenterOverlay();
+            Shown += (_, _) => PromoteAboveShell();
             CenterOverlay();
+            PositionOnPrimaryScreen();
         }
 
         public void UpdateStatus(string title, string detail, bool isFailure)
@@ -897,11 +937,61 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             return new Region(path);
         }
 
+        public void AttachToShell(IntPtr shellWindowHandle)
+        {
+            shellHandle = shellWindowHandle;
+            PromoteAboveShell();
+        }
+
+        public void PromoteAboveShell()
+        {
+            if (!IsHandleCreated || IsDisposed)
+            {
+                return;
+            }
+
+            TopMost = true;
+            NativeMethods.SetWindowPos(
+                Handle,
+                NativeMethods.HwndTopMost,
+                0,
+                0,
+                0,
+                0,
+                NativeMethods.SetWindowPosFlags.NoMove
+                | NativeMethods.SetWindowPosFlags.NoSize
+                | NativeMethods.SetWindowPosFlags.ShowWindow);
+            BringToFront();
+
+            if (shellHandle != IntPtr.Zero && NativeMethods.IsWindow(shellHandle))
+            {
+                NativeMethods.SetWindowPos(
+                    shellHandle,
+                    Handle,
+                    0,
+                    0,
+                    0,
+                    0,
+                    NativeMethods.SetWindowPosFlags.NoMove
+                    | NativeMethods.SetWindowPosFlags.NoSize
+                    | NativeMethods.SetWindowPosFlags.NoActivate);
+            }
+        }
+
         private void CenterOverlay()
         {
             contentPanel.Left = (ClientSize.Width - contentPanel.Width) / 2;
             contentPanel.Top = (ClientSize.Height - contentPanel.Height) / 2 + 110;
         }
+
+        private void PositionOnPrimaryScreen()
+        {
+            var primaryBounds = Screen.PrimaryScreen?.WorkingArea ?? Screen.FromPoint(Point.Empty).WorkingArea;
+            Left = primaryBounds.Left + ((primaryBounds.Width - Width) / 2);
+            Top = primaryBounds.Top + ((primaryBounds.Height - Height) / 2);
+        }
+
+        private IntPtr shellHandle;
     }
 
     private sealed class FrostedOverlayPanel : Panel
@@ -998,6 +1088,35 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X, bounds.Y + 1, bounds.Width, bounds.Height), OutlineColor, flags);
             TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X + 1, bounds.Y + 1, bounds.Width, bounds.Height), OutlineColor, flags);
             TextRenderer.DrawText(e.Graphics, Text, Font, bounds, ForeColor, flags);
+        }
+    }
+
+    private static class NativeMethods
+    {
+        public static readonly IntPtr HwndTopMost = new(-1);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool IsWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetWindowPos(
+            IntPtr hWnd,
+            IntPtr hWndInsertAfter,
+            int X,
+            int Y,
+            int cx,
+            int cy,
+            SetWindowPosFlags uFlags);
+
+        [Flags]
+        public enum SetWindowPosFlags : uint
+        {
+            NoSize = 0x0001,
+            NoMove = 0x0002,
+            NoActivate = 0x0010,
+            ShowWindow = 0x0040
         }
     }
 }
