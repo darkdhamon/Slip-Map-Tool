@@ -16,7 +16,7 @@ public static class SectorRoutePlanner
             return [];
         }
 
-        var routes = new List<SectorHyperlaneRouteDefinition>();
+        var routesByPair = new Dictionary<(int SourceId, int TargetId), SectorHyperlaneRouteDefinition>();
         for (var sourceIndex = 0; sourceIndex < sector.Systems.Count; sourceIndex++)
         {
             var source = sector.Systems[sourceIndex];
@@ -41,7 +41,7 @@ public static class SectorRoutePlanner
                     continue;
                 }
 
-                routes.Add(new SectorHyperlaneRouteDefinition(
+                routesByPair[(source.Id, target.Id)] = new SectorHyperlaneRouteDefinition(
                     source.Id,
                     target.Id,
                     distanceParsecs,
@@ -51,11 +51,14 @@ public static class SectorRoutePlanner
                     ownership.PrimaryOwnerEmpireId,
                     ownership.PrimaryOwnerEmpireName,
                     ownership.SecondaryOwnerEmpireId,
-                    ownership.SecondaryOwnerEmpireName));
+                    ownership.SecondaryOwnerEmpireName);
             }
         }
 
-        return routes;
+        return routesByPair.Values
+            .OrderBy(route => route.SourceSystemId)
+            .ThenBy(route => route.TargetSystemId)
+            .ToList();
     }
 
     public static bool TryResolveHyperlaneRule(
@@ -76,15 +79,27 @@ public static class SectorRoutePlanner
             return false;
         }
 
-        var sharedEmpire = sourceEmpires
+        var sharedEmpires = sourceEmpires
             .Join(targetEmpires, sourceEmpire => sourceEmpire.Id, targetEmpire => targetEmpire.Id, (sourceEmpire, _) => sourceEmpire)
             .OrderByDescending(empire => empire.CivilizationProfile.TechLevel)
             .ThenBy(empire => empire.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var sharedEmpire = sharedEmpires
             .FirstOrDefault();
         if (sharedEmpire is not null && sharedEmpire.CivilizationProfile.TechLevel >= 6)
         {
             technologyLevel = sharedEmpire.CivilizationProfile.TechLevel;
-            ownership = new SectorHyperlaneOwnership(sharedEmpire.Id, sharedEmpire.Name, null, string.Empty);
+            var sharedTechnologyLevel = technologyLevel;
+            var additionalSharedEmpire = sharedEmpires
+                .Skip(1)
+                .FirstOrDefault(empire => empire.CivilizationProfile.TechLevel == sharedTechnologyLevel);
+
+            ownership = new SectorHyperlaneOwnership(
+                sharedEmpire.Id,
+                sharedEmpire.Name,
+                additionalSharedEmpire?.Id,
+                additionalSharedEmpire?.Name ?? string.Empty);
             return true;
         }
 

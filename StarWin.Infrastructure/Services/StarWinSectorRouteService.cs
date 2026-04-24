@@ -11,8 +11,11 @@ public sealed class StarWinSectorRouteService(StarWinDbContext dbContext) : ISta
 {
     public async Task<SectorRouteSaveResult> SaveCurrentRoutesAsync(
         int sectorId,
+        IProgress<SectorRouteSaveProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        progress?.Report(new SectorRouteSaveProgress("Loading sector", "Reading the active sector and travel configuration.", 10));
+
         var sector = await dbContext.Sectors
             .AsSplitQuery()
             .Include(item => item.Configuration)
@@ -22,12 +25,19 @@ public sealed class StarWinSectorRouteService(StarWinDbContext dbContext) : ISta
             .FirstOrDefaultAsync(item => item.Id == sectorId, cancellationToken)
             ?? throw new InvalidOperationException("Sector was not found.");
 
+        progress?.Report(new SectorRouteSaveProgress("Loading empires", "Resolving empire technology levels and ownership data.", 25));
+
         var empiresById = await dbContext.Empires
             .AsNoTracking()
             .ToDictionaryAsync(empire => empire.Id, cancellationToken);
 
+        progress?.Report(new SectorRouteSaveProgress("Generating routes", $"Evaluating route eligibility across {sector.Systems.Count:N0} systems.", 55));
+
         var routes = SectorRoutePlanner.BuildHyperlaneRoutes(sector, empiresById);
         var generatedAtUtc = DateTime.UtcNow;
+
+        progress?.Report(new SectorRouteSaveProgress("Preparing saved routes", $"Merging {routes.Count:N0} route segment{(routes.Count == 1 ? string.Empty : "s")} into the sector cache.", 75));
+
         var existingRoutes = await dbContext.SectorSavedRoutes
             .Where(route => route.SectorId == sectorId)
             .ToListAsync(cancellationToken);
@@ -37,6 +47,8 @@ public sealed class StarWinSectorRouteService(StarWinDbContext dbContext) : ISta
         {
             dbContext.SectorSavedRoutes.RemoveRange(existingRoutes);
         }
+
+        progress?.Report(new SectorRouteSaveProgress("Writing database", "Saving the updated route cache to the database.", 90));
 
         dbContext.SectorSavedRoutes.AddRange(routes.Select(route => new SectorSavedRoute
         {
@@ -55,6 +67,7 @@ public sealed class StarWinSectorRouteService(StarWinDbContext dbContext) : ISta
         }));
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        progress?.Report(new SectorRouteSaveProgress("Routes saved", $"Stored {routes.Count:N0} cached route segment{(routes.Count == 1 ? string.Empty : "s")} for this sector.", 100));
         return new SectorRouteSaveResult(sectorId, routes.Count, replacedExistingRoutes, generatedAtUtc);
     }
 }

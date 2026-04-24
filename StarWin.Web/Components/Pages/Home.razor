@@ -507,10 +507,10 @@
                 </dl>
                 <div class="parent-actions">
                     <button type="button" @onclick="SaveSectorConfiguration">Save configuration</button>
-                    <button type="button" @onclick="SaveCurrentRoutesAsync" disabled="@sectionLoadingVisible">
+                    <button type="button" @onclick="SaveCurrentRoutesAsync" disabled="@(sectionLoadingVisible || routeSaveLoadingVisible)">
                         @(sector.SavedRoutes.Count == 0 ? "Save Current Routes" : "Update Current Routes")
                     </button>
-                    <button type="button" @onclick="() => ConvertIndependentColoniesAsync(sector.Id)" disabled="@sectionLoadingVisible">Convert independent colonies</button>
+                    <button type="button" @onclick="() => ConvertIndependentColoniesAsync(sector.Id)" disabled="@(sectionLoadingVisible || routeSaveLoadingVisible)">Convert independent colonies</button>
                     <button type="button" @onclick="() => LoadSectorConfigurationForm(sector)">Reset form</button>
                 </div>
                 @if (!string.IsNullOrWhiteSpace(sectorConfigurationStatus))
@@ -1306,6 +1306,29 @@
     }
 </section>
 
+@if (routeSaveLoadingVisible)
+{
+    <div class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="Saving current routes">
+        <section class="loading-modal">
+            <span class="panel-kicker">Saving current routes</span>
+            <h2>@routeSaveLoadingStatus</h2>
+            @if (!string.IsNullOrWhiteSpace(routeSaveLoadingDetail))
+            {
+                <p class="loading-progress-detail">@routeSaveLoadingDetail</p>
+            }
+            <div class="loading-meter import-progress-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@routeSaveLoadingPercent">
+                <span style="width: @routeSaveLoadingPercent%;"></span>
+            </div>
+            <strong class="loading-progress-value">@routeSaveLoadingPercent%</strong>
+            <ol>
+                <li>Load the current sector and empire data.</li>
+                <li>Generate exactly one route per system pair.</li>
+                <li>Write the refreshed route cache to the database.</li>
+            </ol>
+        </section>
+    </div>
+}
+
 @code {
     private const int DefaultSectorMapViewDistanceParsecs = 5;
     private const int MaximumSectorMapViewDistanceParsecs = 20;
@@ -1428,6 +1451,10 @@
     private decimal tl10OffLaneSpeedMultiplier = 32m;
     private decimal tl10HyperlaneSpeedModifier = 3m;
     private string sectorConfigurationStatus = string.Empty;
+    private bool routeSaveLoadingVisible;
+    private string routeSaveLoadingStatus = string.Empty;
+    private string routeSaveLoadingDetail = string.Empty;
+    private int routeSaveLoadingPercent;
     private int sectorMapViewDistanceParsecs = DefaultSectorMapViewDistanceParsecs;
     private int sectorMapRenderLimit = SectorMapUnrestrictedRenderedSystems;
     private string sectorMapPerformanceStatus = string.Empty;
@@ -2499,15 +2526,49 @@
 
     private async Task SaveCurrentRoutesAsync()
     {
+        if (routeSaveLoadingVisible)
+        {
+            return;
+        }
+
         var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
-        var result = await SectorRouteService.SaveCurrentRoutesAsync(sector.Id);
-        await Workspace.ReloadAsync();
-        generatedSectorRouteCache.Remove(sector.Id);
-        routeGraphCaches.Clear();
-        ClearPlottedRoutePlan();
-        sectorConfigurationStatus = result.ReplacedExistingRoutes
-            ? $"Updated {result.RouteCount:N0} saved route segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sector.Name}."
-            : $"Saved {result.RouteCount:N0} route segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sector.Name}.";
+        routeSaveLoadingVisible = true;
+        routeSaveLoadingStatus = "Loading sector";
+        routeSaveLoadingDetail = "Preparing to refresh the route cache for this sector.";
+        routeSaveLoadingPercent = 5;
+        StateHasChanged();
+
+        var progress = new Progress<SectorRouteSaveProgress>(update =>
+        {
+            routeSaveLoadingStatus = update.Status;
+            routeSaveLoadingDetail = update.Detail;
+            routeSaveLoadingPercent = Math.Clamp(update.Percent, 0, 100);
+            InvokeAsync(StateHasChanged);
+        });
+
+        try
+        {
+            var result = await SectorRouteService.SaveCurrentRoutesAsync(sector.Id, progress);
+            routeSaveLoadingStatus = "Refreshing explorer";
+            routeSaveLoadingDetail = "Reloading the current sector so the updated routes are ready to use.";
+            routeSaveLoadingPercent = 100;
+            await Workspace.ReloadAsync();
+            generatedSectorRouteCache.Remove(sector.Id);
+            routeGraphCaches.Clear();
+            ClearPlottedRoutePlan();
+            sectorConfigurationStatus = result.ReplacedExistingRoutes
+                ? $"Updated {result.RouteCount:N0} saved route segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sector.Name}."
+                : $"Saved {result.RouteCount:N0} route segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sector.Name}.";
+        }
+        finally
+        {
+            await Task.Delay(120);
+            routeSaveLoadingVisible = false;
+            routeSaveLoadingStatus = string.Empty;
+            routeSaveLoadingDetail = string.Empty;
+            routeSaveLoadingPercent = 0;
+            StateHasChanged();
+        }
     }
 
     private void RunSearch()

@@ -6,6 +6,7 @@ public interface IStarWinSectorRouteService
 {
     Task<SectorRouteSaveResult> SaveCurrentRoutesAsync(
         int sectorId,
+        IProgress<SectorRouteSaveProgress>? progress = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -14,3 +15,8 @@ public sealed record SectorRouteSaveResult(
     int RouteCount,
     bool ReplacedExistingRoutes,
     DateTime GeneratedAtUtc);
+
+public sealed record SectorRouteSaveProgress(
+    string Status,
+    string Detail,
+    int Percent);
