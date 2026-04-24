@@ -745,28 +745,35 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
         private readonly Label titleLabel;
         private readonly Label detailLabel;
         private readonly ProgressBar progressBar;
+        private readonly Panel hostPanel;
 
         public SplashForm()
         {
             Text = "Starting Starforged Atlas";
             StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
+            FormBorderStyle = FormBorderStyle.None;
             MaximizeBox = false;
             MinimizeBox = false;
             ShowIcon = false;
-            Width = 560;
-            Height = 220;
+            ShowInTaskbar = false;
+            Width = 720;
+            Height = 420;
             BackColor = Color.FromArgb(3, 7, 18);
             ForeColor = Color.FromArgb(226, 232, 240);
             TopMost = true;
+            DoubleBuffered = true;
+            BackgroundImage = LoadSplashBackgroundImage();
+            BackgroundImageLayout = ImageLayout.Stretch;
 
             titleLabel = new Label
             {
                 AutoSize = false,
                 Dock = DockStyle.Top,
-                Height = 56,
-                Padding = new Padding(24, 24, 24, 4),
-                Font = new Font("Segoe UI Semibold", 14f, FontStyle.Bold),
+                Height = 72,
+                Padding = new Padding(32, 28, 32, 6),
+                Font = new Font("Segoe UI Semibold", 18f, FontStyle.Bold),
+                BackColor = Color.Transparent,
+                ForeColor = Color.FromArgb(248, 250, 252),
                 Text = "Preparing desktop shell"
             };
 
@@ -774,26 +781,29 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             {
                 AutoSize = false,
                 Dock = DockStyle.Top,
-                Height = 72,
-                Padding = new Padding(24, 4, 24, 8),
-                Font = new Font("Segoe UI", 10.5f, FontStyle.Regular),
+                Height = 88,
+                Padding = new Padding(32, 6, 32, 16),
+                Font = new Font("Segoe UI", 11.5f, FontStyle.Regular),
+                BackColor = Color.Transparent,
+                ForeColor = Color.FromArgb(191, 219, 254),
                 Text = "Checking for a shared local backend."
             };
 
             progressBar = new ProgressBar
             {
                 Dock = DockStyle.Top,
-                Height = 18,
-                Margin = new Padding(24),
+                Height = 16,
+                Margin = new Padding(32, 0, 32, 0),
                 Style = ProgressBarStyle.Marquee,
                 MarqueeAnimationSpeed = 28
             };
 
-            var hostPanel = new Panel
+            hostPanel = new Panel
             {
-                Dock = DockStyle.Fill,
-                Padding = new Padding(24, 0, 24, 24),
-                BackColor = Color.FromArgb(3, 7, 18)
+                Dock = DockStyle.Bottom,
+                Height = 212,
+                Padding = new Padding(32, 0, 32, 32),
+                BackColor = Color.FromArgb(150, 3, 7, 18)
             };
 
             hostPanel.Controls.Add(progressBar);
@@ -816,6 +826,26 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             progressBar.Style = ProgressBarStyle.Blocks;
             progressBar.MarqueeAnimationSpeed = 0;
             progressBar.Value = 100;
+            hostPanel.BackColor = Color.FromArgb(176, 38, 10, 18);
+        }
+
+        private static Image? LoadSplashBackgroundImage()
+        {
+            var iconPath = StarWinDesktopPaths.GetIconPath();
+            if (!File.Exists(iconPath))
+            {
+                return null;
+            }
+
+            try
+            {
+                using var icon = new Icon(iconPath, new Size(256, 256));
+                return new Bitmap(icon.ToBitmap(), new Size(720, 420));
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }
