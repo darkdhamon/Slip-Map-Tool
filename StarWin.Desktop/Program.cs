@@ -744,6 +744,7 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
 
     private sealed class SplashForm : Form
     {
+        private readonly FrostedOverlayPanel contentPanel;
         private readonly OutlinedLabel titleLabel;
         private readonly OutlinedLabel detailLabel;
         private readonly ProgressBar progressBar;
@@ -773,49 +774,60 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
                 Region = BuildRegionFromAlpha(splashImage);
             }
 
+            contentPanel = new FrostedOverlayPanel
+            {
+                Width = 520,
+                Height = 170,
+                BackColor = Color.Transparent
+            };
+
             titleLabel = new OutlinedLabel
             {
                 AutoSize = false,
-                Left = 150,
-                Top = 520,
-                Width = 500,
-                Height = 56,
+                Left = 34,
+                Top = 28,
+                Width = 452,
+                Height = 50,
                 Font = new Font("Segoe UI Semibold", 21f, FontStyle.Bold),
                 BackColor = Color.Transparent,
                 ForeColor = Color.FromArgb(248, 250, 252),
-                ShadowColor = Color.FromArgb(230, 2, 6, 16),
-                OutlineColor = Color.FromArgb(210, 1, 4, 14),
+                ShadowColor = Color.FromArgb(200, 2, 6, 16),
+                OutlineColor = Color.FromArgb(170, 1, 4, 14),
                 Text = "Preparing desktop shell"
             };
 
             detailLabel = new OutlinedLabel
             {
                 AutoSize = false,
-                Left = 150,
-                Top = 584,
-                Width = 470,
-                Height = 68,
+                Left = 34,
+                Top = 82,
+                Width = 452,
+                Height = 44,
                 Font = new Font("Segoe UI Semibold", 13f, FontStyle.Regular),
                 BackColor = Color.Transparent,
                 ForeColor = Color.FromArgb(235, 241, 248),
-                ShadowColor = Color.FromArgb(230, 2, 6, 16),
-                OutlineColor = Color.FromArgb(210, 1, 4, 14),
+                ShadowColor = Color.FromArgb(200, 2, 6, 16),
+                OutlineColor = Color.FromArgb(170, 1, 4, 14),
                 Text = "Checking for a shared local backend."
             };
 
             progressBar = new ProgressBar
             {
-                Left = 150,
-                Top = 664,
-                Width = 500,
+                Left = 34,
+                Top = 126,
+                Width = 452,
                 Height = 18,
                 Style = ProgressBarStyle.Marquee,
                 MarqueeAnimationSpeed = 28
             };
 
-            Controls.Add(progressBar);
-            Controls.Add(detailLabel);
-            Controls.Add(titleLabel);
+            contentPanel.Controls.Add(progressBar);
+            contentPanel.Controls.Add(detailLabel);
+            contentPanel.Controls.Add(titleLabel);
+            Controls.Add(contentPanel);
+
+            Layout += (_, _) => CenterOverlay();
+            CenterOverlay();
         }
 
         public void UpdateStatus(string title, string detail, bool isFailure)
@@ -883,6 +895,67 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             }
 
             return new Region(path);
+        }
+
+        private void CenterOverlay()
+        {
+            contentPanel.Left = (ClientSize.Width - contentPanel.Width) / 2;
+            contentPanel.Top = (ClientSize.Height - contentPanel.Height) / 2 + 110;
+        }
+    }
+
+    private sealed class FrostedOverlayPanel : Panel
+    {
+        public FrostedOverlayPanel()
+        {
+            SetStyle(
+                ControlStyles.AllPaintingInWmPaint
+                | ControlStyles.OptimizedDoubleBuffer
+                | ControlStyles.ResizeRedraw
+                | ControlStyles.UserPaint,
+                true);
+            BackColor = Color.Transparent;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            var shadowBounds = new Rectangle(10, 12, Width - 20, Height - 20);
+            using var shadowPath = CreateRoundedRectangle(shadowBounds, 24);
+            using var shadowBrush = new SolidBrush(Color.FromArgb(70, 3, 8, 20));
+            e.Graphics.FillPath(shadowBrush, shadowPath);
+
+            var glassBounds = new Rectangle(0, 0, Width - 1, Height - 1);
+            using var glassPath = CreateRoundedRectangle(glassBounds, 24);
+            using var glassBrush = new SolidBrush(Color.FromArgb(132, 6, 14, 28));
+            using var borderPen = new Pen(Color.FromArgb(120, 181, 212, 255), 1.2f);
+            e.Graphics.FillPath(glassBrush, glassPath);
+            e.Graphics.DrawPath(borderPen, glassPath);
+
+            var glowBounds = new Rectangle(1, 1, Width - 3, Height / 2);
+            using var glowPath = CreateRoundedRectangle(glowBounds, 22);
+            using var glowBrush = new LinearGradientBrush(
+                glowBounds,
+                Color.FromArgb(56, 255, 255, 255),
+                Color.FromArgb(12, 255, 255, 255),
+                LinearGradientMode.Vertical);
+            e.Graphics.FillPath(glowBrush, glowPath);
+        }
+
+        private static GraphicsPath CreateRoundedRectangle(Rectangle bounds, int radius)
+        {
+            var path = new GraphicsPath();
+            var diameter = radius * 2;
+
+            path.AddArc(bounds.X, bounds.Y, diameter, diameter, 180, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Y, diameter, diameter, 270, 90);
+            path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+            path.AddArc(bounds.X, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+            path.CloseFigure();
+            return path;
         }
     }
 
