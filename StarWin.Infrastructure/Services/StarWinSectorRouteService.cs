@@ -15,6 +15,7 @@ public sealed class StarWinSectorRouteService(StarWinDbContext dbContext) : ISta
         CancellationToken cancellationToken = default)
     {
         progress?.Report(new SectorRouteSaveProgress("Loading sector", "Reading the active sector and travel configuration.", 10));
+        await Task.Yield();
 
         var sector = await dbContext.Sectors
             .AsSplitQuery()
@@ -26,17 +27,22 @@ public sealed class StarWinSectorRouteService(StarWinDbContext dbContext) : ISta
             ?? throw new InvalidOperationException("Sector was not found.");
 
         progress?.Report(new SectorRouteSaveProgress("Loading empires", "Resolving empire technology levels and ownership data.", 25));
+        await Task.Yield();
 
         var empiresById = await dbContext.Empires
             .AsNoTracking()
             .ToDictionaryAsync(empire => empire.Id, cancellationToken);
 
         progress?.Report(new SectorRouteSaveProgress("Generating routes", $"Evaluating route eligibility across {sector.Systems.Count:N0} systems.", 55));
+        await Task.Yield();
 
-        var routes = SectorRoutePlanner.BuildHyperlaneRoutes(sector, empiresById);
+        var routes = await Task.Run(
+            () => SectorRoutePlanner.BuildHyperlaneRoutes(sector, empiresById),
+            cancellationToken);
         var generatedAtUtc = DateTime.UtcNow;
 
         progress?.Report(new SectorRouteSaveProgress("Preparing saved routes", $"Merging {routes.Count:N0} route segment{(routes.Count == 1 ? string.Empty : "s")} into the sector cache.", 75));
+        await Task.Yield();
 
         var existingRoutes = await dbContext.SectorSavedRoutes
             .Where(route => route.SectorId == sectorId)
@@ -49,6 +55,7 @@ public sealed class StarWinSectorRouteService(StarWinDbContext dbContext) : ISta
         }
 
         progress?.Report(new SectorRouteSaveProgress("Writing database", "Saving the updated route cache to the database.", 90));
+        await Task.Yield();
 
         dbContext.SectorSavedRoutes.AddRange(routes.Select(route => new SectorSavedRoute
         {

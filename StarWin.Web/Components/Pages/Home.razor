@@ -29,7 +29,7 @@
     var sectorEmpires = Workspace.Empires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
     var selectedRace = sectorRaces.FirstOrDefault(race => race.Id == selectedRaceId) ?? sectorRaces.FirstOrDefault();
     var selectedEmpire = sectorEmpires.FirstOrDefault(empire => empire.Id == selectedEmpireId) ?? sectorEmpires.FirstOrDefault();
-    var selectedColony = selectedWorld?.Colony ?? sectorColonies.FirstOrDefault().Colony;
+    var selectedColony = selectedWorld?.Colony ?? sectorColonies.Select(item => item.Colony).FirstOrDefault();
     var selectedColonyWorld = selectedColony is null || sectorCache is null || !sectorCache.WorldsById.TryGetValue(selectedColony.WorldId, out var colonyWorld)
         ? null
         : colonyWorld;
@@ -111,6 +111,14 @@
                              LoadingStatus="@sectionLoadingStatus"
                              SectionSelected="SelectSectionAsync" />
     </section>
+
+    @if (!string.IsNullOrWhiteSpace(explorerRenderError))
+    {
+        <article class="timeline-event-card">
+            <span class="timeline-century">Section error</span>
+            <p>@explorerRenderError</p>
+        </article>
+    }
 
     @if (activeSection == "Overview")
     {
@@ -1543,6 +1551,7 @@
     private decimal tl10OffLaneSpeedMultiplier = 32m;
     private decimal tl10HyperlaneSpeedModifier = 3m;
     private string sectorConfigurationStatus = string.Empty;
+    private string explorerRenderError = string.Empty;
     private bool routeSaveLoadingVisible;
     private string routeSaveLoadingStatus = string.Empty;
     private string routeSaveLoadingDetail = string.Empty;
@@ -1615,117 +1624,134 @@
             return;
         }
 
-        if (activeSection == "Timeline")
+        try
         {
-            renderedOverview = false;
-            await CompleteSectionLoadingIfReadyAsync();
-            return;
-        }
-
-        if (activeSection == "Colonies")
-        {
-            renderedOverview = false;
-            await EnsureEntityImagesLoadedAsync();
-            await ConfigureColonyObserverAsync();
-            await CompleteSectionLoadingIfReadyAsync();
-            return;
-        }
-
-        colonyObserverConfigured = false;
-        if (activeSection == "Systems")
-        {
-            renderedOverview = false;
-            await EnsureEntityImagesLoadedAsync();
-            await CompleteSectionLoadingIfReadyAsync();
-            return;
-        }
-
-        if (activeSection == "Worlds")
-        {
-            renderedOverview = false;
-            await EnsureEntityImagesLoadedAsync();
-            await ConfigureRecordObserverAsync("world", worldHasMoreRecords, () => worldObserverConfigured, value => worldObserverConfigured = value, worldLoadMoreElement, "LoadMoreWorlds");
-            await CompleteSectionLoadingIfReadyAsync();
-            return;
-        }
-
-        worldObserverConfigured = false;
-        if (activeSection == "Aliens")
-        {
-            renderedOverview = false;
-            await EnsureEntityImagesLoadedAsync();
-            await ConfigureRecordObserverAsync("race", raceHasMoreRecords, () => raceObserverConfigured, value => raceObserverConfigured = value, raceLoadMoreElement, "LoadMoreRaces");
-            await CompleteSectionLoadingIfReadyAsync();
-            return;
-        }
-
-        raceObserverConfigured = false;
-        if (activeSection == "Empires")
-        {
-            renderedOverview = false;
-            await EnsureEntityImagesLoadedAsync();
-            await ConfigureRecordObserverAsync("empire", empireHasMoreRecords, () => empireObserverConfigured, value => empireObserverConfigured = value, empireLoadMoreElement, "LoadMoreEmpires");
-            await CompleteSectionLoadingIfReadyAsync();
-            return;
-        }
-
-        empireObserverConfigured = false;
-        if (activeSection != "Overview")
-        {
-            renderedOverview = false;
-            await CompleteSectionLoadingIfReadyAsync();
-            return;
-        }
-
-        if (!sectorMapRequested)
-        {
-            if (autoLoadSectorMap)
+            if (activeSection == "Timeline")
             {
-                sectorMapRequested = true;
                 renderedOverview = false;
-                StateHasChanged();
+                await CompleteSectionLoadingIfReadyAsync();
                 return;
             }
 
-            renderedOverview = false;
-            await CompleteSectionLoadingIfReadyAsync();
-            return;
-        }
+            if (activeSection == "Colonies")
+            {
+                renderedOverview = false;
+                await EnsureEntityImagesLoadedAsync();
+                await ConfigureColonyObserverAsync();
+                await CompleteSectionLoadingIfReadyAsync();
+                return;
+            }
 
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
-        if (!firstRender
-            && renderedOverview
-            && renderedSectorId == sector.Id
-            && renderedSystemId == selectedSystemId
-            && renderedViewDistanceParsecs == sectorMapViewDistanceParsecs
-            && renderedMapRenderLimit == sectorMapRenderLimit
-            && renderedRouteOriginSystemId == routeOriginSystemId
-            && renderedRouteDestinationSystemId == routeDestinationSystemId
-            && renderedRouteConfigurationStamp == GetRouteConfigurationStamp(sector))
+            colonyObserverConfigured = false;
+            if (activeSection == "Systems")
+            {
+                renderedOverview = false;
+                await EnsureEntityImagesLoadedAsync();
+                await CompleteSectionLoadingIfReadyAsync();
+                return;
+            }
+
+            if (activeSection == "Worlds")
+            {
+                renderedOverview = false;
+                await EnsureEntityImagesLoadedAsync();
+                await ConfigureRecordObserverAsync("world", worldHasMoreRecords, () => worldObserverConfigured, value => worldObserverConfigured = value, worldLoadMoreElement, "LoadMoreWorlds");
+                await CompleteSectionLoadingIfReadyAsync();
+                return;
+            }
+
+            worldObserverConfigured = false;
+            if (activeSection == "Aliens")
+            {
+                renderedOverview = false;
+                await EnsureEntityImagesLoadedAsync();
+                await ConfigureRecordObserverAsync("race", raceHasMoreRecords, () => raceObserverConfigured, value => raceObserverConfigured = value, raceLoadMoreElement, "LoadMoreRaces");
+                await CompleteSectionLoadingIfReadyAsync();
+                return;
+            }
+
+            raceObserverConfigured = false;
+            if (activeSection == "Empires")
+            {
+                renderedOverview = false;
+                await EnsureEntityImagesLoadedAsync();
+                await ConfigureRecordObserverAsync("empire", empireHasMoreRecords, () => empireObserverConfigured, value => empireObserverConfigured = value, empireLoadMoreElement, "LoadMoreEmpires");
+                await CompleteSectionLoadingIfReadyAsync();
+                return;
+            }
+
+            empireObserverConfigured = false;
+            if (activeSection != "Overview")
+            {
+                renderedOverview = false;
+                await CompleteSectionLoadingIfReadyAsync();
+                return;
+            }
+
+            if (!sectorMapRequested)
+            {
+                if (autoLoadSectorMap)
+                {
+                    sectorMapRequested = true;
+                    renderedOverview = false;
+                    StateHasChanged();
+                    return;
+                }
+
+                renderedOverview = false;
+                await CompleteSectionLoadingIfReadyAsync();
+                return;
+            }
+
+            var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+            if (!firstRender
+                && renderedOverview
+                && renderedSectorId == sector.Id
+                && renderedSystemId == selectedSystemId
+                && renderedViewDistanceParsecs == sectorMapViewDistanceParsecs
+                && renderedMapRenderLimit == sectorMapRenderLimit
+                && renderedRouteOriginSystemId == routeOriginSystemId
+                && renderedRouteDestinationSystemId == routeDestinationSystemId
+                && renderedRouteConfigurationStamp == GetRouteConfigurationStamp(sector))
+            {
+                await CompleteSectionLoadingIfReadyAsync();
+                return;
+            }
+
+            sectorMapModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/sectorMap3d.js");
+            dotNetReference ??= DotNetObjectReference.Create(this);
+
+            await sectorMapModule.InvokeVoidAsync(
+                "renderSectorMap",
+                sectorMapElement,
+                BuildSectorMap(sector, selectedSystemId),
+                selectedSystemId,
+                dotNetReference);
+
+            renderedSectorId = sector.Id;
+            renderedSystemId = selectedSystemId;
+            renderedViewDistanceParsecs = sectorMapViewDistanceParsecs;
+            renderedMapRenderLimit = sectorMapRenderLimit;
+            renderedRouteOriginSystemId = routeOriginSystemId;
+            renderedRouteDestinationSystemId = routeDestinationSystemId;
+            renderedRouteConfigurationStamp = GetRouteConfigurationStamp(sector);
+            renderedOverview = true;
+            explorerRenderError = string.Empty;
+            await CompleteSectionLoadingIfReadyAsync();
+        }
+        catch (Exception ex)
         {
-            await CompleteSectionLoadingIfReadyAsync();
-            return;
+            explorerRenderError = ex.GetBaseException().Message;
+            sectionLoadingVisible = false;
+            sectionLoadingAwaitingTargetRender = false;
+            sectionLoadingTarget = string.Empty;
+            sectionLoadingStatus = string.Empty;
+            colonyObserverConfigured = false;
+            worldObserverConfigured = false;
+            raceObserverConfigured = false;
+            empireObserverConfigured = false;
+            StateHasChanged();
         }
-
-        sectorMapModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/sectorMap3d.js");
-        dotNetReference ??= DotNetObjectReference.Create(this);
-
-        await sectorMapModule.InvokeVoidAsync(
-            "renderSectorMap",
-            sectorMapElement,
-            BuildSectorMap(sector, selectedSystemId),
-            selectedSystemId,
-            dotNetReference);
-
-        renderedSectorId = sector.Id;
-        renderedSystemId = selectedSystemId;
-        renderedViewDistanceParsecs = sectorMapViewDistanceParsecs;
-        renderedMapRenderLimit = sectorMapRenderLimit;
-        renderedRouteOriginSystemId = routeOriginSystemId;
-        renderedRouteDestinationSystemId = routeDestinationSystemId;
-        renderedRouteConfigurationStamp = GetRouteConfigurationStamp(sector);
-        renderedOverview = true;
-        await CompleteSectionLoadingIfReadyAsync();
     }
 
     private async Task EnsureEntityImagesLoadedAsync()
@@ -1737,6 +1763,7 @@
 
         entityImages = await ImageService.GetImagesAsync();
         entityImagesLoaded = true;
+        explorerRenderError = string.Empty;
         StateHasChanged();
     }
 
@@ -1751,6 +1778,7 @@
         sectionLoadingStatus = $"Preparing {sectionName} records...";
         sectionLoadingAwaitingTargetRender = false;
         sectionLoadingVisible = true;
+        explorerRenderError = string.Empty;
         StateHasChanged();
 
         await Task.Delay(80);
@@ -2633,6 +2661,8 @@
         routeSaveLoadingDetail = "Preparing to refresh the route cache for this sector.";
         routeSaveLoadingPercent = 5;
         StateHasChanged();
+        await Task.Yield();
+        await Task.Delay(60);
 
         var progress = new Progress<SectorRouteSaveProgress>(update =>
         {
@@ -2655,6 +2685,10 @@
             sectorConfigurationStatus = result.ReplacedExistingRoutes
                 ? $"Updated {result.RouteCount:N0} saved route segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sector.Name}."
                 : $"Saved {result.RouteCount:N0} route segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sector.Name}.";
+        }
+        catch (Exception ex)
+        {
+            sectorConfigurationStatus = $"Route save failed: {ex.GetBaseException().Message}";
         }
         finally
         {

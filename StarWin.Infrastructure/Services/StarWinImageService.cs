@@ -18,13 +18,17 @@ public sealed class StarWinImageService(StarWinDbContext dbContext, IHostEnviron
 
     public async Task<IReadOnlyList<EntityImage>> GetImagesAsync(CancellationToken cancellationToken = default)
     {
-        return await dbContext.EntityImages
+        var images = await dbContext.EntityImages
             .AsNoTracking()
+            .ToListAsync(cancellationToken);
+
+        // SQLite cannot order by DateTimeOffset server-side, so normalize ordering in memory.
+        return images
             .OrderBy(image => image.TargetKind)
             .ThenBy(image => image.TargetId)
             .ThenByDescending(image => image.IsPrimary)
-            .ThenBy(image => image.UploadedAt)
-            .ToListAsync(cancellationToken);
+            .ThenBy(image => image.UploadedAt.UtcTicks)
+            .ToList();
     }
 
     public async Task<EntityImage> UploadImageAsync(
