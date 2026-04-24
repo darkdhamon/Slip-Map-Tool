@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
 using System.Text.Json;
+using System.ComponentModel;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -743,8 +744,8 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
 
     private sealed class SplashForm : Form
     {
-        private readonly Label titleLabel;
-        private readonly Label detailLabel;
+        private readonly OutlinedLabel titleLabel;
+        private readonly OutlinedLabel detailLabel;
         private readonly ProgressBar progressBar;
 
         public SplashForm()
@@ -772,38 +773,42 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
                 Region = BuildRegionFromAlpha(splashImage);
             }
 
-            titleLabel = new Label
+            titleLabel = new OutlinedLabel
             {
                 AutoSize = false,
-                Left = 220,
-                Top = 620,
-                Width = 560,
-                Height = 54,
-                Font = new Font("Segoe UI Semibold", 18f, FontStyle.Bold),
+                Left = 170,
+                Top = 640,
+                Width = 440,
+                Height = 56,
+                Font = new Font("Segoe UI Semibold", 20f, FontStyle.Bold),
                 BackColor = Color.Transparent,
                 ForeColor = Color.FromArgb(248, 250, 252),
+                ShadowColor = Color.FromArgb(220, 3, 7, 18),
+                OutlineColor = Color.FromArgb(180, 2, 6, 23),
                 Text = "Preparing desktop shell"
             };
 
-            detailLabel = new Label
+            detailLabel = new OutlinedLabel
             {
                 AutoSize = false,
-                Left = 220,
-                Top = 680,
-                Width = 560,
-                Height = 70,
-                Font = new Font("Segoe UI", 11.5f, FontStyle.Regular),
+                Left = 170,
+                Top = 702,
+                Width = 430,
+                Height = 74,
+                Font = new Font("Segoe UI Semibold", 12.5f, FontStyle.Regular),
                 BackColor = Color.Transparent,
-                ForeColor = Color.FromArgb(191, 219, 254),
+                ForeColor = Color.FromArgb(226, 232, 240),
+                ShadowColor = Color.FromArgb(220, 3, 7, 18),
+                OutlineColor = Color.FromArgb(180, 2, 6, 23),
                 Text = "Checking for a shared local backend."
             };
 
             progressBar = new ProgressBar
             {
-                Left = 220,
-                Top = 772,
-                Width = 600,
-                Height = 16,
+                Left = 170,
+                Top = 792,
+                Width = 560,
+                Height = 18,
                 Style = ProgressBarStyle.Marquee,
                 MarqueeAnimationSpeed = 28
             };
@@ -878,6 +883,44 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             }
 
             return new Region(path);
+        }
+    }
+
+    private sealed class OutlinedLabel : Control
+    {
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Color ShadowColor { get; set; } = Color.FromArgb(220, 0, 0, 0);
+
+        [Browsable(false)]
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+        public Color OutlineColor { get; set; } = Color.FromArgb(180, 0, 0, 0);
+
+        public OutlinedLabel()
+        {
+            SetStyle(
+                ControlStyles.AllPaintingInWmPaint
+                | ControlStyles.OptimizedDoubleBuffer
+                | ControlStyles.ResizeRedraw
+                | ControlStyles.SupportsTransparentBackColor
+                | ControlStyles.UserPaint,
+                true);
+            BackColor = Color.Transparent;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            var bounds = ClientRectangle;
+            var flags = TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis;
+
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X + 2, bounds.Y + 2, bounds.Width, bounds.Height), ShadowColor, flags);
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X - 1, bounds.Y, bounds.Width, bounds.Height), OutlineColor, flags);
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X + 1, bounds.Y, bounds.Width, bounds.Height), OutlineColor, flags);
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X, bounds.Y - 1, bounds.Width, bounds.Height), OutlineColor, flags);
+            TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(bounds.X, bounds.Y + 1, bounds.Width, bounds.Height), OutlineColor, flags);
+            TextRenderer.DrawText(e.Graphics, Text, Font, bounds, ForeColor, flags);
         }
     }
 }
