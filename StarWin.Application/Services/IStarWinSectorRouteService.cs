@@ -19,4 +19,6 @@ public sealed record SectorRouteSaveResult(
 public sealed record SectorRouteSaveProgress(
     string Status,
     string Detail,
-    int Percent);
+    int Percent,
+    int? ProcessedItems = null,
+    int? TotalItems = null);

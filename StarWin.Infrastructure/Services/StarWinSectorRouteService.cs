@@ -33,11 +33,24 @@ public sealed class StarWinSectorRouteService(StarWinDbContext dbContext) : ISta
             .AsNoTracking()
             .ToDictionaryAsync(empire => empire.Id, cancellationToken);
 
-        progress?.Report(new SectorRouteSaveProgress("Generating routes", $"Evaluating route eligibility across {sector.Systems.Count:N0} systems.", 55));
+        progress?.Report(new SectorRouteSaveProgress("Generating routes", $"Scanning {sector.Systems.Count:N0} systems for TL6+ colony hyperlane endpoints.", 35, 0, sector.Systems.Count));
         await Task.Yield();
 
         var routes = await Task.Run(
-            () => SectorRoutePlanner.BuildHyperlaneRoutes(sector, empiresById),
+            () => SectorRoutePlanner.BuildHyperlaneRoutes(
+                sector,
+                empiresById,
+                update =>
+                {
+                    var totalSystems = Math.Max(1, update.TotalSystems);
+                    var percent = 35 + (int)Math.Round(update.ProcessedSystems * 35d / totalSystems, MidpointRounding.AwayFromZero);
+                    progress?.Report(new SectorRouteSaveProgress(
+                        "Generating routes",
+                        $"Processed {update.ProcessedSystems:N0} of {update.TotalSystems:N0} TL6+ colony systems and found {update.CandidateRouteCount:N0} candidate hyperlane segment{(update.CandidateRouteCount == 1 ? string.Empty : "s")}.",
+                        Math.Clamp(percent, 35, 70),
+                        update.ProcessedSystems,
+                        update.TotalSystems));
+                }),
             cancellationToken);
         var generatedAtUtc = DateTime.UtcNow;
 

@@ -9,26 +9,40 @@ public static class SectorRoutePlanner
 
     public static IReadOnlyList<SectorHyperlaneRouteDefinition> BuildHyperlaneRoutes(
         StarWinSector sector,
-        IReadOnlyDictionary<int, Empire> empiresById)
+        IReadOnlyDictionary<int, Empire> empiresById,
+        Action<SectorHyperlaneRouteBuildProgress>? progress = null)
     {
         if (sector.Systems.Count < 2)
         {
             return [];
         }
 
-        var candidates = new List<SectorHyperlaneRouteDefinition>();
-        for (var sourceIndex = 0; sourceIndex < sector.Systems.Count; sourceIndex++)
+        var eligibleSystems = sector.Systems
+            .Select(system => new HyperlaneEligibleSystem(system, GetSystemEmpires(system, empiresById).ToList()))
+            .Where(item => item.Empires.Any(empire => empire.CivilizationProfile.TechLevel >= 6))
+            .ToList();
+        if (eligibleSystems.Count < 2)
         {
-            var source = sector.Systems[sourceIndex];
-            for (var targetIndex = sourceIndex + 1; targetIndex < sector.Systems.Count; targetIndex++)
+            progress?.Invoke(new SectorHyperlaneRouteBuildProgress(eligibleSystems.Count, eligibleSystems.Count, 0));
+            return [];
+        }
+
+        var candidates = new List<SectorHyperlaneRouteDefinition>();
+        progress?.Invoke(new SectorHyperlaneRouteBuildProgress(0, eligibleSystems.Count, 0));
+
+        for (var sourceIndex = 0; sourceIndex < eligibleSystems.Count; sourceIndex++)
+        {
+            var source = eligibleSystems[sourceIndex];
+            for (var targetIndex = sourceIndex + 1; targetIndex < eligibleSystems.Count; targetIndex++)
             {
-                var target = sector.Systems[targetIndex];
-                var distanceParsecs = CalculateParsecDistance(source.Coordinates, target.Coordinates);
+                var target = eligibleSystems[targetIndex];
+                var distanceParsecs = CalculateParsecDistance(source.System.Coordinates, target.System.Coordinates);
                 if (!TryResolveHyperlaneRule(
-                        source,
-                        target,
+                        source.System,
+                        source.Empires,
+                        target.System,
+                        target.Empires,
                         sector.Configuration,
-                        empiresById,
                         out var resolvedTier,
                         out var ownership))
                 {
@@ -42,8 +56,8 @@ public static class SectorRoutePlanner
                 }
 
                 candidates.Add(new SectorHyperlaneRouteDefinition(
-                    source.Id,
-                    target.Id,
+                    source.System.Id,
+                    target.System.Id,
                     distanceParsecs,
                     CalculateHyperlaneTravelTimeYears(sector.Configuration, resolvedTier, distanceParsecs),
                     resolvedTier,
@@ -53,6 +67,8 @@ public static class SectorRoutePlanner
                     ownership.SecondaryOwnerEmpireId,
                     ownership.SecondaryOwnerEmpireName));
             }
+
+            progress?.Invoke(new SectorHyperlaneRouteBuildProgress(sourceIndex + 1, eligibleSystems.Count, candidates.Count));
         }
 
         return ApplyConnectionLimits(candidates, sector.Configuration)
@@ -69,11 +85,23 @@ public static class SectorRoutePlanner
         out int technologyLevel,
         out SectorHyperlaneOwnership ownership)
     {
+        var sourceEmpires = GetSystemEmpires(source, empiresById).ToList();
+        var targetEmpires = GetSystemEmpires(target, empiresById).ToList();
+        return TryResolveHyperlaneRule(source, sourceEmpires, target, targetEmpires, configuration, out technologyLevel, out ownership);
+    }
+
+    private static bool TryResolveHyperlaneRule(
+        StarSystem source,
+        IReadOnlyList<Empire> sourceEmpires,
+        StarSystem target,
+        IReadOnlyList<Empire> targetEmpires,
+        SectorConfiguration configuration,
+        out int technologyLevel,
+        out SectorHyperlaneOwnership ownership)
+    {
         technologyLevel = 0;
         ownership = SectorHyperlaneOwnership.None;
 
-        var sourceEmpires = GetSystemEmpires(source, empiresById).ToList();
-        var targetEmpires = GetSystemEmpires(target, empiresById).ToList();
         if (sourceEmpires.Count == 0 || targetEmpires.Count == 0)
         {
             return false;
@@ -386,6 +414,10 @@ public static class SectorRoutePlanner
         Standard,
         CrossEmpireBonus
     }
+
+    private sealed record HyperlaneEligibleSystem(
+        StarSystem System,
+        IReadOnlyList<Empire> Empires);
 }
 
 public sealed record SectorHyperlaneRouteDefinition(
@@ -408,3 +440,8 @@ public sealed record SectorHyperlaneOwnership(
 {
     public static SectorHyperlaneOwnership None { get; } = new(null, string.Empty, null, string.Empty);
 }
+
+public sealed record SectorHyperlaneRouteBuildProgress(
+    int ProcessedSystems,
+    int TotalSystems,
+    int CandidateRouteCount);

@@ -1414,6 +1414,10 @@
             {
                 <p class="loading-progress-detail">@routeSaveLoadingDetail</p>
             }
+            @if (routeSaveProcessedItems is int processedItems && routeSaveTotalItems is int totalItems && totalItems > 0)
+            {
+                <strong class="loading-progress-value">@processedItems / @totalItems systems processed</strong>
+            }
             <div class="loading-meter import-progress-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@routeSaveLoadingPercent">
                 <span style="width: @routeSaveLoadingPercent%;"></span>
             </div>
@@ -1556,6 +1560,8 @@
     private string routeSaveLoadingStatus = string.Empty;
     private string routeSaveLoadingDetail = string.Empty;
     private int routeSaveLoadingPercent;
+    private int? routeSaveProcessedItems;
+    private int? routeSaveTotalItems;
     private int sectorMapViewDistanceParsecs = DefaultSectorMapViewDistanceParsecs;
     private int sectorMapRenderLimit = SectorMapUnrestrictedRenderedSystems;
     private string sectorMapPerformanceStatus = string.Empty;
@@ -2660,6 +2666,8 @@
         routeSaveLoadingStatus = "Loading sector";
         routeSaveLoadingDetail = "Preparing to refresh the route cache for this sector.";
         routeSaveLoadingPercent = 5;
+        routeSaveProcessedItems = null;
+        routeSaveTotalItems = null;
         StateHasChanged();
         await Task.Yield();
         await Task.Delay(60);
@@ -2669,6 +2677,8 @@
             routeSaveLoadingStatus = update.Status;
             routeSaveLoadingDetail = update.Detail;
             routeSaveLoadingPercent = Math.Clamp(update.Percent, 0, 100);
+            routeSaveProcessedItems = update.ProcessedItems;
+            routeSaveTotalItems = update.TotalItems;
             InvokeAsync(StateHasChanged);
         });
 
@@ -2678,6 +2688,8 @@
             routeSaveLoadingStatus = "Refreshing explorer";
             routeSaveLoadingDetail = "Reloading the current sector so the updated routes are ready to use.";
             routeSaveLoadingPercent = 100;
+            routeSaveProcessedItems = null;
+            routeSaveTotalItems = null;
             await Workspace.ReloadAsync();
             generatedSectorRouteCache.Remove(sector.Id);
             routeGraphCaches.Clear();
@@ -2697,6 +2709,8 @@
             routeSaveLoadingStatus = string.Empty;
             routeSaveLoadingDetail = string.Empty;
             routeSaveLoadingPercent = 0;
+            routeSaveProcessedItems = null;
+            routeSaveTotalItems = null;
             StateHasChanged();
         }
     }
