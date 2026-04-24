@@ -253,8 +253,7 @@ function addRouteLines(state, sector, selectedSystemId) {
             continue;
         }
 
-        const selected = route.sourceId === selectedSystemId || route.targetId === selectedSystemId;
-        const bucketKey = `${route.hyperlaneTechLevel ?? 6}:${selected ? "selected" : "normal"}`;
+        const bucketKey = `${route.hyperlaneTechLevel ?? 6}:normal`;
         if (!routeBuckets.has(bucketKey)) {
             routeBuckets.set(bucketKey, []);
         }
@@ -264,20 +263,19 @@ function addRouteLines(state, sector, selectedSystemId) {
 
     for (const [bucketKey, positions] of routeBuckets.entries()) {
         const [tierText, stateText] = bucketKey.split(":");
-        const selected = stateText === "selected";
-        const palette = getHyperlanePalette(Number(tierText || 6), selected);
+        const palette = getHyperlanePalette(Number(tierText || 6), false);
         state.routeGroup.add(createRouteLineSegments(
             THREE,
             positions,
             palette.primary,
-            routePath.length ? (selected ? 0.3 : 0.16) : (selected ? 0.92 : 0.48),
+            routePath.length ? 0.14 : 0.52,
             true));
         if (!routePath.length) {
             state.routeGroup.add(createRouteLineSegments(
                 THREE,
                 positions,
                 palette.secondary,
-                selected ? 0.54 : 0.26,
+                0.3,
                 false));
         }
     }
@@ -317,16 +315,18 @@ function addRouteLines(state, sector, selectedSystemId) {
 
 function getHyperlanePalette(technologyLevel, selected) {
     switch (technologyLevel) {
+        case 6:
+            return selected ? { primary: 0xc084fc, secondary: 0xf3e8ff } : { primary: 0x9333ea, secondary: 0xe9d5ff };
         case 7:
-            return selected ? { primary: 0x34d399, secondary: 0xdcfce7 } : { primary: 0x059669, secondary: 0xa7f3d0 };
+            return selected ? { primary: 0x7c9cff, secondary: 0xdbeafe } : { primary: 0x4169e1, secondary: 0x93c5fd };
         case 8:
-            return selected ? { primary: 0xf59e0b, secondary: 0xfef3c7 } : { primary: 0xd97706, secondary: 0xfcd34d };
+            return selected ? { primary: 0x5eead4, secondary: 0xccfbf1 } : { primary: 0x0f766e, secondary: 0x99f6e4 };
         case 9:
-            return selected ? { primary: 0xef4444, secondary: 0xfee2e2 } : { primary: 0xdc2626, secondary: 0xfca5a5 };
+            return selected ? { primary: 0x4ade80, secondary: 0xdcfce7 } : { primary: 0x16a34a, secondary: 0x86efac };
         case 10:
-            return selected ? { primary: 0xeab308, secondary: 0xfef9c3 } : { primary: 0xca8a04, secondary: 0xfde047 };
+            return selected ? { primary: 0xfcd34d, secondary: 0xfef3c7 } : { primary: 0xd4af37, secondary: 0xfde68a };
         default:
-            return selected ? { primary: 0x38bdf8, secondary: 0xe0f2fe } : { primary: 0x0ea5e9, secondary: 0x7dd3fc };
+            return selected ? { primary: 0xc084fc, secondary: 0xf3e8ff } : { primary: 0x9333ea, secondary: 0xe9d5ff };
     }
 }
 

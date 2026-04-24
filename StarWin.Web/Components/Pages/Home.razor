@@ -169,7 +169,7 @@
                             <span>3D Sector Map</span>
                             <strong>@sector.Name</strong>
                             <small>@GetSectorMapSystemCount(sector, selectedSystem) of @sector.Systems.Count systems within @sectorMapViewDistanceParsecs parsecs@(IsSectorMapCapped(sector, selectedSystem) ? $" (closest {sectorMapRenderLimit:N0} shown)" : string.Empty)</small>
-                            <small>@GetSectorMapRouteCount(sector, selectedSystem) visible basic/owned hyperlanes</small>
+                        <small>@GetSectorMapRouteCount(sector, selectedSystem) visible hyperlanes</small>
                             @if (!string.IsNullOrWhiteSpace(sectorMapPerformanceStatus))
                             {
                                 <small class="map-performance-status">@sectorMapPerformanceStatus</small>
@@ -4227,12 +4227,12 @@
 
         return leg.TechnologyLevel switch
         {
-            6 => "basic-hyperlane",
-            7 => "owned-hyperlane",
-            8 => "prime-hyperlane",
-            9 => "prime-hyperlane",
-            10 => "gold-hyperlane",
-            _ => "basic-hyperlane"
+            6 => "tl6-hyperlane",
+            7 => "tl7-hyperlane",
+            8 => "tl8-hyperlane",
+            9 => "tl9-hyperlane",
+            10 => "tl10-hyperlane",
+            _ => "tl6-hyperlane"
         };
     }
 

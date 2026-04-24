@@ -1357,21 +1357,33 @@ dd {
     text-align: left;
 }
 
-.route-leg.basic-hyperlane {
-    border-color: rgba(34, 211, 238, 0.52);
-    background: rgba(8, 47, 73, 0.34);
-    color: #cffafe;
-}
-
-.route-leg.owned-hyperlane {
-    border-color: rgba(192, 132, 252, 0.52);
+.route-leg.tl6-hyperlane {
+    border-color: rgba(147, 51, 234, 0.56);
     background: rgba(59, 7, 100, 0.34);
     color: #f3e8ff;
 }
 
-.route-leg.gold-hyperlane {
-    border-color: rgba(251, 191, 36, 0.56);
-    background: rgba(113, 63, 18, 0.34);
+.route-leg.tl7-hyperlane {
+    border-color: rgba(65, 105, 225, 0.58);
+    background: rgba(23, 37, 84, 0.38);
+    color: #dbeafe;
+}
+
+.route-leg.tl8-hyperlane {
+    border-color: rgba(15, 118, 110, 0.58);
+    background: rgba(19, 78, 74, 0.34);
+    color: #ccfbf1;
+}
+
+.route-leg.tl9-hyperlane {
+    border-color: rgba(22, 163, 74, 0.58);
+    background: rgba(20, 83, 45, 0.34);
+    color: #dcfce7;
+}
+
+.route-leg.tl10-hyperlane {
+    border-color: rgba(212, 175, 55, 0.6);
+    background: rgba(120, 53, 15, 0.34);
     color: #fef3c7;
 }
 
