@@ -1962,6 +1962,72 @@ dd {
     color: var(--muted);
 }
 
+.hyperlane-layout {
+    display: grid;
+    grid-template-columns: minmax(320px, 0.9fr) minmax(420px, 1.1fr);
+    gap: 18px;
+    align-items: start;
+}
+
+.hyperlane-list-panel,
+.hyperlane-editor-panel {
+    display: grid;
+    gap: 14px;
+}
+
+.hyperlane-network-summary {
+    margin: 0;
+}
+
+.hyperlane-record-list {
+    display: grid;
+    gap: 10px;
+    max-height: calc(100vh - 300px);
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.hyperlane-record {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+    width: 100%;
+    border: 1px solid rgba(125, 211, 252, 0.16);
+    border-radius: 8px;
+    background: rgba(3, 10, 24, 0.48);
+    color: var(--ink);
+    padding: 14px;
+    text-align: left;
+}
+
+.hyperlane-record strong {
+    color: #f8fbff;
+}
+
+.hyperlane-record small {
+    color: var(--muted);
+}
+
+.hyperlane-record.active,
+.hyperlane-record:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.18);
+}
+
+.hyperlane-badge {
+    border: 1px solid rgba(52, 211, 153, 0.32);
+    border-radius: 999px;
+    background: rgba(6, 95, 70, 0.24);
+    color: #bbf7d0;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 800;
+}
+
+.hyperlane-persist-toggle {
+    margin-top: -4px;
+}
+
 .compact-field-grid {
     grid-template-columns: repeat(2, minmax(160px, 1fr));
 }
@@ -2175,6 +2241,7 @@ dd {
     .control-strip,
     .overview-layout,
     .timeline-layout,
+    .hyperlane-layout,
     .content-grid,
     .generator-layout,
     .import-layout {
@@ -2220,6 +2287,7 @@ dd {
 
     .field-grid,
     .form-grid,
+    .hyperlane-layout,
     .habitat-create-form,
     .toggle-grid,
     .metrics-band {

@@ -26,5 +26,7 @@ public sealed class SectorSavedRoute
 
     public string SecondaryOwnerEmpireName { get; set; } = string.Empty;
 
+    public bool IsUserPersisted { get; set; }
+
     public DateTime GeneratedAtUtc { get; set; } = DateTime.UtcNow;
 }

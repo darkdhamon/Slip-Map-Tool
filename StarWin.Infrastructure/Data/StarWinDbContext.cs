@@ -101,6 +101,7 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.Property(route => route.TierName).HasMaxLength(80);
             entity.Property(route => route.PrimaryOwnerEmpireName).HasMaxLength(160);
             entity.Property(route => route.SecondaryOwnerEmpireName).HasMaxLength(160);
+            entity.Property(route => route.IsUserPersisted);
         });
 
         modelBuilder.Entity<StarSystem>(entity =>
