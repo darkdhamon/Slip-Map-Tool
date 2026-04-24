@@ -5,7 +5,7 @@ using StarWin.Infrastructure.Data;
 
 namespace StarWin.Infrastructure.Services;
 
-public sealed class StarWinEntityNameService(StarWinDbContext dbContext) : IStarWinEntityNameService
+public sealed class StarWinEntityNameService(IDbContextFactory<StarWinDbContext> dbContextFactory) : IStarWinEntityNameService
 {
     public async Task<string> SaveNameAsync(
         EntityNoteTargetKind targetKind,
@@ -13,6 +13,7 @@ public sealed class StarWinEntityNameService(StarWinDbContext dbContext) : IStar
         string name,
         CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var normalizedName = name.Trim();
         if (string.IsNullOrWhiteSpace(normalizedName))
         {

@@ -6,7 +6,9 @@ using StarWin.Infrastructure.Data;
 
 namespace StarWin.Infrastructure.Services;
 
-public sealed class StarWinImageService(StarWinDbContext dbContext, IHostEnvironment environment) : IStarWinImageService
+public sealed class StarWinImageService(
+    IDbContextFactory<StarWinDbContext> dbContextFactory,
+    IHostEnvironment environment) : IStarWinImageService
 {
     private static readonly HashSet<string> AllowedContentTypes =
     [
@@ -18,6 +20,7 @@ public sealed class StarWinImageService(StarWinDbContext dbContext, IHostEnviron
 
     public async Task<IReadOnlyList<EntityImage>> GetImagesAsync(CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var images = await dbContext.EntityImages
             .AsNoTracking()
             .ToListAsync(cancellationToken);
@@ -40,6 +43,7 @@ public sealed class StarWinImageService(StarWinDbContext dbContext, IHostEnviron
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(content);
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         if (!AllowedContentTypes.Contains(contentType))
         {
