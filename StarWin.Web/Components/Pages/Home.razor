@@ -1623,6 +1623,33 @@
     </div>
 }
 
+@if (mapContextRefreshing)
+{
+    var mapContextLoadingLabel = Workspace.IsLoaded ? "Refreshing map context" : "Loading map context";
+    var mapContextLoadingStatus = Workspace.IsLoaded
+        ? "Refreshing the cached 3D sector map data."
+        : "Loading the cached 3D sector map data for the first time.";
+
+    <div class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="@mapContextLoadingLabel">
+        <section class="loading-modal">
+            <span class="panel-kicker">@mapContextLoadingLabel</span>
+            <h2>@mapContextLoadingStatus</h2>
+            @if (!string.IsNullOrWhiteSpace(mapContextStatus))
+            {
+                <p class="loading-progress-detail">@mapContextStatus</p>
+            }
+            <div class="loading-meter" aria-hidden="true">
+                <span></span>
+            </div>
+            <ol>
+                <li>Load the current sector cache from the database.</li>
+                <li>Refresh system, route, and civilization references for the map.</li>
+                <li>Prepare the 3D map so the selected sector can render.</li>
+            </ol>
+        </section>
+    </div>
+}
+
 @code {
     private const int DefaultSectorMapViewDistanceParsecs = 5;
     private const int MaximumSectorMapViewDistanceParsecs = 20;
