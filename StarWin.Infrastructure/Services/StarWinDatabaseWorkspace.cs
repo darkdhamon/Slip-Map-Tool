@@ -15,7 +15,6 @@ public sealed class StarWinDatabaseWorkspace : IStarWinWorkspace
     public StarWinDatabaseWorkspace(IDbContextFactory<StarWinDbContext> dbContextFactory)
     {
         this.dbContextFactory = dbContextFactory;
-        ReloadAsync().GetAwaiter().GetResult();
     }
 
     public IReadOnlyList<StarWinSector> Sectors { get; private set; } = [];
@@ -40,45 +39,13 @@ public sealed class StarWinDatabaseWorkspace : IStarWinWorkspace
         try
         {
             await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            var explorerContext = await StarWinExplorerContextLoader.LoadAsync(dbContext, cancellationToken);
 
-            var sectors = await dbContext.Sectors
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(sector => sector.Configuration)
-            .Include(sector => sector.Systems)
-                .ThenInclude(system => system.AstralBodies)
-            .Include(sector => sector.Systems)
-                .ThenInclude(system => system.Worlds)
-                    .ThenInclude(world => world.UnusualCharacteristics)
-            .Include(sector => sector.Systems)
-                .ThenInclude(system => system.Worlds)
-                    .ThenInclude(world => world.Colony)
-                        .ThenInclude(colony => colony!.Demographics)
-            .Include(sector => sector.Systems)
-                .ThenInclude(system => system.SpaceHabitats)
-            .Include(sector => sector.SavedRoutes)
-            .Include(sector => sector.History)
-            .OrderBy(sector => sector.Name)
-                .ToListAsync(cancellationToken);
-
-            var alienRaces = await dbContext.AlienRaces
-            .AsNoTracking()
-            .OrderBy(race => race.Name)
-                .ToListAsync(cancellationToken);
-
-            var empires = await dbContext.Empires
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(empire => empire.RaceMemberships)
-            .Include(empire => empire.Contacts)
-            .OrderBy(empire => empire.Name)
-                .ToListAsync(cancellationToken);
-
-            Sectors = sectors;
-            AlienRaces = alienRaces;
-            Empires = empires;
-            EmpireContacts = empires.SelectMany(empire => empire.Contacts).ToList();
-            CurrentSector = sectors.FirstOrDefault() ?? new StarWinSector { Id = 0, Name = "No sectors loaded" };
+            Sectors = explorerContext.Sectors;
+            AlienRaces = explorerContext.AlienRaces;
+            Empires = explorerContext.Empires;
+            EmpireContacts = explorerContext.EmpireContacts;
+            CurrentSector = explorerContext.CurrentSector;
             CivilizationSettings = BuildCivilizationSettings(CurrentSector);
             ArmySettings = new ArmyGeneratorSettings();
             PreviewGurpsTemplate = BuildPreviewGurpsTemplate();

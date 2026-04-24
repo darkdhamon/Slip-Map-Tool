@@ -56,7 +56,6 @@ public static class StarWinWebHost
             await app.Services.SeedStarWinDevelopmentDataAsync();
         }
 
-        _ = app.Services.GetRequiredService<IStarWinWorkspace>();
     }
 
     private static bool ShouldApplyMigrationsOnStartup(IConfiguration configuration)

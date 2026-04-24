@@ -1,6 +1,7 @@
 @page "/"
 @rendermode InteractiveServer
 @inject IStarWinWorkspace Workspace
+@inject IStarWinExplorerContextService ExplorerContextService
 @inject IStarWinSearchService SearchService
 @inject IStarWinImageService ImageService
 @inject IStarWinSectorConfigurationService SectorConfigurationService
@@ -13,10 +14,12 @@
 @using StarWin.Domain.Services
 
 @{
-    var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+    var sector = GetSelectedSector();
+    var mapSector = GetMapSector();
     var sectorSummary = GetSectorSummary(sector);
     var sectorCache = ShouldUseFullSectorCache(activeSection) ? GetSectorCache(sector) : null;
     var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
+    var selectedMapSystem = mapSector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? mapSector.Systems.FirstOrDefault();
     var selectedHabitat = selectedSystem?.SpaceHabitats.FirstOrDefault(habitat => habitat.Id == selectedHabitatId);
     var selectedWorld = selectedHabitat is null
         ? selectedSystem?.Worlds.FirstOrDefault(world => world.Id == selectedWorldId) ?? selectedSystem?.Worlds.FirstOrDefault()
@@ -25,8 +28,8 @@
     var sectorColonies = sectorCache?.Colonies ?? [];
     var sectorRaceIds = sectorCache?.RaceIds ?? sectorSummary.RaceIds;
     var sectorEmpireIds = sectorCache?.EmpireIds ?? sectorSummary.EmpireIds;
-    var sectorRaces = Workspace.AlienRaces.Where(race => sectorRaceIds.Contains(race.Id)).OrderBy(race => race.Name).ToList();
-    var sectorEmpires = Workspace.Empires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
+    var sectorRaces = ExplorerAlienRaces.Where(race => sectorRaceIds.Contains(race.Id)).OrderBy(race => race.Name).ToList();
+    var sectorEmpires = ExplorerEmpires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
     var selectedRace = sectorRaces.FirstOrDefault(race => race.Id == selectedRaceId) ?? sectorRaces.FirstOrDefault();
     var selectedEmpire = sectorEmpires.FirstOrDefault(empire => empire.Id == selectedEmpireId) ?? sectorEmpires.FirstOrDefault();
     var selectedColony = selectedWorld?.Colony ?? sectorColonies.Select(item => item.Colony).FirstOrDefault();
@@ -70,7 +73,7 @@
         <label class="control-field sector-field">
             Sector
             <select @bind="selectedSectorId" @bind:after="SelectDefaultSystem">
-                @foreach (var item in Workspace.Sectors)
+                @foreach (var item in ExplorerSectors)
                 {
                     <option value="@item.Id">@item.Name</option>
                 }
@@ -152,7 +155,7 @@
                     {
                         <article class="map-request-panel">
                             <span class="panel-kicker">3D Sector Map</span>
-                            <h2>@sector.Name</h2>
+                            <h2>@mapSector.Name</h2>
                             <p>The interactive map is available on request so large imported sectors do not slow down the explorer while you browse records.</p>
                             <label class="switch-field">
                                 <input type="checkbox"
@@ -160,16 +163,21 @@
                                        @onchange="ToggleAutoLoadSectorMap" />
                                 <span>Auto-load map this session</span>
                             </label>
+                            <button type="button" class="overlay-action" @onclick="RefreshSectorMapContextAsync" disabled="@mapContextRefreshing">Refresh map context</button>
                             <button type="button" class="overlay-action" @onclick="LoadSectorMap">Load 3D map</button>
+                            @if (!string.IsNullOrWhiteSpace(mapContextStatus))
+                            {
+                                <p class="search-empty">@mapContextStatus</p>
+                            }
                         </article>
                     }
                     else
                     {
                         <div class="map-hud">
                             <span>3D Sector Map</span>
-                            <strong>@sector.Name</strong>
-                            <small>@GetSectorMapSystemCount(sector, selectedSystem) of @sector.Systems.Count systems within @sectorMapViewDistanceParsecs parsecs@(IsSectorMapCapped(sector, selectedSystem) ? $" (closest {sectorMapRenderLimit:N0} shown)" : string.Empty)</small>
-                        <small>@GetSectorMapRouteCount(sector, selectedSystem) visible hyperlanes</small>
+                            <strong>@mapSector.Name</strong>
+                            <small>@GetSectorMapSystemCount(mapSector, selectedMapSystem) of @mapSector.Systems.Count systems within @sectorMapViewDistanceParsecs parsecs@(IsSectorMapCapped(mapSector, selectedMapSystem) ? $" (closest {sectorMapRenderLimit:N0} shown)" : string.Empty)</small>
+                        <small>@GetSectorMapRouteCount(mapSector, selectedMapSystem) visible hyperlanes</small>
                             @if (!string.IsNullOrWhiteSpace(sectorMapPerformanceStatus))
                             {
                                 <small class="map-performance-status">@sectorMapPerformanceStatus</small>
@@ -194,6 +202,11 @@
                                        @bind:event="oninput" />
                                 <strong>@sectorMapViewDistanceParsecs pc</strong>
                             </label>
+                            <button type="button" class="overlay-action" @onclick="RefreshSectorMapContextAsync" disabled="@mapContextRefreshing">Refresh map context</button>
+                            @if (!string.IsNullOrWhiteSpace(mapContextStatus))
+                            {
+                                <small>@mapContextStatus</small>
+                            }
                         </div>
                         <button type="button" class="map-fullscreen-button" @onclick="ToggleSectorMapFullscreen">
                             <span class="enter-fullscreen">Full screen</span>
@@ -206,16 +219,16 @@
                             <span>Right-drag pan</span>
                         </div>
                     }
-                    @if (sectorMapRequested && selectedSystem is not null)
+                    @if (sectorMapRequested && selectedMapSystem is not null)
                     {
                         <article class="fullscreen-system-overlay">
                             <span class="panel-kicker">Current system</span>
-                            <h2>@selectedSystem.Name</h2>
+                            <h2>@selectedMapSystem.Name</h2>
                             <dl class="data-list">
-                                <div><dt>Coordinates</dt><dd>@DisplayCoordinates(selectedSystem.Coordinates)</dd></div>
-                                <div><dt>Allegiance</dt><dd>@DisplayAllegiance(selectedSystem.AllegianceId)</dd></div>
-                                <div><dt>Astral bodies</dt><dd>@selectedSystem.AstralBodies.Count</dd></div>
-                                <div><dt>Worlds</dt><dd>@selectedSystem.Worlds.Count</dd></div>
+                                <div><dt>Coordinates</dt><dd>@DisplayCoordinates(selectedMapSystem.Coordinates)</dd></div>
+                                <div><dt>Allegiance</dt><dd>@DisplayAllegiance(selectedMapSystem.AllegianceId)</dd></div>
+                                <div><dt>Astral bodies</dt><dd>@selectedMapSystem.AstralBodies.Count</dd></div>
+                                <div><dt>Worlds</dt><dd>@selectedMapSystem.Worlds.Count</dd></div>
                             </dl>
                             <button type="button" class="overlay-action" @onclick="RecenterSectorMap">Recenter map</button>
                             <button type="button" class="overlay-action" @onclick="OpenSelectedSystemRecord">Open system record</button>
@@ -857,7 +870,7 @@
                                                    maxlength="160" />
                                             <select @bind="spaceHabitatEmpireId">
                                                 <option value="0">Empire</option>
-                                                @foreach (var empire in Workspace.Empires.OrderBy(empire => empire.Name))
+                                        @foreach (var empire in ExplorerEmpires.OrderBy(empire => empire.Name))
                                                 {
                                                     <option value="@empire.Id">@empire.Name</option>
                                                 }
@@ -1077,7 +1090,7 @@
                                        maxlength="160" />
                                 <select @bind="spaceHabitatEmpireId">
                                     <option value="0">Empire</option>
-                                    @foreach (var empire in Workspace.Empires.OrderBy(empire => empire.Name))
+                                        @foreach (var empire in ExplorerEmpires.OrderBy(empire => empire.Name))
                                     {
                                         <option value="@empire.Id">@empire.Name</option>
                                     }
@@ -1624,6 +1637,7 @@
     private readonly string[] sections = ["Overview", "Timeline", "Configuration", "Hyperlanes", "Systems", "Worlds", "Colonies", "Aliens", "Empires"];
     private readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
     private readonly Dictionary<int, HyperlaneSectionCache> hyperlaneSectionCaches = [];
+    private StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     private string activeSection = "Overview";
     private string sectionLoadingTarget = string.Empty;
     private string sectionLoadingStatus = string.Empty;
@@ -1658,6 +1672,8 @@
     private bool renderedOverview;
     private bool sectorMapRequested;
     private bool autoLoadSectorMap;
+    private bool mapContextRefreshing;
+    private string mapContextStatus = string.Empty;
     private SectorMapRoutePlan? plottedRoutePlan;
     private int plottedRouteSectorId;
     private int plottedRouteOriginSystemId;
@@ -1823,26 +1839,34 @@
     }
 
     private IReadOnlyDictionary<int, AlienRace> AlienRacesById =>
-        alienRacesById ??= Workspace.AlienRaces.ToDictionary(race => race.Id);
+        alienRacesById ??= ExplorerAlienRaces.ToDictionary(race => race.Id);
 
     private IReadOnlyDictionary<int, Empire> EmpiresById =>
-        empiresById ??= Workspace.Empires.ToDictionary(empire => empire.Id);
+        empiresById ??= ExplorerEmpires.ToDictionary(empire => empire.Id);
 
     private bool IsSpaceHabitatCreateDisabled =>
         spaceHabitatEmpireId == 0 || sectionLoadingVisible;
 
     private IReadOnlyDictionary<int, World> WorldsById =>
-        worldsById ??= Workspace.Sectors
+        worldsById ??= ExplorerSectors
             .SelectMany(sector => sector.Systems)
             .SelectMany(system => system.Worlds)
             .GroupBy(world => world.Id)
             .ToDictionary(group => group.Key, group => group.First());
 
-    protected override void OnInitialized()
+    private IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
+
+    private IReadOnlyList<AlienRace> ExplorerAlienRaces => explorerContext.AlienRaces;
+
+    private IReadOnlyList<Empire> ExplorerEmpires => explorerContext.Empires;
+
+    protected override async Task OnInitializedAsync()
     {
+        await RefreshExplorerDataAsync();
+
         var initialSector = RequestedSectorId is int requestedSectorId
-            ? Workspace.Sectors.FirstOrDefault(sector => sector.Id == requestedSectorId) ?? Workspace.CurrentSector
-            : Workspace.CurrentSector;
+            ? ExplorerSectors.FirstOrDefault(sector => sector.Id == requestedSectorId) ?? explorerContext.CurrentSector
+            : explorerContext.CurrentSector;
 
         selectedSectorId = initialSector.Id;
         selectedSystemId = initialSector.Systems.FirstOrDefault()?.Id ?? 0;
@@ -1852,6 +1876,96 @@
         selectedWorldId = initialSector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Id ?? 0;
         SelectDefaultCivilizationRecords(initialSector);
         LoadSectorConfigurationForm(initialSector);
+    }
+
+    private async Task RefreshExplorerDataAsync(CancellationToken cancellationToken = default)
+    {
+        var previousSectorIds = ExplorerSectors.Select(sector => sector.Id).ToList();
+        var previousSectorId = selectedSectorId;
+        var previousSystemId = selectedSystemId;
+        var previousWorldId = selectedWorldId;
+        var previousHabitatId = selectedHabitatId;
+        var previousRaceId = selectedRaceId;
+        var previousEmpireId = selectedEmpireId;
+
+        explorerContext = await ExplorerContextService.LoadAsync(cancellationToken);
+        ResetExplorerCaches(previousSectorIds);
+        ResetHyperlaneWindow();
+
+        if (ExplorerSectors.Count == 0)
+        {
+            selectedSectorId = 0;
+            selectedSystemId = 0;
+            selectedWorldId = 0;
+            selectedHabitatId = 0;
+            selectedRaceId = 0;
+            selectedEmpireId = 0;
+            selectedSystemText = string.Empty;
+            routeOriginSystemId = 0;
+            routeOriginText = string.Empty;
+            routeDestinationSystemId = 0;
+            routeDestinationText = string.Empty;
+            return;
+        }
+
+        var selectedSector = ExplorerSectors.FirstOrDefault(sector => sector.Id == previousSectorId) ?? explorerContext.CurrentSector;
+        selectedSectorId = selectedSector.Id;
+        selectedSystemId = selectedSector.Systems.Any(system => system.Id == previousSystemId)
+            ? previousSystemId
+            : selectedSector.Systems.FirstOrDefault()?.Id ?? 0;
+        selectedWorldId = selectedSector.Systems
+            .SelectMany(system => system.Worlds)
+            .Any(world => world.Id == previousWorldId)
+            ? previousWorldId
+            : selectedSector.Systems.FirstOrDefault(system => system.Id == selectedSystemId)?.Worlds.FirstOrDefault()?.Id ?? 0;
+        selectedHabitatId = selectedSector.Systems
+            .SelectMany(system => system.SpaceHabitats)
+            .Any(habitat => habitat.Id == previousHabitatId)
+            ? previousHabitatId
+            : 0;
+        selectedSystemText = FormatSelectedSystem(selectedSector, selectedSystemId);
+        routeOriginSystemId = selectedSector.Systems.Any(system => system.Id == routeOriginSystemId)
+            ? routeOriginSystemId
+            : selectedSystemId;
+        routeOriginText = FormatSelectedSystem(selectedSector, routeOriginSystemId);
+        routeDestinationSystemId = selectedSector.Systems.Any(system => system.Id == routeDestinationSystemId)
+            ? routeDestinationSystemId
+            : 0;
+        routeDestinationText = routeDestinationSystemId == 0 ? string.Empty : FormatSelectedSystem(selectedSector, routeDestinationSystemId);
+
+        var sectorSummary = GetSectorSummary(selectedSector);
+        selectedRaceId = sectorSummary.RaceIds.Contains(previousRaceId)
+            ? previousRaceId
+            : ExplorerAlienRaces.FirstOrDefault(race => sectorSummary.RaceIds.Contains(race.Id))?.Id ?? 0;
+        selectedEmpireId = sectorSummary.EmpireIds.Contains(previousEmpireId)
+            ? previousEmpireId
+            : ExplorerEmpires.FirstOrDefault(empire => sectorSummary.EmpireIds.Contains(empire.Id))?.Id ?? 0;
+
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            RunSearch();
+        }
+    }
+
+    private void ResetExplorerCaches(IEnumerable<int>? sectorIdsToInvalidate = null)
+    {
+        foreach (var sectorId in sectorIdsToInvalidate ?? ExplorerSectors.Select(sector => sector.Id))
+        {
+            sectorCacheBuilder.Invalidate(sectorId);
+            hyperlaneSectionCaches.Remove(sectorId);
+            generatedSectorRouteCache.Remove(sectorId);
+        }
+
+        alienRacesById = null;
+        empiresById = null;
+        worldsById = null;
+        routeGraphCaches.Clear();
+        renderedOverview = false;
+    }
+
+    private StarWinSector GetMapSector()
+    {
+        return Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -1952,7 +2066,7 @@
                 return;
             }
 
-            var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+            var sector = GetMapSector();
             if (!firstRender
                 && renderedOverview
                 && renderedSectorId == sector.Id
@@ -2032,6 +2146,7 @@
         StateHasChanged();
 
         await Task.Delay(80);
+        await RefreshExplorerDataAsync();
 
         sectionLoadingStatus = $"Rendering {sectionName}...";
         activeSection = sectionName;
@@ -2059,10 +2174,45 @@
         StateHasChanged();
     }
 
-    private void LoadSectorMap()
+    private async Task LoadSectorMap()
     {
         sectorMapRequested = true;
         renderedOverview = false;
+
+        if (Workspace.Sectors.Count == 0)
+        {
+            await RefreshSectorMapContextAsync();
+        }
+    }
+
+    private async Task RefreshSectorMapContextAsync()
+    {
+        if (mapContextRefreshing)
+        {
+            return;
+        }
+
+        mapContextRefreshing = true;
+        mapContextStatus = "Refreshing cached sector map context...";
+        StateHasChanged();
+
+        try
+        {
+            await Workspace.ReloadAsync();
+            generatedSectorRouteCache.Clear();
+            routeGraphCaches.Clear();
+            renderedOverview = false;
+            mapContextStatus = "Sector map context refreshed.";
+        }
+        catch (Exception ex)
+        {
+            mapContextStatus = $"Map context refresh failed: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            mapContextRefreshing = false;
+            StateHasChanged();
+        }
     }
 
     private async Task ToggleAutoLoadSectorMap(ChangeEventArgs args)
@@ -2070,8 +2220,7 @@
         autoLoadSectorMap = args.Value is bool value && value;
         if (autoLoadSectorMap)
         {
-            sectorMapRequested = true;
-            renderedOverview = false;
+            await LoadSectorMap();
         }
 
         await PersistExplorerSessionAsync();
@@ -2080,7 +2229,7 @@
     private void SelectSystem(int systemId)
     {
         selectedSystemId = systemId;
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         activeSection = activeSection == "Overview" ? "Overview" : "Systems";
         SelectDefaultWorld();
@@ -2096,7 +2245,7 @@
     {
         if (!sectorMapRequested)
         {
-            LoadSectorMap();
+            await LoadSectorMap();
             return;
         }
 
@@ -2119,7 +2268,7 @@
     public async Task SelectSystemFromMap(int systemId)
     {
         selectedSystemId = systemId;
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         activeSection = "Overview";
         SelectDefaultWorld();
@@ -2144,7 +2293,7 @@
 
     private void SelectWorld(int worldId)
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var system = sector.Systems.FirstOrDefault(system => system.Worlds.Any(world => world.Id == worldId));
         if (system is not null)
         {
@@ -2160,7 +2309,7 @@
 
     private void SelectHabitat(int habitatId)
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var system = sector.Systems.FirstOrDefault(system => system.SpaceHabitats.Any(habitat => habitat.Id == habitatId));
         if (system is not null)
         {
@@ -2175,7 +2324,7 @@
 
     private void SelectParentOfHabitat(SpaceHabitat habitat)
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var system = sector.Systems.FirstOrDefault(system => system.SpaceHabitats.Any(item => item.Id == habitat.Id))
             ?? sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId);
 
@@ -2250,7 +2399,7 @@
 
     private void AddSpaceHabitatToWorkspace(int systemId, SpaceHabitat habitat)
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var system = sector.Systems.FirstOrDefault(item => item.Id == systemId);
         if (system is null || system.SpaceHabitats.Any(item => item.Id == habitat.Id))
         {
@@ -2266,7 +2415,7 @@
     private void CompleteSpaceHabitatCreate(int systemId, string habitatName)
     {
         selectedSystemId = systemId;
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         spaceHabitatName = string.Empty;
         spaceHabitatStatus = $"{habitatName} created.";
@@ -2293,7 +2442,7 @@
 
     private void SelectDefaultSystem()
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         selectedWorldId = sector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Id ?? 0;
@@ -2311,7 +2460,7 @@
 
     private void SelectDefaultWorld()
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var system = sector.Systems.FirstOrDefault(item => item.Id == selectedSystemId);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         selectedWorldId = system?.Worlds.FirstOrDefault()?.Id ?? 0;
@@ -2321,7 +2470,7 @@
 
     private void ApplySelectedSystemText()
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var systemId = ParseComboId(selectedSystemText);
         if (systemId == TimelineAllFilterId || sector.Systems.All(system => system.Id != systemId))
         {
@@ -2343,7 +2492,7 @@
 
     private void ApplyRouteOriginText()
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var systemId = ParseComboId(routeOriginText);
         if (systemId == TimelineAllFilterId || sector.Systems.All(system => system.Id != systemId))
         {
@@ -2362,7 +2511,7 @@
 
     private void ApplyRouteDestinationText()
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var systemId = ParseComboId(routeDestinationText);
         if (systemId == TimelineAllFilterId || sector.Systems.All(system => system.Id != systemId))
         {
@@ -2395,7 +2544,7 @@
         try
         {
             var result = await IndependentColonyService.ConvertIndependentColoniesAsync(sectorId);
-            ApplyIndependentColonyConversion(sectorId, result);
+            await RefreshExplorerDataAsync();
             sectorConfigurationStatus = result.Assignments.Count == 0
                 ? "No independent colonies needed conversion."
                 : $"Created {result.CreatedEmpires.Count:N0} empire{(result.CreatedEmpires.Count == 1 ? string.Empty : "s")} and assigned {result.Assignments.Count:N0} colon{(result.Assignments.Count == 1 ? "y" : "ies")}.";
@@ -2404,53 +2553,6 @@
         {
             sectorConfigurationStatus = ex.Message;
         }
-    }
-
-    private void ApplyIndependentColonyConversion(int sectorId, IndependentColonyConversionResult result)
-    {
-        if (result.Assignments.Count == 0)
-        {
-            return;
-        }
-
-        if (Workspace.Empires is IList<Empire> empireList)
-        {
-            foreach (var empire in result.CreatedEmpires.Where(empire => empireList.All(existing => existing.Id != empire.Id)))
-            {
-                empireList.Add(empire);
-            }
-        }
-
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == sectorId);
-        if (sector is not null)
-        {
-            var assignmentsByColonyId = result.Assignments.ToDictionary(assignment => assignment.ColonyId);
-            foreach (var colony in sector.Systems
-                .SelectMany(system => system.Worlds)
-                .Select(world => world.Colony)
-                .OfType<Colony>())
-            {
-                if (assignmentsByColonyId.TryGetValue(colony.Id, out var assignment))
-                {
-                    colony.ControllingEmpireId = assignment.EmpireId;
-                    colony.FoundingEmpireId = assignment.EmpireId;
-                    colony.PoliticalStatus = ColonyPoliticalStatus.Controlled;
-                    colony.AllegianceName = assignment.EmpireName;
-                }
-            }
-
-            sector.History.Add(new HistoryEvent
-            {
-                SectorId = sector.Id,
-                Century = 0,
-                EventType = "Configuration",
-                Description = $"Created {result.CreatedEmpires.Count:N0} independent colony empires and assigned {result.Assignments.Count:N0} colonies."
-            });
-            sectorCacheBuilder.Invalidate(sector.Id);
-        }
-
-        empiresById = null;
-        renderedOverview = false;
     }
 
     private async Task PlotSelectedRouteAsync()
@@ -2479,7 +2581,7 @@
             return;
         }
 
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var origin = sector.Systems.FirstOrDefault(system => system.Id == routeOriginSystemId);
         var destination = sector.Systems.FirstOrDefault(system => system.Id == routeDestinationSystemId);
         if (origin is null || destination is null || origin.Id == destination.Id)
@@ -2511,7 +2613,7 @@
         plottedRouteOptimizationMode = routeOptimizationMode;
         plottedRouteConfigurationStamp = GetRouteConfigurationStamp(sector);
 
-        sectorMapRequested = true;
+        await LoadSectorMap();
         renderedOverview = false;
         sectionLoadingStatus = "Rendering route map...";
         StateHasChanged();
@@ -2525,7 +2627,7 @@
 
     private void ClearSelectedRoute()
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         routeOriginSystemId = selectedSystemId;
         routeOriginText = FormatSelectedSystem(sector, routeOriginSystemId);
         routeDestinationSystemId = 0;
@@ -2788,7 +2890,7 @@
             return;
         }
 
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == storedSelection.SectorId);
+        var sector = ExplorerSectors.FirstOrDefault(item => item.Id == storedSelection.SectorId);
         if (sector is null)
         {
             return;
@@ -2863,7 +2965,7 @@
 
     private async Task SaveSectorConfiguration()
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         string savedSectorName;
         try
         {
@@ -2905,9 +3007,9 @@
                 Tl10HyperlaneSpeedModifier = tl10HyperlaneSpeedModifier
             });
 
-        sector.Name = savedSectorName;
-        sector.Configuration = configuration;
-        LoadSectorConfigurationForm(sector);
+        await RefreshExplorerDataAsync();
+        var reloadedSector = ExplorerSectors.FirstOrDefault(item => item.Id == sector.Id) ?? explorerContext.CurrentSector;
+        LoadSectorConfigurationForm(reloadedSector);
         sectorConfigurationStatus = $"{savedSectorName} saved. Off-lane distance is {configuration.OffLaneMaximumDistanceParsecs:0.###} parsecs, and TL6-TL10 travel tiers now use the current sector configuration.";
         routeGraphCaches.Clear();
         generatedSectorRouteCache.Remove(sector.Id);
@@ -2923,7 +3025,7 @@
             return;
         }
 
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         routeSaveLoadingVisible = true;
         routeSaveLoadingStatus = "Loading sector";
         routeSaveLoadingDetail = "Preparing to refresh the route cache for this sector.";
@@ -2952,8 +3054,8 @@
             routeSaveLoadingPercent = 100;
             routeSaveProcessedItems = null;
             routeSaveTotalItems = null;
-            await Workspace.ReloadAsync();
-            var reloadedSector = Workspace.Sectors.FirstOrDefault(item => item.Id == sector.Id) ?? Workspace.CurrentSector;
+            await RefreshExplorerDataAsync();
+            var reloadedSector = ExplorerSectors.FirstOrDefault(item => item.Id == sector.Id) ?? explorerContext.CurrentSector;
             LoadSectorConfigurationForm(reloadedSector);
             generatedSectorRouteCache.Remove(sector.Id);
             routeGraphCaches.Clear();
@@ -3019,7 +3121,7 @@
 
     private void RecalculateHyperlaneTravelDefaults()
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         RecalculateHyperlaneTravelDefaults(sector);
     }
 
@@ -3047,7 +3149,7 @@
 
     private async Task SaveHyperlaneAsync()
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var isUpdate = selectedHyperlaneId > 0;
         try
         {
@@ -3067,13 +3169,13 @@
                 hyperlaneSecondaryOwnerEmpireId > 0 ? EmpiresById[hyperlaneSecondaryOwnerEmpireId].Name : string.Empty,
                 hyperlaneIsUserPersisted));
 
-            await Workspace.ReloadAsync();
+            await RefreshExplorerDataAsync();
             generatedSectorRouteCache.Remove(sector.Id);
             routeGraphCaches.Clear();
             hyperlaneSectionCaches.Remove(sector.Id);
             ClearPlottedRoutePlan();
 
-            var reloadedSector = Workspace.Sectors.FirstOrDefault(item => item.Id == sector.Id) ?? Workspace.CurrentSector;
+            var reloadedSector = ExplorerSectors.FirstOrDefault(item => item.Id == sector.Id) ?? explorerContext.CurrentSector;
             var reloadedRoute = reloadedSector.SavedRoutes.FirstOrDefault(route => route.Id == savedRoute.Id)
                 ?? reloadedSector.SavedRoutes.FirstOrDefault(route =>
                     GetSectorMapRouteKey(route.SourceSystemId, route.TargetSystemId)
@@ -3101,17 +3203,17 @@
             return;
         }
 
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         try
         {
             await SectorRouteService.DeleteSavedRouteAsync(sector.Id, selectedHyperlaneId);
-            await Workspace.ReloadAsync();
+            await RefreshExplorerDataAsync();
             generatedSectorRouteCache.Remove(sector.Id);
             routeGraphCaches.Clear();
             hyperlaneSectionCaches.Remove(sector.Id);
             ClearPlottedRoutePlan();
 
-            var reloadedSector = Workspace.Sectors.FirstOrDefault(item => item.Id == sector.Id) ?? Workspace.CurrentSector;
+            var reloadedSector = ExplorerSectors.FirstOrDefault(item => item.Id == sector.Id) ?? explorerContext.CurrentSector;
             LoadSectorConfigurationForm(reloadedSector);
             hyperlaneStatus = "Deleted saved hyperlane.";
         }
@@ -3148,7 +3250,7 @@
 
     private void RunSearch()
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var sectorCache = GetSectorCache(sector);
 
         searchResults = SearchService.Search(searchQuery)
@@ -3197,7 +3299,7 @@
             selectedEmpireId = empireId;
         }
 
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         if (sector.Systems.All(system => system.Id != selectedSystemId))
         {
             selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
@@ -3238,9 +3340,9 @@
 
     private async Task SaveEntityNameAsync(EntityNoteTargetKind targetKind, int targetId, string name)
     {
-        var savedName = await EntityNameService.SaveNameAsync(targetKind, targetId, name);
-        ApplySavedEntityName(targetKind, targetId, savedName);
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        await EntityNameService.SaveNameAsync(targetKind, targetId, name);
+        await RefreshExplorerDataAsync();
+        var sector = GetSelectedSector();
         sectorCacheBuilder.Invalidate(sector.Id);
         alienRacesById = null;
         empiresById = null;
@@ -3248,53 +3350,6 @@
         routeOriginText = routeOriginSystemId == 0 ? string.Empty : FormatSelectedSystem(sector, routeOriginSystemId);
         routeDestinationText = routeDestinationSystemId == 0 ? string.Empty : FormatSelectedSystem(sector, routeDestinationSystemId);
         renderedOverview = false;
-    }
-
-    private void ApplySavedEntityName(EntityNoteTargetKind targetKind, int targetId, string savedName)
-    {
-        switch (targetKind)
-        {
-            case EntityNoteTargetKind.StarSystem:
-                foreach (var system in Workspace.Sectors.SelectMany(sector => sector.Systems).Where(system => system.Id == targetId))
-                {
-                    system.Name = savedName;
-                }
-
-                break;
-            case EntityNoteTargetKind.World:
-                foreach (var world in Workspace.Sectors.SelectMany(sector => sector.Systems).SelectMany(system => system.Worlds).Where(world => world.Id == targetId))
-                {
-                    world.Name = savedName;
-                }
-
-                break;
-            case EntityNoteTargetKind.Colony:
-                foreach (var colony in Workspace.Sectors
-                    .SelectMany(sector => sector.Systems)
-                    .SelectMany(system => system.Worlds)
-                    .Select(world => world.Colony)
-                    .OfType<Colony>()
-                    .Where(colony => colony.Id == targetId))
-                {
-                    colony.Name = savedName;
-                }
-
-                break;
-            case EntityNoteTargetKind.AlienRace:
-                if (Workspace.AlienRaces.FirstOrDefault(race => race.Id == targetId) is { } race)
-                {
-                    race.Name = savedName;
-                }
-
-                break;
-            case EntityNoteTargetKind.Empire:
-                if (Workspace.Empires.FirstOrDefault(empire => empire.Id == targetId) is { } empire)
-                {
-                    empire.Name = savedName;
-                }
-
-                break;
-        }
     }
 
     private static bool ContainsTimelineQuery(string? value, string query)
@@ -3489,7 +3544,7 @@
 
         var query = empireQuery.Trim();
         var homeWorld = FindWorld(empire.Founding.FoundingWorldId);
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         return ContainsTimelineQuery(empire.Name, query)
             || ContainsTimelineQuery(empire.Id.ToString(), query)
             || ContainsTimelineQuery(empire.LegacyRaceId?.ToString(), query)
@@ -3520,10 +3575,10 @@
 
         selectedRaceId = sectorSummary.RaceIds.Contains(selectedRaceId)
             ? selectedRaceId
-            : Workspace.AlienRaces.FirstOrDefault(race => sectorSummary.RaceIds.Contains(race.Id))?.Id ?? 0;
+            : ExplorerAlienRaces.FirstOrDefault(race => sectorSummary.RaceIds.Contains(race.Id))?.Id ?? 0;
         selectedEmpireId = sectorSummary.EmpireIds.Contains(selectedEmpireId)
             ? selectedEmpireId
-            : Workspace.Empires.FirstOrDefault(empire => sectorSummary.EmpireIds.Contains(empire.Id))?.Id ?? 0;
+            : ExplorerEmpires.FirstOrDefault(empire => sectorSummary.EmpireIds.Contains(empire.Id))?.Id ?? 0;
     }
 
     private IEnumerable<RaceEmpireMembership> GetRaceEmpireMemberships(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
@@ -3571,7 +3626,7 @@
 
     private ColonyListing? GetCapitalColony(Empire empire)
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var colonies = GetEmpireColonies(empire, sector).ToList();
         var homeworldColony = colonies.FirstOrDefault(listing => listing.World.Id == empire.Founding.FoundingWorldId);
         if (homeworldColony is not null && homeworldColony.Colony.IsControlledBy(empire.Id))
@@ -3584,9 +3639,9 @@
 
     private GurpsTemplate BuildGurpsTemplate(AlienRace race)
     {
-        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        var sector = GetSelectedSector();
         var sectorCache = GetSectorCache(sector);
-        var sectorEmpires = Workspace.Empires
+        var sectorEmpires = ExplorerEmpires
             .Where(empire => sectorCache.EmpireIds.Contains(empire.Id))
             .ToList();
         var memberships = GetRaceEmpireMemberships(race, sectorEmpires).ToList();
@@ -4449,7 +4504,7 @@
 
     private StarWinSector GetSelectedSector()
     {
-        return Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? Workspace.CurrentSector;
+        return ExplorerSectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? explorerContext.CurrentSector;
     }
 
     private long GetRouteConfigurationStamp(StarWinSector sector)
@@ -4469,7 +4524,7 @@
         var sectorCache = ShouldUseFullSectorCache(activeSection) ? GetSectorCache(sector) : null;
         var sectorEmpireIds = sectorCache?.EmpireIds ?? sectorSummary.EmpireIds;
 
-        return Workspace.Empires
+        return ExplorerEmpires
             .Where(empire => sectorEmpireIds.Contains(empire.Id))
             .OrderBy(empire => empire.Name)
             .ThenBy(empire => empire.Id)
