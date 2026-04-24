@@ -1,6 +1,16 @@
 check for Agents.MD and follow rules defined for project
 
-When I start a conversation with an Issue Number, analyse the task. create a new feature branch using dev branch, if dev branch is not available use main.
+When I start a conversation with an Issue Number, analyse the task and research the current state of the project before doing any coding work.
+
+The first workflow step for an issue-driven conversation is:
+1. Switch to `dev`
+2. Pull the latest changes from `origin/dev`
+3. Create a new feature or bug-fix branch for that issue from `dev`
+4. Research the current implementation and what needs to be done at the project's current state
+
+If `dev` does not exist yet, create it from `master`, then create the feature or bug-fix branch from `dev`.
+
+Do not start coding for an issue-driven conversation until I explicitly ask you to begin the coding process.
 
 Do not use default Visual Studio installation, Use Visual Studio 2026 Insider Preview.
 
