@@ -107,7 +107,8 @@ internal static class Program
             Text = "Starforged Atlas",
             Width = 1280,
             Height = 840,
-            StartPosition = FormStartPosition.CenterScreen
+            StartPosition = FormStartPosition.CenterScreen,
+            WindowState = FormWindowState.Maximized
         };
 
         if (File.Exists(iconPath))

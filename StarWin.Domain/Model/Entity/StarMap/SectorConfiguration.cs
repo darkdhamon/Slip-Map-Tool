@@ -6,6 +6,10 @@ public sealed class SectorConfiguration
 
     public decimal OffLaneMaximumDistanceParsecs { get; set; } = 2m;
 
+    public int Tl9AndBelowMaximumConnectionsPerSystem { get; set; } = 4;
+
+    public int AdditionalCrossEmpireConnectionsPerSystem { get; set; } = 1;
+
     public string Tl6HyperlaneName { get; set; } = "Basic Hyperlane";
 
     public decimal Tl6MaximumDistanceParsecs { get; set; } = 1m;

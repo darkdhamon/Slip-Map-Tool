@@ -116,6 +116,8 @@ public static class DependencyInjection
         try
         {
             await EnsureColumnAsync(connection, "SectorConfigurations", "OffLaneMaximumDistanceParsecs", "REAL NOT NULL DEFAULT 2");
+            await EnsureColumnAsync(connection, "SectorConfigurations", "Tl9AndBelowMaximumConnectionsPerSystem", "INTEGER NOT NULL DEFAULT 4");
+            await EnsureColumnAsync(connection, "SectorConfigurations", "AdditionalCrossEmpireConnectionsPerSystem", "INTEGER NOT NULL DEFAULT 1");
             await EnsureColumnAsync(connection, "SectorConfigurations", "Tl6HyperlaneName", "TEXT NOT NULL DEFAULT 'Basic Hyperlane'");
             await EnsureColumnAsync(connection, "SectorConfigurations", "Tl6MaximumDistanceParsecs", "REAL NOT NULL DEFAULT 1");
             await EnsureColumnAsync(connection, "SectorConfigurations", "Tl6OffLaneSpeedMultiplier", "REAL NOT NULL DEFAULT 2");

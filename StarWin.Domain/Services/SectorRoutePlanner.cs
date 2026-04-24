@@ -16,7 +16,7 @@ public static class SectorRoutePlanner
             return [];
         }
 
-        var routesByPair = new Dictionary<(int SourceId, int TargetId), SectorHyperlaneRouteDefinition>();
+        var candidates = new List<SectorHyperlaneRouteDefinition>();
         for (var sourceIndex = 0; sourceIndex < sector.Systems.Count; sourceIndex++)
         {
             var source = sector.Systems[sourceIndex];
@@ -41,7 +41,7 @@ public static class SectorRoutePlanner
                     continue;
                 }
 
-                routesByPair[(source.Id, target.Id)] = new SectorHyperlaneRouteDefinition(
+                candidates.Add(new SectorHyperlaneRouteDefinition(
                     source.Id,
                     target.Id,
                     distanceParsecs,
@@ -51,11 +51,11 @@ public static class SectorRoutePlanner
                     ownership.PrimaryOwnerEmpireId,
                     ownership.PrimaryOwnerEmpireName,
                     ownership.SecondaryOwnerEmpireId,
-                    ownership.SecondaryOwnerEmpireName);
+                    ownership.SecondaryOwnerEmpireName));
             }
         }
 
-        return routesByPair.Values
+        return ApplyConnectionLimits(candidates, sector.Configuration)
             .OrderBy(route => route.SourceSystemId)
             .ThenBy(route => route.TargetSystemId)
             .ToList();
@@ -261,6 +261,130 @@ public static class SectorRoutePlanner
         {
             yield return colony.AllegianceId;
         }
+    }
+
+    private static IReadOnlyList<SectorHyperlaneRouteDefinition> ApplyConnectionLimits(
+        IReadOnlyList<SectorHyperlaneRouteDefinition> candidates,
+        SectorConfiguration configuration)
+    {
+        if (candidates.Count == 0)
+        {
+            return [];
+        }
+
+        var selectedRoutes = new List<SectorHyperlaneRouteDefinition>();
+        var limitedConnectionsBySystemId = new Dictionary<int, int>();
+        var crossEmpireConnectionsBySystemId = new Dictionary<int, int>();
+        var maximumConnections = Math.Max(0, configuration.Tl9AndBelowMaximumConnectionsPerSystem);
+        var additionalCrossEmpireConnections = Math.Max(0, configuration.AdditionalCrossEmpireConnectionsPerSystem);
+
+        foreach (var candidate in candidates
+            .OrderByDescending(route => route.TechnologyLevel)
+            .ThenBy(route => IsCrossEmpireRoute(route))
+            .ThenBy(route => route.DistanceParsecs)
+            .ThenBy(route => route.SourceSystemId)
+            .ThenBy(route => route.TargetSystemId))
+        {
+            if (candidate.TechnologyLevel >= 10)
+            {
+                selectedRoutes.Add(candidate);
+                continue;
+            }
+
+            var isCrossEmpire = IsCrossEmpireRoute(candidate);
+            var sourceAllocation = TryAllocateConnection(candidate.SourceSystemId, isCrossEmpire, maximumConnections, additionalCrossEmpireConnections, limitedConnectionsBySystemId, crossEmpireConnectionsBySystemId);
+            if (sourceAllocation == ConnectionAllocation.None)
+            {
+                continue;
+            }
+
+            var targetAllocation = TryAllocateConnection(candidate.TargetSystemId, isCrossEmpire, maximumConnections, additionalCrossEmpireConnections, limitedConnectionsBySystemId, crossEmpireConnectionsBySystemId);
+            if (targetAllocation == ConnectionAllocation.None)
+            {
+                ReleaseConnection(candidate.SourceSystemId, sourceAllocation, limitedConnectionsBySystemId, crossEmpireConnectionsBySystemId);
+                continue;
+            }
+
+            selectedRoutes.Add(candidate);
+        }
+
+        return selectedRoutes;
+    }
+
+    private static ConnectionAllocation TryAllocateConnection(
+        int systemId,
+        bool isCrossEmpire,
+        int maximumConnections,
+        int additionalCrossEmpireConnections,
+        IDictionary<int, int> limitedConnectionsBySystemId,
+        IDictionary<int, int> crossEmpireConnectionsBySystemId)
+    {
+        var limitedConnections = GetConnectionCount(limitedConnectionsBySystemId, systemId);
+        if (limitedConnections < maximumConnections)
+        {
+            limitedConnectionsBySystemId[systemId] = limitedConnections + 1;
+            return ConnectionAllocation.Standard;
+        }
+
+        if (!isCrossEmpire)
+        {
+            return ConnectionAllocation.None;
+        }
+
+        var crossEmpireConnections = GetConnectionCount(crossEmpireConnectionsBySystemId, systemId);
+        if (crossEmpireConnections >= additionalCrossEmpireConnections)
+        {
+            return ConnectionAllocation.None;
+        }
+
+        crossEmpireConnectionsBySystemId[systemId] = crossEmpireConnections + 1;
+        return ConnectionAllocation.CrossEmpireBonus;
+    }
+
+    private static void ReleaseConnection(
+        int systemId,
+        ConnectionAllocation allocation,
+        IDictionary<int, int> limitedConnectionsBySystemId,
+        IDictionary<int, int> crossEmpireConnectionsBySystemId)
+    {
+        if (allocation == ConnectionAllocation.Standard)
+        {
+            var limitedConnections = GetConnectionCount(limitedConnectionsBySystemId, systemId);
+            if (limitedConnections > 0)
+            {
+                limitedConnectionsBySystemId[systemId] = limitedConnections - 1;
+            }
+
+            return;
+        }
+
+        if (allocation == ConnectionAllocation.CrossEmpireBonus)
+        {
+            var crossEmpireConnections = GetConnectionCount(crossEmpireConnectionsBySystemId, systemId);
+            if (crossEmpireConnections > 0)
+            {
+                crossEmpireConnectionsBySystemId[systemId] = crossEmpireConnections - 1;
+            }
+        }
+    }
+
+    private static bool IsCrossEmpireRoute(SectorHyperlaneRouteDefinition route)
+    {
+        return route.SecondaryOwnerEmpireId is int secondaryOwnerEmpireId
+            && route.PrimaryOwnerEmpireId is int primaryOwnerEmpireId
+            && secondaryOwnerEmpireId != primaryOwnerEmpireId;
+    }
+
+    private static int GetConnectionCount(IDictionary<int, int> connectionsBySystemId, int systemId)
+    {
+        return connectionsBySystemId.TryGetValue(systemId, out var value) ? value : 0;
+    }
+
+    private enum ConnectionAllocation
+    {
+        None,
+        Standard,
+        CrossEmpireBonus
     }
 }
 

@@ -51,6 +51,8 @@ public sealed class StarWinSectorConfigurationService(StarWinDbContext dbContext
         }
 
         entity.OffLaneMaximumDistanceParsecs = NormalizeDistance(configuration.OffLaneMaximumDistanceParsecs, 0.1m, 20m, 2m);
+        entity.Tl9AndBelowMaximumConnectionsPerSystem = NormalizeConnectionLimit(configuration.Tl9AndBelowMaximumConnectionsPerSystem, 0, 12, 4);
+        entity.AdditionalCrossEmpireConnectionsPerSystem = NormalizeConnectionLimit(configuration.AdditionalCrossEmpireConnectionsPerSystem, 0, 4, 1);
 
         entity.Tl6HyperlaneName = NormalizeTierName(configuration.Tl6HyperlaneName, "Basic Hyperlane");
         entity.Tl6MaximumDistanceParsecs = NormalizeDistance(configuration.Tl6MaximumDistanceParsecs, 0.1m, 20m, 1m);
@@ -100,6 +102,11 @@ public sealed class StarWinSectorConfigurationService(StarWinDbContext dbContext
     private static decimal NormalizeMultiplier(decimal value, decimal minimum, decimal maximum, decimal fallback)
     {
         return Math.Clamp(value <= 0 ? fallback : value, minimum, maximum);
+    }
+
+    private static int NormalizeConnectionLimit(int value, int minimum, int maximum, int fallback)
+    {
+        return Math.Clamp(value < minimum ? fallback : value, minimum, maximum);
     }
 
     private static string NormalizeTierName(string? value, string fallback)

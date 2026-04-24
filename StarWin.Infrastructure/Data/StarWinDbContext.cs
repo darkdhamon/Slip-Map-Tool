@@ -67,6 +67,8 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.ToTable("SectorConfigurations");
             entity.HasKey(configuration => configuration.SectorId);
             entity.Property(configuration => configuration.OffLaneMaximumDistanceParsecs).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.Tl9AndBelowMaximumConnectionsPerSystem);
+            entity.Property(configuration => configuration.AdditionalCrossEmpireConnectionsPerSystem);
             entity.Property(configuration => configuration.Tl6HyperlaneName).HasMaxLength(80);
             entity.Property(configuration => configuration.Tl6MaximumDistanceParsecs).HasPrecision(8, 3);
             entity.Property(configuration => configuration.Tl6OffLaneSpeedMultiplier).HasPrecision(8, 3);

@@ -1932,6 +1932,40 @@ dd {
     gap: 12px;
 }
 
+.configuration-groups {
+    display: grid;
+    gap: 18px;
+    margin-bottom: 18px;
+}
+
+.configuration-group {
+    display: grid;
+    gap: 14px;
+    border: 1px solid rgba(125, 211, 252, 0.16);
+    border-radius: 8px;
+    background: rgba(3, 10, 24, 0.42);
+    padding: 16px;
+}
+
+.configuration-group-header {
+    display: grid;
+    gap: 6px;
+}
+
+.configuration-group-header h3 {
+    margin: 4px 0 0;
+    color: #f8fbff;
+}
+
+.configuration-group-header p {
+    margin: 0;
+    color: var(--muted);
+}
+
+.compact-field-grid {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+}
+
 .toggle-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(160px, 1fr));
