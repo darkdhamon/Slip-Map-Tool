@@ -3,31 +3,13 @@
     {
         <button type="button"
                 class="@(ActiveSection == sectionName ? "active" : null)"
+                onmousedown="@GetPointerDownHandler(sectionName)"
                 @onclick="() => SectionSelected.InvokeAsync(sectionName)"
                 disabled="@IsLoading">
             @sectionName
         </button>
     }
 </nav>
-
-@if (IsLoading)
-{
-    <div class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="Loading section">
-        <section class="loading-modal">
-            <span class="panel-kicker">Loading @LoadingTarget</span>
-            <h2>@LoadingStatus</h2>
-            <div class="loading-meter" aria-hidden="true">
-                <span></span>
-            </div>
-            <ol>
-                @foreach (var step in GetSectionLoadingSteps(LoadingTarget))
-                {
-                    <li>@step</li>
-                }
-            </ol>
-        </section>
-    </div>
-}
 
 @code {
     [Parameter]
@@ -48,70 +30,13 @@
     [Parameter]
     public EventCallback<string> SectionSelected { get; set; }
 
-    private static IReadOnlyList<string> GetSectionLoadingSteps(string sectionName)
+    private string? GetPointerDownHandler(string sectionName)
     {
-        return sectionName switch
+        if (IsLoading || string.Equals(ActiveSection, sectionName, StringComparison.Ordinal))
         {
-            "Overview" =>
-            [
-                "Restoring the sector summary.",
-                "Checking whether the 3D map has been requested.",
-                "Preparing the selected system record."
-            ],
-            "Timeline" =>
-            [
-                "Preparing chronology filters.",
-                "Reading the cached sector history index.",
-                "Linking events to systems, worlds, races, empires, and colonies."
-            ],
-            "Configuration" =>
-            [
-                "Loading sector travel settings.",
-                "Calculating visible hyperlane counts.",
-                "Preparing editable configuration fields."
-            ],
-            "Systems" =>
-            [
-                "Sorting systems by name.",
-                "Applying system filters.",
-                "Preparing the selected system detail panel."
-            ],
-            "Worlds" =>
-            [
-                "Collecting worlds and habitats for the selected system.",
-                "Applying world filters.",
-                "Preparing orbit and environment details."
-            ],
-            "Colonies" =>
-            [
-                "Sorting colonies by population.",
-                "Applying civilization filters.",
-                "Preparing demographics, trade, and government summaries."
-            ],
-            "Aliens" =>
-            [
-                "Filtering races for the current sector.",
-                "Resolving homeworld and empire links.",
-                "Preparing biology and culture summaries."
-            ],
-            "Empires" =>
-            [
-                "Filtering empires for the current sector.",
-                "Resolving race memberships and diplomatic contacts.",
-                "Preparing military, colony, and founding records."
-            ],
-            "Route" =>
-            [
-                "Reading the current system and destination.",
-                "Following connected hyperlane networks.",
-                "Finding the shortest unavoidable void crossing."
-            ],
-            _ =>
-            [
-                "Preparing section data.",
-                "Rendering records.",
-                "Finishing layout."
-            ]
-        };
+            return null;
+        }
+
+        return $"window.starforgedAtlasNavigation.showSectionLoading('{sectionName}')";
     }
 }

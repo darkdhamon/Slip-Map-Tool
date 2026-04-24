@@ -20,6 +20,35 @@
 <body class="@BodyClass">
     <Routes />
     <ReconnectModal />
+    <div id="explorer-navigation-loading" class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="Opening Sector Explorer" hidden>
+        <section class="loading-modal">
+            <span class="panel-kicker">Opening Sector Explorer</span>
+            <h2>Loading archive records and restoring the explorer workspace.</h2>
+            <div class="loading-meter" aria-hidden="true">
+                <span></span>
+            </div>
+            <ol>
+                <li>Connecting to the explorer workspace.</li>
+                <li>Loading the current sector archive.</li>
+                <li>Preparing the selected explorer section.</li>
+            </ol>
+        </section>
+    </div>
+    <div id="explorer-section-loading" class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="Loading section" hidden>
+        <section class="loading-modal">
+            <span class="panel-kicker" data-section-loading-target>Loading section</span>
+            <h2 data-section-loading-status>Preparing explorer records.</h2>
+            <div class="loading-meter" aria-hidden="true">
+                <span></span>
+            </div>
+            <ol>
+                <li>Resolving the selected sector context.</li>
+                <li>Preparing the requested explorer records.</li>
+                <li>Rendering the updated section workspace.</li>
+            </ol>
+        </section>
+    </div>
+    <script src="@Assets["js/navigationLoading.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 

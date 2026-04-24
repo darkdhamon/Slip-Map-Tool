@@ -1,3 +1,5 @@
+@inject NavigationManager NavigationManager
+
 <header class="site-header">
     <a class="brand" href="">
         <img class="brand-mark" src="assets/images/StarforgedAtlasLogo.png" alt="" aria-hidden="true" />
@@ -6,10 +8,20 @@
 
     <nav class="site-nav" aria-label="Primary">
         <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Home</NavLink>
-        <NavLink class="nav-link" href="sector-explorer">Sector Explorer</NavLink>
+        <a class="nav-link @(IsSectorExplorerRoute ? "active" : null)"
+           href="/sector-explorer"
+           onclick="window.starforgedAtlasNavigation.showExplorerLoading(event, '/sector-explorer')">
+            Sector Explorer
+        </a>
         <NavLink class="nav-link" href="party-manager">Party Manager</NavLink>
         <NavLink class="nav-link" href="generators">Generators</NavLink>
         <NavLink class="nav-link" href="import">Import</NavLink>
         <NavLink class="nav-link" href="about">About</NavLink>
     </nav>
 </header>
+
+@code {
+    private bool IsSectorExplorerRoute =>
+        NavigationManager.ToBaseRelativePath(NavigationManager.Uri)
+            .StartsWith("sector-explorer", StringComparison.OrdinalIgnoreCase);
+}

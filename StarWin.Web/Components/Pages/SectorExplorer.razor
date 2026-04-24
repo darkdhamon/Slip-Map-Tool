@@ -1733,6 +1733,7 @@
     private string sectionLoadingStatus = string.Empty;
     private bool sectionLoadingVisible;
     private bool sectionLoadingAwaitingTargetRender;
+    private DateTimeOffset sectionLoadingStartedAtUtc;
     private int selectedSectorId;
     private int selectedSystemId;
     private string selectedSystemText = string.Empty;
@@ -2226,6 +2227,7 @@
             raceObserverConfigured = false;
             empireObserverConfigured = false;
             hyperlaneObserverConfigured = false;
+            await HideSectionLoadingOverlayAsync();
             StateHasChanged();
         }
     }
@@ -2254,11 +2256,11 @@
         sectionLoadingStatus = $"Preparing {sectionName} records...";
         sectionLoadingAwaitingTargetRender = false;
         sectionLoadingVisible = true;
+        sectionLoadingStartedAtUtc = DateTimeOffset.UtcNow;
         explorerRenderError = string.Empty;
         StateHasChanged();
 
         await Task.Delay(80);
-        await RefreshExplorerDataAsync();
 
         sectionLoadingStatus = $"Rendering {sectionName}...";
         SetActiveSection(sectionName);
@@ -2277,13 +2279,34 @@
 
         sectionLoadingStatus = $"{activeSection} ready.";
         StateHasChanged();
-        await Task.Delay(140);
+
+        var elapsed = DateTimeOffset.UtcNow - sectionLoadingStartedAtUtc;
+        var remainingVisibleTime = TimeSpan.FromMilliseconds(450) - elapsed;
+        if (remainingVisibleTime > TimeSpan.Zero)
+        {
+            await Task.Delay(remainingVisibleTime);
+        }
 
         sectionLoadingVisible = false;
         sectionLoadingAwaitingTargetRender = false;
         sectionLoadingTarget = string.Empty;
         sectionLoadingStatus = string.Empty;
+        await HideSectionLoadingOverlayAsync();
         StateHasChanged();
+    }
+
+    private async Task HideSectionLoadingOverlayAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("starforgedAtlasNavigation.hideSectionLoading");
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private async Task LoadSectorMap()
@@ -3464,7 +3487,16 @@
             return;
         }
 
-        NavigationManager.NavigateTo(targetUri, replace: replaceHistory);
+        try
+        {
+            JS.InvokeVoidAsync("starforgedAtlasNavigation.syncExplorerUrl", targetUri, replaceHistory);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private static string GetSectionNameFromSlug(string? sectionSlug)
