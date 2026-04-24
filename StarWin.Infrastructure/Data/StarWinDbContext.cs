@@ -109,7 +109,7 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.ToTable("StarSystems");
             entity.HasKey(system => system.Id);
             entity.Property(system => system.Id).ValueGeneratedNever();
-            entity.HasIndex(system => new { system.SectorId, system.Name });
+            entity.HasIndex(system => new { system.SectorId, system.Name }).IsUnique();
             entity.HasIndex(system => new { system.SectorId, system.LegacySystemId });
             entity.Property(system => system.Name).HasMaxLength(160);
             entity.Property(system => system.Coordinates).HasConversion(coordinatesConverter).HasMaxLength(48);

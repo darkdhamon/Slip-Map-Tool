@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using StarWin.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using StarWin.Infrastructure.Data;
 namespace StarWin.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(StarWinDbContext))]
-    partial class StarWinDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260424151732_AddUniqueSectorSystemNames")]
+    partial class AddUniqueSectorSystemNames
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

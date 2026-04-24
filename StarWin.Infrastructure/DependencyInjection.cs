@@ -75,10 +75,12 @@ public static class DependencyInjection
         if (dbContext.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
         {
             await UpgradeSqliteDatabaseAsync(dbContext);
+            await StarSystemNameUniqueness.EnsureUniquePersistedNamesAsync(dbContext);
             await dbContext.Database.MigrateAsync();
             return;
         }
 
+        await StarSystemNameUniqueness.EnsureUniquePersistedNamesAsync(dbContext);
         await dbContext.Database.MigrateAsync();
     }
 

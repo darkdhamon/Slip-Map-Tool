@@ -751,6 +751,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         await ReportImportProgressAsync(progress, 32, "Reading legacy records...", "Parsing StarWin systems, planets, moons, races, empires, colonies, contacts, and history.");
         var importedSystems = ReadStarSystems(sunEntry, sectorId, sectorPreview.StarSystemRecordCount)
             .ToList();
+        StarSystemNameUniqueness.EnsureUniqueImportedNames(importedSystems.Select(systemImport => systemImport.System).ToList());
         var planets = ReadPlanetRecords(planetEntry).ToList();
         var moons = ReadMoonRecords(moonEntry).ToList();
         var aliens = ReadAlienRecords(alienEntry).ToList();

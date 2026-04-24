@@ -24,6 +24,12 @@ public sealed class StarWinEntityNameService(StarWinDbContext dbContext) : IStar
             case EntityNoteTargetKind.StarSystem:
                 var system = await dbContext.StarSystems.FirstOrDefaultAsync(item => item.Id == targetId, cancellationToken)
                     ?? throw new InvalidOperationException("System was not found.");
+                await StarSystemNameUniqueness.ValidateUniqueNameAsync(
+                    dbContext,
+                    system.SectorId,
+                    normalizedName,
+                    system.Id,
+                    cancellationToken);
                 system.Name = normalizedName;
                 break;
             case EntityNoteTargetKind.World:
