@@ -502,7 +502,7 @@
                     <div><dt>Route rule</dt><dd>Shared empires use the highest TL present in both systems; otherwise cross-empire routes use the best lower TL between endpoint empires</dd></div>
                     <div><dt>Off-lane scope</dt><dd>Sector-wide today, with ship-specific overrides planned later</dd></div>
                     <div><dt>Current saved routes</dt><dd>@sector.SavedRoutes.Count hyperlane segments</dd></div>
-                    <div><dt>Current map routes</dt><dd>@GetSectorMapRouteCount(sector, selectedSystem) visible hyperlanes</dd></div>
+                    <div><dt>Current map routes</dt><dd>@GetConfigurationRouteSummary(sector, selectedSystem)</dd></div>
                     <div><dt>Last saved</dt><dd>@DisplayDateTime(sector.Configuration.UpdatedAtUtc)</dd></div>
                 </dl>
                 <div class="parent-actions">
@@ -3643,6 +3643,59 @@
             GetSectorMapSystems(sector, focusedSystemId, routePlan),
             focusedSystemId,
             routePlan).Count;
+    }
+
+    private string GetConfigurationRouteSummary(StarWinSector sector, StarSystem? focusedSystem)
+    {
+        if (focusedSystem is null)
+        {
+            return "Select a system to preview visible hyperlanes.";
+        }
+
+        if (sector.SavedRoutes.Count > 0)
+        {
+            return $"{GetVisibleRouteCount(sector, focusedSystem, sector.SavedRoutes.Select(route => new SectorMapRoute(
+                route.SourceSystemId,
+                route.TargetSystemId,
+                (double)route.DistanceParsecs,
+                (double)route.TravelTimeYears,
+                route.TechnologyLevel,
+                route.TierName,
+                route.PrimaryOwnerEmpireId,
+                route.PrimaryOwnerEmpireName,
+                route.SecondaryOwnerEmpireId,
+                route.SecondaryOwnerEmpireName)).ToList())} visible hyperlanes from saved routes.";
+        }
+
+        if (generatedSectorRouteCache.TryGetValue(sector.Id, out var generatedRoutes))
+        {
+            return $"{GetVisibleRouteCount(sector, focusedSystem, generatedRoutes)} visible hyperlanes from the current in-memory route graph.";
+        }
+
+        return "Preview available after loading the sector map or saving routes for this sector.";
+    }
+
+    private int GetVisibleRouteCount(
+        StarWinSector sector,
+        StarSystem focusedSystem,
+        IReadOnlyList<SectorMapRoute> routes)
+    {
+        var routePlan = GetPlottedRoutePlan(sector);
+        var visibleSystemIds = GetSectorMapSystems(sector, focusedSystem.Id, routePlan)
+            .Select(system => system.Id)
+            .ToHashSet();
+        var routePathKeys = routePlan?.Legs
+            .Where(leg => leg.IsHyperlane)
+            .Select(leg => GetSectorMapRouteKey(leg.Source.Id, leg.Target.Id))
+            .ToHashSet() ?? [];
+
+        return routes.Count(route =>
+            visibleSystemIds.Contains(route.SourceSystemId)
+            && visibleSystemIds.Contains(route.TargetSystemId)
+            && (route.TechnologyLevel < 10
+                || route.SourceSystemId == focusedSystem.Id
+                || route.TargetSystemId == focusedSystem.Id
+                || routePathKeys.Contains(GetSectorMapRouteKey(route.SourceSystemId, route.TargetSystemId))));
     }
 
     private IReadOnlyList<SectorMapRoute> BuildVisibleSectorMapRoutes(
