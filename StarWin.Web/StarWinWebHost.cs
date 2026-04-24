@@ -37,6 +37,10 @@ public static class StarWinWebHost
         app.UseAntiforgery();
         app.UseStaticFiles();
 
+        app.MapGet("/desktop/health", () => Results.Ok(new
+        {
+            status = "ok"
+        }));
         app.MapStaticAssets();
         app.MapRazorComponents<App>()
             .AddInteractiveServerRenderMode();

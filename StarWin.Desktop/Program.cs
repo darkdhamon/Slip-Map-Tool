@@ -1,8 +1,13 @@
+using System.Diagnostics;
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using StarWin.Web;
 
 #if WINDOWS
@@ -17,15 +22,50 @@ using Photino.NET;
 internal static class Program
 {
     private const string WebView2Arguments = "--disable-gpu --disable-gpu-compositing --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows";
+    private const string BackendServerArgument = "--backend-server";
+    private const string BackendPortArgument = "--backend-port";
+    private const string SmokeTestArgument = "--smoke-test";
 
     [STAThread]
     public static async Task Main(string[] args)
     {
-        var port = GetAvailablePort();
+        if (args.Contains(BackendServerArgument, StringComparer.OrdinalIgnoreCase))
+        {
+            var port = TryGetArgumentValue(args, BackendPortArgument, out var portValue) && int.TryParse(portValue, out var parsedPort)
+                ? parsedPort
+                : 5186;
+            await RunBackendServerAsync(port, args);
+            return;
+        }
+
+        var smokeTest = args.Contains(SmokeTestArgument, StringComparer.OrdinalIgnoreCase);
+        using var startupReporter = CreateStartupReporter();
+
+        try
+        {
+            startupReporter.Report("Preparing desktop shell", "Checking for a shared local backend.");
+            await using var backendLease = await DesktopBackendCoordinator.AcquireAsync(startupReporter, CancellationToken.None);
+
+            if (smokeTest)
+            {
+                startupReporter.Report("Desktop smoke test ready", $"Connected to shared backend at {backendLease.LocalUrl}.");
+                return;
+            }
+
+            startupReporter.Report("Opening main window", "Starting the embedded browser shell.");
+            RunDesktopShell(backendLease.LocalUrl, StarWinDesktopPaths.GetWebViewDataPath(), StarWinDesktopPaths.GetIconPath(), startupReporter);
+        }
+        catch (Exception ex)
+        {
+            startupReporter.Fail("Starforged Atlas failed to start", ex.GetBaseException().Message);
+            throw;
+        }
+    }
+
+    private static async Task RunBackendServerAsync(int port, string[] args)
+    {
         var localUrl = $"http://127.0.0.1:{port}";
         var databasePath = StarWinDesktopPaths.GetDatabasePath();
-        var webViewDataPath = StarWinDesktopPaths.GetWebViewDataPath();
-        var smokeTest = args.Contains("--smoke-test", StringComparer.OrdinalIgnoreCase);
 
         var builder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
         {
@@ -45,40 +85,60 @@ internal static class Program
 
         var app = StarWinWebHost.Build(builder);
         await StarWinWebHost.InitializeAsync(app);
+
+        using var monitor = new DesktopBackendMonitor(app);
+
         await app.StartAsync();
+        await monitor.RunAsync();
 
         try
         {
-            if (smokeTest)
-            {
-                return;
-            }
-
-            RunDesktopShell(localUrl, webViewDataPath, StarWinDesktopPaths.GetIconPath());
+            await app.WaitForShutdownAsync();
         }
         finally
         {
             await app.StopAsync();
             await app.DisposeAsync();
+            DesktopBackendCoordinator.TryClearBackendRegistration(Environment.ProcessId);
         }
     }
 
-    private static int GetAvailablePort()
+    private static bool TryGetArgumentValue(string[] args, string argumentName, out string? value)
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
+        for (var index = 0; index < args.Length - 1; index++)
+        {
+            if (string.Equals(args[index], argumentName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = args[index + 1];
+                return true;
+            }
+        }
+
+        value = null;
+        return false;
     }
 
 #if WINDOWS
-    private static void RunDesktopShell(string localUrl, string webViewDataPath, string iconPath)
+    private static IDesktopStartupReporter CreateStartupReporter()
+    {
+        return DesktopStartupSplashScreen.Create();
+    }
+#else
+    private static IDesktopStartupReporter CreateStartupReporter()
+    {
+        return new ConsoleStartupReporter();
+    }
+#endif
+
+#if WINDOWS
+    private static void RunDesktopShell(string localUrl, string webViewDataPath, string iconPath, IDesktopStartupReporter startupReporter)
     {
         Exception? shellException = null;
         var shellThread = new Thread(() =>
         {
             try
             {
-                RunWindowsFormsShell(localUrl, webViewDataPath, iconPath);
+                RunWindowsFormsShell(localUrl, webViewDataPath, iconPath, startupReporter);
             }
             catch (Exception ex)
             {
@@ -96,7 +156,7 @@ internal static class Program
         }
     }
 
-    private static void RunWindowsFormsShell(string localUrl, string webViewDataPath, string iconPath)
+    private static void RunWindowsFormsShell(string localUrl, string webViewDataPath, string iconPath, IDesktopStartupReporter startupReporter)
     {
         Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", WebView2Arguments);
 
@@ -122,12 +182,24 @@ internal static class Program
             DefaultBackgroundColor = Color.FromArgb(3, 7, 18)
         };
 
+        var splashClosed = false;
+        void CloseSplash()
+        {
+            if (splashClosed)
+            {
+                return;
+            }
+
+            splashClosed = true;
+            startupReporter.Close();
+        }
+
         form.Controls.Add(webView);
         form.Shown += async (_, _) =>
         {
             try
             {
-                Console.WriteLine("Initializing Windows WebView2 desktop shell.");
+                startupReporter.Report("Initializing browser engine", "Creating the local WebView environment.");
                 var options = new CoreWebView2EnvironmentOptions(WebView2Arguments);
                 var environment = await CoreWebView2Environment.CreateAsync(
                     browserExecutableFolder: null,
@@ -135,12 +207,20 @@ internal static class Program
                     options);
 
                 await webView.EnsureCoreWebView2Async(environment);
-                Console.WriteLine($"Windows WebView2 desktop shell loaded {localUrl}.");
+                startupReporter.Report("Loading Starforged Atlas", "Navigating to the shared local backend.");
+                webView.CoreWebView2.NavigationCompleted += (_, navigationArgs) =>
+                {
+                    if (navigationArgs.IsSuccess)
+                    {
+                        CloseSplash();
+                    }
+                };
                 webView.CoreWebView2.Navigate(localUrl);
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine(ex);
+                startupReporter.Fail("Starforged Atlas failed to start", ex.GetBaseException().Message);
                 MessageBox.Show(
                     form,
                     ex.Message,
@@ -151,10 +231,11 @@ internal static class Program
             }
         };
 
+        form.FormClosed += (_, _) => CloseSplash();
         Application.Run(form);
     }
 #else
-    private static void RunDesktopShell(string localUrl, string webViewDataPath, string iconPath)
+    private static void RunDesktopShell(string localUrl, string webViewDataPath, string iconPath, IDesktopStartupReporter startupReporter)
     {
         var window = new PhotinoWindow()
             .SetTitle("Starforged Atlas")
@@ -166,11 +247,579 @@ internal static class Program
             window.SetIconFile(iconPath);
         }
 
+        startupReporter.Report("Loading Starforged Atlas", "Opening the shared local backend.");
+        startupReporter.Close();
         window.Load(localUrl);
         window.WaitForClose();
     }
 #endif
 }
+
+internal static class DesktopBackendCoordinator
+{
+    private const string StateMutexName = @"Local\StarforgedAtlas.Desktop.BackendState";
+    private const string BackendServerArgument = "--backend-server";
+    private const string BackendPortArgument = "--backend-port";
+
+    public static async Task<DesktopBackendLease> AcquireAsync(
+        IDesktopStartupReporter startupReporter,
+        CancellationToken cancellationToken)
+    {
+        DesktopBackendState state;
+
+        using (var mutex = CreateStateMutex())
+        {
+            WaitForMutex(mutex);
+            try
+            {
+                state = LoadState();
+                state.ClientProcessIds = state.ClientProcessIds
+                    .Where(IsProcessAlive)
+                    .Distinct()
+                    .ToList();
+
+                if (!state.ClientProcessIds.Contains(Environment.ProcessId))
+                {
+                    state.ClientProcessIds.Add(Environment.ProcessId);
+                }
+
+                if (!IsProcessAlive(state.BackendProcessId) || !IsPortResponsive(state.Port))
+                {
+                    startupReporter.Report("Starting shared backend", "Launching the local server used by all desktop windows.");
+                    state.Port = SelectBackendPort(state.Port);
+                    state.BackendProcessId = StartBackendProcess(state.Port).Id;
+                }
+                else
+                {
+                    startupReporter.Report("Connecting to shared backend", "Reusing the existing local server process.");
+                }
+
+                state.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                SaveState(state);
+            }
+            finally
+            {
+                mutex.ReleaseMutex();
+            }
+        }
+
+        await WaitForBackendReadyAsync(state.Port, startupReporter, cancellationToken);
+        return new DesktopBackendLease($"http://127.0.0.1:{state.Port}");
+    }
+
+    public static void ReleaseClient(int processId)
+    {
+        using var mutex = CreateStateMutex();
+        WaitForMutex(mutex);
+        try
+        {
+            var state = LoadState();
+            state.ClientProcessIds = state.ClientProcessIds
+                .Where(pid => pid != processId && IsProcessAlive(pid))
+                .Distinct()
+                .ToList();
+            state.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            SaveState(state);
+        }
+        finally
+        {
+            mutex.ReleaseMutex();
+        }
+    }
+
+    public static void TryClearBackendRegistration(int backendProcessId)
+    {
+        using var mutex = CreateStateMutex();
+        WaitForMutex(mutex);
+        try
+        {
+            var state = LoadState();
+            if (state.BackendProcessId != backendProcessId)
+            {
+                return;
+            }
+
+            state.BackendProcessId = 0;
+            state.Port = 0;
+            state.ClientProcessIds = state.ClientProcessIds.Where(IsProcessAlive).Distinct().ToList();
+            state.UpdatedAtUtc = DateTimeOffset.UtcNow;
+            SaveState(state);
+        }
+        finally
+        {
+            mutex.ReleaseMutex();
+        }
+    }
+
+    public static DesktopBackendState LoadSharedState()
+    {
+        using var mutex = CreateStateMutex();
+        WaitForMutex(mutex);
+        try
+        {
+            var state = LoadState();
+            var cleanedClientProcessIds = state.ClientProcessIds.Where(IsProcessAlive).Distinct().ToList();
+            if (!state.ClientProcessIds.SequenceEqual(cleanedClientProcessIds))
+            {
+                state.ClientProcessIds = cleanedClientProcessIds;
+                state.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                SaveState(state);
+            }
+
+            return state;
+        }
+        finally
+        {
+            mutex.ReleaseMutex();
+        }
+    }
+
+    private static Mutex CreateStateMutex()
+    {
+        return new Mutex(false, StateMutexName);
+    }
+
+    private static void WaitForMutex(Mutex mutex)
+    {
+        if (!mutex.WaitOne(TimeSpan.FromSeconds(30)))
+        {
+            throw new TimeoutException("Timed out while waiting for the desktop backend state lock.");
+        }
+    }
+
+    private static DesktopBackendState LoadState()
+    {
+        var statePath = StarWinDesktopPaths.GetBackendStatePath();
+        if (!File.Exists(statePath))
+        {
+            return new DesktopBackendState();
+        }
+
+        try
+        {
+            var json = File.ReadAllText(statePath);
+            return JsonSerializer.Deserialize<DesktopBackendState>(json) ?? new DesktopBackendState();
+        }
+        catch
+        {
+            return new DesktopBackendState();
+        }
+    }
+
+    private static void SaveState(DesktopBackendState state)
+    {
+        var statePath = StarWinDesktopPaths.GetBackendStatePath();
+        var json = JsonSerializer.Serialize(state, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+        File.WriteAllText(statePath, json);
+    }
+
+    private static Process StartBackendProcess(int port)
+    {
+        var executablePath = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Unable to determine the current desktop executable path.");
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = executablePath,
+            Arguments = $"{BackendServerArgument} {BackendPortArgument} {port}",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WindowStyle = ProcessWindowStyle.Hidden,
+            WorkingDirectory = AppContext.BaseDirectory
+        };
+
+        return Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to launch the shared desktop backend process.");
+    }
+
+    private static int SelectBackendPort(int preferredPort)
+    {
+        return preferredPort > 0 && IsPortAvailable(preferredPort)
+            ? preferredPort
+            : GetAvailablePort();
+    }
+
+    private static async Task WaitForBackendReadyAsync(
+        int port,
+        IDesktopStartupReporter startupReporter,
+        CancellationToken cancellationToken)
+    {
+        if (port <= 0)
+        {
+            throw new InvalidOperationException("The shared desktop backend did not provide a valid local port.");
+        }
+
+        using var client = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(5)
+        };
+
+        var healthUrl = $"http://127.0.0.1:{port}/desktop/health";
+        var deadline = DateTime.UtcNow.AddMinutes(2);
+        var attempt = 0;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            attempt++;
+            startupReporter.Report("Waiting for shared backend", $"The local server is starting up. Attempt {attempt:N0}.");
+
+            try
+            {
+                using var response = await client.GetAsync(healthUrl, cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    startupReporter.Report("Shared backend ready", $"Connected to local server on port {port}.");
+                    return;
+                }
+            }
+            catch
+            {
+            }
+
+            await Task.Delay(500, cancellationToken);
+        }
+
+        throw new TimeoutException("The shared desktop backend did not become ready in time.");
+    }
+
+    private static bool IsPortResponsive(int port)
+    {
+        if (port <= 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var client = new TcpClient();
+            var connectTask = client.ConnectAsync(IPAddress.Loopback, port);
+            return connectTask.Wait(TimeSpan.FromMilliseconds(250)) && client.Connected;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsPortAvailable(int port)
+    {
+        try
+        {
+            using var listener = new TcpListener(IPAddress.Loopback, port);
+            listener.Start();
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static int GetAvailablePort()
+    {
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+
+    private static bool IsProcessAlive(int processId)
+    {
+        if (processId <= 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
+
+internal sealed class DesktopBackendMonitor(WebApplication app) : IDisposable
+{
+    private readonly CancellationTokenSource cancellationTokenSource = new();
+    private Task? monitorTask;
+
+    public Task RunAsync()
+    {
+        monitorTask = MonitorLoopAsync(cancellationTokenSource.Token);
+        return Task.CompletedTask;
+    }
+
+    private async Task MonitorLoopAsync(CancellationToken cancellationToken)
+    {
+        var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
+
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var state = DesktopBackendCoordinator.LoadSharedState();
+            if (state.BackendProcessId != 0 && state.BackendProcessId != Environment.ProcessId)
+            {
+                lifetime.StopApplication();
+                return;
+            }
+
+            var remainingClientIds = state.ClientProcessIds
+                .Where(pid => pid != Environment.ProcessId)
+                .ToList();
+
+            if (remainingClientIds.Count == 0)
+            {
+                lifetime.StopApplication();
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+        }
+    }
+
+    public void Dispose()
+    {
+        cancellationTokenSource.Cancel();
+        try
+        {
+            monitorTask?.Wait(TimeSpan.FromSeconds(2));
+        }
+        catch
+        {
+        }
+
+        cancellationTokenSource.Dispose();
+    }
+}
+
+internal sealed class DesktopBackendLease(string localUrl) : IAsyncDisposable, IDisposable
+{
+    private bool released;
+
+    public string LocalUrl { get; } = localUrl;
+
+    public void Dispose()
+    {
+        Release();
+        GC.SuppressFinalize(this);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        Release();
+        GC.SuppressFinalize(this);
+        return ValueTask.CompletedTask;
+    }
+
+    private void Release()
+    {
+        if (released)
+        {
+            return;
+        }
+
+        released = true;
+        DesktopBackendCoordinator.ReleaseClient(Environment.ProcessId);
+    }
+}
+
+internal sealed class DesktopBackendState
+{
+    public int Port { get; set; }
+
+    public int BackendProcessId { get; set; }
+
+    public List<int> ClientProcessIds { get; set; } = [];
+
+    public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+}
+
+internal interface IDesktopStartupReporter : IDisposable
+{
+    void Report(string title, string detail);
+
+    void Fail(string title, string detail);
+
+    void Close();
+}
+
+internal sealed class ConsoleStartupReporter : IDesktopStartupReporter
+{
+    public void Report(string title, string detail)
+    {
+        Console.WriteLine($"{title}: {detail}");
+    }
+
+    public void Fail(string title, string detail)
+    {
+        Console.Error.WriteLine($"{title}: {detail}");
+    }
+
+    public void Close()
+    {
+    }
+
+    public void Dispose()
+    {
+    }
+}
+
+#if WINDOWS
+internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
+{
+    private readonly Thread uiThread;
+    private readonly ManualResetEventSlim readyEvent = new(false);
+    private readonly ManualResetEventSlim closedEvent = new(false);
+    private SplashForm? form;
+
+    private DesktopStartupSplashScreen()
+    {
+        uiThread = new Thread(RunUi)
+        {
+            IsBackground = true
+        };
+        uiThread.SetApartmentState(ApartmentState.STA);
+        uiThread.Start();
+        readyEvent.Wait();
+    }
+
+    public static DesktopStartupSplashScreen Create()
+    {
+        return new DesktopStartupSplashScreen();
+    }
+
+    public void Report(string title, string detail)
+    {
+        if (form?.IsHandleCreated != true)
+        {
+            return;
+        }
+
+        form.BeginInvoke(new Action(() => form.UpdateStatus(title, detail, false)));
+    }
+
+    public void Fail(string title, string detail)
+    {
+        if (form?.IsHandleCreated != true)
+        {
+            return;
+        }
+
+        form.BeginInvoke(new Action(() => form.UpdateStatus(title, detail, true)));
+    }
+
+    public void Close()
+    {
+        if (form?.IsHandleCreated == true)
+        {
+            form.BeginInvoke(new Action(() => form.Close()));
+            closedEvent.Wait(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    public void Dispose()
+    {
+        Close();
+        readyEvent.Dispose();
+        closedEvent.Dispose();
+    }
+
+    private void RunUi()
+    {
+        ApplicationConfiguration.Initialize();
+        using var splashForm = new SplashForm();
+        form = splashForm;
+        splashForm.Shown += (_, _) => readyEvent.Set();
+        splashForm.FormClosed += (_, _) => closedEvent.Set();
+        Application.Run(splashForm);
+    }
+
+    private sealed class SplashForm : Form
+    {
+        private readonly Label titleLabel;
+        private readonly Label detailLabel;
+        private readonly ProgressBar progressBar;
+
+        public SplashForm()
+        {
+            Text = "Starting Starforged Atlas";
+            StartPosition = FormStartPosition.CenterScreen;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            ShowIcon = false;
+            Width = 560;
+            Height = 220;
+            BackColor = Color.FromArgb(3, 7, 18);
+            ForeColor = Color.FromArgb(226, 232, 240);
+            TopMost = true;
+
+            titleLabel = new Label
+            {
+                AutoSize = false,
+                Dock = DockStyle.Top,
+                Height = 56,
+                Padding = new Padding(24, 24, 24, 4),
+                Font = new Font("Segoe UI Semibold", 14f, FontStyle.Bold),
+                Text = "Preparing desktop shell"
+            };
+
+            detailLabel = new Label
+            {
+                AutoSize = false,
+                Dock = DockStyle.Top,
+                Height = 72,
+                Padding = new Padding(24, 4, 24, 8),
+                Font = new Font("Segoe UI", 10.5f, FontStyle.Regular),
+                Text = "Checking for a shared local backend."
+            };
+
+            progressBar = new ProgressBar
+            {
+                Dock = DockStyle.Top,
+                Height = 18,
+                Margin = new Padding(24),
+                Style = ProgressBarStyle.Marquee,
+                MarqueeAnimationSpeed = 28
+            };
+
+            var hostPanel = new Panel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(24, 0, 24, 24),
+                BackColor = Color.FromArgb(3, 7, 18)
+            };
+
+            hostPanel.Controls.Add(progressBar);
+            hostPanel.Controls.Add(detailLabel);
+            hostPanel.Controls.Add(titleLabel);
+            Controls.Add(hostPanel);
+        }
+
+        public void UpdateStatus(string title, string detail, bool isFailure)
+        {
+            titleLabel.Text = title;
+            detailLabel.Text = detail;
+
+            if (!isFailure)
+            {
+                return;
+            }
+
+            detailLabel.ForeColor = Color.FromArgb(248, 113, 113);
+            progressBar.Style = ProgressBarStyle.Blocks;
+            progressBar.MarqueeAnimationSpeed = 0;
+            progressBar.Value = 100;
+        }
+    }
+}
+#endif
 
 internal static class StarWinDesktopPaths
 {
@@ -197,6 +846,11 @@ internal static class StarWinDesktopPaths
     public static string GetIconPath()
     {
         return Path.Combine(AppContext.BaseDirectory, "Assets", "StarforgedAtlasLogo.ico");
+    }
+
+    public static string GetBackendStatePath()
+    {
+        return Path.Combine(GetApplicationDataRoot(), "desktop-backend-state.json");
     }
 
     private static string? FindWebContentRoot(string startDirectory)
