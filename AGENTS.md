@@ -1,6 +1,8 @@
 check for Agents.MD and follow rules defined for project
 
-When I start a conversation with an Issue Number, analyse the task. create a new feature branch using dev branch, if dev branch is not available use main.
+When I start a conversation with an Issue Number, analyse the task. Create a new feature branch from `dev`. If `dev` is not available, create it from `master` and branch from `dev`.
+
+Use `master` as the protected release branch, `dev` as the shared integration branch, and short-lived feature branches for task work. Do not commit feature work directly to `master` or `dev`.
 
 Do not use default Visual Studio installation, Use Visual Studio 2026 Insider Preview.
 
