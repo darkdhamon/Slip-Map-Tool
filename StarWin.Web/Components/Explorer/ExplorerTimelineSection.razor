@@ -1,22 +1,23 @@
 @inject IJSRuntime JS
+@inject IStarWinExplorerQueryService ExplorerQueryService
 @implements IAsyncDisposable
 
 <section class="timeline-layout">
     <aside class="timeline-filter-panel">
         <span class="panel-kicker">Sector chronology</span>
-        <h2>@Sector.Name</h2>
+        <h2>@SectorName</h2>
         <label>
             Search
-            <input placeholder="Event, system, race, colony..."
+            <input placeholder="Event or category..."
                    @bind="timelineQuery"
                    @bind:event="oninput"
-                   @bind:after="ResetTimelineWindow" />
+                   @bind:after="ReloadTimelineAsync" />
         </label>
         <label>
             Race
-            <select @bind="timelineRaceId" @bind:after="ResetTimelineWindow">
+            <select @bind="timelineRaceId" @bind:after="ReloadTimelineAsync">
                 <option value="@AllFilterId">All races</option>
-                @foreach (var race in Races)
+                @foreach (var race in timelineOptions.Races)
                 {
                     <option value="@race.Id">@race.Name</option>
                 }
@@ -24,9 +25,9 @@
         </label>
         <label>
             Empire
-            <select @bind="timelineEmpireId" @bind:after="ResetTimelineWindow">
+            <select @bind="timelineEmpireId" @bind:after="ReloadTimelineAsync">
                 <option value="@AllFilterId">All empires</option>
-                @foreach (var empire in Empires)
+                @foreach (var empire in timelineOptions.Empires)
                 {
                     <option value="@empire.Id">@empire.Name</option>
                 }
@@ -45,9 +46,9 @@
                        @bind:event="oninput"
                        @bind:after="ApplyTimelineColonyFilter" />
                 <datalist id="timeline-colony-options">
-                    @foreach (var item in SectorCache.ColoniesByWorldName)
+                    @foreach (var item in timelineOptions.Colonies)
                     {
-                        <option value="@FormatTimelineColonyOption(item)" />
+                        <option value="@FormatTimelineOption(item)" />
                     }
                 </datalist>
             </label>
@@ -59,9 +60,9 @@
                        @bind:event="oninput"
                        @bind:after="ApplyTimelineSystemFilter" />
                 <datalist id="timeline-system-options">
-                    @foreach (var system in SectorCache.SystemsByName)
+                    @foreach (var item in timelineOptions.Systems)
                     {
-                        <option value="@FormatTimelineSystemOption(system)" />
+                        <option value="@FormatTimelineOption(item)" />
                     }
                 </datalist>
             </label>
@@ -73,106 +74,108 @@
                        @bind:event="oninput"
                        @bind:after="ApplyTimelineWorldFilter" />
                 <datalist id="timeline-world-options">
-                    @foreach (var world in SectorCache.WorldsByName)
+                    @foreach (var item in timelineOptions.Worlds)
                     {
-                        <option value="@FormatTimelineWorldOption(world)" />
+                        <option value="@FormatTimelineOption(item)" />
                     }
                 </datalist>
             </label>
         }
         <label>
             Event type
-            <select @bind="timelineEventType" @bind:after="ResetTimelineWindow">
+            <select @bind="timelineEventType" @bind:after="ReloadTimelineAsync">
                 <option value="">All event types</option>
-                @foreach (var eventType in SectorCache.EventTypes)
+                @foreach (var eventType in timelineOptions.EventTypes)
                 {
                     <option value="@eventType">@eventType</option>
                 }
             </select>
         </label>
-        <button type="button" class="timeline-clear-button" @onclick="ClearTimelineFilters">Clear filters</button>
+        <button type="button" class="timeline-clear-button" @onclick="ClearTimelineFiltersAsync">Clear filters</button>
     </aside>
 
     <div class="timeline-list">
-        @{
-            var timelineWindow = GetFilteredTimelineEvents()
-                .Take(timelineVisibleCount + 1)
-                .ToList();
-            var hasMoreTimelineEvents = timelineWindow.Count > timelineVisibleCount;
-            var timelineEvents = timelineWindow
-                .Take(timelineVisibleCount)
-                .ToList();
-            timelineHasMoreEvents = hasMoreTimelineEvents;
+        <div class="timeline-count">Showing @timelineEvents.Count event@(timelineEvents.Count == 1 ? string.Empty : "s")@(timelineHasMoreEvents ? "+" : string.Empty)</div>
+        @if (timelineLoading && timelineEvents.Count == 0)
+        {
+            <article class="timeline-event-card">
+                <span class="timeline-century">Loading</span>
+                <p>Preparing the sector timeline list.</p>
+            </article>
         }
-        <div class="timeline-count">Showing @timelineEvents.Count event@(timelineEvents.Count == 1 ? string.Empty : "s")@(hasMoreTimelineEvents ? "+" : string.Empty)</div>
-        @if (timelineEvents.Count == 0)
+        else if (timelineEvents.Count == 0)
         {
             <article class="timeline-event-card">
                 <span class="timeline-century">No matches</span>
                 <p>Adjust the filters to widen the sector history view.</p>
             </article>
         }
-        @foreach (var history in timelineEvents)
+        @foreach (var item in timelineEvents)
         {
-            StarSystem? eventSystem = null;
-            if (history.StarSystemId is int historySystemId)
-            {
-                SectorCache.SystemsById.TryGetValue(historySystemId, out eventSystem);
-            }
-
-            World? eventWorld = null;
-            if (history.PlanetId is int historyWorldId)
-            {
-                SectorCache.WorldsById.TryGetValue(historyWorldId, out eventWorld);
-            }
-
-            (World World, Colony Colony)? eventColony = null;
-            if (history.ColonyId is int historyColonyId
-                && SectorCache.ColoniesByColonyId.TryGetValue(historyColonyId, out var foundEventColony))
-            {
-                eventColony = foundEventColony;
-            }
-            <article class="timeline-event-card">
+            <button type="button"
+                    class="timeline-event-card timeline-event-card-button @(selectedTimelineEventId == item.EventId ? "active" : null)"
+                    @onclick="() => SelectTimelineEventAsync(item.EventId)">
                 <div class="timeline-event-header">
-                    <span class="timeline-century">Century @history.Century</span>
-                    <strong>@history.EventType</strong>
+                    <span class="timeline-century">@item.TimeLabel</span>
+                    <strong>@item.EventType</strong>
                 </div>
-                <p>@history.Description</p>
-                <div class="timeline-links">
-                    @if (history.RaceId is int raceId)
-                    {
-                        <button type="button" @onclick="() => RaceSelected.InvokeAsync(raceId)">Race: @DisplayRace(raceId)</button>
-                    }
-                    @if (history.OtherRaceId is int otherRaceId)
-                    {
-                        <button type="button" @onclick="() => RaceSelected.InvokeAsync(otherRaceId)">Other race: @DisplayRace(otherRaceId)</button>
-                    }
-                    @if (history.EmpireId is int empireId)
-                    {
-                        <button type="button" @onclick="() => EmpireSelected.InvokeAsync(empireId)">Empire: @DisplayEmpire(empireId)</button>
-                    }
-                    @if (eventColony is not null)
-                    {
-                        <button type="button" @onclick="() => ColonySelected.InvokeAsync(eventColony.Value.World.Id)">Colony: @eventColony.Value.Colony.ColonyClass</button>
-                    }
-                    @if (eventWorld is not null)
-                    {
-                        <button type="button" @onclick="() => WorldSelected.InvokeAsync(eventWorld.Id)">World: @eventWorld.Name</button>
-                    }
-                    @if (eventSystem is not null)
-                    {
-                        <button type="button" @onclick="() => SystemSelected.InvokeAsync(eventSystem.Id)">System: @eventSystem.Name</button>
-                    }
-                </div>
-            </article>
+                <p>@item.Title</p>
+            </button>
         }
-        @if (hasMoreTimelineEvents)
+        @if (timelineHasMoreEvents)
         {
             <div @ref="timelineLoadMoreElement" class="timeline-load-more">
                 <button type="button" @onclick="LoadMoreTimelineEvents">Load more</button>
             </div>
         }
     </div>
+
+    <article class="feature-panel timeline-detail-panel">
+        @if (timelineDetailLoading)
+        {
+            <span class="panel-kicker">Loading event</span>
+            <h2>Preparing timeline detail</h2>
+            <p>Fetching the selected event record.</p>
+        }
+        else if (selectedTimelineEventDetail is null)
+        {
+            <span class="panel-kicker">Timeline detail</span>
+            <h2>Select an event</h2>
+            <p>Choose an entry from the timeline list to load the event viewer.</p>
+        }
+        else
+        {
+            <span class="panel-kicker">@selectedTimelineEventDetail.TimeLabel</span>
+            <h2>@selectedTimelineEventDetail.EventType</h2>
+            <p>@selectedTimelineEventDetail.Description</p>
+            <div class="timeline-links">
+                @if (selectedTimelineEventDetail.Race is { } race)
+                {
+                    <button type="button" @onclick="() => RaceSelected.InvokeAsync(race.Id)">Race: @race.Name</button>
+                }
+                @if (selectedTimelineEventDetail.OtherRace is { } otherRace)
+                {
+                    <button type="button" @onclick="() => RaceSelected.InvokeAsync(otherRace.Id)">Other race: @otherRace.Name</button>
+                }
+                @if (selectedTimelineEventDetail.Empire is { } empire)
+                {
+                    <button type="button" @onclick="() => EmpireSelected.InvokeAsync(empire.Id)">Empire: @empire.Name</button>
+                }
+                @if (selectedTimelineEventDetail.Colony is { } colony)
+                {
+                    <button type="button" @onclick="() => ColonySelected.InvokeAsync(colony.Id)">Colony: @colony.Name</button>
+                }
+                @if (selectedTimelineEventDetail.World is { } world)
+                {
+                    <button type="button" @onclick="() => WorldSelected.InvokeAsync(world.Id)">World: @world.Name</button>
+                }
+                @if (selectedTimelineEventDetail.System is { } system)
+                {
+                    <button type="button" @onclick="() => SystemSelected.InvokeAsync(system.Id)">System: @system.Name</button>
+                }
+            </div>
+        }
+    </article>
 </section>
 
 @code {
@@ -180,16 +183,10 @@
     private const int AllFilterId = -1;
 
     [Parameter, EditorRequired]
-    public StarWinSector Sector { get; set; } = default!;
+    public int SectorId { get; set; }
 
     [Parameter, EditorRequired]
-    public ExplorerSectorCache SectorCache { get; set; } = default!;
-
-    [Parameter]
-    public IReadOnlyList<AlienRace> Races { get; set; } = [];
-
-    [Parameter]
-    public IReadOnlyList<Empire> Empires { get; set; } = [];
+    public string SectorName { get; set; } = string.Empty;
 
     [Parameter]
     public EventCallback<int> RaceSelected { get; set; }
@@ -206,11 +203,13 @@
     [Parameter]
     public EventCallback<int> SystemSelected { get; set; }
 
-    private readonly Dictionary<int, string> raceNamesById = [];
-    private readonly Dictionary<int, string> empireNamesById = [];
     private ElementReference timelineLoadMoreElement;
     private DotNetObjectReference<ExplorerTimelineSection>? dotNetReference;
     private IJSObjectReference? timelineScrollModule;
+    private ExplorerTimelineOptions timelineOptions = new([], [], [], [], [], []);
+    private List<ExplorerTimelineListItem> timelineEvents = [];
+    private ExplorerTimelineEventDetail? selectedTimelineEventDetail;
+    private int selectedTimelineEventId;
     private int renderedSectorId;
     private string timelineQuery = string.Empty;
     private int timelineRaceId = AllFilterId;
@@ -222,31 +221,21 @@
     private string timelineSystemText = string.Empty;
     private string timelineWorldText = string.Empty;
     private string timelineEventType = string.Empty;
-    private int timelineVisibleCount = TimelineBatchSize;
     private bool timelineHasMoreEvents;
     private bool timelineObserverConfigured;
     private bool showLocationFilters;
+    private bool timelineLoading;
+    private bool timelineDetailLoading;
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
-        raceNamesById.Clear();
-        foreach (var race in Races)
+        if (renderedSectorId == SectorId)
         {
-            raceNamesById[race.Id] = race.Name;
+            return;
         }
 
-        empireNamesById.Clear();
-        foreach (var empire in Empires)
-        {
-            empireNamesById[empire.Id] = empire.Name;
-        }
-
-        if (renderedSectorId != 0 && renderedSectorId != Sector.Id)
-        {
-            ClearTimelineFilters();
-        }
-
-        renderedSectorId = Sector.Id;
+        renderedSectorId = SectorId;
+        await ClearTimelineFiltersAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -281,20 +270,47 @@
     [JSInvokable]
     public async Task LoadMoreTimelineEvents()
     {
+        if (timelineLoading || !timelineHasMoreEvents)
+        {
+            return;
+        }
+
         if (timelineScrollModule is not null)
         {
             await timelineScrollModule.InvokeVoidAsync("disconnectTimelineLoadMore");
         }
 
-        timelineVisibleCount += TimelineBatchSize;
         timelineObserverConfigured = false;
+        timelineLoading = true;
+        var page = await ExplorerQueryService.LoadTimelinePageAsync(BuildPageRequest(timelineEvents.Count, TimelineBatchSize));
+        timelineEvents.AddRange(page.Items);
+        timelineHasMoreEvents = page.HasMore;
+        timelineLoading = false;
         StateHasChanged();
     }
 
-    private void ResetTimelineWindow()
+    private async Task ReloadTimelineAsync()
     {
-        timelineVisibleCount = TimelineBatchSize;
         timelineObserverConfigured = false;
+        timelineLoading = true;
+        timelineOptions = await ExplorerQueryService.LoadTimelineOptionsAsync(SectorId);
+        var page = await ExplorerQueryService.LoadTimelinePageAsync(BuildPageRequest(0, TimelineBatchSize));
+        timelineEvents = page.Items.ToList();
+        timelineHasMoreEvents = page.HasMore;
+        timelineLoading = false;
+
+        var nextEventId = timelineEvents.FirstOrDefault()?.EventId ?? 0;
+        if (nextEventId > 0)
+        {
+            await SelectTimelineEventAsync(nextEventId);
+        }
+        else
+        {
+            selectedTimelineEventId = 0;
+            selectedTimelineEventDetail = null;
+        }
+
+        StateHasChanged();
     }
 
     private void ToggleLocationFilters()
@@ -302,92 +318,25 @@
         showLocationFilters = !showLocationFilters;
     }
 
-    private void ApplyTimelineColonyFilter()
+    private async Task ApplyTimelineColonyFilter()
     {
         timelineColonyId = ParseTimelineOptionId(timelineColonyText);
-        ResetTimelineWindow();
+        await ReloadTimelineAsync();
     }
 
-    private void ApplyTimelineSystemFilter()
+    private async Task ApplyTimelineSystemFilter()
     {
         timelineSystemId = ParseTimelineOptionId(timelineSystemText);
-        ResetTimelineWindow();
+        await ReloadTimelineAsync();
     }
 
-    private void ApplyTimelineWorldFilter()
+    private async Task ApplyTimelineWorldFilter()
     {
         timelineWorldId = ParseTimelineOptionId(timelineWorldText);
-        ResetTimelineWindow();
+        await ReloadTimelineAsync();
     }
 
-    private IEnumerable<HistoryEvent> GetFilteredTimelineEvents()
-    {
-        return SectorCache.SortedHistory.Where(TimelineMatches);
-    }
-
-    private bool TimelineMatches(HistoryEvent history)
-    {
-        if (timelineRaceId != AllFilterId && history.RaceId != timelineRaceId && history.OtherRaceId != timelineRaceId)
-        {
-            return false;
-        }
-
-        if (timelineEmpireId != AllFilterId && history.EmpireId != timelineEmpireId)
-        {
-            return false;
-        }
-
-        if (timelineColonyId != AllFilterId && history.ColonyId != timelineColonyId)
-        {
-            return false;
-        }
-
-        if (timelineSystemId != AllFilterId && history.StarSystemId != timelineSystemId)
-        {
-            return false;
-        }
-
-        if (timelineWorldId != AllFilterId && history.PlanetId != timelineWorldId)
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(timelineEventType)
-            && !string.Equals(history.EventType, timelineEventType, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(timelineQuery))
-        {
-            return true;
-        }
-
-        var query = timelineQuery.Trim();
-        var systemName = history.StarSystemId is int systemId && SectorCache.SystemsById.TryGetValue(systemId, out var system)
-            ? system.Name
-            : null;
-        var worldName = history.PlanetId is int planetId && SectorCache.WorldsById.TryGetValue(planetId, out var world)
-            ? world.Name
-            : null;
-        var colonyName = history.ColonyId is int colonyId && SectorCache.ColoniesByColonyId.TryGetValue(colonyId, out var colonyListing)
-            ? $"{colonyListing.Colony.ColonyClass} {colonyListing.World.Name}"
-            : null;
-        var raceName = history.RaceId is int raceId ? DisplayRace(raceId) : null;
-        var otherRaceName = history.OtherRaceId is int otherRaceId ? DisplayRace(otherRaceId) : null;
-        var empireName = history.EmpireId is int empireId ? DisplayEmpire(empireId) : null;
-
-        return ContainsTimelineQuery(history.EventType, query)
-            || ContainsTimelineQuery(history.Description, query)
-            || ContainsTimelineQuery(systemName, query)
-            || ContainsTimelineQuery(worldName, query)
-            || ContainsTimelineQuery(colonyName, query)
-            || ContainsTimelineQuery(raceName, query)
-            || ContainsTimelineQuery(otherRaceName, query)
-            || ContainsTimelineQuery(empireName, query);
-    }
-
-    private void ClearTimelineFilters()
+    private async Task ClearTimelineFiltersAsync()
     {
         timelineQuery = string.Empty;
         timelineRaceId = AllFilterId;
@@ -400,7 +349,39 @@
         timelineWorldText = string.Empty;
         timelineEventType = string.Empty;
         showLocationFilters = false;
-        ResetTimelineWindow();
+        await ReloadTimelineAsync();
+    }
+
+    private async Task SelectTimelineEventAsync(int eventId)
+    {
+        if (eventId <= 0 || selectedTimelineEventId == eventId && selectedTimelineEventDetail is not null)
+        {
+            return;
+        }
+
+        selectedTimelineEventId = eventId;
+        timelineDetailLoading = true;
+        selectedTimelineEventDetail = null;
+        StateHasChanged();
+
+        selectedTimelineEventDetail = await ExplorerQueryService.LoadTimelineEventDetailAsync(eventId);
+        timelineDetailLoading = false;
+        StateHasChanged();
+    }
+
+    private ExplorerTimelinePageRequest BuildPageRequest(int offset, int limit)
+    {
+        return new ExplorerTimelinePageRequest(
+            SectorId,
+            timelineQuery,
+            timelineRaceId,
+            timelineEmpireId,
+            timelineColonyId,
+            timelineSystemId,
+            timelineWorldId,
+            timelineEventType,
+            offset,
+            limit);
     }
 
     private static int ParseTimelineOptionId(string value)
@@ -415,34 +396,9 @@
         return int.TryParse(idText, out var id) ? id : AllFilterId;
     }
 
-    private static string FormatTimelineColonyOption((World World, Colony Colony) item)
+    private static string FormatTimelineOption(ExplorerLookupOption item)
     {
-        return $"{item.Colony.Id} - {item.Colony.ColonyClass} on {item.World.Name}";
-    }
-
-    private static string FormatTimelineSystemOption(StarSystem system)
-    {
-        return $"{system.Id} - {system.Name}";
-    }
-
-    private static string FormatTimelineWorldOption(World world)
-    {
-        return $"{world.Id} - {world.Name}";
-    }
-
-    private static bool ContainsTimelineQuery(string? value, string query)
-    {
-        return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
-    }
-
-    private string DisplayRace(int raceId)
-    {
-        return raceNamesById.TryGetValue(raceId, out var raceName) ? raceName : raceId.ToString();
-    }
-
-    private string DisplayEmpire(int empireId)
-    {
-        return empireNamesById.TryGetValue(empireId, out var empireName) ? empireName : empireId.ToString();
+        return $"{item.Id} - {item.Name}";
     }
 
     public async ValueTask DisposeAsync()
