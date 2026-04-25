@@ -24,7 +24,10 @@
     var mapContextActionLabel = GetMapContextActionLabel();
     var sectorSummary = GetSectorSummary(sector);
     var overviewData = GetSectorOverviewData(sector.Id);
-    var sectorCache = ShouldUseFullSectorCache(activeSection) ? GetSectorCache(sector) : null;
+    var usesFullSectorCache = ShouldUseFullSectorCache(activeSection);
+    var needsSectorRaceList = activeSection is "Overview" or "Colonies" or "Aliens" or "Empires";
+    var needsSectorEmpireList = activeSection is "Overview" or "Systems" or "Colonies" or "Empires";
+    var sectorCache = usesFullSectorCache ? GetSectorCache(sector) : null;
     var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
     var selectedMapSystem = mapSector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? mapSector.Systems.FirstOrDefault();
     var selectedHabitat = selectedSystem?.SpaceHabitats.FirstOrDefault(habitat => habitat.Id == selectedHabitatId);
@@ -35,11 +38,21 @@
     var sectorColonies = sectorCache?.Colonies ?? [];
     var sectorRaceIds = sectorCache?.RaceIds ?? sectorSummary.RaceIds;
     var sectorEmpireIds = sectorCache?.EmpireIds ?? sectorSummary.EmpireIds;
-    var sectorRaces = ExplorerAlienRaces.Where(race => sectorRaceIds.Contains(race.Id)).OrderBy(race => race.Name).ToList();
-    var sectorEmpires = ExplorerEmpires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
-    var selectedRace = sectorRaces.FirstOrDefault(race => race.Id == selectedRaceId) ?? sectorRaces.FirstOrDefault();
-    var selectedEmpire = sectorEmpires.FirstOrDefault(empire => empire.Id == selectedEmpireId) ?? sectorEmpires.FirstOrDefault();
-    var selectedColony = selectedWorld?.Colony ?? sectorColonies.Select(item => item.Colony).FirstOrDefault();
+    var sectorRaces = needsSectorRaceList
+        ? ExplorerAlienRaces.Where(race => sectorRaceIds.Contains(race.Id)).OrderBy(race => race.Name).ToList()
+        : [];
+    var sectorEmpires = needsSectorEmpireList
+        ? ExplorerEmpires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList()
+        : [];
+    var selectedRace = activeSection == "Aliens"
+        ? sectorRaces.FirstOrDefault(race => race.Id == selectedRaceId) ?? sectorRaces.FirstOrDefault()
+        : null;
+    var selectedEmpire = activeSection == "Empires"
+        ? sectorEmpires.FirstOrDefault(empire => empire.Id == selectedEmpireId) ?? sectorEmpires.FirstOrDefault()
+        : null;
+    var selectedColony = activeSection is "Colonies" or "Empires"
+        ? selectedWorld?.Colony ?? sectorColonies.Select(item => item.Colony).FirstOrDefault()
+        : null;
     var selectedColonyWorld = selectedColony is null || sectorCache is null || !sectorCache.WorldsById.TryGetValue(selectedColony.WorldId, out var colonyWorld)
         ? null
         : colonyWorld;
@@ -1922,7 +1935,7 @@
 
     private static bool ShouldUseFullSectorCache(string sectionName)
     {
-        return sectionName is "Timeline" or "Systems" or "Colonies" or "Aliens" or "Empires";
+        return sectionName is "Systems" or "Colonies" or "Aliens" or "Empires";
     }
 
     private static bool ShouldUseHyperlaneSectionCache(string sectionName)

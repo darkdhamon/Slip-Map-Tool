@@ -3,7 +3,6 @@ namespace StarWin.Application.Services;
 public interface IStarWinExplorerQueryService
 {
     Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default);
-    Task<ExplorerTimelineOptions> LoadTimelineOptionsAsync(int sectorId, CancellationToken cancellationToken = default);
     Task<ExplorerTimelinePage> LoadTimelinePageAsync(ExplorerTimelinePageRequest request, CancellationToken cancellationToken = default);
     Task<ExplorerTimelineEventDetail?> LoadTimelineEventDetailAsync(int eventId, CancellationToken cancellationToken = default);
 }
@@ -20,23 +19,8 @@ public sealed record ExplorerSectorOverviewData(
     IReadOnlyList<ExplorerLookupOption> Systems,
     IReadOnlyList<ExplorerLookupOption> Empires);
 
-public sealed record ExplorerTimelineOptions(
-    IReadOnlyList<ExplorerLookupOption> Races,
-    IReadOnlyList<ExplorerLookupOption> Empires,
-    IReadOnlyList<ExplorerLookupOption> Colonies,
-    IReadOnlyList<ExplorerLookupOption> Systems,
-    IReadOnlyList<ExplorerLookupOption> Worlds,
-    IReadOnlyList<string> EventTypes);
-
 public sealed record ExplorerTimelinePageRequest(
     int SectorId,
-    string Query,
-    int RaceId,
-    int EmpireId,
-    int ColonyId,
-    int SystemId,
-    int WorldId,
-    string EventType,
     int Offset,
     int Limit);
 

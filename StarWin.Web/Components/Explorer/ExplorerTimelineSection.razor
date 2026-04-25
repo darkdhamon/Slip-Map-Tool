@@ -6,92 +6,7 @@
     <aside class="timeline-filter-panel">
         <span class="panel-kicker">Sector chronology</span>
         <h2>@SectorName</h2>
-        <label>
-            Search
-            <input placeholder="Event or category..."
-                   @bind="timelineQuery"
-                   @bind:event="oninput"
-                   @bind:after="ReloadTimelineAsync" />
-        </label>
-        <label>
-            Race
-            <select @bind="timelineRaceId" @bind:after="ReloadTimelineAsync">
-                <option value="@AllFilterId">All races</option>
-                @foreach (var race in timelineOptions.Races)
-                {
-                    <option value="@race.Id">@race.Name</option>
-                }
-            </select>
-        </label>
-        <label>
-            Empire
-            <select @bind="timelineEmpireId" @bind:after="ReloadTimelineAsync">
-                <option value="@AllFilterId">All empires</option>
-                @foreach (var empire in timelineOptions.Empires)
-                {
-                    <option value="@empire.Id">@empire.Name</option>
-                }
-            </select>
-        </label>
-        <button type="button" class="timeline-clear-button" @onclick="ToggleLocationFilters">
-            @(showLocationFilters ? "Hide location filters" : "Show location filters")
-        </button>
-        @if (showLocationFilters)
-        {
-            <label>
-                Colony
-                <input list="timeline-colony-options"
-                       placeholder="All colonies"
-                       @bind="timelineColonyText"
-                       @bind:event="oninput"
-                       @bind:after="ApplyTimelineColonyFilter" />
-                <datalist id="timeline-colony-options">
-                    @foreach (var item in timelineOptions.Colonies)
-                    {
-                        <option value="@FormatTimelineOption(item)" />
-                    }
-                </datalist>
-            </label>
-            <label>
-                System
-                <input list="timeline-system-options"
-                       placeholder="All systems"
-                       @bind="timelineSystemText"
-                       @bind:event="oninput"
-                       @bind:after="ApplyTimelineSystemFilter" />
-                <datalist id="timeline-system-options">
-                    @foreach (var item in timelineOptions.Systems)
-                    {
-                        <option value="@FormatTimelineOption(item)" />
-                    }
-                </datalist>
-            </label>
-            <label>
-                World
-                <input list="timeline-world-options"
-                       placeholder="All worlds"
-                       @bind="timelineWorldText"
-                       @bind:event="oninput"
-                       @bind:after="ApplyTimelineWorldFilter" />
-                <datalist id="timeline-world-options">
-                    @foreach (var item in timelineOptions.Worlds)
-                    {
-                        <option value="@FormatTimelineOption(item)" />
-                    }
-                </datalist>
-            </label>
-        }
-        <label>
-            Event type
-            <select @bind="timelineEventType" @bind:after="ReloadTimelineAsync">
-                <option value="">All event types</option>
-                @foreach (var eventType in timelineOptions.EventTypes)
-                {
-                    <option value="@eventType">@eventType</option>
-                }
-            </select>
-        </label>
-        <button type="button" class="timeline-clear-button" @onclick="ClearTimelineFiltersAsync">Clear filters</button>
+        <p>Events are sorted by in-universe game date and loaded in chronological pages.</p>
     </aside>
 
     <div class="timeline-list">
@@ -106,8 +21,8 @@
         else if (timelineEvents.Count == 0)
         {
             <article class="timeline-event-card">
-                <span class="timeline-century">No matches</span>
-                <p>Adjust the filters to widen the sector history view.</p>
+                <span class="timeline-century">No events</span>
+                <p>No timeline events are available for this sector yet.</p>
             </article>
         }
         @foreach (var item in timelineEvents)
@@ -180,7 +95,6 @@
 
 @code {
     private const int TimelineBatchSize = 40;
-    private const int AllFilterId = -1;
 
     [Parameter, EditorRequired]
     public int SectorId { get; set; }
@@ -206,29 +120,17 @@
     private ElementReference timelineLoadMoreElement;
     private DotNetObjectReference<ExplorerTimelineSection>? dotNetReference;
     private IJSObjectReference? timelineScrollModule;
-    private ExplorerTimelineOptions timelineOptions = new([], [], [], [], [], []);
     private List<ExplorerTimelineListItem> timelineEvents = [];
     private ExplorerTimelineEventDetail? selectedTimelineEventDetail;
     private int selectedTimelineEventId;
-    private int loadedOptionsSectorId;
     private int renderedSectorId;
-    private string timelineQuery = string.Empty;
-    private int timelineRaceId = AllFilterId;
-    private int timelineEmpireId = AllFilterId;
-    private int timelineColonyId = AllFilterId;
-    private int timelineSystemId = AllFilterId;
-    private int timelineWorldId = AllFilterId;
-    private string timelineColonyText = string.Empty;
-    private string timelineSystemText = string.Empty;
-    private string timelineWorldText = string.Empty;
-    private string timelineEventType = string.Empty;
     private bool timelineHasMoreEvents;
     private bool timelineObserverConfigured;
-    private bool showLocationFilters;
     private bool timelineLoading;
     private bool timelineDetailLoading;
+    private bool pendingSectorReload;
 
-    protected override async Task OnParametersSetAsync()
+    protected override void OnParametersSet()
     {
         if (renderedSectorId == SectorId)
         {
@@ -236,12 +138,25 @@
         }
 
         renderedSectorId = SectorId;
-        loadedOptionsSectorId = 0;
-        await ClearTimelineFiltersAsync();
+        pendingSectorReload = true;
+        timelineEvents = [];
+        timelineHasMoreEvents = false;
+        selectedTimelineEventId = 0;
+        selectedTimelineEventDetail = null;
+        timelineDetailLoading = false;
+        timelineObserverConfigured = false;
+        timelineLoading = true;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (pendingSectorReload)
+        {
+            pendingSectorReload = false;
+            await ReloadTimelineAsync();
+            return;
+        }
+
         await ConfigureTimelineObserverAsync();
     }
 
@@ -295,68 +210,15 @@
     {
         timelineObserverConfigured = false;
         timelineLoading = true;
-        if (loadedOptionsSectorId != SectorId)
-        {
-            timelineOptions = await ExplorerQueryService.LoadTimelineOptionsAsync(SectorId);
-            loadedOptionsSectorId = SectorId;
-        }
-
         var page = await ExplorerQueryService.LoadTimelinePageAsync(BuildPageRequest(0, TimelineBatchSize));
         timelineEvents = page.Items.ToList();
         timelineHasMoreEvents = page.HasMore;
         timelineLoading = false;
-
-        var nextEventId = timelineEvents.FirstOrDefault()?.EventId ?? 0;
-        if (nextEventId > 0)
-        {
-            await SelectTimelineEventAsync(nextEventId);
-        }
-        else
-        {
-            selectedTimelineEventId = 0;
-            selectedTimelineEventDetail = null;
-        }
+        selectedTimelineEventId = 0;
+        selectedTimelineEventDetail = null;
+        timelineDetailLoading = false;
 
         StateHasChanged();
-    }
-
-    private void ToggleLocationFilters()
-    {
-        showLocationFilters = !showLocationFilters;
-    }
-
-    private async Task ApplyTimelineColonyFilter()
-    {
-        timelineColonyId = ParseTimelineOptionId(timelineColonyText);
-        await ReloadTimelineAsync();
-    }
-
-    private async Task ApplyTimelineSystemFilter()
-    {
-        timelineSystemId = ParseTimelineOptionId(timelineSystemText);
-        await ReloadTimelineAsync();
-    }
-
-    private async Task ApplyTimelineWorldFilter()
-    {
-        timelineWorldId = ParseTimelineOptionId(timelineWorldText);
-        await ReloadTimelineAsync();
-    }
-
-    private async Task ClearTimelineFiltersAsync()
-    {
-        timelineQuery = string.Empty;
-        timelineRaceId = AllFilterId;
-        timelineEmpireId = AllFilterId;
-        timelineColonyId = AllFilterId;
-        timelineSystemId = AllFilterId;
-        timelineWorldId = AllFilterId;
-        timelineColonyText = string.Empty;
-        timelineSystemText = string.Empty;
-        timelineWorldText = string.Empty;
-        timelineEventType = string.Empty;
-        showLocationFilters = false;
-        await ReloadTimelineAsync();
     }
 
     private async Task SelectTimelineEventAsync(int eventId)
@@ -380,32 +242,8 @@
     {
         return new ExplorerTimelinePageRequest(
             SectorId,
-            timelineQuery,
-            timelineRaceId,
-            timelineEmpireId,
-            timelineColonyId,
-            timelineSystemId,
-            timelineWorldId,
-            timelineEventType,
             offset,
             limit);
-    }
-
-    private static int ParseTimelineOptionId(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return AllFilterId;
-        }
-
-        var separatorIndex = value.IndexOf(" - ", StringComparison.Ordinal);
-        var idText = separatorIndex < 0 ? value : value[..separatorIndex];
-        return int.TryParse(idText, out var id) ? id : AllFilterId;
-    }
-
-    private static string FormatTimelineOption(ExplorerLookupOption item)
-    {
-        return $"{item.Id} - {item.Name}";
     }
 
     public async ValueTask DisposeAsync()
