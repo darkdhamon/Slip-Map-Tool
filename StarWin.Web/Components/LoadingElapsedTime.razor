@@ -1,19 +1,16 @@
-@implements IAsyncDisposable
-@inject IJSRuntime JS
-
 @if (IsVisible)
 {
-    <p @ref="timerElement" class="loading-elapsed" aria-live="off">Elapsed time: 00:00</p>
+    <p class="loading-elapsed"
+       aria-live="off"
+       data-loading-timer="true"
+       data-started-at-unix-ms="@startedAtUnixMs">Elapsed time: @GetInitialElapsedDisplay()</p>
 }
 
 @code {
     [Parameter]
     public bool IsVisible { get; set; }
 
-    private ElementReference timerElement;
-    private IJSObjectReference? module;
     private long? startedAtUnixMs;
-    private long? activeTimerStartedAtUnixMs;
 
     protected override void OnParametersSet()
     {
@@ -24,40 +21,18 @@
         }
 
         startedAtUnixMs = null;
-        activeTimerStartedAtUnixMs = null;
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    private string GetInitialElapsedDisplay()
     {
-        if (!IsVisible || startedAtUnixMs is null)
+        if (startedAtUnixMs is null)
         {
-            return;
+            return "00:00.0";
         }
 
-        if (activeTimerStartedAtUnixMs == startedAtUnixMs)
-        {
-            return;
-        }
-
-        module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/loadingElapsedTime.js");
-        await module.InvokeVoidAsync("start", timerElement, startedAtUnixMs.Value);
-        activeTimerStartedAtUnixMs = startedAtUnixMs;
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (module is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await module.InvokeVoidAsync("stop", timerElement);
-            await module.DisposeAsync();
-        }
-        catch (JSDisconnectedException)
-        {
-        }
+        var elapsed = DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeMilliseconds(startedAtUnixMs.Value);
+        return elapsed.TotalHours >= 1
+            ? $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
+            : $"{elapsed.Minutes:00}:{elapsed.Seconds:00}.{elapsed.Milliseconds / 100}";
     }
 }
