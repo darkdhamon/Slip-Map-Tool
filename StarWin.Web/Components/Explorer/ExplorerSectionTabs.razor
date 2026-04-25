@@ -1,13 +1,13 @@
 <nav class="section-tabs" aria-label="StarWin sections">
     @foreach (var sectionName in Sections)
     {
-        <button type="button"
-                class="@(ActiveSection == sectionName ? "active" : null)"
-                onmousedown="@GetPointerDownHandler(sectionName)"
-                @onclick="() => SectionSelected.InvokeAsync(sectionName)"
-                disabled="@IsLoading">
+        var sectionUrl = SectionHrefFactory?.Invoke(sectionName) ?? "#";
+        <a href="@sectionUrl"
+           class="@(ActiveSection == sectionName ? "active" : null)"
+           onclick="return window.starforgedAtlasNavigation.showSectionRouteLoading(event, '@sectionUrl', '@sectionName');"
+           aria-current="@(ActiveSection == sectionName ? "page" : null)">
             @sectionName
-        </button>
+        </a>
     }
 </nav>
 @code {
@@ -27,15 +27,5 @@
     public string LoadingStatus { get; set; } = string.Empty;
 
     [Parameter]
-    public EventCallback<string> SectionSelected { get; set; }
-
-    private string? GetPointerDownHandler(string sectionName)
-    {
-        if (IsLoading || string.Equals(ActiveSection, sectionName, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        return $"window.starforgedAtlasNavigation.showSectionLoading('{sectionName}')";
-    }
+    public Func<string, string>? SectionHrefFactory { get; set; }
 }

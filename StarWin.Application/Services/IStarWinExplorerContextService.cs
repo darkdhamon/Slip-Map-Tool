@@ -5,7 +5,10 @@ namespace StarWin.Application.Services;
 
 public interface IStarWinExplorerContextService
 {
-    Task<StarWinExplorerContext> LoadShellAsync(CancellationToken cancellationToken = default);
+    Task<StarWinExplorerContext> LoadShellAsync(
+        bool includeSavedRoutes = true,
+        bool includeReferenceData = true,
+        CancellationToken cancellationToken = default);
     Task<StarWinSector?> LoadSectorAsync(int sectorId, bool includeHistory = false, CancellationToken cancellationToken = default);
 }
 

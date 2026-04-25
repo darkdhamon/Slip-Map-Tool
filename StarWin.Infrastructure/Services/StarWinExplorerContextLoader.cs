@@ -54,36 +54,47 @@ internal static class StarWinExplorerContextLoader
 
     public static async Task<StarWinExplorerContext> LoadShellAsync(
         StarWinDbContext dbContext,
+        bool includeSavedRoutes = true,
+        bool includeReferenceData = true,
         CancellationToken cancellationToken = default)
     {
-        var sectors = await dbContext.Sectors
+        IQueryable<StarWinSector> sectorsQuery = dbContext.Sectors
             .AsNoTracking()
             .AsSplitQuery()
             .Include(sector => sector.Configuration)
             .Include(sector => sector.Systems)
-            .Include(sector => sector.SavedRoutes)
-            .OrderBy(sector => sector.Name)
-            .ToListAsync(cancellationToken);
+            .OrderBy(sector => sector.Name);
 
-        var alienRaces = await dbContext.AlienRaces
-            .AsNoTracking()
-            .OrderBy(race => race.Name)
-            .ToListAsync(cancellationToken);
+        if (includeSavedRoutes)
+        {
+            sectorsQuery = sectorsQuery.Include(sector => sector.SavedRoutes);
+        }
 
-        var empires = await dbContext.Empires
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(empire => empire.RaceMemberships)
-            .Include(empire => empire.Contacts)
-            .OrderBy(empire => empire.Name)
-            .ToListAsync(cancellationToken);
+        var sectors = await sectorsQuery.ToListAsync(cancellationToken);
+
+        var alienRaces = includeReferenceData
+            ? await dbContext.AlienRaces
+                .AsNoTracking()
+                .OrderBy(race => race.Name)
+                .ToListAsync(cancellationToken)
+            : [];
+
+        var empires = includeReferenceData
+            ? await dbContext.Empires
+                .AsNoTracking()
+                .AsSplitQuery()
+                .Include(empire => empire.RaceMemberships)
+                .Include(empire => empire.Contacts)
+                .OrderBy(empire => empire.Name)
+                .ToListAsync(cancellationToken)
+            : [];
 
         return new StarWinExplorerContext(
             sectors,
             sectors.FirstOrDefault() ?? StarWinExplorerContext.Empty.CurrentSector,
             alienRaces,
             empires,
-            empires.SelectMany(empire => empire.Contacts).ToList());
+            includeReferenceData ? empires.SelectMany(empire => empire.Contacts).ToList() : []);
     }
 
     public static async Task<StarWinSector?> LoadSectorAsync(

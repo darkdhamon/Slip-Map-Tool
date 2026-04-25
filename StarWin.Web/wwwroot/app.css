@@ -328,7 +328,8 @@ dd {
     justify-content: flex-end;
 }
 
-.section-tabs button {
+.section-tabs button,
+.section-tabs a {
     min-height: 40px;
     border: 1px solid rgba(125, 211, 252, 0.28);
     border-radius: 6px;
@@ -336,6 +337,10 @@ dd {
     color: #cbd5e1;
     padding: 8px 12px;
     font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
 }
 
 .section-tabs button:disabled {
@@ -344,7 +349,9 @@ dd {
 }
 
 .section-tabs button.active,
-.section-tabs button:hover {
+.section-tabs button:hover,
+.section-tabs a.active,
+.section-tabs a:hover {
     border-color: var(--accent);
     background: linear-gradient(135deg, rgba(14, 165, 233, 0.34), rgba(124, 58, 237, 0.24));
     color: #f8fbff;
@@ -360,6 +367,16 @@ dd {
     background: rgba(2, 6, 23, 0.72);
     backdrop-filter: blur(8px);
     padding: 20px;
+}
+
+#explorer-navigation-loading,
+#explorer-section-loading {
+    pointer-events: none;
+}
+
+#explorer-navigation-loading .loading-modal,
+#explorer-section-loading .loading-modal {
+    pointer-events: none;
 }
 
 .loading-modal {

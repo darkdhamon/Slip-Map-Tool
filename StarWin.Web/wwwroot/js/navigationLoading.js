@@ -78,6 +78,17 @@
 
             showOverlay(sectionOverlayId);
         },
+        showSectionRouteLoading(event, url, sectionName) {
+            if (event) {
+                event.preventDefault();
+            }
+
+            this.showSectionLoading(sectionName);
+            window.setTimeout(function () {
+                window.location.assign(url);
+            }, 60);
+            return false;
+        },
         syncExplorerUrl(url, replaceHistory) {
             if (!url) {
                 return;

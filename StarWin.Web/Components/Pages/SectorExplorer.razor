@@ -146,7 +146,7 @@
                              IsLoading="@sectionLoadingVisible"
                              LoadingTarget="@sectionLoadingTarget"
                              LoadingStatus="@sectionLoadingStatus"
-                             SectionSelected="SelectSectionAsync" />
+                             SectionHrefFactory="BuildSectionRoute" />
     </section>
 
     @if (!string.IsNullOrWhiteSpace(explorerRenderError))
@@ -1743,6 +1743,7 @@
     private readonly HashSet<int> sectorsWithDetailLoaded = [];
     private StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     private string activeSection = "Overview";
+    private string lastAppliedSectionSlug = string.Empty;
     private string sectionLoadingTarget = string.Empty;
     private string sectionLoadingStatus = string.Empty;
     private bool sectionLoadingVisible;
@@ -1968,6 +1969,7 @@
     protected override async Task OnInitializedAsync()
     {
         activeSection = GetSectionNameFromSlug(SectionSlug);
+        lastAppliedSectionSlug = SectionSlug ?? string.Empty;
         await RefreshExplorerDataAsync();
 
         var initialSector = RequestedSectorId is int requestedSectorId
@@ -1987,6 +1989,13 @@
 
     protected override void OnParametersSet()
     {
+        var currentSectionSlug = SectionSlug ?? string.Empty;
+        if (string.Equals(lastAppliedSectionSlug, currentSectionSlug, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        lastAppliedSectionSlug = currentSectionSlug;
         activeSection = GetSectionNameFromSlug(SectionSlug);
     }
 
@@ -2000,7 +2009,10 @@
         var previousRaceId = selectedRaceId;
         var previousEmpireId = selectedEmpireId;
 
-        explorerContext = await ExplorerContextService.LoadShellAsync(cancellationToken);
+        explorerContext = await ExplorerContextService.LoadShellAsync(
+            includeSavedRoutes: RequiresSavedRoutesInShell(activeSection),
+            includeReferenceData: RequiresReferenceDataInShell(activeSection),
+            cancellationToken: cancellationToken);
         sectorsWithDetailLoaded.Clear();
         ResetExplorerCaches(previousSectorIds);
         ResetHyperlaneWindow();
@@ -2135,6 +2147,21 @@
         return sectionName is "Systems" or "Worlds" or "Colonies" or "Aliens" or "Empires";
     }
 
+    private static bool RequiresOverviewData(string sectionName)
+    {
+        return sectionName == "Overview";
+    }
+
+    private static bool RequiresSavedRoutesInShell(string sectionName)
+    {
+        return sectionName is "Overview" or "Configuration" or "Hyperlanes";
+    }
+
+    private static bool RequiresReferenceDataInShell(string sectionName)
+    {
+        return sectionName is "Systems" or "Colonies" or "Aliens" or "Empires";
+    }
+
     private ExplorerSectorOverviewData? GetSectorOverviewData(int sectorId)
     {
         return sectorOverviewDataById.TryGetValue(sectorId, out var overviewData) ? overviewData : null;
@@ -2142,7 +2169,7 @@
 
     private async Task LoadSectorOverviewDataAsync(int sectorId, CancellationToken cancellationToken = default)
     {
-        if (sectorId <= 0)
+        if (sectorId <= 0 || !RequiresOverviewData(activeSection))
         {
             return;
         }
@@ -2349,6 +2376,7 @@
         sectionLoadingStartedAtUtc = DateTimeOffset.UtcNow;
         explorerRenderError = string.Empty;
         StateHasChanged();
+        await ShowSectionLoadingOverlayAsync(sectionName);
 
         await Task.Delay(80);
 
@@ -2394,6 +2422,20 @@
         try
         {
             await JS.InvokeVoidAsync("starforgedAtlasNavigation.hideSectionLoading");
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private async Task ShowSectionLoadingOverlayAsync(string sectionName)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("starforgedAtlasNavigation.showSectionLoading", sectionName);
         }
         catch (InvalidOperationException)
         {
@@ -3599,6 +3641,11 @@
         catch (JSDisconnectedException)
         {
         }
+    }
+
+    private string BuildSectionRoute(string sectionName)
+    {
+        return BuildSectionUri(sectionName, selectedSectorId);
     }
 
     private static string GetSectionNameFromSlug(string? sectionSlug)
