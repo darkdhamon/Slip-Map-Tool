@@ -10,7 +10,6 @@
 @inject IStarWinSectorRouteService SectorRouteService
 @inject IStarWinEntityNameService EntityNameService
 @inject IStarWinIndependentColonyService IndependentColonyService
-@inject IStarWinSpaceHabitatService SpaceHabitatService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JS
 @implements IAsyncDisposable
@@ -588,223 +587,6 @@
                 </article>
             </section>
             break;
-        case "Worlds":
-            <section class="content-grid">
-                <div class="record-list">
-                    <details class="record-filter-panel" open>
-                        <summary class="record-filter-summary">Search</summary>
-                        <label>
-                            Search
-                            <input placeholder="Name, type, atmosphere..."
-                                   @bind="worldQuery"
-                                   @bind:event="oninput"
-                                   @bind:after="ResetWorldWindow" />
-                        </label>
-                        <label>
-                            Kind
-                            <select @bind="worldKind" @bind:after="ResetWorldWindow">
-                                <option value="">All kinds</option>
-                                <option value="@WorldKind.Planet.ToString()">Planets</option>
-                                <option value="@WorldKind.Moon.ToString()">Moons</option>
-                                <option value="SpaceHabitat">Habitats</option>
-                            </select>
-                        </label>
-                        <button type="button" class="timeline-clear-button" @onclick="ToggleWorldFilters">
-                            @(showWorldFilters ? "Hide filters" : "Show filters")
-                        </button>
-                        @if (showWorldFilters)
-                        {
-                            <label>
-                                Type
-                                <input list="world-type-options"
-                                       placeholder="All types"
-                                       @bind="worldType"
-                                       @bind:event="oninput"
-                                       @bind:after="ResetWorldWindow" />
-                                <datalist id="world-type-options">
-                                @foreach (var itemType in (selectedSystem?.Worlds.Select(world => world.WorldType) ?? []).Distinct().OrderBy(item => item))
-                                {
-                                    <option value="@itemType" />
-                                }
-                                </datalist>
-                            </label>
-                        }
-                        <button type="button" class="timeline-clear-button" @onclick="ClearWorldFilters">Clear filters</button>
-                    </details>
-                    @{
-                        var worldWindow = GetFilteredExplorerWorldRecords(selectedSystem)
-                            .Take(worldVisibleCount + 1)
-                            .ToList();
-                        var hasMoreWorlds = worldWindow.Count > worldVisibleCount;
-                        var visibleExplorerWorldRecords = worldWindow.Take(worldVisibleCount).ToList();
-                        worldHasMoreRecords = hasMoreWorlds;
-                    }
-                    <div class="timeline-count">Showing @visibleExplorerWorldRecords.Count world@(visibleExplorerWorldRecords.Count == 1 ? string.Empty : "s")@(hasMoreWorlds ? "+" : string.Empty)</div>
-                    @if (visibleExplorerWorldRecords.Count == 0)
-                    {
-                        <article class="timeline-event-card">
-                            <span class="timeline-century">No matches</span>
-                            <p>Adjust the filters to widen the world list.</p>
-                        </article>
-                    }
-                    @foreach (var record in visibleExplorerWorldRecords)
-                    {
-                        if (record.World is not null)
-                        {
-                            var world = record.World;
-                            <button type="button" class="record-row @(selectedWorld?.Id == world.Id ? "active" : null)" @onclick="() => SelectWorld(world.Id)">
-                                <strong>@world.Name</strong>
-                                <span>@world.Kind; @world.WorldType</span>
-                            </button>
-                        }
-                        else if (record.Habitat is not null)
-                        {
-                            var habitat = record.Habitat;
-                            <button type="button" class="record-row @(selectedHabitat?.Id == habitat.Id ? "active" : null)" @onclick="() => SelectHabitat(habitat.Id)">
-                                <strong>@habitat.Name</strong>
-                                <span>Space Habitat; @DisplayPopulation(habitat.Population)</span>
-                            </button>
-                        }
-                    }
-                    @if (hasMoreWorlds)
-                    {
-                        <div @ref="worldLoadMoreElement" class="timeline-load-more">
-                            <button type="button" @onclick="LoadMoreWorlds">Load more</button>
-                        </div>
-                    }
-                </div>
-
-                @if (selectedHabitat is not null)
-                {
-                    <article class="detail-panel world-detail">
-                        @RenderEntityOrb(EntityImageTargetKind.SpaceHabitat, selectedHabitat.Id, "world-orb habitat", selectedHabitat.Name)
-                        <span class="panel-kicker">Space habitat</span>
-                        <h2>@selectedHabitat.Name</h2>
-                        @RenderImagePanel(EntityImageTargetKind.SpaceHabitat, selectedHabitat.Id, "Habitat image", false)
-                        <div class="parent-actions">
-                            <button type="button" @onclick="() => SelectParentOfHabitat(selectedHabitat)">Parent: @DisplayOrbitTarget(selectedSystem, selectedHabitat)</button>
-                        </div>
-                        <dl class="field-grid">
-                            <div><dt>Habitat id</dt><dd>@selectedHabitat.Id</dd></div>
-                            <div><dt>Population</dt><dd>@DisplayPopulation(selectedHabitat.Population)</dd></div>
-                            <div><dt>Orbit target</dt><dd>@DisplayOrbitTarget(selectedSystem, selectedHabitat)</dd></div>
-                            <div><dt>Orbit radius</dt><dd>@DisplayNullable(selectedHabitat.OrbitRadiusKm, " km")</dd></div>
-                            <div><dt>Built by</dt><dd>@DisplayEmpire(selectedHabitat.BuiltByEmpireId)</dd></div>
-                            <div><dt>Controlled by</dt><dd>@DisplayEmpire(selectedHabitat.ControlledByEmpireId)</dd></div>
-                            <div><dt>Constructed</dt><dd>@DisplayNullable(selectedHabitat.ConstructedCentury, " century")</dd></div>
-                        </dl>
-
-                        <div class="satellite-panel">
-                            <h3>Satellites</h3>
-                            <p>Space habitats are world records, but they cannot have satellites.</p>
-                        </div>
-                    </article>
-                }
-                else if (selectedWorld is not null)
-                {
-                    <article class="detail-panel world-detail">
-                        @RenderEntityOrb(EntityImageTargetKind.World, selectedWorld.Id, $"world-orb {selectedWorld.WorldType.ToLowerInvariant()}", selectedWorld.Name)
-                        <span class="panel-kicker">@selectedWorld.Kind survey</span>
-                        <EditableEntityName Name="@selectedWorld.Name"
-                                            Label="World"
-                                            NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.World, selectedWorld.Id, name)" />
-                        @RenderImagePanel(EntityImageTargetKind.World, selectedWorld.Id, "World image", false)
-                        <div class="parent-actions">
-                            @if (selectedWorld.ParentWorldId is int parentWorldId
-                                                    && selectedSystem?.Worlds.FirstOrDefault(world => world.Id == parentWorldId) is World parentWorld)
-                            {
-                                <button type="button" @onclick="() => SelectWorld(parentWorld.Id)">Parent world: @parentWorld.Name</button>
-                            }
-                            else if (selectedSystem is not null)
-                            {
-                                <button type="button" @onclick="OpenSelectedSystemRecord">Parent astral body: @DisplayAstralBody(selectedSystem, selectedWorld.PrimaryAstralBodySequence ?? 0)</button>
-                            }
-                        </div>
-                        <dl class="field-grid">
-                            <div><dt>World type</dt><dd>@selectedWorld.WorldType</dd></div>
-                            <div><dt>Orbit</dt><dd>@DisplayOrbit(selectedWorld)</dd></div>
-                            <div><dt>Diameter</dt><dd>@selectedWorld.DiameterKm km</dd></div>
-                            <div><dt>Gravity</dt><dd>@Format(selectedWorld.GravityEarthG) g</dd></div>
-                            <div><dt>Mass</dt><dd>@Format(selectedWorld.MassEarthMasses)</dd></div>
-                            <div><dt>Escape velocity</dt><dd>@Format(selectedWorld.EscapeVelocityKmPerSecond) km/s</dd></div>
-                            <div><dt>Atmosphere</dt><dd>@selectedWorld.AtmosphereType</dd></div>
-                            <div><dt>Composition</dt><dd>@selectedWorld.AtmosphereComposition</dd></div>
-                            <div><dt>Pressure</dt><dd>@selectedWorld.AtmosphericPressure atm</dd></div>
-                            <div><dt>Water</dt><dd>@selectedWorld.WaterType</dd></div>
-                            <div><dt>Ice</dt><dd>@selectedWorld.Hydrography.IcePercent%</dd></div>
-                            <div><dt>Clouds</dt><dd>@selectedWorld.Hydrography.CloudPercent%</dd></div>
-                            <div><dt>Average temp</dt><dd>@selectedWorld.AverageTemperatureCelsius C</dd></div>
-                            <div><dt>Boiling point</dt><dd>@DisplayNullable(selectedWorld.BoilingPointCelsius, " C")</dd></div>
-                            <div><dt>Magnetic field</dt><dd>@DisplayNullable(selectedWorld.MagneticFieldGauss, " gauss")</dd></div>
-                        </dl>
-
-                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.World"
-                                          TargetId="selectedWorld.Id"
-                                          Title="World notes" />
-
-                        <div class="tag-group">
-                            @if (selectedWorld.UnusualCharacteristics.Count == 0)
-                            {
-                                <span>Standard survey profile</span>
-                            }
-                            @foreach (var item in selectedWorld.UnusualCharacteristics)
-                            {
-                                <span>@item.Name</span>
-                            }
-                        </div>
-
-                        <div class="satellite-panel">
-                            <h3>Satellites</h3>
-                            @{
-                                var worldSatellites = GetWorldSatellites(selectedSystem, selectedWorld).ToList();
-                            }
-                            @if (worldSatellites.Count == 0)
-                            {
-                                <p>No satellites recorded.</p>
-                            }
-                            @foreach (var satellite in worldSatellites)
-                            {
-                                if (satellite.World is not null)
-                                {
-                                    <button type="button" class="satellite-link" @onclick="() => SelectWorld(satellite.World.Id)">
-                                        <span>@satellite.Kind</span>
-                                        <strong>@satellite.Name</strong>
-                                    </button>
-                                }
-                                else if (satellite.Habitat is not null)
-                                {
-                                    <button type="button" class="satellite-link habitat" @onclick="() => SelectHabitat(satellite.Habitat.Id)">
-                                        <span>Habitat</span>
-                                        <strong>@satellite.Name</strong>
-                                    </button>
-                                }
-                            }
-                            <div class="habitat-create-form">
-                                <input placeholder="Habitat name"
-                                       @bind="spaceHabitatName"
-                                       maxlength="160" />
-                                <select @bind="spaceHabitatEmpireId">
-                                    <option value="0">Empire</option>
-                                        @foreach (var empire in ExplorerEmpires.OrderBy(empire => empire.Name))
-                                    {
-                                        <option value="@empire.Id">@empire.Name</option>
-                                    }
-                                </select>
-                                <button type="button"
-                                        @onclick="() => CreateWorldSpaceHabitatAsync(selectedWorld)"
-                                        disabled="@IsSpaceHabitatCreateDisabled">
-                                    Create habitat
-                                </button>
-                                @if (!string.IsNullOrWhiteSpace(spaceHabitatStatus))
-                                {
-                                    <p>@spaceHabitatStatus</p>
-                                }
-                            </div>
-                        </div>
-                    </article>
-                }
-            </section>
-            break;
     }
 </section>
 
@@ -921,7 +703,6 @@
     private string searchQuery = string.Empty;
     private IReadOnlyList<StarWinSearchResult> searchResults = [];
     private ElementReference sectorMapElement;
-    private ElementReference worldLoadMoreElement;
     private ElementReference hyperlaneLoadMoreElement;
     private DotNetObjectReference<SectorExplorer>? dotNetReference;
     private IJSObjectReference? sectorMapModule;
@@ -952,20 +733,10 @@
     private bool entityImagesLoaded;
     private bool entityImagesLoading;
     private string imageUploadStatus = string.Empty;
-    private string spaceHabitatName = string.Empty;
-    private int spaceHabitatEmpireId;
-    private string spaceHabitatStatus = string.Empty;
     private string routeOriginText = string.Empty;
     private int routeOriginSystemId;
     private string routeDestinationText = string.Empty;
     private int routeDestinationSystemId;
-    private string worldQuery = string.Empty;
-    private string worldKind = string.Empty;
-    private string worldType = string.Empty;
-    private int worldVisibleCount = ExplorerListBatchSize;
-    private bool worldHasMoreRecords;
-    private bool worldObserverConfigured;
-    private bool showWorldFilters;
     private int hyperlaneVisibleCount = ExplorerListBatchSize;
     private bool hyperlaneHasMoreRecords;
     private bool hyperlaneObserverConfigured;
@@ -1083,9 +854,6 @@
 
     private IReadOnlyDictionary<int, Empire> EmpiresById =>
         empiresById ??= ExplorerEmpires.ToDictionary(empire => empire.Id);
-
-    private bool IsSpaceHabitatCreateDisabled =>
-        spaceHabitatEmpireId == 0 || sectionLoadingVisible;
 
     private IReadOnlyDictionary<int, World> WorldsById =>
         worldsById ??= ExplorerSectors
@@ -1413,16 +1181,6 @@
                 return;
             }
 
-            if (activeSection == "Worlds")
-            {
-                renderedOverview = false;
-                await ConfigureRecordObserverAsync("world", worldHasMoreRecords, () => worldObserverConfigured, value => worldObserverConfigured = value, worldLoadMoreElement, "LoadMoreWorlds");
-                await CompleteSectionLoadingIfReadyAsync();
-                _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
-                return;
-            }
-
-            worldObserverConfigured = false;
             if (activeSection == "Hyperlanes")
             {
                 renderedOverview = false;
@@ -1496,7 +1254,6 @@
             sectionLoadingAwaitingTargetRender = false;
             sectionLoadingTarget = string.Empty;
             sectionLoadingStatus = string.Empty;
-            worldObserverConfigured = false;
             hyperlaneObserverConfigured = false;
             await HideSectionLoadingOverlayAsync();
             StateHasChanged();
@@ -1760,11 +1517,6 @@
 
     private void SelectWorld(int worldId)
     {
-        SelectWorld(worldId, syncRoute: true);
-    }
-
-    private void SelectWorld(int worldId, bool syncRoute)
-    {
         var sector = GetSelectedSector();
         var system = sector.Systems.FirstOrDefault(system => system.Worlds.Any(world => world.Id == worldId));
         if (system is not null)
@@ -1773,110 +1525,7 @@
             selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         }
 
-        selectedWorldId = worldId;
-        selectedColonyId = sector.Systems
-            .SelectMany(item => item.Worlds)
-            .Where(world => world.Id == worldId)
-            .Select(world => world.Colony?.Id ?? 0)
-            .FirstOrDefault();
-        selectedHabitatId = 0;
-        SetActiveSection("Worlds", syncRoute: false);
-        if (syncRoute)
-        {
-            SyncCurrentExplorerRoute(replaceHistory: true);
-        }
-        _ = PersistExplorerSessionAsync();
-    }
-
-    private void SelectHabitat(int habitatId)
-    {
-        var sector = GetSelectedSector();
-        var system = sector.Systems.FirstOrDefault(system => system.SpaceHabitats.Any(habitat => habitat.Id == habitatId));
-        if (system is not null)
-        {
-            selectedSystemId = system.Id;
-            selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        }
-
-        selectedHabitatId = habitatId;
-        selectedColonyId = 0;
-        SetActiveSection("Worlds", syncRoute: false);
-        SyncCurrentExplorerRoute(replaceHistory: true);
-        _ = PersistExplorerSessionAsync();
-    }
-
-    private void SelectParentOfHabitat(SpaceHabitat habitat)
-    {
-        var sector = GetSelectedSector();
-        var system = sector.Systems.FirstOrDefault(system => system.SpaceHabitats.Any(item => item.Id == habitat.Id))
-            ?? sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId);
-
-        if (system is not null)
-        {
-            selectedSystemId = system.Id;
-            _ = PersistExplorerSessionAsync();
-        }
-
-        if (habitat.OrbitTargetKind == OrbitTargetKind.World
-            && system?.Worlds.FirstOrDefault(world => world.Id == habitat.OrbitTargetId) is World parentWorld)
-        {
-            SelectWorld(parentWorld.Id);
-            return;
-        }
-
-        NavigateToSystemRecord(system?.Id ?? selectedSystemId);
-    }
-
-    private async Task CreateWorldSpaceHabitatAsync(World world)
-    {
-        if (spaceHabitatEmpireId == 0)
-        {
-            spaceHabitatStatus = "Choose an empire.";
-            return;
-        }
-
-        try
-        {
-            var habitat = await SpaceHabitatService.CreateOrbitingWorldAsync(
-                world.Id,
-                spaceHabitatEmpireId,
-                spaceHabitatName);
-            if (world.StarSystemId is int systemId)
-            {
-                AddSpaceHabitatToWorkspace(systemId, habitat);
-            }
-
-            SelectHabitat(habitat.Id);
-            CompleteSpaceHabitatCreate(world.StarSystemId ?? selectedSystemId, habitat.Name);
-        }
-        catch (InvalidOperationException ex)
-        {
-            spaceHabitatStatus = ex.Message;
-        }
-    }
-
-    private void AddSpaceHabitatToWorkspace(int systemId, SpaceHabitat habitat)
-    {
-        var sector = GetSelectedSector();
-        var system = sector.Systems.FirstOrDefault(item => item.Id == systemId);
-        if (system is null || system.SpaceHabitats.Any(item => item.Id == habitat.Id))
-        {
-            return;
-        }
-
-        system.SpaceHabitats.Add(habitat);
-        sectorCacheBuilder.Invalidate(sector.Id);
-        worldsById = null;
-        renderedOverview = false;
-    }
-
-    private void CompleteSpaceHabitatCreate(int systemId, string habitatName)
-    {
-        selectedSystemId = systemId;
-        var sector = GetSelectedSector();
-        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        spaceHabitatName = string.Empty;
-        spaceHabitatStatus = $"{habitatName} created.";
+        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Worlds", selectedSectorId, selectedSystemId, worldId: worldId));
         _ = PersistExplorerSessionAsync();
     }
 
@@ -2142,14 +1791,6 @@
         setConfigured(true);
     }
 
-    public Task LoadMoreWorlds()
-    {
-        worldVisibleCount += ExplorerListBatchSize;
-        worldObserverConfigured = false;
-        StateHasChanged();
-        return Task.CompletedTask;
-    }
-
     [JSInvokable]
     public Task LoadMoreHyperlanes()
     {
@@ -2159,30 +1800,10 @@
         return Task.CompletedTask;
     }
 
-    private void ResetWorldWindow()
-    {
-        worldVisibleCount = ExplorerListBatchSize;
-        worldObserverConfigured = false;
-    }
-
     private void ResetHyperlaneWindow()
     {
         hyperlaneVisibleCount = ExplorerListBatchSize;
         hyperlaneObserverConfigured = false;
-    }
-
-    private void ClearWorldFilters()
-    {
-        worldQuery = string.Empty;
-        worldKind = string.Empty;
-        worldType = string.Empty;
-        showWorldFilters = false;
-        ResetWorldWindow();
-    }
-
-    private void ToggleWorldFilters()
-    {
-        showWorldFilters = !showWorldFilters;
     }
 
     private async Task RestoreExplorerSessionAsync()
@@ -2749,79 +2370,6 @@
         return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
     }
 
-    private IEnumerable<ExplorerWorldRecord> GetFilteredExplorerWorldRecords(StarSystem? system)
-    {
-        if (system is null)
-        {
-            return [];
-        }
-
-        return GetExplorerWorldRecords(system)
-            .Where(ExplorerWorldRecordMatches)
-            .OrderBy(record => record.KindSort)
-            .ThenBy(record => record.OrbitSort)
-            .ThenBy(record => record.Name);
-    }
-
-    private static IEnumerable<ExplorerWorldRecord> GetExplorerWorldRecords(StarSystem system)
-    {
-        foreach (var world in system.Worlds)
-        {
-            yield return ExplorerWorldRecord.FromWorld(system, world);
-        }
-
-        foreach (var habitat in system.SpaceHabitats)
-        {
-            yield return ExplorerWorldRecord.FromHabitat(system, habitat);
-        }
-    }
-
-    private bool ExplorerWorldRecordMatches(ExplorerWorldRecord record)
-    {
-        if (!string.IsNullOrWhiteSpace(worldKind)
-            && !string.Equals(record.Kind, worldKind, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(worldType)
-            && !string.Equals(record.Type, worldType, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(worldQuery))
-        {
-            return true;
-        }
-
-        var query = worldQuery.Trim();
-        return ContainsTimelineQuery(record.Name, query)
-            || ContainsTimelineQuery(record.Kind, query)
-            || ContainsTimelineQuery(record.Type, query)
-            || ContainsTimelineQuery(record.System.Name, query)
-            || ContainsTimelineQuery(record.World?.Id.ToString(), query)
-            || ContainsTimelineQuery(record.Habitat?.Id.ToString(), query)
-            || ContainsTimelineQuery(record.World?.LegacyPlanetId?.ToString(), query)
-            || ContainsTimelineQuery(record.World?.LegacyMoonId?.ToString(), query)
-            || ContainsTimelineQuery(record.World?.AtmosphereType, query)
-            || ContainsTimelineQuery(record.World?.AtmosphereComposition, query)
-            || ContainsTimelineQuery(record.World?.WaterType, query)
-            || ContainsTimelineQuery(record.World?.Colony?.ColonyClass, query)
-            || ContainsTimelineQuery(record.World?.Colony?.AllegianceName, query)
-            || ContainsTimelineQuery(DisplayEmpire(record.Habitat?.ControlledByEmpireId), query);
-    }
-
-    private World? FindWorld(int? worldId)
-    {
-        if (worldId is null or 0)
-        {
-            return null;
-        }
-
-        return WorldsById.TryGetValue(worldId.Value, out var world) ? world : null;
-    }
-
     private void SelectDefaultCivilizationRecords(StarWinSector sector)
     {
         var sectorSummary = GetSectorSummary(sector);
@@ -2939,14 +2487,6 @@
         return GetEntityImages(targetKind, targetId).FirstOrDefault();
     }
 
-    private RenderFragment RenderEntityOrb(EntityImageTargetKind targetKind, int targetId, string fallbackClass, string altText)
-    {
-        var image = GetPrimaryEntityImage(targetKind, targetId);
-        return image is null
-            ? @<div class="@fallbackClass"></div>
-            : @<img class="@($"{fallbackClass} entity-orb-image")" src="@image.RelativePath" alt="@altText" />;
-    }
-
     private async Task UploadEntityImage(EntityImageTargetKind targetKind, int targetId, InputFileChangeEventArgs args)
     {
         var file = args.File;
@@ -2962,112 +2502,6 @@
         {
             imageUploadStatus = exception.Message;
         }
-    }
-
-    private RenderFragment RenderImagePanel(
-        EntityImageTargetKind targetKind,
-        int targetId,
-        string title,
-        bool allowMultiple,
-        bool compactWhenEmpty = false,
-        string? panelClass = null)
-    {
-        var images = GetEntityImages(targetKind, targetId);
-        var panelClasses = new List<string> { "entity-image-panel" };
-        if (compactWhenEmpty && images.Count == 0)
-        {
-            panelClasses.Add("compact-empty");
-        }
-
-        if (!string.IsNullOrWhiteSpace(panelClass))
-        {
-            panelClasses.Add(panelClass);
-        }
-
-        return @<section class="@string.Join(" ", panelClasses)">
-            <div class="image-panel-header">
-                <h4>@title</h4>
-                <span>@(allowMultiple ? "Multiple allowed" : "One image")</span>
-            </div>
-            @if (images.Count > 0)
-            {
-                <div class="entity-image-grid @(allowMultiple ? string.Empty : "single")">
-                    @foreach (var image in images)
-                    {
-                        <figure>
-                            <img src="@image.RelativePath" alt="@image.FileName" />
-                            <figcaption>@(image.IsPrimary ? "Primary" : image.FileName)</figcaption>
-                        </figure>
-                    }
-                </div>
-            }
-            else
-            {
-                <p>No image uploaded.</p>
-            }
-            <label class="image-upload-control">
-                <span>@(allowMultiple ? "Add image" : "Upload image")</span>
-                <InputFile OnChange="@(args => UploadEntityImage(targetKind, targetId, args))" accept="image/jpeg,image/png,image/gif,image/webp" />
-            </label>
-            @if (!string.IsNullOrWhiteSpace(imageUploadStatus))
-            {
-                <small>@imageUploadStatus</small>
-            }
-        </section>;
-    }
-
-    private static string DisplayOrbit(World world)
-    {
-        if (world.OrbitRadiusAu is not null)
-        {
-            return $"{world.OrbitRadiusAu:0.###} AU";
-        }
-
-        if (world.OrbitRadiusKm is not null)
-        {
-            return $"{world.OrbitRadiusKm:0,0} km";
-        }
-
-        return "N/A";
-    }
-
-    private static string DisplayNullable(double? value, string suffix)
-    {
-        return value is null ? "N/A" : $"{value:0.###}{suffix}";
-    }
-
-    private static string DisplayOrbitTarget(StarSystem? system, SpaceHabitat habitat)
-    {
-        if (system is null)
-        {
-            return "Unknown";
-        }
-
-        return habitat.OrbitTargetKind switch
-        {
-            OrbitTargetKind.AstralBody => DisplayAstralBody(system, habitat.OrbitTargetId),
-            OrbitTargetKind.World => system.Worlds.FirstOrDefault(world => world.Id == habitat.OrbitTargetId)?.Name ?? $"World {habitat.OrbitTargetId}",
-            OrbitTargetKind.SpaceHabitat => $"Habitat {habitat.OrbitTargetId}",
-            _ => "Unknown"
-        };
-    }
-
-    private static string DisplayAstralBody(StarSystem system, int sequence)
-    {
-        var body = system.AstralBodies.ElementAtOrDefault(sequence);
-        if (body is null)
-        {
-            return $"Astral body {sequence}";
-        }
-
-        return string.IsNullOrWhiteSpace(body.Classification)
-            ? body.Role.ToString()
-            : $"{body.Role} ({body.Classification})";
-    }
-
-    private static string DisplayNullable(int? value, string suffix)
-    {
-        return value is null ? "N/A" : $"{value}{suffix}";
     }
 
     private static string DisplayCoordinates(Coordinates coordinates)
@@ -3790,43 +3224,6 @@
     {
         ShortestDistance,
         ShortestTravelTime
-    }
-
-    private static IEnumerable<OrbitalSatellite> GetWorldSatellites(StarSystem? system, World world)
-    {
-        if (system is null)
-        {
-            yield break;
-        }
-
-        foreach (var satellite in system.Worlds
-            .Where(item => item.ParentWorldId == world.Id)
-            .OrderBy(item => item.OrbitRadiusKm ?? double.MaxValue)
-            .ThenBy(item => item.Name))
-        {
-            yield return OrbitalSatellite.FromWorld(satellite);
-        }
-
-        foreach (var habitat in system.SpaceHabitats
-            .Where(item => item.OrbitTargetKind == OrbitTargetKind.World && item.OrbitTargetId == world.Id)
-            .OrderBy(item => item.OrbitRadiusKm ?? double.MaxValue)
-            .ThenBy(item => item.Name))
-        {
-            yield return OrbitalSatellite.FromHabitat(habitat);
-        }
-    }
-
-    private sealed record OrbitalSatellite(string Name, string Kind, World? World, SpaceHabitat? Habitat)
-    {
-        public static OrbitalSatellite FromWorld(World world)
-        {
-            return new OrbitalSatellite(world.Name, world.Kind.ToString(), world, null);
-        }
-
-        public static OrbitalSatellite FromHabitat(SpaceHabitat habitat)
-        {
-            return new OrbitalSatellite(habitat.Name, "Habitat", null, habitat);
-        }
     }
 
     private sealed record ColonyListing(StarWinSector Sector, StarSystem System, World World, Colony Colony);
