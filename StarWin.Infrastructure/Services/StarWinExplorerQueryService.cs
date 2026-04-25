@@ -118,6 +118,19 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             empires);
     }
 
+    public async Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await dbContext.HistoryEvents
+            .AsNoTracking()
+            .Where(history => history.SectorId == sectorId && !string.IsNullOrEmpty(history.EventType))
+            .Select(history => history.EventType)
+            .Distinct()
+            .OrderBy(eventType => eventType)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<ExplorerTimelinePage> LoadTimelinePageAsync(ExplorerTimelinePageRequest request, CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -125,6 +138,11 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         var query = dbContext.HistoryEvents
             .AsNoTracking()
             .Where(history => history.SectorId == request.SectorId);
+
+        if (!string.IsNullOrWhiteSpace(request.EventType))
+        {
+            query = query.Where(history => history.EventType == request.EventType);
+        }
 
         var events = await query
             .OrderBy(history => history.Century)

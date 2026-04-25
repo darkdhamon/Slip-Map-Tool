@@ -7,10 +7,24 @@
         <span class="panel-kicker">Sector chronology</span>
         <h2>@SectorName</h2>
         <p>Events are sorted by in-universe game date and loaded in chronological pages.</p>
+        <label>
+            Event type
+            <select value="@selectedEventType" @onchange="HandleEventTypeChangedAsync">
+                <option value="">All event types</option>
+                @foreach (var eventType in timelineEventTypes)
+                {
+                    <option value="@eventType">@eventType</option>
+                }
+            </select>
+        </label>
+        @if (!string.IsNullOrEmpty(selectedEventType))
+        {
+            <button type="button" class="timeline-clear-button" @onclick="ClearEventTypeFilterAsync">Clear filter</button>
+        }
     </aside>
 
     <div class="timeline-list">
-        <div class="timeline-count">Showing @timelineEvents.Count event@(timelineEvents.Count == 1 ? string.Empty : "s")@(timelineHasMoreEvents ? "+" : string.Empty)</div>
+        <div class="timeline-count">Showing @timelineEvents.Count event@(timelineEvents.Count == 1 ? string.Empty : "s")@(timelineHasMoreEvents ? "+" : string.Empty)@GetFilterSummary()</div>
         @if (timelineLoading && timelineEvents.Count == 0)
         {
             <article class="timeline-event-card">
@@ -120,6 +134,7 @@
     private ElementReference timelineLoadMoreElement;
     private DotNetObjectReference<ExplorerTimelineSection>? dotNetReference;
     private IJSObjectReference? timelineScrollModule;
+    private IReadOnlyList<string> timelineEventTypes = [];
     private List<ExplorerTimelineListItem> timelineEvents = [];
     private ExplorerTimelineEventDetail? selectedTimelineEventDetail;
     private int selectedTimelineEventId;
@@ -128,7 +143,9 @@
     private bool timelineObserverConfigured;
     private bool timelineLoading;
     private bool timelineDetailLoading;
+    private bool pendingEventTypeReload;
     private bool pendingSectorReload;
+    private string selectedEventType = string.Empty;
 
     protected override void OnParametersSet()
     {
@@ -139,6 +156,9 @@
 
         renderedSectorId = SectorId;
         pendingSectorReload = true;
+        pendingEventTypeReload = true;
+        selectedEventType = string.Empty;
+        timelineEventTypes = [];
         timelineEvents = [];
         timelineHasMoreEvents = false;
         selectedTimelineEventId = 0;
@@ -210,6 +230,12 @@
     {
         timelineObserverConfigured = false;
         timelineLoading = true;
+        if (pendingEventTypeReload)
+        {
+            timelineEventTypes = await ExplorerQueryService.LoadTimelineEventTypesAsync(SectorId);
+            pendingEventTypeReload = false;
+        }
+
         var page = await ExplorerQueryService.LoadTimelinePageAsync(BuildPageRequest(0, TimelineBatchSize));
         timelineEvents = page.Items.ToList();
         timelineHasMoreEvents = page.HasMore;
@@ -238,12 +264,43 @@
         StateHasChanged();
     }
 
+    private async Task HandleEventTypeChangedAsync(ChangeEventArgs args)
+    {
+        var nextEventType = args.Value?.ToString()?.Trim() ?? string.Empty;
+        if (string.Equals(selectedEventType, nextEventType, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        selectedEventType = nextEventType;
+        await ReloadTimelineAsync();
+    }
+
+    private async Task ClearEventTypeFilterAsync()
+    {
+        if (string.IsNullOrEmpty(selectedEventType))
+        {
+            return;
+        }
+
+        selectedEventType = string.Empty;
+        await ReloadTimelineAsync();
+    }
+
     private ExplorerTimelinePageRequest BuildPageRequest(int offset, int limit)
     {
         return new ExplorerTimelinePageRequest(
             SectorId,
             offset,
-            limit);
+            limit,
+            selectedEventType);
+    }
+
+    private string GetFilterSummary()
+    {
+        return string.IsNullOrEmpty(selectedEventType)
+            ? string.Empty
+            : $" for {selectedEventType}";
     }
 
     public async ValueTask DisposeAsync()

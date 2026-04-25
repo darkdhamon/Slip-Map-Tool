@@ -3,6 +3,7 @@ namespace StarWin.Application.Services;
 public interface IStarWinExplorerQueryService
 {
     Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default);
     Task<ExplorerTimelinePage> LoadTimelinePageAsync(ExplorerTimelinePageRequest request, CancellationToken cancellationToken = default);
     Task<ExplorerTimelineEventDetail?> LoadTimelineEventDetailAsync(int eventId, CancellationToken cancellationToken = default);
 }
@@ -22,7 +23,8 @@ public sealed record ExplorerSectorOverviewData(
 public sealed record ExplorerTimelinePageRequest(
     int SectorId,
     int Offset,
-    int Limit);
+    int Limit,
+    string? EventType = null);
 
 public sealed record ExplorerTimelinePage(
     IReadOnlyList<ExplorerTimelineListItem> Items,
