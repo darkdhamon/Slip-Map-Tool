@@ -1,82 +1,63 @@
-@implements IDisposable
+@implements IAsyncDisposable
+@inject IJSRuntime JS
 
 @if (IsVisible)
 {
-    <p class="loading-elapsed" aria-live="off">Elapsed time: @GetElapsedDisplay()</p>
+    <p @ref="timerElement" class="loading-elapsed" aria-live="off">Elapsed time: 00:00</p>
 }
 
 @code {
     [Parameter]
     public bool IsVisible { get; set; }
 
-    private DateTimeOffset? startedAtUtc;
-    private PeriodicTimer? timer;
-    private CancellationTokenSource? timerCancellation;
+    private ElementReference timerElement;
+    private IJSObjectReference? module;
+    private long? startedAtUnixMs;
+    private long? activeTimerStartedAtUnixMs;
 
     protected override void OnParametersSet()
     {
         if (IsVisible)
         {
-            startedAtUtc ??= DateTimeOffset.UtcNow;
-            EnsureTimer();
+            startedAtUnixMs ??= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             return;
         }
 
-        startedAtUtc = null;
-        StopTimer();
+        startedAtUnixMs = null;
+        activeTimerStartedAtUnixMs = null;
     }
 
-    public void Dispose()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        StopTimer();
-    }
-
-    private string GetElapsedDisplay()
-    {
-        if (startedAtUtc is null)
-        {
-            return "00:00";
-        }
-
-        var elapsed = DateTimeOffset.UtcNow - startedAtUtc.Value;
-        return elapsed.TotalHours >= 1
-            ? $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
-            : $"{elapsed.Minutes:00}:{elapsed.Seconds:00}";
-    }
-
-    private void EnsureTimer()
-    {
-        if (timer is not null)
+        if (!IsVisible || startedAtUnixMs is null)
         {
             return;
         }
 
-        timerCancellation = new CancellationTokenSource();
-        timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
-        _ = RunTimerAsync(timer, timerCancellation.Token);
+        if (activeTimerStartedAtUnixMs == startedAtUnixMs)
+        {
+            return;
+        }
+
+        module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/loadingElapsedTime.js");
+        await module.InvokeVoidAsync("start", timerElement, startedAtUnixMs.Value);
+        activeTimerStartedAtUnixMs = startedAtUnixMs;
     }
 
-    private async Task RunTimerAsync(PeriodicTimer activeTimer, CancellationToken cancellationToken)
+    public async ValueTask DisposeAsync()
     {
+        if (module is null)
+        {
+            return;
+        }
+
         try
         {
-            while (await activeTimer.WaitForNextTickAsync(cancellationToken))
-            {
-                await InvokeAsync(StateHasChanged);
-            }
+            await module.InvokeVoidAsync("stop", timerElement);
+            await module.DisposeAsync();
         }
-        catch (OperationCanceledException)
+        catch (JSDisconnectedException)
         {
         }
-    }
-
-    private void StopTimer()
-    {
-        timerCancellation?.Cancel();
-        timerCancellation?.Dispose();
-        timerCancellation = null;
-
-        timer?.Dispose();
-        timer = null;
     }
 }
