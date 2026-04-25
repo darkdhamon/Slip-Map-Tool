@@ -1740,7 +1740,7 @@
     private readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
     private readonly Dictionary<int, HyperlaneSectionCache> hyperlaneSectionCaches = [];
     private readonly Dictionary<int, ExplorerSectorOverviewData> sectorOverviewDataById = [];
-    private readonly HashSet<int> sectorsWithDetailLoaded = [];
+    private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
     private StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     private string activeSection = "Overview";
     private string lastAppliedSectionSlug = string.Empty;
@@ -1792,6 +1792,7 @@
     private bool browserSessionReady;
     private IReadOnlyList<EntityImage> entityImages = [];
     private bool entityImagesLoaded;
+    private bool entityImagesLoading;
     private string imageUploadStatus = string.Empty;
     private string spaceHabitatName = string.Empty;
     private int spaceHabitatEmpireId;
@@ -2013,7 +2014,7 @@
             includeSavedRoutes: RequiresSavedRoutesInShell(activeSection),
             includeReferenceData: RequiresReferenceDataInShell(activeSection),
             cancellationToken: cancellationToken);
-        sectorsWithDetailLoaded.Clear();
+        loadedSectorSectionsById.Clear();
         ResetExplorerCaches(previousSectorIds);
         ResetHyperlaneWindow();
 
@@ -2096,22 +2097,27 @@
         string sectionName,
         CancellationToken cancellationToken = default)
     {
-        var requiresDetailedData = RequiresDetailedSectorData(sectionName);
+        var requiredSections = GetSectorLoadSections(sectionName);
         if (sectorId <= 0
-            || !requiresDetailedData
-            || sectorsWithDetailLoaded.Contains(sectorId))
+            || requiredSections == ExplorerSectorLoadSections.None)
         {
             return ExplorerSectors.FirstOrDefault(sector => sector.Id == sectorId);
         }
 
-        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, includeHistory: false, cancellationToken);
+        loadedSectorSectionsById.TryGetValue(sectorId, out var loadedSections);
+        if ((loadedSections & requiredSections) == requiredSections)
+        {
+            return ExplorerSectors.FirstOrDefault(sector => sector.Id == sectorId);
+        }
+
+        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiredSections, cancellationToken);
         if (detailedSector is null)
         {
             return ExplorerSectors.FirstOrDefault(sector => sector.Id == sectorId);
         }
 
         MergeSectorIntoExplorerContext(detailedSector);
-        sectorsWithDetailLoaded.Add(sectorId);
+        loadedSectorSectionsById[sectorId] = loadedSections | requiredSections;
 
         ResetExplorerCaches([sectorId]);
         return detailedSector;
@@ -2142,9 +2148,32 @@
         };
     }
 
-    private static bool RequiresDetailedSectorData(string sectionName)
+    private static ExplorerSectorLoadSections GetSectorLoadSections(string sectionName)
     {
-        return sectionName is "Systems" or "Worlds" or "Colonies" or "Aliens" or "Empires";
+        return sectionName switch
+        {
+            "Systems" => ExplorerSectorLoadSections.AstralBodies
+                | ExplorerSectorLoadSections.Worlds
+                | ExplorerSectorLoadSections.SpaceHabitats,
+            "Worlds" => ExplorerSectorLoadSections.AstralBodies
+                | ExplorerSectorLoadSections.Worlds
+                | ExplorerSectorLoadSections.WorldCharacteristics
+                | ExplorerSectorLoadSections.Colonies
+                | ExplorerSectorLoadSections.ColonyDemographics
+                | ExplorerSectorLoadSections.SpaceHabitats,
+            "Colonies" => ExplorerSectorLoadSections.Worlds
+                | ExplorerSectorLoadSections.Colonies
+                | ExplorerSectorLoadSections.ColonyDemographics,
+            "Aliens" => ExplorerSectorLoadSections.Worlds
+                | ExplorerSectorLoadSections.Colonies
+                | ExplorerSectorLoadSections.ColonyDemographics,
+            "Empires" => ExplorerSectorLoadSections.Worlds
+                | ExplorerSectorLoadSections.Colonies
+                | ExplorerSectorLoadSections.ColonyDemographics,
+            "Configuration" => ExplorerSectorLoadSections.SavedRoutes,
+            "Hyperlanes" => ExplorerSectorLoadSections.SavedRoutes,
+            _ => ExplorerSectorLoadSections.None
+        };
     }
 
     private static bool RequiresOverviewData(string sectionName)
@@ -2159,7 +2188,7 @@
 
     private static bool RequiresReferenceDataInShell(string sectionName)
     {
-        return sectionName is "Systems" or "Colonies" or "Aliens" or "Empires";
+        return sectionName is "Systems" or "Worlds" or "Colonies" or "Aliens" or "Empires";
     }
 
     private ExplorerSectorOverviewData? GetSectorOverviewData(int sectorId)
@@ -2221,9 +2250,9 @@
             if (activeSection == "Colonies")
             {
                 renderedOverview = false;
-                await EnsureEntityImagesLoadedAsync();
                 await ConfigureColonyObserverAsync();
                 await CompleteSectionLoadingIfReadyAsync();
+                _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
                 return;
             }
 
@@ -2231,17 +2260,17 @@
             if (activeSection == "Systems")
             {
                 renderedOverview = false;
-                await EnsureEntityImagesLoadedAsync();
                 await CompleteSectionLoadingIfReadyAsync();
+                _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
                 return;
             }
 
             if (activeSection == "Worlds")
             {
                 renderedOverview = false;
-                await EnsureEntityImagesLoadedAsync();
                 await ConfigureRecordObserverAsync("world", worldHasMoreRecords, () => worldObserverConfigured, value => worldObserverConfigured = value, worldLoadMoreElement, "LoadMoreWorlds");
                 await CompleteSectionLoadingIfReadyAsync();
+                _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
                 return;
             }
 
@@ -2249,9 +2278,9 @@
             if (activeSection == "Aliens")
             {
                 renderedOverview = false;
-                await EnsureEntityImagesLoadedAsync();
                 await ConfigureRecordObserverAsync("race", raceHasMoreRecords, () => raceObserverConfigured, value => raceObserverConfigured = value, raceLoadMoreElement, "LoadMoreRaces");
                 await CompleteSectionLoadingIfReadyAsync();
+                _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
                 return;
             }
 
@@ -2259,9 +2288,9 @@
             if (activeSection == "Empires")
             {
                 renderedOverview = false;
-                await EnsureEntityImagesLoadedAsync();
                 await ConfigureRecordObserverAsync("empire", empireHasMoreRecords, () => empireObserverConfigured, value => empireObserverConfigured = value, empireLoadMoreElement, "LoadMoreEmpires");
                 await CompleteSectionLoadingIfReadyAsync();
+                _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
                 return;
             }
 
@@ -2349,17 +2378,33 @@
         }
     }
 
-    private async Task EnsureEntityImagesLoadedAsync()
+    private async Task EnsureEntityImagesLoadedAsync(bool backgroundLoad = false)
     {
-        if (entityImagesLoaded)
+        if (entityImagesLoaded || entityImagesLoading)
         {
             return;
         }
 
-        entityImages = await ImageService.GetImagesAsync();
-        entityImagesLoaded = true;
-        explorerRenderError = string.Empty;
-        StateHasChanged();
+        entityImagesLoading = true;
+        try
+        {
+            entityImages = await ImageService.GetImagesAsync();
+            entityImagesLoaded = true;
+            explorerRenderError = string.Empty;
+
+            if (backgroundLoad)
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                StateHasChanged();
+            }
+        }
+        finally
+        {
+            entityImagesLoading = false;
+        }
     }
 
     private async Task SelectSectionAsync(string sectionName)

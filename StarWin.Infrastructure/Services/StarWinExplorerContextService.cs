@@ -20,9 +20,16 @@ public sealed class StarWinExplorerContextService(IDbContextFactory<StarWinDbCon
             cancellationToken);
     }
 
-    public async Task<StarWinSector?> LoadSectorAsync(int sectorId, bool includeHistory = false, CancellationToken cancellationToken = default)
+    public async Task<StarWinSector?> LoadSectorAsync(
+        int sectorId,
+        ExplorerSectorLoadSections loadSections,
+        CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await StarWinExplorerContextLoader.LoadSectorAsync(dbContext, sectorId, includeHistory, cancellationToken);
+        return await StarWinExplorerContextLoader.LoadSectorAsync(
+            dbContext,
+            sectorId,
+            loadSections,
+            cancellationToken);
     }
 }

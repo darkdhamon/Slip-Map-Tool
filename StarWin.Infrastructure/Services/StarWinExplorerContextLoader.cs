@@ -100,27 +100,67 @@ internal static class StarWinExplorerContextLoader
     public static async Task<StarWinSector?> LoadSectorAsync(
         StarWinDbContext dbContext,
         int sectorId,
-        bool includeHistory = false,
+        ExplorerSectorLoadSections loadSections,
         CancellationToken cancellationToken = default)
     {
         IQueryable<StarWinSector> sectorQuery = dbContext.Sectors
             .AsNoTracking()
             .AsSplitQuery()
             .Include(sector => sector.Configuration)
-            .Include(sector => sector.Systems)
-                .ThenInclude(system => system.AstralBodies)
-            .Include(sector => sector.Systems)
-                .ThenInclude(system => system.Worlds)
-                    .ThenInclude(world => world.UnusualCharacteristics)
-            .Include(sector => sector.Systems)
-                .ThenInclude(system => system.Worlds)
-                    .ThenInclude(world => world.Colony)
-                        .ThenInclude(colony => colony!.Demographics)
-            .Include(sector => sector.Systems)
-                .ThenInclude(system => system.SpaceHabitats)
-            .Include(sector => sector.SavedRoutes);
+            .Include(sector => sector.Systems);
 
-        if (includeHistory)
+        if (loadSections.HasFlag(ExplorerSectorLoadSections.AstralBodies))
+        {
+            sectorQuery = sectorQuery
+                .Include(sector => sector.Systems)
+                    .ThenInclude(system => system.AstralBodies);
+        }
+
+        if (loadSections.HasFlag(ExplorerSectorLoadSections.Worlds))
+        {
+            sectorQuery = sectorQuery
+                .Include(sector => sector.Systems)
+                    .ThenInclude(system => system.Worlds);
+        }
+
+        if (loadSections.HasFlag(ExplorerSectorLoadSections.WorldCharacteristics))
+        {
+            sectorQuery = sectorQuery
+                .Include(sector => sector.Systems)
+                    .ThenInclude(system => system.Worlds)
+                        .ThenInclude(world => world.UnusualCharacteristics);
+        }
+
+        if (loadSections.HasFlag(ExplorerSectorLoadSections.Colonies))
+        {
+            sectorQuery = sectorQuery
+                .Include(sector => sector.Systems)
+                    .ThenInclude(system => system.Worlds)
+                        .ThenInclude(world => world.Colony);
+        }
+
+        if (loadSections.HasFlag(ExplorerSectorLoadSections.ColonyDemographics))
+        {
+            sectorQuery = sectorQuery
+                .Include(sector => sector.Systems)
+                    .ThenInclude(system => system.Worlds)
+                        .ThenInclude(world => world.Colony)
+                            .ThenInclude(colony => colony!.Demographics);
+        }
+
+        if (loadSections.HasFlag(ExplorerSectorLoadSections.SpaceHabitats))
+        {
+            sectorQuery = sectorQuery
+                .Include(sector => sector.Systems)
+                    .ThenInclude(system => system.SpaceHabitats);
+        }
+
+        if (loadSections.HasFlag(ExplorerSectorLoadSections.SavedRoutes))
+        {
+            sectorQuery = sectorQuery.Include(sector => sector.SavedRoutes);
+        }
+
+        if (loadSections.HasFlag(ExplorerSectorLoadSections.History))
         {
             sectorQuery = sectorQuery.Include(sector => sector.History);
         }
