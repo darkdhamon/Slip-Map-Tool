@@ -103,6 +103,16 @@
                     <button type="button" @onclick="() => SystemSelected.InvokeAsync(system.Id)">System: @system.Name</button>
                 }
             </div>
+            @if (!string.IsNullOrWhiteSpace(selectedTimelineEventDetail.ImportDataJson))
+            {
+                <button type="button" class="timeline-secondary-button" @onclick="ToggleImportData">
+                    @(showImportData ? "Hide Import Data" : "Show Import Data")
+                </button>
+                @if (showImportData)
+                {
+                    <pre class="timeline-import-data">@selectedTimelineEventDetail.ImportDataJson</pre>
+                }
+            }
         }
     </article>
 </section>
@@ -145,6 +155,7 @@
     private bool timelineDetailLoading;
     private bool pendingEventTypeReload;
     private bool pendingSectorReload;
+    private bool showImportData;
     private string selectedEventType = string.Empty;
 
     protected override void OnParametersSet()
@@ -164,6 +175,7 @@
         selectedTimelineEventId = 0;
         selectedTimelineEventDetail = null;
         timelineDetailLoading = false;
+        showImportData = false;
         timelineObserverConfigured = false;
         timelineLoading = true;
     }
@@ -243,6 +255,7 @@
         selectedTimelineEventId = 0;
         selectedTimelineEventDetail = null;
         timelineDetailLoading = false;
+        showImportData = false;
 
         StateHasChanged();
     }
@@ -257,11 +270,17 @@
         selectedTimelineEventId = eventId;
         timelineDetailLoading = true;
         selectedTimelineEventDetail = null;
+        showImportData = false;
         StateHasChanged();
 
         selectedTimelineEventDetail = await ExplorerQueryService.LoadTimelineEventDetailAsync(eventId);
         timelineDetailLoading = false;
         StateHasChanged();
+    }
+
+    private void ToggleImportData()
+    {
+        showImportData = !showImportData;
     }
 
     private async Task HandleEventTypeChangedAsync(ChangeEventArgs args)

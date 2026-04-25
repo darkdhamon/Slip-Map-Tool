@@ -710,6 +710,35 @@ dd {
     box-shadow: 0 0 16px rgba(56, 189, 248, 0.12);
 }
 
+.timeline-secondary-button {
+    margin-top: 12px;
+    border: 1px solid rgba(125, 211, 252, 0.24);
+    border-radius: 6px;
+    background: rgba(3, 10, 24, 0.62);
+    color: #dff8ff;
+    padding: 8px 10px;
+    font-weight: 800;
+}
+
+.timeline-secondary-button:hover {
+    border-color: var(--accent);
+    background: rgba(14, 165, 233, 0.18);
+}
+
+.timeline-import-data {
+    margin: 12px 0 0;
+    overflow: auto;
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.72);
+    color: #dbeafe;
+    padding: 14px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 .content-grid {
     grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
     align-items: stretch;

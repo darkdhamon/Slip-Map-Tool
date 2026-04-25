@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using StarWin.Application.Services;
 using StarWin.Infrastructure.Data;
@@ -181,6 +182,7 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                 item.Century,
                 item.EventType,
                 item.Description,
+                item.ImportDataJson,
                 item.RaceId,
                 item.OtherRaceId,
                 item.EmpireId,
@@ -259,12 +261,34 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             BuildTimelineTimeLabel(history.Century),
             history.Century,
             history.Description,
+            FormatImportDataJson(history.ImportDataJson),
             race,
             otherRace,
             empire,
             colony,
             world,
             system);
+    }
+
+    private static string? FormatImportDataJson(string? importDataJson)
+    {
+        if (string.IsNullOrWhiteSpace(importDataJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(importDataJson);
+            return JsonSerializer.Serialize(document.RootElement, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+        }
+        catch (JsonException)
+        {
+            return importDataJson;
+        }
     }
 
     private static string BuildTimelineTitle(string description, string eventType)

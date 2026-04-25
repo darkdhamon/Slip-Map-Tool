@@ -21,4 +21,6 @@ public sealed class HistoryEvent
     public int? StarSystemId { get; set; }
 
     public string Description { get; set; } = string.Empty;
+
+    public string? ImportDataJson { get; set; }
 }

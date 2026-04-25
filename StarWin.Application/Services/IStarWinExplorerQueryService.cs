@@ -50,6 +50,7 @@ public sealed record ExplorerTimelineEventDetail(
     string TimeLabel,
     int Century,
     string Description,
+    string? ImportDataJson,
     ExplorerLookupOption? Race,
     ExplorerLookupOption? OtherRace,
     ExplorerLookupOption? Empire,
