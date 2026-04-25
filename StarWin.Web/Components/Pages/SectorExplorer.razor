@@ -44,9 +44,6 @@
     var sectorEmpires = needsSectorEmpireList
         ? ExplorerEmpires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList()
         : [];
-    var selectedRace = activeSection == "Aliens"
-        ? sectorRaces.FirstOrDefault(race => race.Id == selectedRaceId) ?? sectorRaces.FirstOrDefault()
-        : null;
     var selectedColony = activeSection is "Colonies" or "Empires"
         ? sectorColonies.Select(item => item.Colony).FirstOrDefault(colony => colony.Id == selectedColonyId)
             ?? selectedWorld?.Colony
@@ -1285,210 +1282,6 @@
                 }
             </section>
             break;
-        case "Aliens":
-            <section class="content-grid">
-                <div class="record-list">
-                    <details class="record-filter-panel" open>
-                        <summary class="record-filter-summary">Search</summary>
-                        <label>
-                            Search
-                            <input placeholder="Name, biology, traits..."
-                                   @bind="raceQuery"
-                                   @bind:event="oninput"
-                                   @bind:after="ResetRaceWindow" />
-                        </label>
-                        <button type="button" class="timeline-clear-button" @onclick="ToggleRaceFilters">
-                            @(showRaceFilters ? "Hide filters" : "Show filters")
-                        </button>
-                        @if (showRaceFilters)
-                        {
-                            <label>
-                                Environment
-                                <input list="race-environment-options"
-                                       placeholder="All environments"
-                                       @bind="raceEnvironment"
-                                       @bind:event="oninput"
-                                       @bind:after="ResetRaceWindow" />
-                                <datalist id="race-environment-options">
-                                    @foreach (var environment in sectorRaces.Select(race => race.EnvironmentType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value))
-                                    {
-                                        <option value="@environment" />
-                                    }
-                                </datalist>
-                            </label>
-                            <label>
-                                Appearance
-                                <input list="race-appearance-options"
-                                       placeholder="All appearances"
-                                       @bind="raceAppearance"
-                                       @bind:event="oninput"
-                                       @bind:after="ResetRaceWindow" />
-                                <datalist id="race-appearance-options">
-                                    @foreach (var appearance in sectorRaces.Select(race => race.AppearanceType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value))
-                                    {
-                                        <option value="@appearance" />
-                                    }
-                                </datalist>
-                            </label>
-                        }
-                        <button type="button" class="timeline-clear-button" @onclick="ClearRaceFilters">Clear filters</button>
-                    </details>
-                    @{
-                        var raceWindow = GetFilteredRaces(sectorRaces)
-                            .Take(raceVisibleCount + 1)
-                            .ToList();
-                        var hasMoreRaces = raceWindow.Count > raceVisibleCount;
-                        var visibleRaces = raceWindow.Take(raceVisibleCount).ToList();
-                        raceHasMoreRecords = hasMoreRaces;
-                    }
-                    <div class="timeline-count">Showing @visibleRaces.Count race@(visibleRaces.Count == 1 ? string.Empty : "s")@(hasMoreRaces ? "+" : string.Empty)</div>
-                    @if (visibleRaces.Count == 0)
-                    {
-                        <article class="timeline-event-card">
-                            <span class="timeline-century">No matches</span>
-                            <p>Adjust the filters to widen the race list.</p>
-                        </article>
-                    }
-                    @foreach (var race in visibleRaces)
-                    {
-                            <button type="button" class="record-row @(selectedRace?.Id == race.Id ? "active" : null)" @onclick="() => SelectRace(race.Id)">
-                            <strong>@race.Name</strong>
-                            <span>@race.AppearanceType; @race.EnvironmentType</span>
-                        </button>
-                    }
-                    @if (hasMoreRaces)
-                    {
-                        <div @ref="raceLoadMoreElement" class="timeline-load-more">
-                            <button type="button" @onclick="LoadMoreRaces">Load more</button>
-                        </div>
-                    }
-                </div>
-
-                @if (selectedRace is not null)
-                {
-                    var gurpsTemplate = BuildGurpsTemplate(selectedRace);
-                    var homeWorld = FindWorld(selectedRace.HomePlanetId);
-                    var raceMemberships = GetRaceEmpireMemberships(selectedRace, sectorEmpires).ToList();
-                    var raceHighlights = GetRaceHighlights(selectedRace).ToList();
-                    <article class="detail-panel alien-detail-panel">
-                        <span class="panel-kicker">Alien biology</span>
-                        <EditableEntityName Name="@selectedRace.Name"
-                                            Label="Race"
-                                            NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.AlienRace, selectedRace.Id, name)" />
-                        <div class="alien-overview-grid">
-                            <section class="alien-summary-card alien-summary-card-primary">
-                                <div class="parent-actions">
-                                    @if (homeWorld is not null)
-                                    {
-                                        <button type="button" @onclick="() => SelectWorld(homeWorld.Id)">Homeworld: @homeWorld.Name</button>
-                                    }
-                                </div>
-                                <dl class="field-grid alien-field-grid alien-field-grid-primary">
-                                    <div><dt>Appearance</dt><dd>@DisplayText(selectedRace.AppearanceType)</dd></div>
-                                    <div><dt>Environment</dt><dd>@DisplayText(selectedRace.EnvironmentType)</dd></div>
-                                    <div><dt>Biology</dt><dd>@DisplayText(selectedRace.BodyChemistry)</dd></div>
-                                    <div><dt>Body cover</dt><dd>@DisplayText(selectedRace.BodyCoverType)</dd></div>
-                                    <div><dt>Mass</dt><dd>@selectedRace.MassKg kg</dd></div>
-                                    <div><dt>Size</dt><dd>@selectedRace.SizeCm cm</dd></div>
-                                    <div><dt>Limb pairs</dt><dd>@selectedRace.LimbPairCount</dd></div>
-                                    <div><dt>Lifespan</dt><dd>@selectedRace.BiologyProfile.Lifespan</dd></div>
-                                    <div><dt>Body</dt><dd>@selectedRace.BiologyProfile.Body</dd></div>
-                                    <div><dt>Mind</dt><dd>@selectedRace.BiologyProfile.Mind</dd></div>
-                                    <div><dt>Speed</dt><dd>@selectedRace.BiologyProfile.Speed</dd></div>
-                                    <div><dt>Psi</dt><dd>@selectedRace.BiologyProfile.PsiRating</dd></div>
-                                </dl>
-                                @if (raceHighlights.Count > 0)
-                                {
-                                    <div class="tag-group alien-tag-group">
-                                        @foreach (var highlight in raceHighlights)
-                                        {
-                                            <span>@highlight</span>
-                                        }
-                                    </div>
-                                }
-                            </section>
-
-                            @RenderImagePanel(EntityImageTargetKind.AlienRace, selectedRace.Id, "Race images", true, compactWhenEmpty: true, panelClass: "alien-image-panel")
-                        </div>
-
-                        <div class="alien-secondary-grid">
-                            <section class="alien-summary-card">
-                                <h3>Society</h3>
-                                <dl class="field-grid alien-field-grid">
-                                    <div><dt>Government</dt><dd>@DisplayText(selectedRace.GovernmentType)</dd></div>
-                                    <div><dt>Diet</dt><dd>@DisplayText(selectedRace.Diet)</dd></div>
-                                    <div><dt>Faith</dt><dd>@DisplayText(selectedRace.Religion)</dd></div>
-                                    <div><dt>Devotion</dt><dd>@selectedRace.DevotionLevel</dd></div>
-                                    <div><dt>Reproduction</dt><dd>@DisplayText(selectedRace.Reproduction)</dd></div>
-                                    <div><dt>Method</dt><dd>@DisplayText(selectedRace.ReproductionMethod)</dd></div>
-                                </dl>
-                            </section>
-
-                            <section class="alien-summary-card">
-                                <h3>Derived data</h3>
-                                <dl class="field-grid alien-field-grid">
-                                    <div><dt>Edition</dt><dd>@DisplayGurpsEdition(gurpsTemplate.Edition)</dd></div>
-                                    <div><dt>Total cost</dt><dd>@DisplayPoints(gurpsTemplate.TotalPointCost)</dd></div>
-                                    <div><dt>Trait entries</dt><dd>@CountGurpsTraits(gurpsTemplate)</dd></div>
-                                    <div><dt>Memberships</dt><dd>@raceMemberships.Count</dd></div>
-                                    <div><dt>Source</dt><dd>StarWin conversion</dd></div>
-                                </dl>
-                                @if (!string.IsNullOrWhiteSpace(gurpsTemplate.Notes))
-                                {
-                                    <p>@gurpsTemplate.Notes</p>
-                                }
-                            </section>
-                        </div>
-
-                        <details class="alien-disclosure-card" @(raceMemberships.Count > 0 ? null : "open")>
-                            <summary>Empire memberships <span>@raceMemberships.Count</span></summary>
-                            @if (raceMemberships.Count == 0)
-                            {
-                                <p class="alien-empty-state">No empire memberships in this sector.</p>
-                            }
-                            else
-                            {
-                                <div class="relationship-list">
-                                    @foreach (var membership in raceMemberships)
-                                    {
-                                        <button type="button" class="relationship-row" @onclick="() => SelectEmpire(membership.Empire.Id)">
-                                            <strong>@membership.Empire.Name</strong>
-                                            <span>@membership.Membership.Role; @membership.Membership.PopulationMillions million</span>
-                                        </button>
-                                    }
-                                </div>
-                            }
-                        </details>
-
-                        <details class="alien-disclosure-card">
-                            <summary>Notes</summary>
-                            <EntityNotesPanel TargetKind="EntityNoteTargetKind.AlienRace"
-                                              TargetId="selectedRace.Id"
-                                              Title="Alien notes" />
-                        </details>
-
-                        <details class="alien-disclosure-card">
-                            <summary>GURPS template <span>@CountGurpsTraits(gurpsTemplate) entries</span></summary>
-                            <div class="alien-gurps-body">
-                                @if (!string.IsNullOrWhiteSpace(gurpsTemplate.Notes))
-                                {
-                                    <p>@gurpsTemplate.Notes</p>
-                                }
-                                <div class="gurps-grid">
-                                    @RenderGurpsTraitGroup("Attributes", gurpsTemplate.AttributeModifiers)
-                                    @RenderGurpsTraitGroup("Secondary", gurpsTemplate.SecondaryCharacteristicModifiers)
-                                    @RenderGurpsTraitGroup("Advantages", gurpsTemplate.Advantages)
-                                    @RenderGurpsTraitGroup("Disadvantages", gurpsTemplate.Disadvantages)
-                                    @RenderGurpsTraitGroup("Quirks", gurpsTemplate.Quirks)
-                                    @RenderGurpsTraitGroup("Features", gurpsTemplate.Features)
-                                    @RenderGurpsTraitGroup("Skills", gurpsTemplate.Skills)
-                                </div>
-                            </div>
-                        </details>
-                    </article>
-                }
-            </section>
-            break;
     }
 </section>
 
@@ -1607,7 +1400,6 @@
     private ElementReference sectorMapElement;
     private ElementReference colonyLoadMoreElement;
     private ElementReference worldLoadMoreElement;
-    private ElementReference raceLoadMoreElement;
     private ElementReference hyperlaneLoadMoreElement;
     private DotNetObjectReference<SectorExplorer>? dotNetReference;
     private IJSObjectReference? sectorMapModule;
@@ -1663,13 +1455,6 @@
     private bool worldHasMoreRecords;
     private bool worldObserverConfigured;
     private bool showWorldFilters;
-    private string raceQuery = string.Empty;
-    private string raceEnvironment = string.Empty;
-    private string raceAppearance = string.Empty;
-    private int raceVisibleCount = ExplorerListBatchSize;
-    private bool raceHasMoreRecords;
-    private bool raceObserverConfigured;
-    private bool showRaceFilters;
     private int hyperlaneVisibleCount = ExplorerListBatchSize;
     private bool hyperlaneHasMoreRecords;
     private bool hyperlaneObserverConfigured;
@@ -2137,16 +1922,6 @@
             }
 
             worldObserverConfigured = false;
-            if (activeSection == "Aliens")
-            {
-                renderedOverview = false;
-                await ConfigureRecordObserverAsync("race", raceHasMoreRecords, () => raceObserverConfigured, value => raceObserverConfigured = value, raceLoadMoreElement, "LoadMoreRaces");
-                await CompleteSectionLoadingIfReadyAsync();
-                _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
-                return;
-            }
-
-            raceObserverConfigured = false;
             if (activeSection == "Hyperlanes")
             {
                 renderedOverview = false;
@@ -2222,7 +1997,6 @@
             sectionLoadingStatus = string.Empty;
             colonyObserverConfigured = false;
             worldObserverConfigured = false;
-            raceObserverConfigured = false;
             hyperlaneObserverConfigured = false;
             await HideSectionLoadingOverlayAsync();
             StateHasChanged();
@@ -2948,15 +2722,6 @@
     }
 
     [JSInvokable]
-    public Task LoadMoreRaces()
-    {
-        raceVisibleCount += ExplorerListBatchSize;
-        raceObserverConfigured = false;
-        StateHasChanged();
-        return Task.CompletedTask;
-    }
-
-    [JSInvokable]
     public Task LoadMoreHyperlanes()
     {
         hyperlaneVisibleCount += ExplorerListBatchSize;
@@ -2969,12 +2734,6 @@
     {
         worldVisibleCount = ExplorerListBatchSize;
         worldObserverConfigured = false;
-    }
-
-    private void ResetRaceWindow()
-    {
-        raceVisibleCount = ExplorerListBatchSize;
-        raceObserverConfigured = false;
     }
 
     private void ResetHyperlaneWindow()
@@ -2992,15 +2751,6 @@
         ResetWorldWindow();
     }
 
-    private void ClearRaceFilters()
-    {
-        raceQuery = string.Empty;
-        raceEnvironment = string.Empty;
-        raceAppearance = string.Empty;
-        showRaceFilters = false;
-        ResetRaceWindow();
-    }
-
     private void ToggleWorldFilters()
     {
         showWorldFilters = !showWorldFilters;
@@ -3009,11 +2759,6 @@
     private void ToggleColonyFilters()
     {
         showColonyFilters = !showColonyFilters;
-    }
-
-    private void ToggleRaceFilters()
-    {
-        showRaceFilters = !showRaceFilters;
     }
 
     private void ApplyColonyRaceFilter()
@@ -3716,51 +3461,6 @@
             || ContainsTimelineQuery(DisplayEmpire(record.Habitat?.ControlledByEmpireId), query);
     }
 
-    private IEnumerable<AlienRace> GetFilteredRaces(IReadOnlyList<AlienRace> races)
-    {
-        return races
-            .Where(RaceMatches)
-            .OrderBy(race => race.Name)
-            .ThenBy(race => race.Id);
-    }
-
-    private bool RaceMatches(AlienRace race)
-    {
-        if (!string.IsNullOrWhiteSpace(raceEnvironment)
-            && !string.Equals(race.EnvironmentType, raceEnvironment, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(raceAppearance)
-            && !string.Equals(race.AppearanceType, raceAppearance, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(raceQuery))
-        {
-            return true;
-        }
-
-        var query = raceQuery.Trim();
-        var homeWorld = FindWorld(race.HomePlanetId);
-        return ContainsTimelineQuery(race.Name, query)
-            || ContainsTimelineQuery(race.Id.ToString(), query)
-            || ContainsTimelineQuery(race.AppearanceType, query)
-            || ContainsTimelineQuery(race.BodyChemistry, query)
-            || ContainsTimelineQuery(race.EnvironmentType, query)
-            || ContainsTimelineQuery(race.GovernmentType, query)
-            || ContainsTimelineQuery(race.ReproductionMethod, query)
-            || ContainsTimelineQuery(race.Diet, query)
-            || ContainsTimelineQuery(race.Religion, query)
-            || ContainsTimelineQuery(race.BiologyProfile.Body.ToString(), query)
-            || ContainsTimelineQuery(race.BiologyProfile.Mind.ToString(), query)
-            || ContainsTimelineQuery(race.BiologyProfile.Speed.ToString(), query)
-            || ContainsTimelineQuery(race.BiologyProfile.PsiRating.ToString(), query)
-            || ContainsTimelineQuery(homeWorld?.Name, query);
-    }
-
     private World? FindWorld(int? worldId)
     {
         if (worldId is null or 0)
@@ -3840,56 +3540,6 @@
         }
 
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-    }
-
-    private IEnumerable<RaceEmpireMembership> GetRaceEmpireMemberships(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
-    {
-        return sectorEmpires
-            .SelectMany(empire => empire.RaceMemberships
-                .Where(membership => membership.RaceId == race.Id)
-                .Select(membership => new RaceEmpireMembership(empire, membership)))
-            .OrderByDescending(item => item.Membership.IsPrimary)
-            .ThenBy(item => item.Empire.Name);
-    }
-
-    private GurpsTemplate BuildGurpsTemplate(AlienRace race)
-    {
-        var sector = GetSelectedSector();
-        var sectorSummary = GetSectorSummary(sector);
-        var sectorEmpires = ExplorerEmpires
-            .Where(empire => sectorSummary.EmpireIds.Contains(empire.Id))
-            .ToList();
-        var memberships = GetRaceEmpireMemberships(race, sectorEmpires).ToList();
-        var primaryEmpire = memberships.FirstOrDefault(item => item.Membership.IsPrimary)?.Empire
-            ?? memberships.FirstOrDefault()?.Empire;
-
-        var profile = new AlienRaceExportProfile
-        {
-            Race = race,
-            Empire = primaryEmpire,
-            HomeWorld = FindWorld(race.HomePlanetId)
-        };
-
-        foreach (var listing in sector.Systems
-            .SelectMany(system => system.Worlds)
-            .Where(world => world.Colony is not null && world.Colony.Demographics.Any(demographic => demographic.RaceId == race.Id))
-            .Select(world => world.Colony!))
-        {
-            profile.Colonies.Add(listing);
-        }
-
-        var builder = new StarWin.Domain.Services.GurpsTemplateBuilder();
-        return builder.Build(profile, GurpsTemplateEdition.FourthEdition);
-    }
-
-    private static string DisplayGurpsEdition(GurpsTemplateEdition edition)
-    {
-        return edition switch
-        {
-            GurpsTemplateEdition.FourthEdition => "GURPS Fourth Edition",
-            GurpsTemplateEdition.LegacyStarWin => "Legacy StarWin",
-            _ => edition.ToString()
-        };
     }
 
     private static string DisplayPoints(int points)
@@ -4143,45 +3793,6 @@
     private static string DisplayDateTime(DateTime value)
     {
         return value == default ? "Not saved" : value.ToLocalTime().ToString("g");
-    }
-
-    private static string DisplayText(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? "N/A" : value;
-    }
-
-    private static IEnumerable<string> GetRaceHighlights(AlienRace race)
-    {
-        if (!string.IsNullOrWhiteSpace(race.BodyCoverType))
-        {
-            yield return $"Body cover: {race.BodyCoverType}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(race.Reproduction))
-        {
-            yield return $"Reproduction: {race.Reproduction}";
-        }
-
-        if (race.DevotionLevel != AlienDevotionLevel.None)
-        {
-            yield return $"{race.DevotionLevel} devotion";
-        }
-
-        if (race.BiologyProfile.Lifespan > 0)
-        {
-            yield return $"Lifespan {race.BiologyProfile.Lifespan}";
-        }
-    }
-
-    private static int CountGurpsTraits(GurpsTemplate template)
-    {
-        return template.AttributeModifiers.Count
-            + template.SecondaryCharacteristicModifiers.Count
-            + template.Advantages.Count
-            + template.Disadvantages.Count
-            + template.Quirks.Count
-            + template.Features.Count
-            + template.Skills.Count;
     }
 
     private static string DisplayResultType(StarWinSearchResultType type)
@@ -4906,8 +4517,6 @@
             return new OrbitalSatellite(habitat.Name, "Habitat", null, habitat);
         }
     }
-
-    private sealed record RaceEmpireMembership(Empire Empire, EmpireRaceMembership Membership);
 
     private sealed record ColonyListing(StarWinSector Sector, StarSystem System, World World, Colony Colony);
 
