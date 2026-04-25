@@ -6,14 +6,36 @@
         return document.getElementById(overlayId);
     }
 
+    function updateBodyLoadingState() {
+        const hasVisibleOverlay = [navigationOverlayId, sectionOverlayId]
+            .map(getOverlay)
+            .some(overlay => overlay && !overlay.hidden);
+
+        document.body.classList.toggle("navigation-loading-active", hasVisibleOverlay);
+    }
+
+    function resetOverlayTimer(overlay) {
+        if (!overlay) {
+            return;
+        }
+
+        const timer = overlay.querySelector("[data-loading-timer='true']");
+        if (!timer) {
+            return;
+        }
+
+        timer.dataset.startedAtUnixMs = String(Date.now());
+    }
+
     function showOverlay(overlayId) {
         const overlay = getOverlay(overlayId);
         if (!overlay) {
             return;
         }
 
+        resetOverlayTimer(overlay);
         overlay.hidden = false;
-        document.body.classList.add("navigation-loading-active");
+        updateBodyLoadingState();
     }
 
     function hideOverlay(overlayId) {
@@ -23,7 +45,7 @@
         }
 
         overlay.hidden = true;
-        document.body.classList.remove("navigation-loading-active");
+        updateBodyLoadingState();
     }
 
     window.starforgedAtlasNavigation = {

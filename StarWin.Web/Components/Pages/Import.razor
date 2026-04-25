@@ -144,6 +144,7 @@
             <section class="loading-modal">
                 <span class="panel-kicker">@importLoadingLabel</span>
                 <h2>@importLoadingStatus</h2>
+                <LoadingElapsedTime IsVisible="@importLoadingVisible" />
                 @if (!string.IsNullOrWhiteSpace(importLoadingDetail))
                 {
                     <p class="loading-progress-detail">@importLoadingDetail</p>

@@ -24,6 +24,7 @@
         <section class="loading-modal">
             <span class="panel-kicker">Opening Sector Explorer</span>
             <h2>Loading archive records and restoring the explorer workspace.</h2>
+            <p class="loading-elapsed" aria-live="off" data-loading-timer="true">Elapsed time: 00:00.0</p>
             <div class="loading-meter" aria-hidden="true">
                 <span></span>
             </div>
@@ -38,6 +39,7 @@
         <section class="loading-modal">
             <span class="panel-kicker" data-section-loading-target>Loading section</span>
             <h2 data-section-loading-status>Preparing explorer records.</h2>
+            <p class="loading-elapsed" aria-live="off" data-loading-timer="true">Elapsed time: 00:00.0</p>
             <div class="loading-meter" aria-hidden="true">
                 <span></span>
             </div>
@@ -49,6 +51,7 @@
         </section>
     </div>
     <script src="@Assets["js/navigationLoading.js"]"></script>
+    <script type="module" src="@Assets["js/loadingElapsedTime.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
