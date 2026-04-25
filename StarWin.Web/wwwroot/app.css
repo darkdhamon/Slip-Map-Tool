@@ -542,7 +542,7 @@ dd {
 
 .timeline-layout {
     display: grid;
-    grid-template-columns: minmax(240px, 320px) minmax(0, 1fr) minmax(280px, 360px);
+    grid-template-columns: minmax(210px, 260px) minmax(320px, 0.95fr) minmax(420px, 1.15fr);
     gap: 18px;
     align-items: start;
 }
@@ -609,11 +609,13 @@ dd {
 .timeline-list {
     display: grid;
     gap: 12px;
+    min-width: 0;
 }
 
 .timeline-detail-panel {
     position: sticky;
     top: 18px;
+    min-width: 0;
 }
 
 .timeline-count {
