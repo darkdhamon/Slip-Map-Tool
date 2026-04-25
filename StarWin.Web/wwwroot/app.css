@@ -422,6 +422,15 @@ dd {
     line-height: 1.45;
 }
 
+.loading-elapsed {
+    margin: -4px 0 0;
+    color: #91caff;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
 .loading-progress-value {
     justify-self: end;
     color: var(--accent-strong);

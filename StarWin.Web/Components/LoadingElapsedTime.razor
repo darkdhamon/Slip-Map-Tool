@@ -1,0 +1,82 @@
+@implements IDisposable
+
+@if (IsVisible)
+{
+    <p class="loading-elapsed" aria-live="off">Elapsed time: @GetElapsedDisplay()</p>
+}
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    private DateTimeOffset? startedAtUtc;
+    private PeriodicTimer? timer;
+    private CancellationTokenSource? timerCancellation;
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible)
+        {
+            startedAtUtc ??= DateTimeOffset.UtcNow;
+            EnsureTimer();
+            return;
+        }
+
+        startedAtUtc = null;
+        StopTimer();
+    }
+
+    public void Dispose()
+    {
+        StopTimer();
+    }
+
+    private string GetElapsedDisplay()
+    {
+        if (startedAtUtc is null)
+        {
+            return "00:00";
+        }
+
+        var elapsed = DateTimeOffset.UtcNow - startedAtUtc.Value;
+        return elapsed.TotalHours >= 1
+            ? $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
+            : $"{elapsed.Minutes:00}:{elapsed.Seconds:00}";
+    }
+
+    private void EnsureTimer()
+    {
+        if (timer is not null)
+        {
+            return;
+        }
+
+        timerCancellation = new CancellationTokenSource();
+        timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        _ = RunTimerAsync(timer, timerCancellation.Token);
+    }
+
+    private async Task RunTimerAsync(PeriodicTimer activeTimer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await activeTimer.WaitForNextTickAsync(cancellationToken))
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void StopTimer()
+    {
+        timerCancellation?.Cancel();
+        timerCancellation?.Dispose();
+        timerCancellation = null;
+
+        timer?.Dispose();
+        timer = null;
+    }
+}

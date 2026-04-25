@@ -762,7 +762,10 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
         private readonly FrostedOverlayPanel contentPanel;
         private readonly OutlinedLabel titleLabel;
         private readonly OutlinedLabel detailLabel;
+        private readonly OutlinedLabel elapsedLabel;
         private readonly ProgressBar progressBar;
+        private readonly System.Windows.Forms.Timer startupTimer;
+        private readonly DateTimeOffset startedAtUtc = DateTimeOffset.UtcNow;
 
         public SplashForm()
         {
@@ -792,7 +795,7 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             contentPanel = new FrostedOverlayPanel
             {
                 Width = 520,
-                Height = 170,
+                Height = 196,
                 BackColor = Color.Transparent
             };
 
@@ -836,13 +839,38 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
                 MarqueeAnimationSpeed = 28
             };
 
+            elapsedLabel = new OutlinedLabel
+            {
+                AutoSize = false,
+                Left = 34,
+                Top = 150,
+                Width = 452,
+                Height = 20,
+                Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Regular),
+                BackColor = Color.Transparent,
+                ForeColor = Color.FromArgb(145, 202, 255),
+                ShadowColor = Color.FromArgb(180, 2, 6, 16),
+                OutlineColor = Color.FromArgb(140, 1, 4, 14),
+                Text = "Elapsed time: 00:00"
+            };
+
+            startupTimer = new System.Windows.Forms.Timer
+            {
+                Interval = 1000,
+                Enabled = true
+            };
+            startupTimer.Tick += (_, _) => UpdateElapsedTime();
+
+            UpdateElapsedTime();
             contentPanel.Controls.Add(progressBar);
+            contentPanel.Controls.Add(elapsedLabel);
             contentPanel.Controls.Add(detailLabel);
             contentPanel.Controls.Add(titleLabel);
             Controls.Add(contentPanel);
 
             Layout += (_, _) => CenterOverlay();
             Shown += (_, _) => PromoteAboveShell();
+            FormClosed += (_, _) => startupTimer.Stop();
             CenterOverlay();
             PositionOnPrimaryScreen();
         }
@@ -939,6 +967,24 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
         {
             contentPanel.Left = (ClientSize.Width - contentPanel.Width) / 2;
             contentPanel.Top = (ClientSize.Height - contentPanel.Height) / 2 + 110;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                startupTimer.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        private void UpdateElapsedTime()
+        {
+            var elapsed = DateTimeOffset.UtcNow - startedAtUtc;
+            elapsedLabel.Text = elapsed.TotalHours >= 1
+                ? $"Elapsed time: {(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
+                : $"Elapsed time: {elapsed.Minutes:00}:{elapsed.Seconds:00}";
         }
 
         private void PositionOnPrimaryScreen()

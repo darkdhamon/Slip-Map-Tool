@@ -321,6 +321,7 @@
                             <section class="loading-modal">
                                 <span class="panel-kicker">Loading @sectionLoadingTarget</span>
                                 <h2>@sectionLoadingStatus</h2>
+                                <LoadingElapsedTime IsVisible="@sectionLoadingVisible" />
                                 <div class="loading-meter" aria-hidden="true">
                                     <span></span>
                                 </div>
@@ -1657,6 +1658,7 @@
         <section class="loading-modal">
             <span class="panel-kicker">Saving current routes</span>
             <h2>@routeSaveLoadingStatus</h2>
+            <LoadingElapsedTime IsVisible="@routeSaveLoadingVisible" />
             @if (!string.IsNullOrWhiteSpace(routeSaveLoadingDetail))
             {
                 <p class="loading-progress-detail">@routeSaveLoadingDetail</p>
@@ -1689,6 +1691,7 @@
         <section class="loading-modal">
             <span class="panel-kicker">@mapContextLoadingLabel</span>
             <h2>@mapContextLoadingStatus</h2>
+            <LoadingElapsedTime IsVisible="@mapContextRefreshing" />
             @if (!string.IsNullOrWhiteSpace(mapContextStatus))
             {
                 <p class="loading-progress-detail">@mapContextStatus</p>
