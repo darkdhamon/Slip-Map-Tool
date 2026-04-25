@@ -1,0 +1,222 @@
+@page "/sector-explorer/colonies"
+@rendermode InteractiveServer
+
+@{
+    var sector = GetSelectedSector();
+    var sectionCache = GetSectorCache(sector);
+    var sectorColonies = sectionCache.Colonies;
+    var sectorRaces = ExplorerAlienRaces.Where(race => sectionCache.RaceIds.Contains(race.Id)).OrderBy(race => race.Name).ToList();
+    var sectorEmpires = ExplorerEmpires.Where(empire => sectionCache.EmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
+    var selectedColony = sectorColonies.Select(item => item.Colony).FirstOrDefault(colony => colony.Id == selectedColonyId)
+        ?? sectorColonies.Select(item => item.Colony).FirstOrDefault();
+    var selectedColonyWorld = selectedColony is null || !WorldsById.TryGetValue(selectedColony.WorldId, out var colonyWorld)
+        ? null
+        : colonyWorld;
+    var colonyImages = selectedColony is null ? [] : GetEntityImages(EntityImageTargetKind.Colony, selectedColony.Id);
+}
+
+<PageTitle>Colonies | Starforged Atlas</PageTitle>
+
+<section class="explorer-page">
+    <SectorExplorerShell ShowHero="false"
+                         Sectors="ExplorerSectors"
+                         Systems="sector.Systems.ToList()"
+                         SelectedSectorId="@selectedSectorId"
+                         SelectedSectorChanged="HandleSectorChangedAsync"
+                         SelectedSystemText="@selectedSystemText"
+                         SelectedSystemTextChanged="HandleSelectedSystemTextChangedAsync"
+                         SearchQuery="@searchQuery"
+                         SearchQueryChanged="HandleSearchQueryChangedAsync"
+                         SearchResults="searchResults"
+                         SearchResultSelected="NavigateToSearchResult"
+                         Sections="sections"
+                         ActiveSection="Colonies"
+                         ErrorMessage="@explorerRenderError"
+                         ResultTypeDisplayFactory="DisplayResultType"
+                         SectionHrefFactory="BuildSectionRoute">
+        <section class="content-grid">
+            <div class="record-list colony-record-list">
+                <details class="record-filter-panel" open>
+                    <summary class="record-filter-summary">Search</summary>
+                    <label>
+                        Search
+                        <input placeholder="Name, allegiance, population..."
+                               @bind="colonyQuery"
+                               @bind:event="oninput"
+                               @bind:after="ResetColonyWindow" />
+                    </label>
+                    <button type="button" class="timeline-clear-button" @onclick="ToggleColonyFilters">
+                        @(showColonyFilters ? "Hide filters" : "Show filters")
+                    </button>
+                    @if (showColonyFilters)
+                    {
+                        <label>
+                            Race
+                            <input list="colony-race-options"
+                                   placeholder="All races"
+                                   @bind="colonyRaceText"
+                                   @bind:event="oninput"
+                                   @bind:after="ApplyColonyRaceFilter" />
+                            <datalist id="colony-race-options">
+                                @foreach (var race in sectorRaces)
+                                {
+                                    <option value="@FormatRaceOption(race)" />
+                                }
+                            </datalist>
+                        </label>
+                        <label>
+                            Empire
+                            <input list="colony-empire-options"
+                                   placeholder="All empires"
+                                   @bind="colonyEmpireText"
+                                   @bind:event="oninput"
+                                   @bind:after="ApplyColonyEmpireFilter" />
+                            <datalist id="colony-empire-options">
+                                @foreach (var empire in sectorEmpires)
+                                {
+                                    <option value="@FormatEmpireOption(empire)" />
+                                }
+                            </datalist>
+                        </label>
+                        <label>
+                            Status
+                            <select @bind="colonyStatus" @bind:after="ResetColonyWindow">
+                                <option value="">All statuses</option>
+                                @foreach (var status in Enum.GetValues<ColonyPoliticalStatus>())
+                                {
+                                    <option value="@status.ToString()">@status</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            Class
+                            <input list="colony-class-options"
+                                   placeholder="All classes"
+                                   @bind="colonyClass"
+                                   @bind:event="oninput"
+                                   @bind:after="ResetColonyWindow" />
+                            <datalist id="colony-class-options">
+                                @foreach (var itemClass in sectorColonies.Select(item => item.Colony.ColonyClass).Distinct().OrderBy(item => item))
+                                {
+                                    <option value="@itemClass" />
+                                }
+                            </datalist>
+                        </label>
+                    }
+                    <button type="button" class="timeline-clear-button" @onclick="ClearColonyFilters">Clear filters</button>
+                </details>
+                @{
+                    var colonyWindow = GetFilteredColonies(sectionCache)
+                        .Take(colonyVisibleCount + 1)
+                        .ToList();
+                    var hasMoreColonies = colonyWindow.Count > colonyVisibleCount;
+                    var visibleColonies = colonyWindow.Take(colonyVisibleCount).ToList();
+                    colonyHasMoreRecords = hasMoreColonies;
+                }
+                <div class="timeline-count">Showing @visibleColonies.Count colon@(visibleColonies.Count == 1 ? "y" : "ies")@(hasMoreColonies ? "+" : string.Empty)</div>
+                @if (visibleColonies.Count == 0)
+                {
+                    <article class="timeline-event-card">
+                        <span class="timeline-century">No matches</span>
+                        <p>Adjust the filters to widen the colony list.</p>
+                    </article>
+                }
+                @foreach (var item in visibleColonies)
+                {
+                    <button type="button" class="record-row @(selectedColony?.Id == item.Colony.Id ? "active" : null)" @onclick="() => SelectColony(item.Colony.Id)">
+                        <strong>@DisplayColonyName(item.Colony) on @item.World.Name</strong>
+                        <span>@item.Colony.AllegianceName; @DisplayPopulation(item.Colony.EstimatedPopulation)</span>
+                    </button>
+                }
+                @if (hasMoreColonies)
+                {
+                    <div @ref="colonyLoadMoreElement" class="timeline-load-more">
+                        <button type="button" @onclick="LoadMoreColonies">Load more</button>
+                    </div>
+                }
+            </div>
+
+            @if (selectedColony is not null)
+            {
+                <article class="detail-panel">
+                    <span class="panel-kicker">Colony record</span>
+                    <EditableEntityName Name="@DisplayColonyName(selectedColony)"
+                                        Label="Colony"
+                                        NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.Colony, selectedColony.Id, name)" />
+                    <section class="entity-image-panel">
+                        <div class="image-panel-header">
+                            <h4>Colony images</h4>
+                            <span>Multiple allowed</span>
+                        </div>
+                        @if (colonyImages.Count > 0)
+                        {
+                            <div class="entity-image-grid">
+                                @foreach (var image in colonyImages)
+                                {
+                                    <figure>
+                                        <img src="@image.RelativePath" alt="@image.FileName" />
+                                        <figcaption>@(image.IsPrimary ? "Primary" : image.FileName)</figcaption>
+                                    </figure>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p>No image uploaded.</p>
+                        }
+                        <label class="image-upload-control">
+                            <span>Add image</span>
+                            <InputFile OnChange="@(args => UploadEntityImage(EntityImageTargetKind.Colony, selectedColony.Id, args))" accept="image/jpeg,image/png,image/gif,image/webp" />
+                        </label>
+                        @if (!string.IsNullOrWhiteSpace(imageUploadStatus))
+                        {
+                            <small>@imageUploadStatus</small>
+                        }
+                    </section>
+                    @if (selectedColonyWorld is not null)
+                    {
+                        <div class="parent-actions">
+                            <button type="button" @onclick="() => NavigateToWorld(selectedColonyWorld.Id)">Parent world: @selectedColonyWorld.Name</button>
+                        </div>
+                    }
+                    <dl class="field-grid">
+                        <div><dt>Colony id</dt><dd>@selectedColony.Id</dd></div>
+                        <div><dt>World id</dt><dd>@selectedColony.WorldId</dd></div>
+                        <div><dt>Race</dt><dd>@selectedColony.ColonistRaceName</dd></div>
+                        <div><dt>Allegiance</dt><dd>@selectedColony.AllegianceName</dd></div>
+                        <div><dt>Status</dt><dd>@selectedColony.PoliticalStatus</dd></div>
+                        <div><dt>Population</dt><dd>@DisplayPopulation(selectedColony.EstimatedPopulation)</dd></div>
+                        <div><dt>Natives</dt><dd>@selectedColony.NativePopulationPercent%</dd></div>
+                        <div><dt>Starport</dt><dd>@selectedColony.Starport</dd></div>
+                        <div><dt>GWP</dt><dd>@selectedColony.GrossWorldProductMcr MCr</dd></div>
+                        <div><dt>Military</dt><dd>@selectedColony.MilitaryPower</dd></div>
+                        <div><dt>Major export</dt><dd>@selectedColony.ExportResource</dd></div>
+                        <div><dt>Major import</dt><dd>@selectedColony.ImportResource</dd></div>
+                        <div><dt>Law</dt><dd>@selectedColony.Law</dd></div>
+                        <div><dt>Stability</dt><dd>@selectedColony.Stability</dd></div>
+                        <div><dt>Crime</dt><dd>@selectedColony.Crime</dd></div>
+                    </dl>
+
+                    <EntityNotesPanel TargetKind="EntityNoteTargetKind.Colony"
+                                      TargetId="selectedColony.Id"
+                                      Title="Colony notes" />
+
+                    <section class="relationship-section">
+                        <h3>Demographics</h3>
+                        <div class="demographic-list">
+                            @foreach (var demographic in selectedColony.Demographics.OrderByDescending(item => item.PopulationPercent))
+                            {
+                                <button type="button" class="demographic-row" @onclick="() => NavigateToRace(demographic.RaceId)">
+                                    <span>@demographic.RaceName</span>
+                                    <strong>@($"{demographic.PopulationPercent:0.#}%")</strong>
+                                    <em style="width: @($"{demographic.PopulationPercent:0.##}%")"></em>
+                                    <small>@DisplayPopulation(GetDemographicPopulation(selectedColony, demographic))</small>
+                                </button>
+                            }
+                        </div>
+                    </section>
+                </article>
+            }
+        </section>
+    </SectorExplorerShell>
+</section>

@@ -1123,165 +1123,6 @@
                 }
             </section>
             break;
-        case "Colonies":
-            <section class="content-grid">
-                <div class="record-list colony-record-list">
-                    <details class="record-filter-panel" open>
-                        <summary class="record-filter-summary">Search</summary>
-                        <label>
-                            Search
-                            <input placeholder="World, class, race, empire..."
-                                   @bind="colonyQuery"
-                                   @bind:event="oninput"
-                                   @bind:after="ResetColonyWindow" />
-                        </label>
-                        <button type="button" class="timeline-clear-button" @onclick="ToggleColonyFilters">
-                            @(showColonyFilters ? "Hide filters" : "Show filters")
-                        </button>
-                        @if (showColonyFilters)
-                        {
-                            <label>
-                                Race
-                                <input list="colony-race-options"
-                                       placeholder="All races"
-                                       @bind="colonyRaceText"
-                                       @bind:event="oninput"
-                                       @bind:after="ApplyColonyRaceFilter" />
-                                <datalist id="colony-race-options">
-                                    @foreach (var race in sectorRaces)
-                                    {
-                                        <option value="@FormatRaceOption(race)" />
-                                    }
-                                </datalist>
-                            </label>
-                            <label>
-                                Allegiance
-                                <input list="colony-empire-options"
-                                       placeholder="All allegiances"
-                                       @bind="colonyEmpireText"
-                                       @bind:event="oninput"
-                                       @bind:after="ApplyColonyEmpireFilter" />
-                                <datalist id="colony-empire-options">
-                                    @foreach (var empire in sectorEmpires)
-                                    {
-                                        <option value="@FormatEmpireOption(empire)" />
-                                    }
-                                </datalist>
-                            </label>
-                            <label>
-                                Status
-                                <select @bind="colonyStatus" @bind:after="ResetColonyWindow">
-                                    <option value="">All statuses</option>
-                                    @foreach (var status in Enum.GetValues<ColonyPoliticalStatus>())
-                                    {
-                                        <option value="@status.ToString()">@status</option>
-                                    }
-                                </select>
-                            </label>
-                            <label>
-                                Class
-                                <input list="colony-class-options"
-                                       placeholder="All classes"
-                                       @bind="colonyClass"
-                                       @bind:event="oninput"
-                                       @bind:after="ResetColonyWindow" />
-                                <datalist id="colony-class-options">
-                                    @foreach (var itemClass in sectorColonies.Select(item => item.Colony.ColonyClass).Distinct().OrderBy(item => item))
-                                    {
-                                        <option value="@itemClass" />
-                                    }
-                                </datalist>
-                            </label>
-                        }
-                        <button type="button" class="timeline-clear-button" @onclick="ClearColonyFilters">Clear filters</button>
-                    </details>
-                    @{
-                        var colonyWindow = GetFilteredColonies(sectionCache!)
-                            .Take(colonyVisibleCount + 1)
-                            .ToList();
-                        var hasMoreColonies = colonyWindow.Count > colonyVisibleCount;
-                        var visibleColonies = colonyWindow
-                            .Take(colonyVisibleCount)
-                            .ToList();
-                        colonyHasMoreRecords = hasMoreColonies;
-                    }
-                    <div class="timeline-count">Showing @visibleColonies.Count colon@(visibleColonies.Count == 1 ? "y" : "ies")@(hasMoreColonies ? "+" : string.Empty)</div>
-                    @if (visibleColonies.Count == 0)
-                    {
-                        <article class="timeline-event-card">
-                            <span class="timeline-century">No matches</span>
-                            <p>Adjust the filters to widen the colony list.</p>
-                        </article>
-                    }
-                    @foreach (var item in visibleColonies)
-                    {
-                        <button type="button" class="record-row @(selectedColony?.Id == item.Colony.Id ? "active" : null)" @onclick="() => SelectColony(item.Colony.Id)">
-                                    <strong>@DisplayColonyName(item.Colony) on @item.World.Name</strong>
-                            <span>@item.Colony.AllegianceName; @DisplayPopulation(item.Colony.EstimatedPopulation)</span>
-                        </button>
-                    }
-                    @if (hasMoreColonies)
-                    {
-                        <div @ref="colonyLoadMoreElement" class="timeline-load-more">
-                            <button type="button" @onclick="LoadMoreColonies">Load more</button>
-                        </div>
-                    }
-                </div>
-
-                @if (selectedColony is not null)
-                {
-                    <article class="detail-panel">
-                        <span class="panel-kicker">Colony record</span>
-                        <EditableEntityName Name="@DisplayColonyName(selectedColony)"
-                                            Label="Colony"
-                                            NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.Colony, selectedColony.Id, name)" />
-                        @RenderImagePanel(EntityImageTargetKind.Colony, selectedColony.Id, "Colony images", true)
-                        @if (selectedColonyWorld is not null)
-                        {
-                            <div class="parent-actions">
-                                <button type="button" @onclick="() => SelectWorld(selectedColonyWorld.Id)">Parent world: @selectedColonyWorld.Name</button>
-                            </div>
-                        }
-                        <dl class="field-grid">
-                            <div><dt>Colony id</dt><dd>@selectedColony.Id</dd></div>
-                            <div><dt>World id</dt><dd>@selectedColony.WorldId</dd></div>
-                            <div><dt>Race</dt><dd>@selectedColony.ColonistRaceName</dd></div>
-                            <div><dt>Allegiance</dt><dd>@selectedColony.AllegianceName</dd></div>
-                            <div><dt>Status</dt><dd>@selectedColony.PoliticalStatus</dd></div>
-                            <div><dt>Population</dt><dd>@DisplayPopulation(selectedColony.EstimatedPopulation)</dd></div>
-                            <div><dt>Natives</dt><dd>@selectedColony.NativePopulationPercent%</dd></div>
-                            <div><dt>Starport</dt><dd>@selectedColony.Starport</dd></div>
-                            <div><dt>GWP</dt><dd>@selectedColony.GrossWorldProductMcr MCr</dd></div>
-                            <div><dt>Military</dt><dd>@selectedColony.MilitaryPower</dd></div>
-                            <div><dt>Major export</dt><dd>@selectedColony.ExportResource</dd></div>
-                            <div><dt>Major import</dt><dd>@selectedColony.ImportResource</dd></div>
-                            <div><dt>Law</dt><dd>@selectedColony.Law</dd></div>
-                            <div><dt>Stability</dt><dd>@selectedColony.Stability</dd></div>
-                            <div><dt>Crime</dt><dd>@selectedColony.Crime</dd></div>
-                        </dl>
-
-                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.Colony"
-                                          TargetId="selectedColony.Id"
-                                          Title="Colony notes" />
-
-                        <section class="relationship-section">
-                            <h3>Demographics</h3>
-                            <div class="demographic-list">
-                                @foreach (var demographic in selectedColony.Demographics.OrderByDescending(item => item.PopulationPercent))
-                                {
-                                    <button type="button" class="demographic-row" @onclick="() => SelectRace(demographic.RaceId)">
-                                        <span>@demographic.RaceName</span>
-                                        <strong>@($"{demographic.PopulationPercent:0.#}%")</strong>
-                                        <em style="width: @($"{demographic.PopulationPercent:0.##}%")"></em>
-                                        <small>@DisplayPopulation(GetDemographicPopulation(selectedColony, demographic))</small>
-                                    </button>
-                                }
-                            </div>
-                        </section>
-                    </article>
-                }
-            </section>
-            break;
     }
 </section>
 
@@ -1398,7 +1239,6 @@
     private string searchQuery = string.Empty;
     private IReadOnlyList<StarWinSearchResult> searchResults = [];
     private ElementReference sectorMapElement;
-    private ElementReference colonyLoadMoreElement;
     private ElementReference worldLoadMoreElement;
     private ElementReference hyperlaneLoadMoreElement;
     private DotNetObjectReference<SectorExplorer>? dotNetReference;
@@ -1437,17 +1277,6 @@
     private int routeOriginSystemId;
     private string routeDestinationText = string.Empty;
     private int routeDestinationSystemId;
-    private string colonyQuery = string.Empty;
-    private string colonyRaceText = string.Empty;
-    private string colonyEmpireText = string.Empty;
-    private int colonyRaceId = ComboAllFilterId;
-    private int colonyEmpireId = ComboAllFilterId;
-    private string colonyStatus = string.Empty;
-    private string colonyClass = string.Empty;
-    private int colonyVisibleCount = ColonyBatchSize;
-    private bool colonyHasMoreRecords;
-    private bool colonyObserverConfigured;
-    private bool showColonyFilters;
     private string worldQuery = string.Empty;
     private string worldKind = string.Empty;
     private string worldType = string.Empty;
@@ -1894,16 +1723,6 @@
                 return;
             }
 
-            if (activeSection == "Colonies")
-            {
-                renderedOverview = false;
-                await ConfigureColonyObserverAsync();
-                await CompleteSectionLoadingIfReadyAsync();
-                _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
-                return;
-            }
-
-            colonyObserverConfigured = false;
             if (activeSection == "Systems")
             {
                 renderedOverview = false;
@@ -1995,7 +1814,6 @@
             sectionLoadingAwaitingTargetRender = false;
             sectionLoadingTarget = string.Empty;
             sectionLoadingStatus = string.Empty;
-            colonyObserverConfigured = false;
             worldObserverConfigured = false;
             hyperlaneObserverConfigured = false;
             await HideSectionLoadingOverlayAsync();
@@ -2400,13 +2218,7 @@
             return;
         }
 
-        selectedSystemId = listing.system.Id;
-        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedWorldId = listing.world.Id;
-        selectedColonyId = colonyId;
-        selectedHabitatId = 0;
-        SetActiveSection("Colonies");
-        _ = PersistExplorerSessionAsync();
+        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Colonies", selectedSectorId, listing.system.Id, listing.world.Id, colonyId));
     }
 
     private void SelectRace(int raceId)
@@ -2627,30 +2439,6 @@
         renderedOverview = false;
     }
 
-    private async Task ConfigureColonyObserverAsync()
-    {
-        if (!colonyHasMoreRecords)
-        {
-            colonyObserverConfigured = false;
-            if (loadMoreScrollModule is not null)
-            {
-                await loadMoreScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
-            }
-
-            return;
-        }
-
-        if (colonyObserverConfigured)
-        {
-            return;
-        }
-
-        loadMoreScrollModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/timelineInfiniteScroll.js");
-        dotNetReference ??= DotNetObjectReference.Create(this);
-        await loadMoreScrollModule.InvokeVoidAsync("observeColonyLoadMore", colonyLoadMoreElement, dotNetReference);
-        colonyObserverConfigured = true;
-    }
-
     private async Task ConfigureRecordObserverAsync(
         string key,
         bool hasMoreRecords,
@@ -2679,38 +2467,6 @@
         dotNetReference ??= DotNetObjectReference.Create(this);
         await loadMoreScrollModule.InvokeVoidAsync("observeLoadMore", key, loadMoreElement, dotNetReference, loadMoreMethodName);
         setConfigured(true);
-    }
-
-    [JSInvokable]
-    public async Task LoadMoreColonies()
-    {
-        if (loadMoreScrollModule is not null)
-        {
-            await loadMoreScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
-        }
-
-        colonyVisibleCount += ColonyBatchSize;
-        colonyObserverConfigured = false;
-        StateHasChanged();
-    }
-
-    private void ResetColonyWindow()
-    {
-        colonyVisibleCount = ColonyBatchSize;
-        colonyObserverConfigured = false;
-    }
-
-    private void ClearColonyFilters()
-    {
-        colonyQuery = string.Empty;
-        colonyRaceText = string.Empty;
-        colonyEmpireText = string.Empty;
-        colonyRaceId = ComboAllFilterId;
-        colonyEmpireId = ComboAllFilterId;
-        colonyStatus = string.Empty;
-        colonyClass = string.Empty;
-        showColonyFilters = false;
-        ResetColonyWindow();
     }
 
     public Task LoadMoreWorlds()
@@ -2754,23 +2510,6 @@
     private void ToggleWorldFilters()
     {
         showWorldFilters = !showWorldFilters;
-    }
-
-    private void ToggleColonyFilters()
-    {
-        showColonyFilters = !showColonyFilters;
-    }
-
-    private void ApplyColonyRaceFilter()
-    {
-        colonyRaceId = ParseComboId(colonyRaceText);
-        ResetColonyWindow();
-    }
-
-    private void ApplyColonyEmpireFilter()
-    {
-        colonyEmpireId = ParseComboId(colonyEmpireText);
-        ResetColonyWindow();
     }
 
     private async Task RestoreExplorerSessionAsync()
@@ -3318,11 +3057,6 @@
         return AlienRacesById.TryGetValue(raceId, out var race) ? race.Name : raceId.ToString();
     }
 
-    private static string DisplayColonyName(Colony colony)
-    {
-        return string.IsNullOrWhiteSpace(colony.Name) ? colony.ColonyClass : colony.Name;
-    }
-
     private async Task SaveEntityNameAsync(EntityNoteTargetKind targetKind, int targetId, string name)
     {
         await EntityNameService.SaveNameAsync(targetKind, targetId, name);
@@ -3340,62 +3074,6 @@
     private static bool ContainsTimelineQuery(string? value, string query)
     {
         return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
-    }
-
-    private IEnumerable<(World World, Colony Colony)> GetFilteredColonies(ExplorerSectorCache sectorCache)
-    {
-        return sectorCache.ColoniesByPopulation.Where(ColonyMatches);
-    }
-
-    private bool ColonyMatches((World World, Colony Colony) item)
-    {
-        if (colonyRaceId != ComboAllFilterId
-            && item.Colony.RaceId != colonyRaceId
-            && !item.Colony.Demographics.Any(demographic => demographic.RaceId == colonyRaceId))
-        {
-            return false;
-        }
-
-        if (colonyEmpireId != ComboAllFilterId
-            && item.Colony.AllegianceId != colonyEmpireId
-            && item.Colony.ControllingEmpireId != colonyEmpireId
-            && item.Colony.FoundingEmpireId != colonyEmpireId
-            && item.Colony.ParentEmpireId != colonyEmpireId)
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(colonyStatus)
-            && !string.Equals(item.Colony.PoliticalStatus.ToString(), colonyStatus, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(colonyClass)
-            && !string.Equals(item.Colony.ColonyClass, colonyClass, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(colonyQuery))
-        {
-            return true;
-        }
-
-        var query = colonyQuery.Trim();
-        return ContainsTimelineQuery(item.World.Name, query)
-            || ContainsTimelineQuery(item.World.WorldType, query)
-            || ContainsTimelineQuery(item.Colony.Id.ToString(), query)
-            || ContainsTimelineQuery(item.Colony.Name, query)
-            || ContainsTimelineQuery(item.Colony.WorldId.ToString(), query)
-            || ContainsTimelineQuery(item.Colony.ColonyClass, query)
-            || ContainsTimelineQuery(item.Colony.ColonistRaceName, query)
-            || ContainsTimelineQuery(item.Colony.AllegianceName, query)
-            || ContainsTimelineQuery(item.Colony.Starport, query)
-            || ContainsTimelineQuery(item.Colony.GovernmentType, query)
-            || ContainsTimelineQuery(item.Colony.ExportResource, query)
-            || ContainsTimelineQuery(item.Colony.ImportResource, query)
-            || item.Colony.Demographics.Any(demographic => ContainsTimelineQuery(demographic.RaceName, query));
     }
 
     private IEnumerable<ExplorerWorldRecord> GetFilteredExplorerWorldRecords(StarSystem? system)
@@ -3771,18 +3449,6 @@
         return population >= 1_000_000_000
             ? $"{population / 1_000_000_000m:0.#} billion"
             : $"{population / 1_000_000m:0.#} million";
-    }
-
-    private static long GetDemographicPopulation(Colony colony, ColonyDemographic demographic)
-    {
-        if (demographic.Population > 0)
-        {
-            return demographic.Population;
-        }
-
-        return demographic.PopulationPercent <= 0
-            ? 0
-            : (long)Math.Round(colony.EstimatedPopulation * demographic.PopulationPercent / 100m);
     }
 
     private static string Format(double? value)
