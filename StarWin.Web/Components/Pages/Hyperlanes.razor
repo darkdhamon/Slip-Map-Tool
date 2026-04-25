@@ -1,0 +1,181 @@
+@page "/sector-explorer/hyperlanes"
+@rendermode InteractiveServer
+
+@{
+    var sector = GetSelectedSector();
+    var savedHyperlanes = GetOrderedRoutes(sector);
+    var hyperlaneWindow = savedHyperlanes.Take(hyperlaneVisibleCount + 1).ToList();
+    var hasMoreHyperlanes = hyperlaneWindow.Count > hyperlaneVisibleCount;
+    var visibleHyperlanes = hyperlaneWindow.Take(hyperlaneVisibleCount).ToList();
+    var selectedHyperlane = GetSelectedRoute(sector, savedHyperlanes);
+    var savedHyperlaneReport = GetSavedHyperlaneReport(sector);
+    var sectorEmpires = ExplorerEmpires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
+}
+
+<PageTitle>Hyperlanes | Starforged Atlas</PageTitle>
+
+<section class="explorer-page">
+    <SectorExplorerShell ShowHero="false"
+                         Sectors="ExplorerSectors"
+                         Systems="sector.Systems.ToList()"
+                         SelectedSectorId="@selectedSectorId"
+                         SelectedSectorChanged="HandleSectorChangedAsync"
+                         SelectedSystemText="@selectedSystemText"
+                         SelectedSystemTextChanged="HandleSelectedSystemTextChangedAsync"
+                         SearchQuery="@searchQuery"
+                         SearchQueryChanged="HandleSearchQueryChangedAsync"
+                         SearchResults="searchResults"
+                         SearchResultSelected="NavigateToSearchResult"
+                         Sections="sections"
+                         ActiveSection="Hyperlanes"
+                         ErrorMessage="@explorerRenderError"
+                         ResultTypeDisplayFactory="DisplayResultType"
+                         SectionHrefFactory="BuildSectionRoute">
+        <section class="hyperlane-layout">
+            <article class="feature-panel hyperlane-list-panel">
+                <span class="panel-kicker">Saved Hyperlanes</span>
+                <h2>@sector.Name</h2>
+                <p>Inspect the saved sector hyperlane cache, preserve manual links through regeneration, and review how many separate networks currently exist.</p>
+                <dl class="field-grid compact-field-grid hyperlane-network-summary">
+                    <div><dt>Total saved</dt><dd>@savedHyperlanes.Count</dd></div>
+                    <div><dt>Networks</dt><dd>@savedHyperlaneReport.DistinctNetworkCount</dd></div>
+                    <div><dt>Connected systems</dt><dd>@savedHyperlaneReport.ConnectedSystemCount of @savedHyperlaneReport.EligibleSystemCount eligible</dd></div>
+                    <div><dt>Stranded systems</dt><dd>@savedHyperlaneReport.StrandedSystemCount</dd></div>
+                    <div><dt>Network sizes</dt><dd>@(savedHyperlaneReport.NetworkSizes.Count == 0 ? "None yet" : string.Join(", ", savedHyperlaneReport.NetworkSizes))</dd></div>
+                    <div><dt>Manual preserve</dt><dd>@savedHyperlanes.Count(route => route.IsUserPersisted) user-persisted route@(savedHyperlanes.Count(route => route.IsUserPersisted) == 1 ? string.Empty : "s")</dd></div>
+                </dl>
+                <div class="parent-actions">
+                    <button type="button" @onclick="() => StartNewHyperlane(sector)">Add hyperlane</button>
+                    <button type="button" @onclick="NavigateToConfiguration">Open sector configuration</button>
+                </div>
+                <p class="panel-note">Use Sector Configuration to regenerate the saved route cache and show the route-save progress window.</p>
+                @if (savedHyperlanes.Count == 0)
+                {
+                    <p class="notes-empty">No saved hyperlanes exist yet for this sector. You can add one manually or generate the current network from configuration.</p>
+                }
+                else
+                {
+                    <div class="hyperlane-record-list">
+                        <div class="timeline-count">Showing @visibleHyperlanes.Count saved hyperlane@(visibleHyperlanes.Count == 1 ? string.Empty : "s")@(hasMoreHyperlanes ? "+" : string.Empty)</div>
+                        @foreach (var route in visibleHyperlanes)
+                        {
+                            var sourceSystem = sector.Systems.FirstOrDefault(system => system.Id == route.SourceSystemId);
+                            var targetSystem = sector.Systems.FirstOrDefault(system => system.Id == route.TargetSystemId);
+                            <button type="button"
+                                    class="hyperlane-record @(route.Id == selectedHyperlaneId ? "active" : null)"
+                                    @onclick="() => SelectHyperlane(sector, route.Id)">
+                                <strong>@(sourceSystem?.Name ?? $"System {route.SourceSystemId}") <span aria-hidden="true">&#8596;</span> @(targetSystem?.Name ?? $"System {route.TargetSystemId}")</strong>
+                                <small>TL@route.TechnologyLevel @route.TierName - @route.DistanceParsecs:0.### pc - @route.TravelTimeYears:0.###### years</small>
+                                <small>@FormatHyperlaneOwnerSummary(route)</small>
+                                @if (route.IsUserPersisted)
+                                {
+                                    <span class="hyperlane-badge">User-persisted</span>
+                                }
+                            </button>
+                        }
+                        @if (hasMoreHyperlanes)
+                        {
+                            <div class="timeline-load-more">
+                                <button type="button" @onclick="LoadMoreHyperlanes">Load more</button>
+                            </div>
+                        }
+                    </div>
+                }
+            </article>
+
+            <article class="detail-panel hyperlane-editor-panel">
+                <span class="panel-kicker">Hyperlane Editor</span>
+                <h2>@(selectedHyperlaneId > 0 ? "Edit saved hyperlane" : "Create saved hyperlane")</h2>
+                <p>Manual hyperlanes are stored in the database-backed sector cache. Mark a route as user-persisted to keep it intact when regeneration refreshes the rest of the sector.</p>
+                <div class="form-grid">
+                    <label>
+                        Source system
+                        <select @bind="hyperlaneSourceSystemId">
+                            @foreach (var system in sector.Systems.OrderBy(system => system.Name).ThenBy(system => system.Id))
+                            {
+                                <option value="@system.Id">@system.Name (@system.Id)</option>
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Target system
+                        <select @bind="hyperlaneTargetSystemId">
+                            @foreach (var system in sector.Systems.OrderBy(system => system.Name).ThenBy(system => system.Id))
+                            {
+                                <option value="@system.Id">@system.Name (@system.Id)</option>
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Technology level
+                        <select @bind="hyperlaneTechnologyLevel">
+                            @for (var tier = 6; tier <= 10; tier++)
+                            {
+                                <option value="@tier">TL@tier</option>
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Tier name
+                        <input maxlength="80" @bind="hyperlaneTierName" />
+                    </label>
+                    <label>
+                        Distance (parsecs)
+                        <input type="number" min="0.001" step="0.001" @bind="hyperlaneDistanceParsecs" />
+                    </label>
+                    <label>
+                        Travel time (years)
+                        <input type="number" min="0.000001" step="0.000001" @bind="hyperlaneTravelTimeYears" />
+                    </label>
+                    <label>
+                        Primary owner
+                        <select @bind="hyperlanePrimaryOwnerEmpireId">
+                            <option value="0">None</option>
+                            @foreach (var empire in sectorEmpires)
+                            {
+                                <option value="@empire.Id">@empire.Name</option>
+                            }
+                        </select>
+                    </label>
+                    <label>
+                        Secondary owner
+                        <select @bind="hyperlaneSecondaryOwnerEmpireId">
+                            <option value="0">None</option>
+                            @foreach (var empire in sectorEmpires)
+                            {
+                                <option value="@empire.Id">@empire.Name</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+                <label class="switch-field hyperlane-persist-toggle">
+                    <input type="checkbox" @bind="hyperlaneIsUserPersisted" />
+                    <span>Keep this hyperlane unchanged during regeneration</span>
+                </label>
+                <div class="parent-actions">
+                    <button type="button" @onclick="SaveHyperlaneAsync">Save hyperlane</button>
+                    <button type="button" @onclick="() => StartNewHyperlane(sector)">New draft</button>
+                    <button type="button" @onclick="RecalculateHyperlaneTravelDefaults" disabled="@(hyperlaneSourceSystemId <= 0 || hyperlaneTargetSystemId <= 0)">Use sector travel defaults</button>
+                    @if (selectedHyperlaneId > 0)
+                    {
+                        <button type="button" @onclick="DeleteSelectedHyperlaneAsync">Delete hyperlane</button>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(hyperlaneStatus))
+                {
+                    <p class="search-empty">@hyperlaneStatus</p>
+                }
+                @if (selectedHyperlane is not null)
+                {
+                    <EntityNotesPanel TargetKind="EntityNoteTargetKind.HyperlaneRoute"
+                                      TargetId="selectedHyperlane.Id"
+                                      Title="Hyperlane notes" />
+                }
+                else
+                {
+                    <p class="notes-empty">Save the hyperlane first if you want to attach notes to it.</p>
+                }
+            </article>
+        </section>
+    </SectorExplorerShell>
+</section>
