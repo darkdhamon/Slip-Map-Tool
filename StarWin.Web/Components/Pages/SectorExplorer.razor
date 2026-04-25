@@ -1714,7 +1714,7 @@
     private const int SectorMapMinimumRenderedSystems = 150;
     private const int ColonyBatchSize = 120;
     private const int ExplorerListBatchSize = 120;
-    private const int TimelineAllFilterId = -1;
+    private const int ComboAllFilterId = -1;
     private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
 
     [SupplyParameterFromQuery(Name = "sectorId")]
@@ -1728,7 +1728,6 @@
     private readonly Dictionary<int, HyperlaneSectionCache> hyperlaneSectionCaches = [];
     private readonly Dictionary<int, ExplorerSectorOverviewData> sectorOverviewDataById = [];
     private readonly HashSet<int> sectorsWithDetailLoaded = [];
-    private readonly HashSet<int> sectorsWithHistoryLoaded = [];
     private StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     private string activeSection = "Overview";
     private string sectionLoadingTarget = string.Empty;
@@ -1754,7 +1753,7 @@
     private ElementReference hyperlaneLoadMoreElement;
     private DotNetObjectReference<SectorExplorer>? dotNetReference;
     private IJSObjectReference? sectorMapModule;
-    private IJSObjectReference? timelineScrollModule;
+    private IJSObjectReference? loadMoreScrollModule;
     private int renderedSectorId;
     private int renderedSystemId;
     private int renderedViewDistanceParsecs;
@@ -1790,8 +1789,8 @@
     private string colonyQuery = string.Empty;
     private string colonyRaceText = string.Empty;
     private string colonyEmpireText = string.Empty;
-    private int colonyRaceId = TimelineAllFilterId;
-    private int colonyEmpireId = TimelineAllFilterId;
+    private int colonyRaceId = ComboAllFilterId;
+    private int colonyEmpireId = ComboAllFilterId;
     private string colonyStatus = string.Empty;
     private string colonyClass = string.Empty;
     private int colonyVisibleCount = ColonyBatchSize;
@@ -1814,7 +1813,7 @@
     private bool showRaceFilters;
     private string empireQuery = string.Empty;
     private string empireRaceText = string.Empty;
-    private int empireRaceId = TimelineAllFilterId;
+    private int empireRaceId = ComboAllFilterId;
     private int empireVisibleCount = ExplorerListBatchSize;
     private bool empireHasMoreRecords;
     private bool empireObserverConfigured;
@@ -1990,7 +1989,6 @@
 
         explorerContext = await ExplorerContextService.LoadShellAsync(cancellationToken);
         sectorsWithDetailLoaded.Clear();
-        sectorsWithHistoryLoaded.Clear();
         ResetExplorerCaches(previousSectorIds);
         ResetHyperlaneWindow();
 
@@ -2074,16 +2072,14 @@
         CancellationToken cancellationToken = default)
     {
         var requiresDetailedData = RequiresDetailedSectorData(sectionName);
-        var requiresHistoryData = RequiresHistoryData(sectionName);
         if (sectorId <= 0
             || !requiresDetailedData
-            || (sectorsWithDetailLoaded.Contains(sectorId)
-                && (!requiresHistoryData || sectorsWithHistoryLoaded.Contains(sectorId))))
+            || sectorsWithDetailLoaded.Contains(sectorId))
         {
             return ExplorerSectors.FirstOrDefault(sector => sector.Id == sectorId);
         }
 
-        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiresHistoryData, cancellationToken);
+        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, includeHistory: false, cancellationToken);
         if (detailedSector is null)
         {
             return ExplorerSectors.FirstOrDefault(sector => sector.Id == sectorId);
@@ -2091,10 +2087,6 @@
 
         MergeSectorIntoExplorerContext(detailedSector);
         sectorsWithDetailLoaded.Add(sectorId);
-        if (requiresHistoryData)
-        {
-            sectorsWithHistoryLoaded.Add(sectorId);
-        }
 
         ResetExplorerCaches([sectorId]);
         return detailedSector;
@@ -2128,11 +2120,6 @@
     private static bool RequiresDetailedSectorData(string sectionName)
     {
         return sectionName is "Systems" or "Worlds" or "Colonies" or "Aliens" or "Empires";
-    }
-
-    private static bool RequiresHistoryData(string sectionName)
-    {
-        return sectionName == "Timeline";
     }
 
     private ExplorerSectorOverviewData? GetSectorOverviewData(int sectorId)
@@ -2729,7 +2716,7 @@
     {
         var sector = GetSelectedSector();
         var systemId = ParseComboId(selectedSystemText);
-        if (systemId == TimelineAllFilterId || sector.Systems.All(system => system.Id != systemId))
+        if (systemId == ComboAllFilterId || sector.Systems.All(system => system.Id != systemId))
         {
             selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
             return;
@@ -2751,7 +2738,7 @@
     {
         var sector = GetSelectedSector();
         var systemId = ParseComboId(routeOriginText);
-        if (systemId == TimelineAllFilterId || sector.Systems.All(system => system.Id != systemId))
+        if (systemId == ComboAllFilterId || sector.Systems.All(system => system.Id != systemId))
         {
             routeOriginSystemId = 0;
             routeOriginText = string.Empty;
@@ -2770,7 +2757,7 @@
     {
         var sector = GetSelectedSector();
         var systemId = ParseComboId(routeDestinationText);
-        if (systemId == TimelineAllFilterId || sector.Systems.All(system => system.Id != systemId))
+        if (systemId == ComboAllFilterId || sector.Systems.All(system => system.Id != systemId))
         {
             routeDestinationSystemId = 0;
             routeDestinationText = string.Empty;
@@ -2898,9 +2885,9 @@
         if (!colonyHasMoreRecords)
         {
             colonyObserverConfigured = false;
-            if (timelineScrollModule is not null)
+            if (loadMoreScrollModule is not null)
             {
-                await timelineScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
+                await loadMoreScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
             }
 
             return;
@@ -2911,9 +2898,9 @@
             return;
         }
 
-        timelineScrollModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/timelineInfiniteScroll.js");
+        loadMoreScrollModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/timelineInfiniteScroll.js");
         dotNetReference ??= DotNetObjectReference.Create(this);
-        await timelineScrollModule.InvokeVoidAsync("observeColonyLoadMore", colonyLoadMoreElement, dotNetReference);
+        await loadMoreScrollModule.InvokeVoidAsync("observeColonyLoadMore", colonyLoadMoreElement, dotNetReference);
         colonyObserverConfigured = true;
     }
 
@@ -2928,9 +2915,9 @@
         if (!hasMoreRecords)
         {
             setConfigured(false);
-            if (timelineScrollModule is not null)
+            if (loadMoreScrollModule is not null)
             {
-                await timelineScrollModule.InvokeVoidAsync("disconnectLoadMore", key);
+                await loadMoreScrollModule.InvokeVoidAsync("disconnectLoadMore", key);
             }
 
             return;
@@ -2941,18 +2928,18 @@
             return;
         }
 
-        timelineScrollModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/timelineInfiniteScroll.js");
+        loadMoreScrollModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/timelineInfiniteScroll.js");
         dotNetReference ??= DotNetObjectReference.Create(this);
-        await timelineScrollModule.InvokeVoidAsync("observeLoadMore", key, loadMoreElement, dotNetReference, loadMoreMethodName);
+        await loadMoreScrollModule.InvokeVoidAsync("observeLoadMore", key, loadMoreElement, dotNetReference, loadMoreMethodName);
         setConfigured(true);
     }
 
     [JSInvokable]
     public async Task LoadMoreColonies()
     {
-        if (timelineScrollModule is not null)
+        if (loadMoreScrollModule is not null)
         {
-            await timelineScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
+            await loadMoreScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
         }
 
         colonyVisibleCount += ColonyBatchSize;
@@ -2971,8 +2958,8 @@
         colonyQuery = string.Empty;
         colonyRaceText = string.Empty;
         colonyEmpireText = string.Empty;
-        colonyRaceId = TimelineAllFilterId;
-        colonyEmpireId = TimelineAllFilterId;
+        colonyRaceId = ComboAllFilterId;
+        colonyEmpireId = ComboAllFilterId;
         colonyStatus = string.Empty;
         colonyClass = string.Empty;
         showColonyFilters = false;
@@ -3060,7 +3047,7 @@
     {
         empireQuery = string.Empty;
         empireRaceText = string.Empty;
-        empireRaceId = TimelineAllFilterId;
+        empireRaceId = ComboAllFilterId;
         showEmpireFilters = false;
         ResetEmpireWindow();
     }
@@ -3707,14 +3694,14 @@
 
     private bool ColonyMatches((World World, Colony Colony) item)
     {
-        if (colonyRaceId != TimelineAllFilterId
+        if (colonyRaceId != ComboAllFilterId
             && item.Colony.RaceId != colonyRaceId
             && !item.Colony.Demographics.Any(demographic => demographic.RaceId == colonyRaceId))
         {
             return false;
         }
 
-        if (colonyEmpireId != TimelineAllFilterId
+        if (colonyEmpireId != ComboAllFilterId
             && item.Colony.AllegianceId != colonyEmpireId
             && item.Colony.ControllingEmpireId != colonyEmpireId
             && item.Colony.FoundingEmpireId != colonyEmpireId
@@ -3874,7 +3861,7 @@
 
     private bool EmpireMatches(Empire empire)
     {
-        if (empireRaceId != TimelineAllFilterId
+        if (empireRaceId != ComboAllFilterId
             && !empire.RaceMemberships.Any(membership => membership.RaceId == empireRaceId))
         {
             return false;
@@ -4235,12 +4222,12 @@
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            return TimelineAllFilterId;
+            return ComboAllFilterId;
         }
 
         var separatorIndex = value.IndexOf(" - ", StringComparison.Ordinal);
         var idText = separatorIndex < 0 ? value : value[..separatorIndex];
-        return int.TryParse(idText, out var id) ? id : TimelineAllFilterId;
+        return int.TryParse(idText, out var id) ? id : ComboAllFilterId;
     }
 
     private static string DisplayPopulation(long population)
@@ -5111,14 +5098,13 @@
             }
         }
 
-        if (timelineScrollModule is not null)
+        if (loadMoreScrollModule is not null)
         {
             try
             {
-                await timelineScrollModule.InvokeVoidAsync("disconnectAllLoadMore");
-                await timelineScrollModule.InvokeVoidAsync("disconnectTimelineLoadMore");
-                await timelineScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
-                await timelineScrollModule.DisposeAsync();
+                await loadMoreScrollModule.InvokeVoidAsync("disconnectAllLoadMore");
+                await loadMoreScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
+                await loadMoreScrollModule.DisposeAsync();
             }
             catch (JSDisconnectedException)
             {
