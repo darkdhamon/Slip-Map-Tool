@@ -51,7 +51,9 @@
         ? sectorEmpires.FirstOrDefault(empire => empire.Id == selectedEmpireId) ?? sectorEmpires.FirstOrDefault()
         : null;
     var selectedColony = activeSection is "Colonies" or "Empires"
-        ? selectedWorld?.Colony ?? sectorColonies.Select(item => item.Colony).FirstOrDefault()
+        ? sectorColonies.Select(item => item.Colony).FirstOrDefault(colony => colony.Id == selectedColonyId)
+            ?? selectedWorld?.Colony
+            ?? sectorColonies.Select(item => item.Colony).FirstOrDefault()
         : null;
     var selectedColonyWorld = selectedColony is null || !WorldsById.TryGetValue(selectedColony.WorldId, out var colonyWorld)
         ? null
@@ -1219,7 +1221,7 @@
                     }
                     @foreach (var item in visibleColonies)
                     {
-                        <button type="button" class="record-row @(selectedColony?.Id == item.Colony.Id ? "active" : null)" @onclick="() => SelectColony(item.World.Id)">
+                        <button type="button" class="record-row @(selectedColony?.Id == item.Colony.Id ? "active" : null)" @onclick="() => SelectColony(item.Colony.Id)">
                                     <strong>@DisplayColonyName(item.Colony) on @item.World.Name</strong>
                             <span>@item.Colony.AllegianceName; @DisplayPopulation(item.Colony.EstimatedPopulation)</span>
                         </button>
@@ -1652,7 +1654,7 @@
                             <div class="relationship-list">
                                 @foreach (var listing in empireColonies)
                                 {
-                                    <button type="button" class="relationship-row" @onclick="() => SelectColony(listing.World.Id)">
+                                    <button type="button" class="relationship-row" @onclick="() => SelectColony(listing.Colony.Id)">
                                                 <strong>@DisplayColonyName(listing.Colony) on @listing.World.Name</strong>
                                         <span>@listing.System.Name; @DisplayPopulation(listing.Colony.EstimatedPopulation)</span>
                                     </button>
@@ -1753,6 +1755,7 @@
     private int selectedSystemId;
     private string selectedSystemText = string.Empty;
     private int selectedWorldId;
+    private int selectedColonyId;
     private int selectedHabitatId;
     private int selectedRaceId;
     private int selectedEmpireId;
@@ -1984,6 +1987,7 @@
         routeOriginSystemId = selectedSystemId;
         routeOriginText = FormatSelectedSystem(initialSector, routeOriginSystemId);
         selectedWorldId = initialSector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Id ?? 0;
+        selectedColonyId = initialSector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Colony?.Id ?? 0;
         SelectDefaultCivilizationRecords(initialSector);
         LoadSectorConfigurationForm(initialSector);
     }
@@ -2006,6 +2010,7 @@
         var previousSectorId = selectedSectorId;
         var previousSystemId = selectedSystemId;
         var previousWorldId = selectedWorldId;
+        var previousColonyId = selectedColonyId;
         var previousHabitatId = selectedHabitatId;
         var previousRaceId = selectedRaceId;
         var previousEmpireId = selectedEmpireId;
@@ -2023,6 +2028,7 @@
             selectedSectorId = 0;
             selectedSystemId = 0;
             selectedWorldId = 0;
+            selectedColonyId = 0;
             selectedHabitatId = 0;
             selectedRaceId = 0;
             selectedEmpireId = 0;
@@ -2046,6 +2052,17 @@
             .Any(world => world.Id == previousWorldId)
             ? previousWorldId
             : selectedSector.Systems.FirstOrDefault(system => system.Id == selectedSystemId)?.Worlds.FirstOrDefault()?.Id ?? 0;
+        selectedColonyId = selectedSector.Systems
+            .SelectMany(system => system.Worlds)
+            .Select(world => world.Colony)
+            .Where(colony => colony is not null)
+            .Select(colony => colony!)
+            .Any(colony => colony.Id == previousColonyId)
+            ? previousColonyId
+            : selectedSector.Systems
+                .SelectMany(system => system.Worlds)
+                .FirstOrDefault(world => world.Id == selectedWorldId)
+                ?.Colony?.Id ?? 0;
         selectedHabitatId = selectedSector.Systems
             .SelectMany(system => system.SpaceHabitats)
             .Any(habitat => habitat.Id == previousHabitatId)
@@ -2633,6 +2650,11 @@
         }
 
         selectedWorldId = worldId;
+        selectedColonyId = sector.Systems
+            .SelectMany(item => item.Worlds)
+            .Where(world => world.Id == worldId)
+            .Select(world => world.Colony?.Id ?? 0)
+            .FirstOrDefault();
         selectedHabitatId = 0;
         SetActiveSection("Worlds", syncRoute: false);
         if (syncRoute)
@@ -2653,6 +2675,7 @@
         }
 
         selectedHabitatId = habitatId;
+        selectedColonyId = 0;
         SetActiveSection("Worlds", syncRoute: false);
         SyncCurrentExplorerRoute(replaceHistory: true);
         _ = PersistExplorerSessionAsync();
@@ -2758,10 +2781,24 @@
         _ = PersistExplorerSessionAsync();
     }
 
-    private void SelectColony(int worldId)
+    private void SelectColony(int colonyId)
     {
-        SelectWorld(worldId, syncRoute: false);
+        var sector = GetSelectedSector();
+        var listing = sector.Systems
+            .SelectMany(system => system.Worlds.Select(world => new { system, world }))
+            .FirstOrDefault(item => item.world.Colony?.Id == colonyId);
+        if (listing is null)
+        {
+            return;
+        }
+
+        selectedSystemId = listing.system.Id;
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        selectedWorldId = listing.world.Id;
+        selectedColonyId = colonyId;
+        selectedHabitatId = 0;
         SetActiveSection("Colonies");
+        _ = PersistExplorerSessionAsync();
     }
 
     private void SelectRace(int raceId)
@@ -2789,6 +2826,7 @@
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         selectedWorldId = sector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Id ?? 0;
+        selectedColonyId = sector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Colony?.Id ?? 0;
         selectedHabitatId = 0;
         sectorMapViewDistanceParsecs = Math.Min(
             sectorMapViewDistanceParsecs,
@@ -2808,6 +2846,7 @@
         var system = sector.Systems.FirstOrDefault(item => item.Id == selectedSystemId);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         selectedWorldId = system?.Worlds.FirstOrDefault()?.Id ?? 0;
+        selectedColonyId = system?.Worlds.FirstOrDefault()?.Colony?.Id ?? 0;
         selectedHabitatId = 0;
         _ = PersistExplorerSessionAsync();
     }
@@ -3251,6 +3290,7 @@
         routeOriginSystemId = selectedSystemId;
         routeOriginText = FormatSelectedSystem(sector, routeOriginSystemId);
         selectedWorldId = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId)?.Worlds.FirstOrDefault()?.Id ?? 0;
+        selectedColonyId = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId)?.Worlds.FirstOrDefault()?.Colony?.Id ?? 0;
         selectedHabitatId = 0;
         sectorMapViewDistanceParsecs = Math.Min(
             sectorMapViewDistanceParsecs,
@@ -3626,6 +3666,10 @@
         if (result.WorldId is int worldId)
         {
             selectedWorldId = worldId;
+            selectedColonyId = GetSelectedSector().Systems
+                .SelectMany(system => system.Worlds)
+                .FirstOrDefault(world => world.Id == worldId)
+                ?.Colony?.Id ?? 0;
             selectedHabitatId = 0;
         }
 

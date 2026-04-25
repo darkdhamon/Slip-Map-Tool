@@ -173,29 +173,42 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        var history = await dbContext.HistoryEvents
-            .AsNoTracking()
-            .Where(item => EF.Property<int>(item, "Id") == eventId)
-            .Select(item => new
-            {
-                EventId = EF.Property<int>(item, "Id"),
-                item.Century,
-                item.EventType,
-                item.Description,
-                item.ImportDataJson,
-                item.RaceId,
-                item.OtherRaceId,
-                item.EmpireId,
-                item.ColonyId,
-                item.PlanetId,
-                item.StarSystemId
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+        var historyEntity = await dbContext.HistoryEvents
+            .FirstOrDefaultAsync(item => EF.Property<int>(item, "Id") == eventId, cancellationToken);
 
-        if (history is null)
+        if (historyEntity is null)
         {
             return null;
         }
+
+        if (historyEntity.ColonyId is null && historyEntity.PlanetId is int colonyWorldId)
+        {
+            var derivedColonyId = await dbContext.Colonies
+                .Where(item => item.WorldId == colonyWorldId)
+                .Select(item => (int?)item.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (derivedColonyId is int resolvedColonyId)
+            {
+                historyEntity.ColonyId = resolvedColonyId;
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        var history = new
+        {
+            EventId = eventId,
+            historyEntity.Century,
+            historyEntity.EventType,
+            historyEntity.Description,
+            historyEntity.ImportDataJson,
+            historyEntity.RaceId,
+            historyEntity.OtherRaceId,
+            historyEntity.EmpireId,
+            historyEntity.ColonyId,
+            historyEntity.PlanetId,
+            historyEntity.StarSystemId
+        };
 
         ExplorerLookupOption? race = null;
         ExplorerLookupOption? otherRace = null;
