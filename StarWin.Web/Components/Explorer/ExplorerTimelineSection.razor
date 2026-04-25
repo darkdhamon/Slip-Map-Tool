@@ -210,6 +210,7 @@
     private List<ExplorerTimelineListItem> timelineEvents = [];
     private ExplorerTimelineEventDetail? selectedTimelineEventDetail;
     private int selectedTimelineEventId;
+    private int loadedOptionsSectorId;
     private int renderedSectorId;
     private string timelineQuery = string.Empty;
     private int timelineRaceId = AllFilterId;
@@ -235,6 +236,7 @@
         }
 
         renderedSectorId = SectorId;
+        loadedOptionsSectorId = 0;
         await ClearTimelineFiltersAsync();
     }
 
@@ -293,7 +295,12 @@
     {
         timelineObserverConfigured = false;
         timelineLoading = true;
-        timelineOptions = await ExplorerQueryService.LoadTimelineOptionsAsync(SectorId);
+        if (loadedOptionsSectorId != SectorId)
+        {
+            timelineOptions = await ExplorerQueryService.LoadTimelineOptionsAsync(SectorId);
+            loadedOptionsSectorId = SectorId;
+        }
+
         var page = await ExplorerQueryService.LoadTimelinePageAsync(BuildPageRequest(0, TimelineBatchSize));
         timelineEvents = page.Items.ToList();
         timelineHasMoreEvents = page.HasMore;

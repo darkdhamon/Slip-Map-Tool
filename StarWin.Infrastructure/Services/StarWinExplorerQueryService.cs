@@ -124,51 +124,46 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
-        var historyItems = await dbContext.HistoryEvents
+        var raceIds = await dbContext.HistoryEvents
             .AsNoTracking()
             .Where(history => history.SectorId == sectorId)
-            .Select(history => new
-            {
-                history.RaceId,
-                history.OtherRaceId,
-                history.EmpireId,
-                history.ColonyId,
-                history.PlanetId,
-                history.StarSystemId,
-                history.EventType
-            })
-            .ToListAsync(cancellationToken);
-
-        var raceIds = historyItems
             .SelectMany(history => new int?[] { history.RaceId, history.OtherRaceId })
             .Where(id => id.HasValue)
             .Select(id => id!.Value)
             .Distinct()
-            .ToList();
+            .ToListAsync(cancellationToken);
 
-        var empireIds = historyItems
+        var empireIds = await dbContext.HistoryEvents
+            .AsNoTracking()
+            .Where(history => history.SectorId == sectorId)
             .Where(history => history.EmpireId.HasValue)
             .Select(history => history.EmpireId!.Value)
             .Distinct()
-            .ToList();
+            .ToListAsync(cancellationToken);
 
-        var colonyIds = historyItems
+        var colonyIds = await dbContext.HistoryEvents
+            .AsNoTracking()
+            .Where(history => history.SectorId == sectorId)
             .Where(history => history.ColonyId.HasValue)
             .Select(history => history.ColonyId!.Value)
             .Distinct()
-            .ToList();
+            .ToListAsync(cancellationToken);
 
-        var worldIds = historyItems
+        var worldIds = await dbContext.HistoryEvents
+            .AsNoTracking()
+            .Where(history => history.SectorId == sectorId)
             .Where(history => history.PlanetId.HasValue)
             .Select(history => history.PlanetId!.Value)
             .Distinct()
-            .ToList();
+            .ToListAsync(cancellationToken);
 
-        var systemIds = historyItems
+        var systemIds = await dbContext.HistoryEvents
+            .AsNoTracking()
+            .Where(history => history.SectorId == sectorId)
             .Where(history => history.StarSystemId.HasValue)
             .Select(history => history.StarSystemId!.Value)
             .Distinct()
-            .ToList();
+            .ToListAsync(cancellationToken);
 
         var races = raceIds.Count == 0
             ? []
@@ -220,12 +215,14 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                 .Select(system => new ExplorerLookupOption(system.Id, system.Name))
                 .ToListAsync(cancellationToken);
 
-        var eventTypes = historyItems
+        var eventTypes = await dbContext.HistoryEvents
+            .AsNoTracking()
+            .Where(history => history.SectorId == sectorId)
             .Select(history => history.EventType)
             .Where(eventType => !string.IsNullOrWhiteSpace(eventType))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(eventType => eventType, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            .ToListAsync(cancellationToken);
 
         return new ExplorerTimelineOptions(races, empires, colonies, systems, worlds, eventTypes);
     }
