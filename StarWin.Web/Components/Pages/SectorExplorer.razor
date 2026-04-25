@@ -437,7 +437,7 @@
                                      EmpireSelected="SelectEmpire"
                                      ColonySelected="SelectColony"
                                      WorldSelected="SelectWorld"
-                                     SystemSelected="SelectSystem" />
+                                     SystemSelected="NavigateToSystemRecord" />
             break;
         case "Configuration":
             <section class="detail-panel">
@@ -819,92 +819,6 @@
                     }
                 </article>
             </section>
-            break;
-        case "Systems":
-            <ExplorerSystemsSection SectorCache="sectionCache!"
-                                    Empires="sectorEmpires"
-                                    SectorId="@sector.Id"
-                                    SelectedSystemId="@(selectedSystem?.Id ?? 0)"
-                                    SystemSelected="SelectSystem">
-                @if (selectedSystem is not null)
-                {
-                    <article class="detail-panel">
-                        <span class="panel-kicker">System survey</span>
-                        <EditableEntityName Name="@selectedSystem.Name"
-                                            Label="System"
-                                            NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.StarSystem, selectedSystem.Id, name)" />
-                        <dl class="field-grid">
-                            <div><dt>System id</dt><dd>@selectedSystem.Id</dd></div>
-                            <div><dt>Map code</dt><dd>@selectedSystem.MapCode</dd></div>
-                            <div><dt>Allegiance</dt><dd>@DisplayAllegiance(selectedSystem.AllegianceId)</dd></div>
-                            <div><dt>World count</dt><dd>@selectedSystem.Worlds.Count</dd></div>
-                        </dl>
-
-                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.StarSystem"
-                                          TargetId="selectedSystem.Id"
-                                          Title="System notes" />
-
-                        <div class="stellar-grid">
-                            @foreach (var bodyItem in selectedSystem.AstralBodies.Select((body, index) => new { Body = body, Sequence = index }))
-                            {
-                                <article class="stellar-card">
-                                    @RenderAstralBodyIcon(bodyItem.Body)
-                                    <h3>@bodyItem.Body.Role</h3>
-                                    @RenderImagePanel(EntityImageTargetKind.AstralBody, bodyItem.Body.Id, "Astral image", false)
-                                    <dl class="data-list">
-                                        <div><dt>Kind</dt><dd>@bodyItem.Body.Kind</dd></div>
-                                        <div><dt>Type</dt><dd>@bodyItem.Body.Classification</dd></div>
-                                        <div><dt>Luminosity</dt><dd>@Format(bodyItem.Body.Luminosity)</dd></div>
-                                        <div><dt>Mass</dt><dd>@Format(bodyItem.Body.SolarMasses)</dd></div>
-                                    </dl>
-
-                                    <div class="satellite-list">
-                                        <h4>Satellites</h4>
-                                        @foreach (var satellite in GetAstralBodySatellites(selectedSystem, bodyItem.Sequence))
-                                        {
-                                            if (satellite.World is not null)
-                                            {
-                                                <button type="button" class="satellite-link" @onclick="() => SelectWorld(satellite.World.Id)">
-                                                    <span>@satellite.Kind</span>
-                                                    <strong>@satellite.Name</strong>
-                                                </button>
-                                            }
-                                            else if (satellite.Habitat is not null)
-                                            {
-                                                <button type="button" class="satellite-link habitat" @onclick="() => SelectHabitat(satellite.Habitat.Id)">
-                                                    <span>Habitat</span>
-                                                    <strong>@satellite.Name</strong>
-                                                </button>
-                                            }
-                                        }
-                                        <div class="habitat-create-form">
-                                            <input placeholder="Habitat name"
-                                                   @bind="spaceHabitatName"
-                                                   maxlength="160" />
-                                            <select @bind="spaceHabitatEmpireId">
-                                                <option value="0">Empire</option>
-                                        @foreach (var empire in ExplorerEmpires.OrderBy(empire => empire.Name))
-                                                {
-                                                    <option value="@empire.Id">@empire.Name</option>
-                                                }
-                                            </select>
-                                            <button type="button"
-                                                    @onclick="() => CreateAstralBodySpaceHabitatAsync(selectedSystem, bodyItem.Sequence)"
-                                                    disabled="@IsSpaceHabitatCreateDisabled">
-                                                Create habitat
-                                            </button>
-                                            @if (!string.IsNullOrWhiteSpace(spaceHabitatStatus))
-                                            {
-                                                <p>@spaceHabitatStatus</p>
-                                            }
-                                        </div>
-                                    </div>
-                                </article>
-                            }
-                        </div>
-                    </article>
-                }
-            </ExplorerSystemsSection>
             break;
         case "Worlds":
             <section class="content-grid">
@@ -2000,14 +1914,20 @@
         selectedSystemId = systemId;
         var sector = GetSelectedSector();
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        SetActiveSection(activeSection == "Overview" ? "Overview" : "Systems");
-        SelectDefaultWorld();
-        _ = PersistExplorerSessionAsync();
+        if (activeSection == "Overview")
+        {
+            SetActiveSection("Overview");
+            SelectDefaultWorld();
+            _ = PersistExplorerSessionAsync();
+            return;
+        }
+
+        NavigateToSystemRecord(systemId);
     }
 
     private void OpenSelectedSystemRecord()
     {
-        SetActiveSection("Systems");
+        NavigateToSystemRecord(selectedSystemId);
     }
 
     private async Task ToggleSectorMapFullscreen()
@@ -2043,6 +1963,16 @@
         SelectDefaultWorld();
         await PersistExplorerSessionAsync();
         StateHasChanged();
+    }
+
+    private void NavigateToSystemRecord(int systemId)
+    {
+        if (systemId <= 0)
+        {
+            return;
+        }
+
+        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Systems", selectedSectorId, systemId));
     }
 
     [JSInvokable]
@@ -2126,32 +2056,7 @@
             return;
         }
 
-        SetActiveSection("Systems");
-    }
-
-    private async Task CreateAstralBodySpaceHabitatAsync(StarSystem system, int astralBodySequence)
-    {
-        if (spaceHabitatEmpireId == 0)
-        {
-            spaceHabitatStatus = "Choose an empire.";
-            return;
-        }
-
-        try
-        {
-            var habitat = await SpaceHabitatService.CreateOrbitingAstralBodyAsync(
-                system.Id,
-                astralBodySequence,
-                spaceHabitatEmpireId,
-                spaceHabitatName);
-            AddSpaceHabitatToWorkspace(system.Id, habitat);
-            SelectHabitat(habitat.Id);
-            CompleteSpaceHabitatCreate(system.Id, habitat.Name);
-        }
-        catch (InvalidOperationException ex)
-        {
-            spaceHabitatStatus = ex.Message;
-        }
+        NavigateToSystemRecord(system?.Id ?? selectedSystemId);
     }
 
     private async Task CreateWorldSpaceHabitatAsync(World world)
@@ -3266,15 +3171,6 @@
         return GetEntityImages(targetKind, targetId).FirstOrDefault();
     }
 
-    private RenderFragment RenderAstralBodyIcon(AstralBody body)
-    {
-        return RenderEntityOrb(
-            EntityImageTargetKind.AstralBody,
-            body.Id,
-            $"stellar-orb {body.Kind.ToString().ToLowerInvariant()}",
-            $"{body.Role} {body.Kind}");
-    }
-
     private RenderFragment RenderEntityOrb(EntityImageTargetKind targetKind, int targetId, string fallbackClass, string altText)
     {
         var image = GetPrimaryEntityImage(targetKind, targetId);
@@ -4126,25 +4022,6 @@
     {
         ShortestDistance,
         ShortestTravelTime
-    }
-
-    private static IEnumerable<OrbitalSatellite> GetAstralBodySatellites(StarSystem system, int astralBodySequence)
-    {
-        foreach (var world in system.Worlds
-            .Where(world => world.ParentWorldId is null && (world.PrimaryAstralBodySequence ?? 0) == astralBodySequence)
-            .OrderBy(world => world.OrbitRadiusAu ?? double.MaxValue)
-            .ThenBy(world => world.Name))
-        {
-            yield return OrbitalSatellite.FromWorld(world);
-        }
-
-        foreach (var habitat in system.SpaceHabitats
-            .Where(habitat => habitat.OrbitTargetKind == OrbitTargetKind.AstralBody && habitat.OrbitTargetId == astralBodySequence)
-            .OrderBy(habitat => habitat.OrbitRadiusKm ?? double.MaxValue)
-            .ThenBy(habitat => habitat.Name))
-        {
-            yield return OrbitalSatellite.FromHabitat(habitat);
-        }
     }
 
     private static IEnumerable<OrbitalSatellite> GetWorldSatellites(StarSystem? system, World world)
