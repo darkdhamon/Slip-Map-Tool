@@ -24,20 +24,20 @@
     var mapContextActionLabel = GetMapContextActionLabel();
     var sectorSummary = GetSectorSummary(sector);
     var overviewData = GetSectorOverviewData(sector.Id);
-    var usesFullSectorCache = ShouldUseFullSectorCache(activeSection);
+    var usesSectionCache = ShouldUseSectionCache(activeSection);
     var needsSectorRaceList = activeSection is "Overview" or "Colonies" or "Aliens" or "Empires";
     var needsSectorEmpireList = activeSection is "Overview" or "Systems" or "Colonies" or "Empires";
-    var sectorCache = usesFullSectorCache ? GetSectorCache(sector) : null;
+    var sectionCache = usesSectionCache ? GetSectorCache(sector) : null;
     var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
     var selectedMapSystem = mapSector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? mapSector.Systems.FirstOrDefault();
     var selectedHabitat = selectedSystem?.SpaceHabitats.FirstOrDefault(habitat => habitat.Id == selectedHabitatId);
     var selectedWorld = selectedHabitat is null
         ? selectedSystem?.Worlds.FirstOrDefault(world => world.Id == selectedWorldId) ?? selectedSystem?.Worlds.FirstOrDefault()
         : null;
-    var sectorWorlds = sectorCache?.Worlds ?? [];
-    var sectorColonies = sectorCache?.Colonies ?? [];
-    var sectorRaceIds = sectorCache?.RaceIds ?? sectorSummary.RaceIds;
-    var sectorEmpireIds = sectorCache?.EmpireIds ?? sectorSummary.EmpireIds;
+    var sectorWorlds = sectionCache?.Worlds ?? [];
+    var sectorColonies = sectionCache?.Colonies ?? [];
+    var sectorRaceIds = sectionCache?.RaceIds ?? sectorSummary.RaceIds;
+    var sectorEmpireIds = sectionCache?.EmpireIds ?? sectorSummary.EmpireIds;
     var sectorRaces = needsSectorRaceList
         ? ExplorerAlienRaces.Where(race => sectorRaceIds.Contains(race.Id)).OrderBy(race => race.Name).ToList()
         : [];
@@ -53,7 +53,7 @@
     var selectedColony = activeSection is "Colonies" or "Empires"
         ? selectedWorld?.Colony ?? sectorColonies.Select(item => item.Colony).FirstOrDefault()
         : null;
-    var selectedColonyWorld = selectedColony is null || sectorCache is null || !sectorCache.WorldsById.TryGetValue(selectedColony.WorldId, out var colonyWorld)
+    var selectedColonyWorld = selectedColony is null || !WorldsById.TryGetValue(selectedColony.WorldId, out var colonyWorld)
         ? null
         : colonyWorld;
     var selectedRoutePlan = activeSection == "Overview"
@@ -825,7 +825,7 @@
             </section>
             break;
         case "Systems":
-            <ExplorerSystemsSection SectorCache="sectorCache!"
+            <ExplorerSystemsSection SectorCache="sectionCache!"
                                     Empires="sectorEmpires"
                                     SectorId="@sector.Id"
                                     SelectedSystemId="@(selectedSystem?.Id ?? 0)"
@@ -1200,7 +1200,7 @@
                         <button type="button" class="timeline-clear-button" @onclick="ClearColonyFilters">Clear filters</button>
                     </details>
                     @{
-                        var colonyWindow = GetFilteredColonies(sectorCache!)
+                        var colonyWindow = GetFilteredColonies(sectionCache!)
                             .Take(colonyVisibleCount + 1)
                             .ToList();
                         var hasMoreColonies = colonyWindow.Count > colonyVisibleCount;
@@ -1935,7 +1935,7 @@
         return cache;
     }
 
-    private static bool ShouldUseFullSectorCache(string sectionName)
+    private static bool ShouldUseSectionCache(string sectionName)
     {
         return sectionName is "Systems" or "Colonies" or "Aliens" or "Empires";
     }
@@ -3597,13 +3597,13 @@
     private void RunSearch()
     {
         var sector = GetSelectedSector();
-        var sectorCache = GetSectorCache(sector);
+        var sectorSummary = GetSectorSummary(sector);
 
         searchResults = SearchService.Search(searchQuery)
             .Where(result => result.Type switch
             {
-                StarWinSearchResultType.AlienRace => result.RaceId is int raceId && sectorCache.RaceIds.Contains(raceId),
-                StarWinSearchResultType.Empire => result.EmpireId is int empireId && sectorCache.EmpireIds.Contains(empireId),
+                StarWinSearchResultType.AlienRace => result.RaceId is int raceId && sectorSummary.RaceIds.Contains(raceId),
+                StarWinSearchResultType.Empire => result.EmpireId is int empireId && sectorSummary.EmpireIds.Contains(empireId),
                 _ => true
             })
             .ToList();
@@ -4075,9 +4075,9 @@
     private GurpsTemplate BuildGurpsTemplate(AlienRace race)
     {
         var sector = GetSelectedSector();
-        var sectorCache = GetSectorCache(sector);
+        var sectorSummary = GetSectorSummary(sector);
         var sectorEmpires = ExplorerEmpires
-            .Where(empire => sectorCache.EmpireIds.Contains(empire.Id))
+            .Where(empire => sectorSummary.EmpireIds.Contains(empire.Id))
             .ToList();
         var memberships = GetRaceEmpireMemberships(race, sectorEmpires).ToList();
         var primaryEmpire = memberships.FirstOrDefault(item => item.Membership.IsPrimary)?.Empire
@@ -4090,7 +4090,8 @@
             HomeWorld = FindWorld(race.HomePlanetId)
         };
 
-        foreach (var listing in sectorCache.Worlds
+        foreach (var listing in sector.Systems
+            .SelectMany(system => system.Worlds)
             .Where(world => world.Colony is not null && world.Colony.Demographics.Any(demographic => demographic.RaceId == race.Id))
             .Select(world => world.Colony!))
         {
