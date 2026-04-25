@@ -1,16 +1,18 @@
 const timers = new WeakMap();
 
 function formatElapsed(startedAtUnixMs) {
-    const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAtUnixMs) / 1000));
+    const elapsedMilliseconds = Math.max(0, Date.now() - startedAtUnixMs);
+    const elapsedSeconds = Math.floor(elapsedMilliseconds / 1000);
     const hours = Math.floor(elapsedSeconds / 3600);
     const minutes = Math.floor((elapsedSeconds % 3600) / 60);
     const seconds = elapsedSeconds % 60;
+    const tenths = Math.floor((elapsedMilliseconds % 1000) / 100);
 
     if (hours > 0) {
         return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     }
 
-    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${tenths}`;
 }
 
 function render(element, startedAtUnixMs) {
@@ -32,7 +34,7 @@ export function start(element, startedAtUnixMs) {
         }
 
         render(element, startedAtUnixMs);
-    }, 1000);
+    }, 100);
 
     timers.set(element, intervalId);
 }

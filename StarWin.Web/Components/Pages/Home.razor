@@ -1717,6 +1717,7 @@
     private const int ExplorerListBatchSize = 120;
     private const int TimelineAllFilterId = -1;
     private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
+    private static readonly TimeSpan MinimumSectionLoadingVisibleDuration = TimeSpan.FromMilliseconds(1200);
 
     [SupplyParameterFromQuery(Name = "sectorId")]
     public int? RequestedSectorId { get; set; }
@@ -1730,6 +1731,7 @@
     private string sectionLoadingStatus = string.Empty;
     private bool sectionLoadingVisible;
     private bool sectionLoadingAwaitingTargetRender;
+    private DateTimeOffset? sectionLoadingStartedAtUtc;
     private int selectedSectorId;
     private int selectedSystemId;
     private string selectedSystemText = string.Empty;
@@ -2245,6 +2247,7 @@
         sectionLoadingStatus = $"Preparing {sectionName} records...";
         sectionLoadingAwaitingTargetRender = false;
         sectionLoadingVisible = true;
+        sectionLoadingStartedAtUtc = DateTimeOffset.UtcNow;
         explorerRenderError = string.Empty;
         StateHasChanged();
 
@@ -2268,12 +2271,23 @@
 
         sectionLoadingStatus = $"{activeSection} ready.";
         StateHasChanged();
+
+        if (sectionLoadingStartedAtUtc is DateTimeOffset startedAtUtc)
+        {
+            var remainingDuration = MinimumSectionLoadingVisibleDuration - (DateTimeOffset.UtcNow - startedAtUtc);
+            if (remainingDuration > TimeSpan.Zero)
+            {
+                await Task.Delay(remainingDuration);
+            }
+        }
+
         await Task.Delay(140);
 
         sectionLoadingVisible = false;
         sectionLoadingAwaitingTargetRender = false;
         sectionLoadingTarget = string.Empty;
         sectionLoadingStatus = string.Empty;
+        sectionLoadingStartedAtUtc = null;
         StateHasChanged();
     }
 
