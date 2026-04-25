@@ -1,0 +1,185 @@
+@using StarWin.Application.Services
+@using StarWin.Domain.Model.Entity.StarMap
+
+@if (ShowHero)
+{
+    <header class="explorer-hero">
+        <div class="hero-copy">
+            <p class="eyebrow">Starforged Atlas</p>
+            <h1>Sector command, civilization records, and RPG world survey data.</h1>
+            <p class="hero-summary">Browse sectors, inspect systems, find colonies, compare empires, and prepare science-fiction campaign material from legacy StarWin and Slip Map data.</p>
+        </div>
+    </header>
+}
+
+<section class="control-strip">
+    <label class="control-field sector-field">
+        Sector
+        <select value="@SelectedSectorId" @onchange="HandleSectorChanged">
+            @foreach (var item in Sectors)
+            {
+                <option value="@item.Id">@item.Name</option>
+            }
+        </select>
+    </label>
+
+    <label class="control-field system-field">
+        System
+        <input list="sector-system-options"
+               placeholder="Select system..."
+               value="@SelectedSystemText"
+               @onchange="HandleSystemTextChanged" />
+        <datalist id="sector-system-options">
+            @foreach (var system in Systems)
+            {
+                <option value="@FormatSystemOption(system)" />
+            }
+        </datalist>
+    </label>
+
+    <div class="archive-search">
+        <label for="archive-search-input">Archive search</label>
+        <input id="archive-search-input"
+               placeholder="System, world, colony, race, empire..."
+               value="@SearchQuery"
+               @oninput="HandleSearchQueryInput" />
+
+        @if (SearchResults.Count > 0)
+        {
+            <div class="search-results">
+                @foreach (var result in SearchResults)
+                {
+                    <button type="button" class="search-result" @onclick="() => SearchResultSelected.InvokeAsync(result)">
+                        <span>@DisplayResultType(result.Type)</span>
+                        <strong>@result.Title</strong>
+                        <small>@result.Subtitle</small>
+                    </button>
+                }
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(SearchQuery))
+        {
+            <p class="search-empty">No matching systems, worlds, races, colonies, empires, habitats, or history.</p>
+        }
+    </div>
+
+    <ExplorerSectionTabs Sections="Sections"
+                         ActiveSection="@ActiveSection"
+                         IsLoading="@IsLoading"
+                         LoadingTarget="@LoadingTarget"
+                         LoadingStatus="@LoadingStatus"
+                         SectionHrefFactory="SectionHrefFactory" />
+</section>
+
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <article class="timeline-event-card">
+        <span class="timeline-century">Section error</span>
+        <p>@ErrorMessage</p>
+    </article>
+}
+
+@if (HeaderContent is not null)
+{
+    @HeaderContent
+}
+
+@ChildContent
+
+@code {
+    [Parameter]
+    public bool ShowHero { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<StarWinSector> Sectors { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<StarSystem> Systems { get; set; } = [];
+
+    [Parameter]
+    public int SelectedSectorId { get; set; }
+
+    [Parameter]
+    public EventCallback<int> SelectedSectorChanged { get; set; }
+
+    [Parameter]
+    public string SelectedSystemText { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> SelectedSystemTextChanged { get; set; }
+
+    [Parameter]
+    public string SearchQuery { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> SearchQueryChanged { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<StarWinSearchResult> SearchResults { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<StarWinSearchResult> SearchResultSelected { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<string> Sections { get; set; } = [];
+
+    [Parameter]
+    public string ActiveSection { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    [Parameter]
+    public string LoadingTarget { get; set; } = string.Empty;
+
+    [Parameter]
+    public string LoadingStatus { get; set; } = string.Empty;
+
+    [Parameter]
+    public Func<string, string>? SectionHrefFactory { get; set; }
+
+    [Parameter]
+    public string ErrorMessage { get; set; } = string.Empty;
+
+    [Parameter]
+    public RenderFragment? HeaderContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public Func<StarWinSearchResultType, string>? ResultTypeDisplayFactory { get; set; }
+
+    private Task HandleSectorChanged(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString();
+        if (!int.TryParse(value, out var sectorId))
+        {
+            sectorId = 0;
+        }
+
+        return SelectedSectorChanged.InvokeAsync(sectorId);
+    }
+
+    private Task HandleSystemTextChanged(ChangeEventArgs args)
+    {
+        return SelectedSystemTextChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty);
+    }
+
+    private Task HandleSearchQueryInput(ChangeEventArgs args)
+    {
+        return SearchQueryChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty);
+    }
+
+    private string DisplayResultType(StarWinSearchResultType type)
+    {
+        return ResultTypeDisplayFactory?.Invoke(type) ?? type.ToString();
+    }
+
+    private static string FormatSystemOption(StarSystem system)
+    {
+        return system is null
+            ? string.Empty
+            : $"{system.Id} - {system.Name}";
+    }
+}
