@@ -24,6 +24,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StarWin.Infrastructure", "S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StarWin.Desktop", "StarWin.Desktop\StarWin.Desktop.csproj", "{584ABE65-288C-45F5-94F6-98BA6A294EB5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StarWin.Infrastructure.Tests", "StarWin.Infrastructure.Tests\StarWin.Infrastructure.Tests.csproj", "{77B36B18-1AE4-4346-AFB7-4E9067759563}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -106,6 +108,18 @@ Global
 		{584ABE65-288C-45F5-94F6-98BA6A294EB5}.Release|x64.Build.0 = Release|Any CPU
 		{584ABE65-288C-45F5-94F6-98BA6A294EB5}.Release|x86.ActiveCfg = Release|Any CPU
 		{584ABE65-288C-45F5-94F6-98BA6A294EB5}.Release|x86.Build.0 = Release|Any CPU
+		{77B36B18-1AE4-4346-AFB7-4E9067759563}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{77B36B18-1AE4-4346-AFB7-4E9067759563}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{77B36B18-1AE4-4346-AFB7-4E9067759563}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{77B36B18-1AE4-4346-AFB7-4E9067759563}.Debug|x64.Build.0 = Debug|Any CPU
+		{77B36B18-1AE4-4346-AFB7-4E9067759563}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{77B36B18-1AE4-4346-AFB7-4E9067759563}.Debug|x86.Build.0 = Debug|Any CPU
+		{77B36B18-1AE4-4346-AFB7-4E9067759563}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{77B36B18-1AE4-4346-AFB7-4E9067759563}.Release|Any CPU.Build.0 = Release|Any CPU
+		{77B36B18-1AE4-4346-AFB7-4E9067759563}.Release|x64.ActiveCfg = Release|Any CPU
+		{77B36B18-1AE4-4346-AFB7-4E9067759563}.Release|x64.Build.0 = Release|Any CPU
+		{77B36B18-1AE4-4346-AFB7-4E9067759563}.Release|x86.ActiveCfg = Release|Any CPU
+		{77B36B18-1AE4-4346-AFB7-4E9067759563}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

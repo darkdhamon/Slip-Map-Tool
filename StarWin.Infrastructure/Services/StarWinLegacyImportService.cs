@@ -13,7 +13,7 @@ using StarWin.Infrastructure.Data;
 
 namespace StarWin.Infrastructure.Services;
 
-public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : IStarWinLegacyImportService
+public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContext> dbContextFactory) : IStarWinLegacyImportService
 {
     private const int StarRecordSize = 196;
     private const int PlanetRecordSize = 84;
@@ -594,6 +594,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(zipPackage);
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         await ReportImportProgressAsync(progress, 3, "Buffering package...", "Copying the uploaded archive into an import workspace.");
         await using var bufferedPackage = new MemoryStream();
@@ -678,7 +679,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         {
             sector = new StarWinSector
             {
-                Id = await GetNextSectorIdAsync(cancellationToken),
+                Id = await GetNextSectorIdAsync(dbContext, cancellationToken),
                 Name = requestedSectorName
             };
             sector.Configuration.SectorId = sector.Id;
@@ -786,6 +787,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             {
                 dbContext.Sectors.Add(sector);
                 await FlushImportChangesAsync(
+                    dbContext,
                     progress,
                     41,
                     "Saving sector shell...",
@@ -862,6 +864,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 {
                     var savePercent = CalculatePhasePercent(43, 59, processedSystemCount, importedSystems.Count);
                     await BulkInsertStarMapBatchAsync(
+                        dbContext,
                         progress,
                         savePercent,
                         $"Committing batch {processedSystemCount:N0} of {importedSystems.Count:N0}: {batch.StarSystems.Count:N0} star system(s), {batch.AstralBodies.Count:N0} astral bodies, {batch.Worlds.Count:N0} world(s), and {batch.UnusualCharacteristics.Count:N0} unusual characteristic(s).",
@@ -874,6 +877,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             if (batch.HasChanges)
             {
                 await BulkInsertStarMapBatchAsync(
+                    dbContext,
                     progress,
                     59,
                     $"Committing final batch: {batch.StarSystems.Count:N0} star system(s), {batch.AstralBodies.Count:N0} astral bodies, {batch.Worlds.Count:N0} world(s), and {batch.UnusualCharacteristics.Count:N0} unusual characteristic(s).",
@@ -917,6 +921,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             }
 
             await FlushImportChangesAsync(
+                dbContext,
                 progress,
                 71,
                 "Saving races, empires, and contacts...",
@@ -970,6 +975,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             }
 
             await BulkInsertCivilizationBatchAsync(
+                dbContext,
                 progress,
                 83,
                 $"Committing {addedColonyCount:N0} colonie(s), {importedColonies.Sum(colony => colony.Demographics.Count):N0} demographic row(s), and {addedHistoryCount:N0} history event(s).",
@@ -1078,6 +1084,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             }
 
             await FlushImportChangesAsync(
+                dbContext,
                 progress,
                 100,
                 "Saving derived records...",
@@ -1119,6 +1126,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     }
 
     private async Task FlushImportChangesAsync(
+        StarWinDbContext dbContext,
         IProgress<StarWinLegacyImportProgress>? progress,
         int percentComplete,
         string status,
@@ -1147,6 +1155,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     }
 
     private async Task BulkInsertStarMapBatchAsync(
+        StarWinDbContext dbContext,
         IProgress<StarWinLegacyImportProgress>? progress,
         int percentComplete,
         string detail,
@@ -1161,22 +1170,23 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
 
         if (batch.StarSystems.Count > 0)
         {
-            await BulkInsertAsync("StarSystems", StarSystemColumns, batch.StarSystems.Select(BuildStarSystemValues), cancellationToken);
+            await BulkInsertAsync(dbContext, "StarSystems", StarSystemColumns, batch.StarSystems.Select(BuildStarSystemValues), cancellationToken);
         }
 
         if (batch.AstralBodies.Count > 0)
         {
-            await BulkInsertAsync("AstralBodies", AstralBodyColumns, batch.AstralBodies.Select(BuildAstralBodyValues), cancellationToken);
+            await BulkInsertAsync(dbContext, "AstralBodies", AstralBodyColumns, batch.AstralBodies.Select(BuildAstralBodyValues), cancellationToken);
         }
 
         if (batch.Worlds.Count > 0)
         {
-            await BulkInsertAsync("Worlds", WorldColumns, batch.Worlds.Select(BuildWorldValues), cancellationToken);
+            await BulkInsertAsync(dbContext, "Worlds", WorldColumns, batch.Worlds.Select(BuildWorldValues), cancellationToken);
         }
 
         if (batch.UnusualCharacteristics.Count > 0)
         {
             await BulkInsertAsync(
+                dbContext,
                 "UnusualCharacteristics",
                 UnusualCharacteristicColumns,
                 batch.UnusualCharacteristics.Select(BuildUnusualCharacteristicValues),
@@ -1187,6 +1197,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     }
 
     private async Task BulkInsertCivilizationBatchAsync(
+        StarWinDbContext dbContext,
         IProgress<StarWinLegacyImportProgress>? progress,
         int percentComplete,
         string detail,
@@ -1203,7 +1214,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         if (colonies.Count > 0)
         {
             await ReportImportProgressAsync(progress, 82, "Saving colonies and history...", $"Bulk inserting {colonies.Count:N0} colony row(s).");
-            await BulkInsertAsync("Colonies", ColonyColumns, colonies.Select(BuildColonyValues), cancellationToken);
+            await BulkInsertAsync(dbContext, "Colonies", ColonyColumns, colonies.Select(BuildColonyValues), cancellationToken);
         }
 
         var demographics = colonies
@@ -1212,19 +1223,20 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         if (demographics.Count > 0)
         {
             await ReportImportProgressAsync(progress, 82, "Saving colonies and history...", $"Bulk inserting {demographics.Count:N0} colony demographic row(s).");
-            await BulkInsertAsync("ColonyDemographics", ColonyDemographicColumns, demographics.Select(BuildColonyDemographicValues), cancellationToken);
+            await BulkInsertAsync(dbContext, "ColonyDemographics", ColonyDemographicColumns, demographics.Select(BuildColonyDemographicValues), cancellationToken);
         }
 
         if (historyEvents.Count > 0)
         {
             await ReportImportProgressAsync(progress, 82, "Saving colonies and history...", $"Bulk inserting {historyEvents.Count:N0} history event row(s).");
-            await BulkInsertAsync("HistoryEvents", HistoryEventColumns, historyEvents.Select(BuildHistoryEventValues), cancellationToken);
+            await BulkInsertAsync(dbContext, "HistoryEvents", HistoryEventColumns, historyEvents.Select(BuildHistoryEventValues), cancellationToken);
         }
 
         await ReportImportProgressAsync(progress, percentComplete, "Saving colonies and history...", "Bulk database batch committed.");
     }
 
     private async Task BulkInsertAsync(
+        StarWinDbContext dbContext,
         string tableName,
         IReadOnlyList<string> columns,
         IEnumerable<object?[]> rows,
@@ -1232,14 +1244,15 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     {
         if (dbContext.Database.ProviderName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) == true)
         {
-            await BulkInsertSqlServerAsync(tableName, columns, rows, cancellationToken);
+            await BulkInsertSqlServerAsync(dbContext, tableName, columns, rows, cancellationToken);
             return;
         }
 
-        await BulkInsertPreparedStatementsAsync(tableName, columns, rows, cancellationToken);
+        await BulkInsertPreparedStatementsAsync(dbContext, tableName, columns, rows, cancellationToken);
     }
 
     private async Task BulkInsertSqlServerAsync(
+        StarWinDbContext dbContext,
         string tableName,
         IReadOnlyList<string> columns,
         IEnumerable<object?[]> rows,
@@ -1270,6 +1283,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     }
 
     private async Task BulkInsertPreparedStatementsAsync(
+        StarWinDbContext dbContext,
         string tableName,
         IReadOnlyList<string> columns,
         IEnumerable<object?[]> rows,
@@ -2301,7 +2315,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         return world;
     }
 
-    private async Task<int> GetNextSectorIdAsync(CancellationToken cancellationToken)
+    private async Task<int> GetNextSectorIdAsync(StarWinDbContext dbContext, CancellationToken cancellationToken)
     {
         var maxSectorId = await dbContext.Sectors
             .Select(sector => (int?)sector.Id)
