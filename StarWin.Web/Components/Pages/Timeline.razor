@@ -1,0 +1,35 @@
+@page "/sector-explorer/timeline"
+@rendermode InteractiveServer
+
+@{
+    var sector = GetSelectedSector();
+}
+
+<PageTitle>Timeline | Starforged Atlas</PageTitle>
+
+<section class="explorer-page">
+    <SectorExplorerShell ShowHero="false"
+                         Sectors="ExplorerSectors"
+                         Systems="sector.Systems.ToList()"
+                         SelectedSectorId="@selectedSectorId"
+                         SelectedSectorChanged="HandleSectorChangedAsync"
+                         SelectedSystemText="@selectedSystemText"
+                         SelectedSystemTextChanged="HandleSelectedSystemTextChangedAsync"
+                         SearchQuery="@searchQuery"
+                         SearchQueryChanged="HandleSearchQueryChangedAsync"
+                         SearchResults="searchResults"
+                         SearchResultSelected="NavigateToSearchResult"
+                         Sections="sections"
+                         ActiveSection="Timeline"
+                         ErrorMessage="@explorerRenderError"
+                         ResultTypeDisplayFactory="DisplayResultType"
+                         SectionHrefFactory="BuildSectionRoute">
+        <ExplorerTimelineSection SectorId="@sector.Id"
+                                 SectorName="@sector.Name"
+                                 RaceSelected="NavigateToRace"
+                                 EmpireSelected="NavigateToEmpire"
+                                 ColonySelected="NavigateToColony"
+                                 WorldSelected="NavigateToWorld"
+                                 SystemSelected="NavigateToSystemRecord" />
+    </SectorExplorerShell>
+</section>
