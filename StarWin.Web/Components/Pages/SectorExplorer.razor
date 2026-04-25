@@ -47,9 +47,6 @@
     var selectedRace = activeSection == "Aliens"
         ? sectorRaces.FirstOrDefault(race => race.Id == selectedRaceId) ?? sectorRaces.FirstOrDefault()
         : null;
-    var selectedEmpire = activeSection == "Empires"
-        ? sectorEmpires.FirstOrDefault(empire => empire.Id == selectedEmpireId) ?? sectorEmpires.FirstOrDefault()
-        : null;
     var selectedColony = activeSection is "Colonies" or "Empires"
         ? sectorColonies.Select(item => item.Colony).FirstOrDefault(colony => colony.Id == selectedColonyId)
             ?? selectedWorld?.Colony
@@ -1492,179 +1489,6 @@
                 }
             </section>
             break;
-        case "Empires":
-            <section class="content-grid">
-                <div class="record-list">
-                    <details class="record-filter-panel" open>
-                        <summary class="record-filter-summary">Search</summary>
-                        <label>
-                            Search
-                            <input placeholder="Name, policy, homeworld..."
-                                   @bind="empireQuery"
-                                   @bind:event="oninput"
-                                   @bind:after="ResetEmpireWindow" />
-                        </label>
-                        <button type="button" class="timeline-clear-button" @onclick="ToggleEmpireFilters">
-                            @(showEmpireFilters ? "Hide filters" : "Show filters")
-                        </button>
-                        @if (showEmpireFilters)
-                        {
-                            <label>
-                                Race
-                                <input list="empire-race-options"
-                                       placeholder="All races"
-                                       @bind="empireRaceText"
-                                       @bind:event="oninput"
-                                       @bind:after="ApplyEmpireRaceFilter" />
-                                <datalist id="empire-race-options">
-                                    @foreach (var race in sectorRaces)
-                                    {
-                                        <option value="@FormatRaceOption(race)" />
-                                    }
-                                </datalist>
-                            </label>
-                        }
-                        <button type="button" class="timeline-clear-button" @onclick="ClearEmpireFilters">Clear filters</button>
-                    </details>
-                    @{
-                        var empireWindow = GetFilteredEmpires(sectorEmpires)
-                            .Take(empireVisibleCount + 1)
-                            .ToList();
-                        var hasMoreEmpires = empireWindow.Count > empireVisibleCount;
-                        var visibleEmpires = empireWindow.Take(empireVisibleCount).ToList();
-                        empireHasMoreRecords = hasMoreEmpires;
-                    }
-                    <div class="timeline-count">Showing @visibleEmpires.Count empire@(visibleEmpires.Count == 1 ? string.Empty : "s")@(hasMoreEmpires ? "+" : string.Empty)</div>
-                    @if (visibleEmpires.Count == 0)
-                    {
-                        <article class="timeline-event-card">
-                            <span class="timeline-century">No matches</span>
-                            <p>Adjust the filters to widen the empire list.</p>
-                        </article>
-                    }
-                    @foreach (var empire in visibleEmpires)
-                    {
-                        var empireIsFallen = IsFallenEmpire(empire, sector);
-                        <button type="button" class="record-row @(selectedEmpire?.Id == empire.Id ? "active" : null) @(empireIsFallen ? "fallen" : null)" @onclick="() => SelectEmpire(empire.Id)">
-                            <strong class="record-row-title">
-                                <span>@empire.Name</span>
-                                @if (empireIsFallen)
-                                {
-                                    <span class="empire-status fallen">Fallen empire</span>
-                                }
-                            </strong>
-                            <span>@(empireIsFallen ? "No controlled colonies; former holdings conquered" : $"GURPS TL {GetGurpsTechLevel(empire)}; {empire.Planets} planets")</span>
-                        </button>
-                    }
-                    @if (hasMoreEmpires)
-                    {
-                        <div @ref="empireLoadMoreElement" class="timeline-load-more">
-                            <button type="button" @onclick="LoadMoreEmpires">Load more</button>
-                        </div>
-                    }
-                </div>
-
-                @if (selectedEmpire is not null)
-                {
-                    <article class="detail-panel">
-                        <span class="panel-kicker">Empire profile</span>
-                        <EditableEntityName Name="@selectedEmpire.Name"
-                                            Label="Empire"
-                                            NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.Empire, selectedEmpire.Id, name)" />
-                        @RenderImagePanel(EntityImageTargetKind.Empire, selectedEmpire.Id, "Empire flag", false)
-                        @{
-                            var empireHomeworld = FindWorld(selectedEmpire.Founding.FoundingWorldId);
-                            var capitalColony = GetCapitalColony(selectedEmpire);
-                            var empireColonies = GetEmpireColonies(selectedEmpire, sector).ToList();
-                            var empireControlledColonies = GetControlledEmpireColonies(selectedEmpire, sector).ToList();
-                            var selectedEmpireIsFallen = IsFallenEmpire(selectedEmpire, sector);
-                        }
-                        @if (selectedEmpireIsFallen)
-                        {
-                            <div class="empire-alert fallen">
-                                <strong>Fallen empire</strong>
-                                <span>This empire no longer controls any colonies in this sector.</span>
-                            </div>
-                        }
-                        <div class="parent-actions">
-                            @if (empireHomeworld is not null)
-                            {
-                                <button type="button" @onclick="() => SelectWorld(empireHomeworld.Id)">Homeworld: @empireHomeworld.Name</button>
-                            }
-                            @if (capitalColony is not null)
-                            {
-                                <button type="button" @onclick="() => SelectColony(capitalColony.World.Id)">Capital: @capitalColony.World.Name</button>
-                            }
-                        </div>
-                        <dl class="field-grid">
-                            <div><dt>Status</dt><dd>@(selectedEmpireIsFallen ? "Fallen empire" : "Active empire")</dd></div>
-                            <div><dt>Controlled colonies</dt><dd>@empireControlledColonies.Count</dd></div>
-                            <div><dt>Tech level</dt><dd>GURPS TL @GetGurpsTechLevel(selectedEmpire) / StarWin @selectedEmpire.CivilizationProfile.TechLevel</dd></div>
-                            <div><dt>Military power</dt><dd>@selectedEmpire.MilitaryPower</dd></div>
-                            <div><dt>Economic power</dt><dd>@selectedEmpire.EconomicPowerMcr MCr</dd></div>
-                            <div><dt>Trade bonus</dt><dd>@selectedEmpire.TradeBonusMcr MCr</dd></div>
-                            <div><dt>Planets</dt><dd>@selectedEmpire.Planets</dd></div>
-                            <div><dt>Moons</dt><dd>@selectedEmpire.Moons</dd></div>
-                            <div><dt>Captive planets</dt><dd>@selectedEmpire.CaptivePlanets</dd></div>
-                            <div><dt>Space habitats</dt><dd>@selectedEmpire.SpaceHabitats</dd></div>
-                            <div><dt>Native population</dt><dd>@selectedEmpire.NativePopulationMillions million</dd></div>
-                            <div><dt>Captive population</dt><dd>@selectedEmpire.CaptivePopulationMillions million</dd></div>
-                            <div><dt>Expansion</dt><dd>@selectedEmpire.ExpansionPolicy</dd></div>
-                        </dl>
-
-                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.Empire"
-                                          TargetId="selectedEmpire.Id"
-                                          Title="Empire notes" />
-
-                        <div class="force-grid">
-                            <article>
-                                <h3>Fleet</h3>
-                                @foreach (var ship in selectedEmpire.MilitaryForces.Fleet)
-                                {
-                                    <div class="inline-row"><span>@ship.Quantity @ship.Name</span><strong>@ship.Code</strong></div>
-                                }
-                            </article>
-                            <article>
-                                <h3>Ground forces</h3>
-                                @foreach (var force in selectedEmpire.MilitaryForces.GroundForces)
-                                {
-                                    <div class="inline-row"><span>@force.Name</span><strong>@force.Quantity</strong></div>
-                                }
-                            </article>
-                        </div>
-
-                        <section class="relationship-section">
-                            <h3>Member races</h3>
-                            <div class="relationship-list">
-                                @foreach (var membership in selectedEmpire.RaceMemberships
-                                                        .Where(item => sectorRaceIds.Contains(item.RaceId))
-                                                        .OrderByDescending(item => item.IsPrimary)
-                                                        .ThenBy(item => item.RaceId))
-                                {
-                                    <button type="button" class="relationship-row" @onclick="() => SelectRace(membership.RaceId)">
-                                        <strong>@DisplayRace(membership.RaceId)</strong>
-                                        <span>@membership.Role; @membership.PopulationMillions million</span>
-                                    </button>
-                                }
-                            </div>
-                        </section>
-
-                        <section class="relationship-section">
-                            <h3>Colonies</h3>
-                            <div class="relationship-list">
-                                @foreach (var listing in empireColonies)
-                                {
-                                    <button type="button" class="relationship-row" @onclick="() => SelectColony(listing.Colony.Id)">
-                                                <strong>@DisplayColonyName(listing.Colony) on @listing.World.Name</strong>
-                                        <span>@listing.System.Name; @DisplayPopulation(listing.Colony.EstimatedPopulation)</span>
-                                    </button>
-                                }
-                            </div>
-                        </section>
-                    </article>
-                }
-            </section>
-            break;
     }
 </section>
 
@@ -1784,7 +1608,6 @@
     private ElementReference colonyLoadMoreElement;
     private ElementReference worldLoadMoreElement;
     private ElementReference raceLoadMoreElement;
-    private ElementReference empireLoadMoreElement;
     private ElementReference hyperlaneLoadMoreElement;
     private DotNetObjectReference<SectorExplorer>? dotNetReference;
     private IJSObjectReference? sectorMapModule;
@@ -1847,13 +1670,6 @@
     private bool raceHasMoreRecords;
     private bool raceObserverConfigured;
     private bool showRaceFilters;
-    private string empireQuery = string.Empty;
-    private string empireRaceText = string.Empty;
-    private int empireRaceId = ComboAllFilterId;
-    private int empireVisibleCount = ExplorerListBatchSize;
-    private bool empireHasMoreRecords;
-    private bool empireObserverConfigured;
-    private bool showEmpireFilters;
     private int hyperlaneVisibleCount = ExplorerListBatchSize;
     private bool hyperlaneHasMoreRecords;
     private bool hyperlaneObserverConfigured;
@@ -2331,16 +2147,6 @@
             }
 
             raceObserverConfigured = false;
-            if (activeSection == "Empires")
-            {
-                renderedOverview = false;
-                await ConfigureRecordObserverAsync("empire", empireHasMoreRecords, () => empireObserverConfigured, value => empireObserverConfigured = value, empireLoadMoreElement, "LoadMoreEmpires");
-                await CompleteSectionLoadingIfReadyAsync();
-                _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
-                return;
-            }
-
-            empireObserverConfigured = false;
             if (activeSection == "Hyperlanes")
             {
                 renderedOverview = false;
@@ -2417,7 +2223,6 @@
             colonyObserverConfigured = false;
             worldObserverConfigured = false;
             raceObserverConfigured = false;
-            empireObserverConfigured = false;
             hyperlaneObserverConfigured = false;
             await HideSectionLoadingOverlayAsync();
             StateHasChanged();
@@ -3152,15 +2957,6 @@
     }
 
     [JSInvokable]
-    public Task LoadMoreEmpires()
-    {
-        empireVisibleCount += ExplorerListBatchSize;
-        empireObserverConfigured = false;
-        StateHasChanged();
-        return Task.CompletedTask;
-    }
-
-    [JSInvokable]
     public Task LoadMoreHyperlanes()
     {
         hyperlaneVisibleCount += ExplorerListBatchSize;
@@ -3179,12 +2975,6 @@
     {
         raceVisibleCount = ExplorerListBatchSize;
         raceObserverConfigured = false;
-    }
-
-    private void ResetEmpireWindow()
-    {
-        empireVisibleCount = ExplorerListBatchSize;
-        empireObserverConfigured = false;
     }
 
     private void ResetHyperlaneWindow()
@@ -3211,15 +3001,6 @@
         ResetRaceWindow();
     }
 
-    private void ClearEmpireFilters()
-    {
-        empireQuery = string.Empty;
-        empireRaceText = string.Empty;
-        empireRaceId = ComboAllFilterId;
-        showEmpireFilters = false;
-        ResetEmpireWindow();
-    }
-
     private void ToggleWorldFilters()
     {
         showWorldFilters = !showWorldFilters;
@@ -3235,11 +3016,6 @@
         showRaceFilters = !showRaceFilters;
     }
 
-    private void ToggleEmpireFilters()
-    {
-        showEmpireFilters = !showEmpireFilters;
-    }
-
     private void ApplyColonyRaceFilter()
     {
         colonyRaceId = ParseComboId(colonyRaceText);
@@ -3250,12 +3026,6 @@
     {
         colonyEmpireId = ParseComboId(colonyEmpireText);
         ResetColonyWindow();
-    }
-
-    private void ApplyEmpireRaceFilter()
-    {
-        empireRaceId = ParseComboId(empireRaceText);
-        ResetEmpireWindow();
     }
 
     private async Task RestoreExplorerSessionAsync()
@@ -3991,44 +3761,6 @@
             || ContainsTimelineQuery(homeWorld?.Name, query);
     }
 
-    private IEnumerable<Empire> GetFilteredEmpires(IReadOnlyList<Empire> empires)
-    {
-        return empires
-            .Where(EmpireMatches)
-            .OrderBy(empire => empire.Name)
-            .ThenBy(empire => empire.Id);
-    }
-
-    private bool EmpireMatches(Empire empire)
-    {
-        if (empireRaceId != ComboAllFilterId
-            && !empire.RaceMemberships.Any(membership => membership.RaceId == empireRaceId))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(empireQuery))
-        {
-            return true;
-        }
-
-        var query = empireQuery.Trim();
-        var homeWorld = FindWorld(empire.Founding.FoundingWorldId);
-        var sector = GetSelectedSector();
-        return ContainsTimelineQuery(empire.Name, query)
-            || ContainsTimelineQuery(empire.Id.ToString(), query)
-            || ContainsTimelineQuery(empire.LegacyRaceId?.ToString(), query)
-            || ContainsTimelineQuery(empire.ExpansionPolicy.ToString(), query)
-            || (IsFallenEmpire(empire, sector) && ContainsTimelineQuery("Fallen empire", query))
-            || ContainsTimelineQuery(homeWorld?.Name, query)
-            || empire.RaceMemberships.Any(membership =>
-                ContainsTimelineQuery(DisplayRace(membership.RaceId), query)
-                || ContainsTimelineQuery(membership.Role.ToString(), query))
-            || empire.Contacts.Any(contact =>
-                ContainsTimelineQuery(contact.Relation, query)
-                || ContainsTimelineQuery(DisplayEmpire(contact.OtherEmpireId), query));
-    }
-
     private World? FindWorld(int? worldId)
     {
         if (worldId is null or 0)
@@ -4118,52 +3850,6 @@
                 .Select(membership => new RaceEmpireMembership(empire, membership)))
             .OrderByDescending(item => item.Membership.IsPrimary)
             .ThenBy(item => item.Empire.Name);
-    }
-
-    private IEnumerable<ColonyListing> GetEmpireColonies(Empire empire, StarWinSector sector)
-    {
-        return sector.Systems.Select(system => new { sector, system })
-            .SelectMany(item => item.system.Worlds
-                .Where(world => world.Colony is not null)
-                .Select(world => new ColonyListing(item.sector, item.system, world, world.Colony!)))
-            .Where(listing => listing.Colony.IsControlledBy(empire.Id) || listing.Colony.FoundingEmpireId == empire.Id)
-            .OrderByDescending(listing => listing.Colony.EstimatedPopulation)
-            .ThenBy(listing => listing.World.Name);
-    }
-
-    private IEnumerable<ColonyListing> GetControlledEmpireColonies(Empire empire, StarWinSector sector)
-    {
-        return GetEmpireColonies(empire, sector)
-            .Where(listing => listing.Colony.IsControlledBy(empire.Id));
-    }
-
-    private bool IsFallenEmpire(Empire empire, StarWinSector sector)
-    {
-        var colonies = GetEmpireColonies(empire, sector).ToList();
-        if (colonies.Any(listing => listing.Colony.IsControlledBy(empire.Id)))
-        {
-            return false;
-        }
-
-        return colonies.Count > 0
-            || empire.Planets > 0
-            || empire.Moons > 0
-            || empire.SpaceHabitats > 0
-            || empire.NativePopulationMillions > 0
-            || empire.SubjectPopulationMillions > 0;
-    }
-
-    private ColonyListing? GetCapitalColony(Empire empire)
-    {
-        var sector = GetSelectedSector();
-        var colonies = GetEmpireColonies(empire, sector).ToList();
-        var homeworldColony = colonies.FirstOrDefault(listing => listing.World.Id == empire.Founding.FoundingWorldId);
-        if (homeworldColony is not null && homeworldColony.Colony.IsControlledBy(empire.Id))
-        {
-            return homeworldColony;
-        }
-
-        return colonies.FirstOrDefault(listing => listing.Colony.IsControlledBy(empire.Id)) ?? colonies.FirstOrDefault();
     }
 
     private GurpsTemplate BuildGurpsTemplate(AlienRace race)
