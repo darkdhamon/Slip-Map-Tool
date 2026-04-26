@@ -14,8 +14,6 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
 {
     private const int ExplorerListBatchSize = 120;
     private const int ComboAllFilterId = -1;
-    private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
-
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
     [Inject] protected IStarWinImageService ImageService { get; set; } = default!;
@@ -39,7 +37,7 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
     [SupplyParameterFromQuery(Name = "habitatId")]
     public int? RequestedHabitatId { get; set; }
 
-    protected readonly string[] sections = ["Overview", "Timeline", "Configuration", "Hyperlanes", "Systems", "Worlds", "Colonies", "Aliens", "Empires"];
+    protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
     protected readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
     protected readonly Dictionary<int, World> WorldsById = [];
     private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
@@ -532,7 +530,7 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
 
     private void ApplyRequestedSelection(StarWinSector sector)
     {
-        selectedSystemId = ResolveSelectedSystemId(sector);
+        selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
 
         if (RequestedHabitatId is int requestedHabitatId)
         {
@@ -720,21 +718,6 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
         }
     }
 
-    private int ResolveSelectedSystemId(StarWinSector sector)
-    {
-        if (RequestedSystemId is int requestedSystemId && sector.Systems.Any(system => system.Id == requestedSystemId))
-        {
-            return requestedSystemId;
-        }
-
-        if (selectedSystemId > 0 && sector.Systems.Any(system => system.Id == selectedSystemId))
-        {
-            return selectedSystemId;
-        }
-
-        return sector.Systems.FirstOrDefault()?.Id ?? 0;
-    }
-
     private void RunSearch()
     {
         searchResults = SearchService.Search(searchQuery)
@@ -750,31 +733,7 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
         }
 
         browserSessionRestored = true;
-        string? storedValue;
-        try
-        {
-            storedValue = await JS.InvokeAsync<string?>("sessionStorage.getItem", ExplorerSessionStorageKey);
-        }
-        catch (InvalidOperationException)
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(storedValue))
-        {
-            return;
-        }
-
-        ExplorerSessionSelection? storedSelection;
-        try
-        {
-            storedSelection = System.Text.Json.JsonSerializer.Deserialize<ExplorerSessionSelection>(storedValue);
-        }
-        catch (System.Text.Json.JsonException)
-        {
-            return;
-        }
-
+        var storedSelection = await ExplorerPageState.RestoreSelectionAsync(JS, RequestedSectorId);
         if (storedSelection is null)
         {
             return;
@@ -804,15 +763,10 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
             return;
         }
 
-        var selection = new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Worlds"));
-        var value = System.Text.Json.JsonSerializer.Serialize(selection);
-        try
-        {
-            await JS.InvokeVoidAsync("sessionStorage.setItem", ExplorerSessionStorageKey, value);
-        }
-        catch (InvalidOperationException)
-        {
-        }
+        await ExplorerPageState.PersistSelectionAsync(
+            JS,
+            browserSessionReady,
+            new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Worlds")));
     }
 
     private async Task UploadEntityImage(EntityImageTargetKind targetKind, int targetId, InputFileChangeEventArgs args)
@@ -884,6 +838,4 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
             return new OrbitalSatellite(habitat.Name, "Habitat", null, habitat);
         }
     }
-
-    private sealed record ExplorerSessionSelection(int SectorId, int SystemId, bool AutoLoadSectorMap, string SectionSlug);
 }

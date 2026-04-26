@@ -5,6 +5,7 @@ using StarWin.Application.Services;
 using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.StarMap;
 using StarWin.Domain.Services;
+using StarWin.Web.Components.Layout;
 using StarWin.Web.Components.Pages;
 using SectorConfigModel = StarWin.Domain.Model.Entity.StarMap.SectorConfiguration;
 using SectorConfigurationPage = StarWin.Web.Components.Pages.SectorConfiguration;
@@ -92,6 +93,7 @@ public sealed class SectorConfigurationPageTests : BunitContext
         FakeSectorRouteService? routeService = null,
         FakeIndependentColonyService? colonyService = null)
     {
+        Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinSectorConfigurationService>(configService ?? new FakeSectorConfigurationService());

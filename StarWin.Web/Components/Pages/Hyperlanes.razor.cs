@@ -10,7 +10,6 @@ namespace StarWin.Web.Components.Pages;
 
 public partial class Hyperlanes : ComponentBase
 {
-    private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
     private const int ExplorerListBatchSize = 120;
 
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
@@ -28,7 +27,7 @@ public partial class Hyperlanes : ComponentBase
     [SupplyParameterFromQuery(Name = "hyperlaneId")]
     public int? RequestedHyperlaneId { get; set; }
 
-    protected readonly string[] sections = ["Overview", "Timeline", "Configuration", "Hyperlanes", "Systems", "Worlds", "Colonies", "Aliens", "Empires"];
+    protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
     private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
 
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
@@ -71,7 +70,7 @@ public partial class Hyperlanes : ComponentBase
         selectedSectorId = initialSector.Id;
         await EnsureSectorDataLoadedAsync(selectedSectorId);
         initialSector = GetSelectedSector();
-        selectedSystemId = ResolveSelectedSystemId(initialSector);
+        selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
         LoadHyperlaneForm(initialSector, ResolveSelectedHyperlane(initialSector));
     }
@@ -91,7 +90,7 @@ public partial class Hyperlanes : ComponentBase
         }
 
         var sector = GetSelectedSector();
-        selectedSystemId = ResolveSelectedSystemId(sector);
+        selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         LoadHyperlaneForm(sector, ResolveSelectedHyperlane(sector));
     }
@@ -454,21 +453,6 @@ public partial class Hyperlanes : ComponentBase
         loadedSectorSectionsById[sectorId] = loadedSections | requiredSections;
     }
 
-    private int ResolveSelectedSystemId(StarWinSector sector)
-    {
-        if (RequestedSystemId is int requestedSystemId && sector.Systems.Any(system => system.Id == requestedSystemId))
-        {
-            return requestedSystemId;
-        }
-
-        if (selectedSystemId > 0 && sector.Systems.Any(system => system.Id == selectedSystemId))
-        {
-            return selectedSystemId;
-        }
-
-        return sector.Systems.FirstOrDefault()?.Id ?? 0;
-    }
-
     private SectorSavedRoute? ResolveSelectedHyperlane(StarWinSector sector)
     {
         if (RequestedHyperlaneId is int requestedHyperlaneId)
@@ -499,31 +483,7 @@ public partial class Hyperlanes : ComponentBase
         }
 
         browserSessionRestored = true;
-        string? storedValue;
-        try
-        {
-            storedValue = await JS.InvokeAsync<string?>("sessionStorage.getItem", ExplorerSessionStorageKey);
-        }
-        catch (InvalidOperationException)
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(storedValue))
-        {
-            return;
-        }
-
-        ExplorerSessionSelection? storedSelection;
-        try
-        {
-            storedSelection = System.Text.Json.JsonSerializer.Deserialize<ExplorerSessionSelection>(storedValue);
-        }
-        catch (System.Text.Json.JsonException)
-        {
-            return;
-        }
-
+        var storedSelection = await ExplorerPageState.RestoreSelectionAsync(JS, RequestedSectorId);
         if (storedSelection is null)
         {
             return;
@@ -553,15 +513,10 @@ public partial class Hyperlanes : ComponentBase
             return;
         }
 
-        var selection = new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Hyperlanes"));
-        var value = System.Text.Json.JsonSerializer.Serialize(selection);
-        try
-        {
-            await JS.InvokeVoidAsync("sessionStorage.setItem", ExplorerSessionStorageKey, value);
-        }
-        catch (InvalidOperationException)
-        {
-        }
+        await ExplorerPageState.PersistSelectionAsync(
+            JS,
+            browserSessionReady,
+            new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Hyperlanes")));
     }
 
     private static string FormatSelectedSystem(StarWinSector sector, int systemId)
@@ -588,6 +543,4 @@ public partial class Hyperlanes : ComponentBase
             ? (sourceSystemId, targetSystemId)
             : (targetSystemId, sourceSystemId);
     }
-
-    private sealed record ExplorerSessionSelection(int SectorId, int SystemId, bool AutoLoadSectorMap = false, string? SectionSlug = null);
 }

@@ -1,3 +1,4 @@
+@layout SectorExplorerLayout
 @page "/sector-explorer/colonies"
 @rendermode InteractiveServer
 
@@ -13,28 +14,29 @@
         ? null
         : colonyWorld;
     var colonyImages = selectedColony is null ? [] : GetEntityImages(EntityImageTargetKind.Colony, selectedColony.Id);
+    var layoutState = new SectorExplorerLayoutState(
+        false,
+        ExplorerSectors,
+        sector.Systems.ToList(),
+        selectedSectorId,
+        EventCallback.Factory.Create<int>(this, HandleSectorChangedAsync),
+        selectedSystemText,
+        EventCallback.Factory.Create<string>(this, HandleSelectedSystemTextChangedAsync),
+        searchQuery,
+        EventCallback.Factory.Create<string>(this, HandleSearchQueryChangedAsync),
+        searchResults,
+        EventCallback.Factory.Create<StarWinSearchResult>(this, NavigateToSearchResult),
+        sections,
+        "Colonies",
+        explorerRenderError,
+        DisplayResultType,
+        BuildSectionRoute);
 }
 
 <PageTitle>Colonies | Starforged Atlas</PageTitle>
+<SectorExplorerLayoutSync State="layoutState" />
 
-<section class="explorer-page">
-    <SectorExplorerShell ShowHero="false"
-                         Sectors="ExplorerSectors"
-                         Systems="sector.Systems.ToList()"
-                         SelectedSectorId="@selectedSectorId"
-                         SelectedSectorChanged="HandleSectorChangedAsync"
-                         SelectedSystemText="@selectedSystemText"
-                         SelectedSystemTextChanged="HandleSelectedSystemTextChangedAsync"
-                         SearchQuery="@searchQuery"
-                         SearchQueryChanged="HandleSearchQueryChangedAsync"
-                         SearchResults="searchResults"
-                         SearchResultSelected="NavigateToSearchResult"
-                         Sections="sections"
-                         ActiveSection="Colonies"
-                         ErrorMessage="@explorerRenderError"
-                         ResultTypeDisplayFactory="DisplayResultType"
-                         SectionHrefFactory="BuildSectionRoute">
-        <section class="content-grid">
+<section class="content-grid">
             <div class="record-list colony-record-list">
                 <details class="record-filter-panel" open>
                     <summary class="record-filter-summary">Search</summary>
@@ -218,5 +220,3 @@
                 </article>
             }
         </section>
-    </SectorExplorerShell>
-</section>

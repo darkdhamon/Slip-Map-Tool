@@ -1,0 +1,54 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@layout MainLayout
+@inject SectorExplorerLayoutStateStore StateStore
+
+@if (layoutState is null)
+{
+    @Body
+}
+else
+{
+    <section class="explorer-page">
+        <SectorExplorerShell ShowHero="@layoutState.ShowHero"
+                             Sectors="layoutState.Sectors"
+                             Systems="layoutState.Systems"
+                             SelectedSectorId="@layoutState.SelectedSectorId"
+                             SelectedSectorChanged="layoutState.SelectedSectorChanged"
+                             SelectedSystemText="@layoutState.SelectedSystemText"
+                             SelectedSystemTextChanged="layoutState.SelectedSystemTextChanged"
+                             SearchQuery="@layoutState.SearchQuery"
+                             SearchQueryChanged="layoutState.SearchQueryChanged"
+                             SearchResults="layoutState.SearchResults"
+                             SearchResultSelected="layoutState.SearchResultSelected"
+                             Sections="layoutState.Sections"
+                             ActiveSection="@layoutState.ActiveSection"
+                             ErrorMessage="@layoutState.ErrorMessage"
+                             ResultTypeDisplayFactory="layoutState.ResultTypeDisplayFactory"
+                             SectionHrefFactory="layoutState.SectionHrefFactory"
+                             HeaderContent="layoutState.HeaderContent">
+            @Body
+        </SectorExplorerShell>
+    </section>
+}
+
+@code {
+    private SectorExplorerLayoutState? layoutState;
+
+    protected override void OnInitialized()
+    {
+        layoutState = StateStore.State;
+        StateStore.Changed += HandleStateChanged;
+    }
+
+    private void HandleStateChanged()
+    {
+        layoutState = StateStore.State;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        StateStore.Changed -= HandleStateChanged;
+    }
+}

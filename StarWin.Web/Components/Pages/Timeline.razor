@@ -1,39 +1,39 @@
+@layout SectorExplorerLayout
 @page "/sector-explorer/timeline"
 @rendermode InteractiveServer
 
 @{
     var sector = GetSelectedSector();
+    var layoutState = new SectorExplorerLayoutState(
+        false,
+        ExplorerSectors,
+        sector.Systems.ToList(),
+        selectedSectorId,
+        EventCallback.Factory.Create<int>(this, HandleSectorChangedAsync),
+        selectedSystemText,
+        EventCallback.Factory.Create<string>(this, HandleSelectedSystemTextChangedAsync),
+        searchQuery,
+        EventCallback.Factory.Create<string>(this, HandleSearchQueryChangedAsync),
+        searchResults,
+        EventCallback.Factory.Create<StarWinSearchResult>(this, NavigateToSearchResult),
+        sections,
+        "Timeline",
+        explorerRenderError,
+        DisplayResultType,
+        BuildSectionRoute);
 }
 
 <PageTitle>Timeline | Starforged Atlas</PageTitle>
+<SectorExplorerLayoutSync State="layoutState" />
 
-<section class="explorer-page">
-    <SectorExplorerShell ShowHero="false"
-                         Sectors="ExplorerSectors"
-                         Systems="sector.Systems.ToList()"
-                         SelectedSectorId="@selectedSectorId"
-                         SelectedSectorChanged="HandleSectorChangedAsync"
-                         SelectedSystemText="@selectedSystemText"
-                         SelectedSystemTextChanged="HandleSelectedSystemTextChangedAsync"
-                         SearchQuery="@searchQuery"
-                         SearchQueryChanged="HandleSearchQueryChangedAsync"
-                         SearchResults="searchResults"
-                         SearchResultSelected="NavigateToSearchResult"
-                         Sections="sections"
-                         ActiveSection="Timeline"
-                         ErrorMessage="@explorerRenderError"
-                         ResultTypeDisplayFactory="DisplayResultType"
-                         SectionHrefFactory="BuildSectionRoute">
-        <ExplorerTimelineSection SectorId="@sector.Id"
-                                 SectorName="@sector.Name"
-                                 LoadingStateChanged="HandleTimelineLoadingStateChangedAsync"
-                                 RaceSelected="NavigateToRace"
-                                 EmpireSelected="NavigateToEmpire"
-                                 ColonySelected="NavigateToColony"
-                                 WorldSelected="NavigateToWorld"
-                                 SystemSelected="NavigateToSystemRecord" />
-    </SectorExplorerShell>
-</section>
+<ExplorerTimelineSection SectorId="@sector.Id"
+                         SectorName="@sector.Name"
+                         LoadingStateChanged="HandleTimelineLoadingStateChangedAsync"
+                         RaceSelected="NavigateToRace"
+                         EmpireSelected="NavigateToEmpire"
+                         ColonySelected="NavigateToColony"
+                         WorldSelected="NavigateToWorld"
+                         SystemSelected="NavigateToSystemRecord" />
 
 <LoadingModal IsVisible="@timelinePageLoadingVisible"
               AriaLabel="Loading Timeline"

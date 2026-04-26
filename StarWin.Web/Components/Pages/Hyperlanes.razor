@@ -1,3 +1,4 @@
+@layout SectorExplorerLayout
 @page "/sector-explorer/hyperlanes"
 @rendermode InteractiveServer
 
@@ -10,28 +11,29 @@
     var selectedHyperlane = GetSelectedRoute(sector, savedHyperlanes);
     var savedHyperlaneReport = GetSavedHyperlaneReport(sector);
     var sectorEmpires = ExplorerEmpires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
+    var layoutState = new SectorExplorerLayoutState(
+        false,
+        ExplorerSectors,
+        sector.Systems.ToList(),
+        selectedSectorId,
+        EventCallback.Factory.Create<int>(this, HandleSectorChangedAsync),
+        selectedSystemText,
+        EventCallback.Factory.Create<string>(this, HandleSelectedSystemTextChangedAsync),
+        searchQuery,
+        EventCallback.Factory.Create<string>(this, HandleSearchQueryChangedAsync),
+        searchResults,
+        EventCallback.Factory.Create<StarWinSearchResult>(this, NavigateToSearchResult),
+        sections,
+        "Hyperlanes",
+        explorerRenderError,
+        DisplayResultType,
+        BuildSectionRoute);
 }
 
 <PageTitle>Hyperlanes | Starforged Atlas</PageTitle>
+<SectorExplorerLayoutSync State="layoutState" />
 
-<section class="explorer-page">
-    <SectorExplorerShell ShowHero="false"
-                         Sectors="ExplorerSectors"
-                         Systems="sector.Systems.ToList()"
-                         SelectedSectorId="@selectedSectorId"
-                         SelectedSectorChanged="HandleSectorChangedAsync"
-                         SelectedSystemText="@selectedSystemText"
-                         SelectedSystemTextChanged="HandleSelectedSystemTextChangedAsync"
-                         SearchQuery="@searchQuery"
-                         SearchQueryChanged="HandleSearchQueryChangedAsync"
-                         SearchResults="searchResults"
-                         SearchResultSelected="NavigateToSearchResult"
-                         Sections="sections"
-                         ActiveSection="Hyperlanes"
-                         ErrorMessage="@explorerRenderError"
-                         ResultTypeDisplayFactory="DisplayResultType"
-                         SectionHrefFactory="BuildSectionRoute">
-        <section class="hyperlane-layout">
+<section class="hyperlane-layout">
             <article class="feature-panel hyperlane-list-panel">
                 <span class="panel-kicker">Saved Hyperlanes</span>
                 <h2>@sector.Name</h2>
@@ -177,5 +179,3 @@
                 }
             </article>
         </section>
-    </SectorExplorerShell>
-</section>

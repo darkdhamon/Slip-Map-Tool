@@ -6,6 +6,7 @@ using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.Media;
 using StarWin.Domain.Model.Entity.Notes;
 using StarWin.Domain.Model.Entity.StarMap;
+using StarWin.Web.Components.Layout;
 using StarWin.Web.Components.Pages;
 
 namespace StarWin.Web.Tests.Pages;
@@ -130,6 +131,7 @@ public sealed class WorldsPageTests : BunitContext
 
     private void ConfigureServices(StarWinExplorerContext context, FakeSpaceHabitatService? habitatService = null)
     {
+        Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinImageService>(new FakeImageService());

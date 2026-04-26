@@ -1,0 +1,11 @@
+@inject SectorExplorerLayoutStateStore StateStore
+
+@code {
+    [Parameter, EditorRequired]
+    public SectorExplorerLayoutState State { get; set; } = default!;
+
+    protected override void OnParametersSet()
+    {
+        StateStore.Update(State);
+    }
+}

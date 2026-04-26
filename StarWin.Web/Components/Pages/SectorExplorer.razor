@@ -1,3 +1,4 @@
+@layout SectorExplorerLayout
 @page "/sector-explorer"
 @page "/sector-explorer/{SectionSlug}"
 @rendermode InteractiveServer
@@ -51,103 +52,45 @@
     var selectedRoutePlan = activeSection == "Overview"
         ? GetPlottedRoutePlan(sector)
         : null;
+    var layoutState = new SectorExplorerLayoutState(
+        activeSection == "Overview",
+        ExplorerSectors,
+        sector.Systems.ToList(),
+        selectedSectorId,
+        EventCallback.Factory.Create<int>(this, HandleSectorChangedAsync),
+        selectedSystemText,
+        EventCallback.Factory.Create<string>(this, HandleSelectedSystemTextChanged),
+        searchQuery,
+        EventCallback.Factory.Create<string>(this, value =>
+        {
+            searchQuery = value;
+            RunSearch();
+        }),
+        searchResults,
+        EventCallback.Factory.Create<StarWinSearchResult>(this, NavigateToSearchResult),
+        sections,
+        activeSection,
+        explorerRenderError,
+        DisplayResultType,
+        BuildSectionRoute);
 }
 
 <PageTitle>Sector Explorer | Starforged Atlas</PageTitle>
+<SectorExplorerLayoutSync State="layoutState" />
 
-<section class="explorer-page">
-    @if (activeSection == "Overview")
-    {
-        <header class="explorer-hero">
-            <div class="hero-copy">
-                <p class="eyebrow">Sector Explorer</p>
-                <h1>Sector command, civilization records, and RPG world survey data.</h1>
-        <p class="hero-summary">Browse sectors, inspect systems, find colonies, compare empires, and prepare science-fiction campaign material from legacy StarWin and Slip Map data.</p>
-            </div>
-        </header>
-    }
+@if (activeSection == "Overview")
+{
+    <ExplorerMetricsBand SystemCount="@(overviewData?.SystemCount ?? 0)"
+                         WorldCount="@(overviewData?.WorldCount ?? 0)"
+                         ColonyCount="@(overviewData?.ColonyCount ?? 0)"
+                         EmpireCount="@(overviewData?.EmpireCount ?? 0)"
+                         RaceCount="@(overviewData?.RaceCount ?? 0)" />
+}
 
-    <section class="control-strip">
-        <label class="control-field sector-field">
-            Sector
-            <select @bind="selectedSectorId" @bind:after="SelectDefaultSystem">
-                @foreach (var item in ExplorerSectors)
-                {
-                    <option value="@item.Id">@item.Name</option>
-                }
-            </select>
-        </label>
-
-        <label class="control-field system-field">
-            System
-            <input list="sector-system-options"
-                   placeholder="Select system..."
-                   @bind="selectedSystemText"
-                   @bind:after="ApplySelectedSystemText" />
-            <datalist id="sector-system-options">
-                @foreach (var system in sector.Systems)
-                {
-                    <option value="@FormatSystemOption(system)" />
-                }
-            </datalist>
-        </label>
-
-        <div class="archive-search">
-            <label for="archive-search-input">Archive search</label>
-            <input id="archive-search-input"
-                   placeholder="System, world, colony, race, empire..."
-                   @bind="searchQuery"
-                   @bind:event="oninput"
-                   @bind:after="RunSearch" />
-
-            @if (searchResults.Count > 0)
-            {
-                <div class="search-results">
-                    @foreach (var result in searchResults)
-                    {
-                        <button type="button" class="search-result" @onclick="() => NavigateToSearchResult(result)">
-                            <span>@DisplayResultType(result.Type)</span>
-                            <strong>@result.Title</strong>
-                            <small>@result.Subtitle</small>
-                        </button>
-                    }
-                </div>
-            }
-            else if (!string.IsNullOrWhiteSpace(searchQuery))
-            {
-                <p class="search-empty">No matching systems, worlds, races, colonies, empires, habitats, or history.</p>
-            }
-        </div>
-
-        <ExplorerSectionTabs Sections="sections"
-                             ActiveSection="@activeSection"
-                             IsLoading="@sectionLoadingVisible"
-                             LoadingTarget="@sectionLoadingTarget"
-                             LoadingStatus="@sectionLoadingStatus"
-                             SectionHrefFactory="BuildSectionRoute" />
-    </section>
-
-    @if (!string.IsNullOrWhiteSpace(explorerRenderError))
-    {
-        <article class="timeline-event-card">
-            <span class="timeline-century">Section error</span>
-            <p>@explorerRenderError</p>
-        </article>
-    }
-
-    @if (activeSection == "Overview")
-    {
-        <ExplorerMetricsBand SystemCount="@(overviewData?.SystemCount ?? 0)"
-                             WorldCount="@(overviewData?.WorldCount ?? 0)"
-                             ColonyCount="@(overviewData?.ColonyCount ?? 0)"
-                             EmpireCount="@(overviewData?.EmpireCount ?? 0)"
-                             RaceCount="@(overviewData?.RaceCount ?? 0)" />
-    }
-
-    @switch (activeSection)
-    {
-        case "Overview":
-            <section class="overview-layout">
+@switch (activeSection)
+{
+    case "Overview":
+        <section class="overview-layout">
                 <div class="sector-map-three" @ref="sectorMapElement" aria-label="interactive 3D sector map">
                     @if (!sectorMapRequested)
                     {
@@ -399,10 +342,9 @@
                         }
                     </article>
                 </div>
-            </section>
-            break;
-    }
-</section>
+        </section>
+        break;
+}
 
 <LoadingModal IsVisible="@mapContextRefreshing"
               AriaLabel="@(Workspace.IsLoaded ? "Refreshing map context" : "Loading map context")"
@@ -459,7 +401,7 @@
     [Parameter]
     public string? SectionSlug { get; set; }
 
-    private readonly string[] sections = ["Overview", "Timeline", "Configuration", "Hyperlanes", "Systems", "Worlds", "Colonies", "Aliens", "Empires"];
+    private static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
     private readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
     private readonly Dictionary<int, ExplorerSectorOverviewData> sectorOverviewDataById = [];
     private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
@@ -1285,6 +1227,19 @@
         selectedSystemId = systemId;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         SelectDefaultWorld();
+    }
+
+    private async Task HandleSectorChangedAsync(int sectorId)
+    {
+        selectedSectorId = sectorId;
+        await SelectDefaultSystem();
+    }
+
+    private Task HandleSelectedSystemTextChanged(string value)
+    {
+        selectedSystemText = value;
+        ApplySelectedSystemText();
+        return Task.CompletedTask;
     }
 
     private void ResetSectorMapPerformanceLimit()

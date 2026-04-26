@@ -1,3 +1,4 @@
+@layout SectorExplorerLayout
 @page "/sector-explorer/configuration"
 @rendermode InteractiveServer
 @using StarWin.Domain.Services
@@ -6,28 +7,29 @@
     var sector = GetSelectedSector();
     var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
     var savedHyperlaneReport = GetSavedHyperlaneReport(sector);
+    var layoutState = new SectorExplorerLayoutState(
+        false,
+        ExplorerSectors,
+        sector.Systems.ToList(),
+        selectedSectorId,
+        EventCallback.Factory.Create<int>(this, HandleSectorChangedAsync),
+        selectedSystemText,
+        EventCallback.Factory.Create<string>(this, HandleSelectedSystemTextChangedAsync),
+        searchQuery,
+        EventCallback.Factory.Create<string>(this, HandleSearchQueryChangedAsync),
+        searchResults,
+        EventCallback.Factory.Create<StarWinSearchResult>(this, NavigateToSearchResult),
+        sections,
+        "Configuration",
+        explorerRenderError,
+        DisplayResultType,
+        BuildSectionRoute);
 }
 
 <PageTitle>Sector Configuration | Starforged Atlas</PageTitle>
+<SectorExplorerLayoutSync State="layoutState" />
 
-<section class="explorer-page">
-    <SectorExplorerShell ShowHero="false"
-                         Sectors="ExplorerSectors"
-                         Systems="sector.Systems.ToList()"
-                         SelectedSectorId="@selectedSectorId"
-                         SelectedSectorChanged="HandleSectorChangedAsync"
-                         SelectedSystemText="@selectedSystemText"
-                         SelectedSystemTextChanged="HandleSelectedSystemTextChangedAsync"
-                         SearchQuery="@searchQuery"
-                         SearchQueryChanged="HandleSearchQueryChangedAsync"
-                         SearchResults="searchResults"
-                         SearchResultSelected="NavigateToSearchResult"
-                         Sections="sections"
-                         ActiveSection="Configuration"
-                         ErrorMessage="@explorerRenderError"
-                         ResultTypeDisplayFactory="DisplayResultType"
-                         SectionHrefFactory="BuildSectionRoute">
-        <section class="detail-panel">
+<section class="detail-panel">
             <span class="panel-kicker">Sector Configuration</span>
             <h2>@sector.Name</h2>
             <p class="panel-note">Configure sector-level travel assumptions used by the map and future civilization systems.</p>
@@ -257,8 +259,6 @@
                 <p class="search-empty">@sectorConfigurationStatus</p>
             }
         </section>
-    </SectorExplorerShell>
-</section>
 
 <LoadingModal IsVisible="@routeSaveLoadingVisible"
               AriaLabel="Saving current routes"

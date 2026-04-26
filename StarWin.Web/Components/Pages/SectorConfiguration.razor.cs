@@ -18,8 +18,6 @@ public partial class SectorConfiguration : ComponentBase
         "Write the refreshed route cache to the database."
     ];
 
-    private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
-
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
     [Inject] protected IStarWinSectorConfigurationService SectorConfigurationService { get; set; } = default!;
@@ -34,7 +32,7 @@ public partial class SectorConfiguration : ComponentBase
     [SupplyParameterFromQuery(Name = "systemId")]
     public int? RequestedSystemId { get; set; }
 
-    protected readonly string[] sections = ["Overview", "Timeline", "Configuration", "Hyperlanes", "Systems", "Worlds", "Colonies", "Aliens", "Empires"];
+    protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
     protected readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
     private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
 
@@ -97,7 +95,7 @@ public partial class SectorConfiguration : ComponentBase
         selectedSectorId = initialSector.Id;
         await EnsureSectorDataLoadedAsync(selectedSectorId);
         initialSector = GetSelectedSector();
-        selectedSystemId = ResolveSelectedSystemId(initialSector);
+        selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
         LoadSectorConfigurationForm(initialSector);
     }
@@ -118,7 +116,7 @@ public partial class SectorConfiguration : ComponentBase
         }
 
         var sector = GetSelectedSector();
-        selectedSystemId = ResolveSelectedSystemId(sector);
+        selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
     }
 
@@ -458,21 +456,6 @@ public partial class SectorConfiguration : ComponentBase
         sectorCacheBuilder.Invalidate(sectorId);
     }
 
-    private int ResolveSelectedSystemId(StarWinSector sector)
-    {
-        if (RequestedSystemId is int requestedSystemId && sector.Systems.Any(system => system.Id == requestedSystemId))
-        {
-            return requestedSystemId;
-        }
-
-        if (selectedSystemId > 0 && sector.Systems.Any(system => system.Id == selectedSystemId))
-        {
-            return selectedSystemId;
-        }
-
-        return sector.Systems.FirstOrDefault()?.Id ?? 0;
-    }
-
     private void RunSearch()
     {
         searchResults = SearchService.Search(searchQuery)
@@ -488,31 +471,7 @@ public partial class SectorConfiguration : ComponentBase
         }
 
         browserSessionRestored = true;
-        string? storedValue;
-        try
-        {
-            storedValue = await JS.InvokeAsync<string?>("sessionStorage.getItem", ExplorerSessionStorageKey);
-        }
-        catch (InvalidOperationException)
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(storedValue))
-        {
-            return;
-        }
-
-        ExplorerSessionSelection? storedSelection;
-        try
-        {
-            storedSelection = System.Text.Json.JsonSerializer.Deserialize<ExplorerSessionSelection>(storedValue);
-        }
-        catch (System.Text.Json.JsonException)
-        {
-            return;
-        }
-
+        var storedSelection = await ExplorerPageState.RestoreSelectionAsync(JS, RequestedSectorId);
         if (storedSelection is null)
         {
             return;
@@ -542,15 +501,10 @@ public partial class SectorConfiguration : ComponentBase
             return;
         }
 
-        var selection = new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Configuration"));
-        var value = System.Text.Json.JsonSerializer.Serialize(selection);
-        try
-        {
-            await JS.InvokeVoidAsync("sessionStorage.setItem", ExplorerSessionStorageKey, value);
-        }
-        catch (InvalidOperationException)
-        {
-        }
+        await ExplorerPageState.PersistSelectionAsync(
+            JS,
+            browserSessionReady,
+            new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Configuration")));
     }
 
     private static string FormatSelectedSystem(StarWinSector sector, int systemId)
@@ -570,6 +524,4 @@ public partial class SectorConfiguration : ComponentBase
         var idText = separatorIndex < 0 ? value : value[..separatorIndex];
         return int.TryParse(idText, out var id) ? id : 0;
     }
-
-    private sealed record ExplorerSessionSelection(int SectorId, int SystemId, bool AutoLoadSectorMap = false, string? SectionSlug = null);
 }

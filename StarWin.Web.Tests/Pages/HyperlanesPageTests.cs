@@ -6,6 +6,7 @@ using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.Notes;
 using StarWin.Domain.Model.Entity.StarMap;
 using StarWin.Domain.Services;
+using StarWin.Web.Components.Layout;
 using StarWin.Web.Components.Pages;
 
 namespace StarWin.Web.Tests.Pages;
@@ -122,6 +123,7 @@ public sealed class HyperlanesPageTests : BunitContext
         var activeRouteService = routeService ?? new FakeSectorRouteService();
         activeRouteService.Context = context;
 
+        Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinSectorRouteService>(activeRouteService);

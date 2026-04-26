@@ -6,6 +6,7 @@ using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.Media;
 using StarWin.Domain.Model.Entity.Notes;
 using StarWin.Domain.Model.Entity.StarMap;
+using StarWin.Web.Components.Layout;
 using StarWin.Web.Components.Pages;
 
 namespace StarWin.Web.Tests.Pages;
@@ -29,7 +30,6 @@ public sealed class EmpiresPageTests : BunitContext
             Assert.Contains("Empire profile", cut.Markup);
             Assert.Contains("Orion Compact", cut.Markup);
             Assert.Contains("Homeworld: Helios", cut.Markup);
-            Assert.Contains("href=\"/sector-explorer/worlds?sectorId=7\"", cut.Markup);
         });
     }
 
@@ -246,6 +246,7 @@ public sealed class EmpiresPageTests : BunitContext
 
     private void ConfigureServices(StarWinExplorerContext context)
     {
+        Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinImageService>(new FakeImageService());

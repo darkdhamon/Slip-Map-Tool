@@ -1,3 +1,4 @@
+@layout SectorExplorerLayout
 @page "/sector-explorer/systems"
 @rendermode InteractiveServer
 
@@ -6,35 +7,36 @@
     var sectionCache = GetSectorCache(sector);
     var sectorEmpires = ExplorerEmpires.Where(empire => sectionCache.EmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
     var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
+    var layoutState = new SectorExplorerLayoutState(
+        false,
+        ExplorerSectors,
+        sector.Systems.ToList(),
+        selectedSectorId,
+        EventCallback.Factory.Create<int>(this, HandleSectorChangedAsync),
+        selectedSystemText,
+        EventCallback.Factory.Create<string>(this, HandleSelectedSystemTextChangedAsync),
+        searchQuery,
+        EventCallback.Factory.Create<string>(this, HandleSearchQueryChangedAsync),
+        searchResults,
+        EventCallback.Factory.Create<StarWinSearchResult>(this, NavigateToSearchResult),
+        sections,
+        "Systems",
+        explorerRenderError,
+        DisplayResultType,
+        BuildSectionRoute);
 }
 
 <PageTitle>Systems | Starforged Atlas</PageTitle>
+<SectorExplorerLayoutSync State="layoutState" />
 
-<section class="explorer-page">
-    <SectorExplorerShell ShowHero="false"
-                         Sectors="ExplorerSectors"
-                         Systems="sector.Systems.ToList()"
-                         SelectedSectorId="@selectedSectorId"
-                         SelectedSectorChanged="HandleSectorChangedAsync"
-                         SelectedSystemText="@selectedSystemText"
-                         SelectedSystemTextChanged="HandleSelectedSystemTextChangedAsync"
-                         SearchQuery="@searchQuery"
-                         SearchQueryChanged="HandleSearchQueryChangedAsync"
-                         SearchResults="searchResults"
-                         SearchResultSelected="NavigateToSearchResult"
-                         Sections="sections"
-                         ActiveSection="Systems"
-                         ErrorMessage="@explorerRenderError"
-                         ResultTypeDisplayFactory="DisplayResultType"
-                         SectionHrefFactory="BuildSectionRoute">
-        <ExplorerSystemsSection SectorCache="sectionCache"
-                                Empires="sectorEmpires"
-                                SectorId="@sector.Id"
-                                SelectedSystemId="@(selectedSystem?.Id ?? 0)"
-                                SystemSelected="SelectSystem">
-            @if (selectedSystem is not null)
-            {
-                <article class="detail-panel">
+<ExplorerSystemsSection SectorCache="sectionCache"
+                        Empires="sectorEmpires"
+                        SectorId="@sector.Id"
+                        SelectedSystemId="@(selectedSystem?.Id ?? 0)"
+                        SystemSelected="SelectSystem">
+    @if (selectedSystem is not null)
+    {
+        <article class="detail-panel">
                     <span class="panel-kicker">System survey</span>
                     <EditableEntityName Name="@selectedSystem.Name"
                                         Label="System"
@@ -150,8 +152,6 @@
                             </article>
                         }
                     </div>
-                </article>
-            }
-        </ExplorerSystemsSection>
-    </SectorExplorerShell>
-</section>
+        </article>
+    }
+</ExplorerSystemsSection>

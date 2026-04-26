@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using StarWin.Application.Services;
 using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.StarMap;
+using StarWin.Web.Components.Layout;
 using StarWin.Web.Components.Pages;
 
 namespace StarWin.Web.Tests.Pages;
@@ -151,6 +152,7 @@ public sealed class TimelinePageTests : BunitContext
 
     private void ConfigureServices(StarWinExplorerContext context, FakeExplorerQueryService? queryService = null)
     {
+        Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinExplorerQueryService>(queryService ?? new FakeExplorerQueryService());
