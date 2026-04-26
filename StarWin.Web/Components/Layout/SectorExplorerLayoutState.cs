@@ -5,7 +5,7 @@ using StarWin.Domain.Model.Entity.StarMap;
 namespace StarWin.Web.Components.Layout;
 
 public sealed record SectorExplorerLayoutState(
-    bool ShowHero,
+    RenderFragment? HeroContent,
     IReadOnlyList<StarWinSector> Sectors,
     IReadOnlyList<StarSystem> Systems,
     int SelectedSectorId,
@@ -21,4 +21,5 @@ public sealed record SectorExplorerLayoutState(
     string ErrorMessage,
     Func<StarWinSearchResultType, string>? ResultTypeDisplayFactory,
     Func<string, string>? SectionHrefFactory,
-    RenderFragment? HeaderContent = null);
+    RenderFragment? HeaderContent = null,
+    RenderFragment? FooterContent = null);

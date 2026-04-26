@@ -10,7 +10,7 @@
 else
 {
     <section class="explorer-page">
-        <SectorExplorerShell ShowHero="@layoutState.ShowHero"
+        <SectorExplorerShell HeroContent="layoutState.HeroContent"
                              Sectors="layoutState.Sectors"
                              Systems="layoutState.Systems"
                              SelectedSectorId="@layoutState.SelectedSectorId"
@@ -26,7 +26,8 @@ else
                              ErrorMessage="@layoutState.ErrorMessage"
                              ResultTypeDisplayFactory="layoutState.ResultTypeDisplayFactory"
                              SectionHrefFactory="layoutState.SectionHrefFactory"
-                             HeaderContent="layoutState.HeaderContent">
+                             HeaderContent="layoutState.HeaderContent"
+                             FooterContent="layoutState.FooterContent">
             @Body
         </SectorExplorerShell>
     </section>

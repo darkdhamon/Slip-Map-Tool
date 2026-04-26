@@ -11,7 +11,7 @@ public sealed class SectorExplorerLayoutSyncTests : BunitContext
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         var state = new SectorExplorerLayoutState(
-            true,
+            null,
             [],
             [],
             7,

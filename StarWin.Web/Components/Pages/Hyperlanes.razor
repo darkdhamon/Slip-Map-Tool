@@ -12,7 +12,7 @@
     var savedHyperlaneReport = GetSavedHyperlaneReport(sector);
     var sectorEmpires = ExplorerEmpires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
     var layoutState = new SectorExplorerLayoutState(
-        false,
+        null,
         ExplorerSectors,
         sector.Systems.ToList(),
         selectedSectorId,

@@ -10,7 +10,7 @@
         ? selectedSystem?.Worlds.FirstOrDefault(world => world.Id == selectedWorldId) ?? selectedSystem?.Worlds.FirstOrDefault()
         : null;
     var layoutState = new SectorExplorerLayoutState(
-        false,
+        null,
         ExplorerSectors,
         sector.Systems.ToList(),
         selectedSectorId,

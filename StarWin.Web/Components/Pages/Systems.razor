@@ -8,7 +8,7 @@
     var sectorEmpires = ExplorerEmpires.Where(empire => sectionCache.EmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
     var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
     var layoutState = new SectorExplorerLayoutState(
-        false,
+        null,
         ExplorerSectors,
         sector.Systems.ToList(),
         selectedSectorId,

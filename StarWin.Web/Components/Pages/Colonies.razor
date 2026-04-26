@@ -15,7 +15,7 @@
         : colonyWorld;
     var colonyImages = selectedColony is null ? [] : GetEntityImages(EntityImageTargetKind.Colony, selectedColony.Id);
     var layoutState = new SectorExplorerLayoutState(
-        false,
+        null,
         ExplorerSectors,
         sector.Systems.ToList(),
         selectedSectorId,

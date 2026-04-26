@@ -52,8 +52,11 @@
     var selectedRoutePlan = activeSection == "Overview"
         ? GetPlottedRoutePlan(sector)
         : null;
+    RenderFragment? heroContent = activeSection == "Overview"
+        ? @<ExplorerHero />
+        : null;
     var layoutState = new SectorExplorerLayoutState(
-        activeSection == "Overview",
+        heroContent,
         ExplorerSectors,
         sector.Systems.ToList(),
         selectedSectorId,
