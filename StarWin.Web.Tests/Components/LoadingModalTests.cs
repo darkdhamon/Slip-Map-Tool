@@ -53,5 +53,7 @@ public sealed class LoadingModalTests : BunitContext
         Assert.True(overlay.HasAttribute("hidden"));
         Assert.Contains("data-section-loading-target", cut.Markup);
         Assert.Contains("data-section-loading-status", cut.Markup);
+        Assert.Contains("data-loading-timer=\"true\"", cut.Markup);
+        Assert.Contains("Elapsed time:", cut.Markup);
     }
 }
