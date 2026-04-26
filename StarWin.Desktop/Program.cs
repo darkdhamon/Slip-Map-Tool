@@ -1128,7 +1128,9 @@ internal static class StarWinDesktopPaths
 {
     public static string GetDatabasePath()
     {
-        return Path.Combine(GetApplicationDataRoot(), "starforged-atlas.db");
+        var databasePath = Path.Combine(GetApplicationDataRoot(), "starforged-atlas.db");
+        MigrateLegacyDesktopDataIfNeeded(databasePath);
+        return databasePath;
     }
 
     public static string GetWebViewDataPath()
@@ -1189,10 +1191,45 @@ internal static class StarWinDesktopPaths
 
     private static string GetApplicationDataRoot()
     {
-        var dataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var atlasRoot = Path.Combine(dataRoot, "Starforged Atlas");
+        var atlasRoot = Path.Combine(AppContext.BaseDirectory, "data");
         Directory.CreateDirectory(atlasRoot);
 
         return atlasRoot;
+    }
+
+    private static string GetLegacyApplicationDataRoot()
+    {
+        var dataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(dataRoot, "Starforged Atlas");
+    }
+
+    private static void MigrateLegacyDesktopDataIfNeeded(string databasePath)
+    {
+        if (File.Exists(databasePath))
+        {
+            return;
+        }
+
+        var legacyDataRoot = GetLegacyApplicationDataRoot();
+        var legacyDatabasePath = Path.Combine(legacyDataRoot, "starforged-atlas.db");
+        if (!File.Exists(legacyDatabasePath))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(databasePath)!);
+        CopyIfExists(legacyDatabasePath, databasePath);
+        CopyIfExists($"{legacyDatabasePath}-shm", $"{databasePath}-shm");
+        CopyIfExists($"{legacyDatabasePath}-wal", $"{databasePath}-wal");
+    }
+
+    private static void CopyIfExists(string sourcePath, string destinationPath)
+    {
+        if (!File.Exists(sourcePath) || File.Exists(destinationPath))
+        {
+            return;
+        }
+
+        File.Copy(sourcePath, destinationPath);
     }
 }

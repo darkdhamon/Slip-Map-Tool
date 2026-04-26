@@ -69,7 +69,7 @@ Starforged Atlas.exe
 
 Notes:
 - Keep the 'app' folder beside the launcher.
-- Your local data is stored in %LocalAppData%\Starforged Atlas.
+- Portable data is stored in the app\data folder.
 "@ | Set-Content -Path $readmePath -Encoding ASCII
 
 Compress-Archive -Path (Join-Path $packageRoot '*') -DestinationPath $zipPath
