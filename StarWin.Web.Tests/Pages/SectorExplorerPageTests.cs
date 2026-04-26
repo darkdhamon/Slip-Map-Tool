@@ -33,6 +33,14 @@ public sealed class SectorExplorerPageTests : BunitContext
 
         cut.WaitForAssertion(() => Assert.Contains("Loading route-planning workspace", cut.Markup));
 
+        workspace.ReleaseReload();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Load 3D map", cut.Markup);
+            Assert.DoesNotContain("Loading route-planning workspace", cut.Markup);
+        });
+
     }
 
     private void ConfigureServices(StarWinSector sector, FakeWorkspace workspace)

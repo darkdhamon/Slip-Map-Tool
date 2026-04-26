@@ -424,7 +424,6 @@ else
             workspaceLoadStarted = true;
             if (!workspaceReady)
             {
-                workspaceLoading = true;
                 StateHasChanged();
                 await Task.Yield();
                 await EnsureWorkspaceReadyAsync();
