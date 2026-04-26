@@ -497,7 +497,7 @@ function faceImageMarkers(state) {
 function getAstralBodyVisualRadius(body, selected) {
     const kind = (body.kind ?? "").toLowerCase();
     if (!kind.includes("star")) {
-        return selected ? 0.72 : 0.54;
+        return selected ? 1.44 : 1.08;
     }
 
     const solarMasses = getPositiveNumber(body.solarMasses);
@@ -505,7 +505,7 @@ function getAstralBodyVisualRadius(body, selected) {
     const massScale = solarMasses ? Math.pow(solarMasses, 0.62) : null;
     const luminosityScale = luminosity ? Math.pow(luminosity, 0.12) : null;
     const scale = massScale ?? luminosityScale ?? 1;
-    const radius = 0.34 + Math.min(0.76, Math.max(0.18, scale) * 0.34);
+    const radius = (0.34 + Math.min(0.76, Math.max(0.18, scale) * 0.34)) * 2;
     return selected ? radius * 1.18 : radius;
 }
 
