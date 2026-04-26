@@ -476,6 +476,9 @@ dd {
 }
 
 .segmented-control button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     min-height: 40px;
     border: 1px solid rgba(125, 211, 252, 0.28);
     border-radius: 6px;
@@ -491,6 +494,38 @@ dd {
     background: rgba(14, 165, 233, 0.22);
     color: #f8fbff;
     box-shadow: 0 0 18px rgba(56, 189, 248, 0.14);
+}
+
+.import-source-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.9;
+}
+
+.import-source-button:disabled:not(.active) {
+    border-color: rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.58);
+    color: #cbd5e1;
+    box-shadow: none;
+}
+
+.import-source-label {
+    display: inline-flex;
+    align-items: center;
+}
+
+.import-source-badge {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid rgba(251, 191, 36, 0.38);
+    border-radius: 999px;
+    background: rgba(120, 53, 15, 0.42);
+    color: #fde68a;
+    padding: 3px 8px;
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .metrics-band {
@@ -2056,6 +2091,30 @@ dd {
 
 .import-dropzone strong {
     color: #f8fbff;
+}
+
+.import-instructions {
+    display: grid;
+    gap: 10px;
+    border: 1px solid rgba(125, 211, 252, 0.16);
+    border-radius: 8px;
+    background: rgba(3, 10, 24, 0.54);
+    margin-bottom: 16px;
+    padding: 14px;
+}
+
+.import-instructions h3,
+.import-instructions p {
+    margin: 0;
+}
+
+.import-instructions h3 {
+    color: #dff8ff;
+    font-size: 1rem;
+}
+
+.import-extension-tags {
+    margin-top: 0;
 }
 
 .import-actions {
