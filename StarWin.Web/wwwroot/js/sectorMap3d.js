@@ -247,13 +247,13 @@ function addRouteLines(state, sector, selectedSystemId) {
     const routeBuckets = new Map();
 
     for (const route of routes) {
-        const source = state.systemPositions.get(route.sourceId);
-        const target = state.systemPositions.get(route.targetId);
+        const source = state.systemPositions.get(getRouteSourceSystemId(route));
+        const target = state.systemPositions.get(getRouteTargetSystemId(route));
         if (!source || !target) {
             continue;
         }
 
-        const bucketKey = `${route.hyperlaneTechLevel ?? 6}:normal`;
+        const bucketKey = `${getRouteTechnologyLevel(route) ?? 6}:normal`;
         if (!routeBuckets.has(bucketKey)) {
             routeBuckets.set(bucketKey, []);
         }
@@ -284,17 +284,18 @@ function addRouteLines(state, sector, selectedSystemId) {
         const tierPositions = new Map();
         const offLanePositions = [];
         for (const route of routePath) {
-            const source = state.systemPositions.get(route.sourceId);
-            const target = state.systemPositions.get(route.targetId);
+            const source = state.systemPositions.get(getRouteSourceSystemId(route));
+            const target = state.systemPositions.get(getRouteTargetSystemId(route));
             if (!source || !target) {
                 continue;
             }
 
+            const routeTechnologyLevel = getRouteTechnologyLevel(route);
             const bucket = route.isHyperlane
-                ? (tierPositions.get(route.hyperlaneTechLevel ?? 6) ?? [])
+                ? (tierPositions.get(routeTechnologyLevel ?? 6) ?? [])
                 : offLanePositions;
-            if (route.isHyperlane && !tierPositions.has(route.hyperlaneTechLevel ?? 6)) {
-                tierPositions.set(route.hyperlaneTechLevel ?? 6, bucket);
+            if (route.isHyperlane && !tierPositions.has(routeTechnologyLevel ?? 6)) {
+                tierPositions.set(routeTechnologyLevel ?? 6, bucket);
             }
             bucket.push(source.x, source.y, source.z, target.x, target.y, target.z);
         }
@@ -311,6 +312,18 @@ function addRouteLines(state, sector, selectedSystemId) {
             state.routeGroup.add(createRouteLineSegments(THREE, offLanePositions, 0xff0000, 0.62, false, 5.2, true));
         }
     }
+}
+
+function getRouteSourceSystemId(route) {
+    return route.sourceSystemId ?? route.sourceId ?? null;
+}
+
+function getRouteTargetSystemId(route) {
+    return route.targetSystemId ?? route.targetId ?? null;
+}
+
+function getRouteTechnologyLevel(route) {
+    return route.technologyLevel ?? route.hyperlaneTechLevel ?? null;
 }
 
 function getHyperlanePalette(technologyLevel, selected) {
