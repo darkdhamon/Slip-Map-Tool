@@ -924,6 +924,10 @@ else
         var routePlan = GetPlottedRoutePlan(sector);
         var mappedSystems = GetSectorMapSystems(sector, focusedSystemId, routePlan).ToList();
         var routes = BuildVisibleSectorMapRoutes(sector, mappedSystems, focusedSystemId, routePlan);
+        var routeSystemIds = routePlan?.Systems.Select(system => system.Id).Distinct().ToList() ?? [];
+        var fadeStartParsecs = Math.Max(0, sectorMapViewDistanceParsecs - 1);
+        var focusedSystem = sector.Systems.FirstOrDefault(system => system.Id == focusedSystemId)
+            ?? sector.Systems.FirstOrDefault();
 
         return new
         {
@@ -935,6 +939,20 @@ else
                 y = system.Coordinates.Y,
                 z = system.Coordinates.Z,
                 allegianceId = system.AllegianceId,
+                distanceFromFocus = focusedSystem is null
+                    ? 0
+                    : SectorRoutePlanner.CalculateParsecDistance(focusedSystem.Coordinates, system.Coordinates),
+                showLabel = system.Id == focusedSystemId || routeSystemIds.Contains(system.Id),
+                isRouteSystem = routeSystemIds.Contains(system.Id),
+                bodies = system.AstralBodies
+                    .Select(body => new
+                    {
+                        kind = body.Kind.ToString(),
+                        classification = body.Classification,
+                        luminosity = body.Luminosity,
+                        solarMasses = body.SolarMasses
+                    })
+                    .ToList(),
                 worldCount = system.Worlds.Count,
                 habitatCount = system.SpaceHabitats.Count
             }).ToList(),
@@ -951,7 +969,21 @@ else
                 secondaryOwnerEmpireId = route.SecondaryOwnerEmpireId,
                 secondaryOwnerEmpireName = route.SecondaryOwnerEmpireName
             }).ToList(),
+            routePath = routePlan?.Legs.Select(leg => new
+            {
+                sourceSystemId = leg.Source.Id,
+                targetSystemId = leg.Target.Id,
+                isHyperlane = leg.IsHyperlane,
+                technologyLevel = leg.TechnologyLevel,
+                tierName = leg.TierName,
+                distanceParsecs = leg.DistanceParsecs,
+                travelTimeYears = leg.TravelTimeYears
+            }).ToList() ?? [],
+            routeSystemIds,
+            routeActive = routePlan is not null,
             focusedSystemId,
+            viewDistanceParsecs = sectorMapViewDistanceParsecs,
+            fadeStartParsecs,
             offLaneDistanceParsecs = GetOffLaneMaximumDistanceParsecs(sector),
             renderedSystemLimit = sectorMapRenderLimit
         };

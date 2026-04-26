@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Text.Json;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
@@ -123,6 +125,42 @@ public sealed class SectorExplorerPageTests : BunitContext
         Assert.EndsWith("/sector-explorer/systems?sectorId=7&systemId=12", navigationManager.Uri, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void MapWorkspaceBuildsPayloadWithExpectedRendererFields()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11));
+
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+
+        var buildSectorMap = typeof(SectorExplorerMapWorkspace).GetMethod("BuildSectorMap", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(buildSectorMap);
+
+        var payload = buildSectorMap!.Invoke(cut.Instance, [sector, 11]);
+        var json = JsonSerializer.Serialize(payload);
+
+        Assert.Contains("\"viewDistanceParsecs\":5", json);
+        Assert.Contains("\"fadeStartParsecs\":4", json);
+        Assert.Contains("\"routeActive\":false", json);
+        Assert.Contains("\"routeSystemIds\":[]", json);
+        Assert.Contains("\"routePath\":[]", json);
+        Assert.Contains("\"distanceFromFocus\":0", json);
+        Assert.Contains("\"showLabel\":true", json);
+        Assert.Contains("\"isRouteSystem\":false", json);
+        Assert.Contains("\"bodies\":[{", json);
+        Assert.Contains("\"kind\":\"Star\"", json);
+        Assert.Contains("\"classification\":\"G2 V\"", json);
+        Assert.Contains("\"luminosity\":1.08", json);
+        Assert.Contains("\"solarMasses\":1.01", json);
+    }
+
     private void ConfigureServices(StarWinSector sector, FakeWorkspace workspace)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
@@ -155,6 +193,15 @@ public sealed class SectorExplorerPageTests : BunitContext
             Coordinates = new Coordinates(0, 0, 0),
             AllegianceId = 8
         };
+        system.AstralBodies.Add(new AstralBody
+        {
+            Id = 901,
+            Role = AstralBodyRole.Primary,
+            Kind = AstralBodyKind.Star,
+            Classification = "G2 V",
+            Luminosity = 1.08,
+            SolarMasses = 1.01
+        });
 
         var world = new World
         {
