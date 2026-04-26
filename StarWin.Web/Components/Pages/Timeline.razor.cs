@@ -33,6 +33,8 @@ public partial class Timeline : ComponentBase
     protected string searchQuery = string.Empty;
     protected IReadOnlyList<StarWinSearchResult> searchResults = [];
 
+    private bool timelinePageLoadingVisible = true;
+    private bool initialTimelineLoadCompleted;
     private bool browserSessionReady;
     private bool browserSessionRestored;
 
@@ -52,6 +54,8 @@ public partial class Timeline : ComponentBase
         initialSector = GetSelectedSector();
         selectedSystemId = ResolveSelectedSystemId(initialSector);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
+        timelinePageLoadingVisible = true;
+        initialTimelineLoadCompleted = false;
     }
 
     protected override async Task OnParametersSetAsync()
@@ -200,6 +204,19 @@ public partial class Timeline : ComponentBase
             NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Systems", selectedSectorId, systemId));
         }
 
+        return Task.CompletedTask;
+    }
+
+    protected Task HandleTimelineLoadingStateChangedAsync(bool isLoading)
+    {
+        if (initialTimelineLoadCompleted || isLoading)
+        {
+            return Task.CompletedTask;
+        }
+
+        initialTimelineLoadCompleted = true;
+        timelinePageLoadingVisible = false;
+        StateHasChanged();
         return Task.CompletedTask;
     }
 

@@ -26,6 +26,7 @@
                          SectionHrefFactory="BuildSectionRoute">
         <ExplorerTimelineSection SectorId="@sector.Id"
                                  SectorName="@sector.Name"
+                                 LoadingStateChanged="HandleTimelineLoadingStateChangedAsync"
                                  RaceSelected="NavigateToRace"
                                  EmpireSelected="NavigateToEmpire"
                                  ColonySelected="NavigateToColony"
@@ -33,3 +34,22 @@
                                  SystemSelected="NavigateToSystemRecord" />
     </SectorExplorerShell>
 </section>
+
+@if (timelinePageLoadingVisible)
+{
+    <div class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="Loading Timeline">
+        <section class="loading-modal">
+            <span class="panel-kicker">Loading Timeline</span>
+            <h2>Preparing timeline events for the selected sector.</h2>
+            <p class="loading-progress-detail">The page will stay visible until the first chronology batch is ready.</p>
+            <div class="loading-meter" aria-hidden="true">
+                <span></span>
+            </div>
+            <ol>
+                <li>Resolve the selected sector context.</li>
+                <li>Load the first timeline event page.</li>
+                <li>Render the chronology and detail workspace.</li>
+            </ol>
+        </section>
+    </div>
+}

@@ -121,6 +121,33 @@ public sealed class TimelinePageTests : BunitContext
         cut.WaitForAssertion(() => Assert.Contains("\"Century\": \"1\"", cut.Markup));
     }
 
+    [Fact]
+    public void KeepsTimelineModalVisibleUntilInitialTimelineBatchLoads()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var queryService = new FakeExplorerQueryService
+        {
+            DelayFirstTimelinePage = true
+        };
+        ConfigureServices(CreateContext(), queryService);
+
+        var cut = Render<Timeline>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Loading Timeline", cut.Markup);
+            Assert.Contains("Preparing timeline events for the selected sector.", cut.Markup);
+        });
+
+        queryService.ReleaseFirstTimelinePage();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.DoesNotContain("Preparing timeline events for the selected sector.", cut.Markup);
+            Assert.Contains("Border war begins", cut.Markup);
+        });
+    }
+
     private void ConfigureServices(StarWinExplorerContext context, FakeExplorerQueryService? queryService = null)
     {
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
@@ -196,6 +223,8 @@ public sealed class TimelinePageTests : BunitContext
         public List<ExplorerTimelinePageRequest> PageRequests { get; } = [];
 
         public ExplorerTimelineEventDetail? TimelineDetail { get; set; }
+        public bool DelayFirstTimelinePage { get; set; }
+        private TaskCompletionSource<bool>? firstTimelinePageSource;
 
         public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
         {
@@ -211,6 +240,33 @@ public sealed class TimelinePageTests : BunitContext
         public Task<ExplorerTimelinePage> LoadTimelinePageAsync(ExplorerTimelinePageRequest request, CancellationToken cancellationToken = default)
         {
             PageRequests.Add(request);
+            if (DelayFirstTimelinePage && request.Offset == 0)
+            {
+                firstTimelinePageSource ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                return WaitForFirstTimelinePageAsync(request);
+            }
+
+            return Task.FromResult(CreateTimelinePage(request));
+        }
+
+        public void ReleaseFirstTimelinePage()
+        {
+            firstTimelinePageSource?.TrySetResult(true);
+        }
+
+        private async Task<ExplorerTimelinePage> WaitForFirstTimelinePageAsync(ExplorerTimelinePageRequest request)
+        {
+            if (firstTimelinePageSource is not null)
+            {
+                await firstTimelinePageSource.Task;
+            }
+
+            DelayFirstTimelinePage = false;
+            return CreateTimelinePage(request);
+        }
+
+        private static ExplorerTimelinePage CreateTimelinePage(ExplorerTimelinePageRequest request)
+        {
             IReadOnlyList<ExplorerTimelineListItem> items =
             [
                 new ExplorerTimelineListItem(
@@ -227,7 +283,7 @@ public sealed class TimelinePageTests : BunitContext
                     null)
             ];
 
-            return Task.FromResult(new ExplorerTimelinePage(items, false));
+            return new ExplorerTimelinePage(items, false);
         }
 
         public Task<ExplorerTimelineEventDetail?> LoadTimelineEventDetailAsync(int eventId, CancellationToken cancellationToken = default)
