@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using StarWin.Application.Services;
 using StarWin.Infrastructure;
 using StarWin.Web.Components;
+using StarWin.Web.Components.Layout;
 
 namespace StarWin.Web;
 
@@ -27,6 +28,7 @@ public static class StarWinWebHost
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
         builder.Services.AddStarWinInfrastructure(builder.Configuration);
+        builder.Services.AddScoped<SectorExplorerLayoutStateStore>();
 
         var app = builder.Build();
 

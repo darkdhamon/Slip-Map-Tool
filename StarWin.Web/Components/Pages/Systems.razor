@@ -1,0 +1,157 @@
+@layout SectorExplorerLayout
+@page "/sector-explorer/systems"
+@rendermode InteractiveServer
+
+@{
+    var sector = GetSelectedSector();
+    var sectionCache = GetSectorCache(sector);
+    var sectorEmpires = ExplorerEmpires.Where(empire => sectionCache.EmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
+    var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
+    var layoutState = new SectorExplorerLayoutState(
+        null,
+        ExplorerSectors,
+        sector.Systems.ToList(),
+        selectedSectorId,
+        EventCallback.Factory.Create<int>(this, HandleSectorChangedAsync),
+        selectedSystemText,
+        EventCallback.Factory.Create<string>(this, HandleSelectedSystemTextChangedAsync),
+        searchQuery,
+        EventCallback.Factory.Create<string>(this, HandleSearchQueryChangedAsync),
+        searchResults,
+        EventCallback.Factory.Create<StarWinSearchResult>(this, NavigateToSearchResult),
+        sections,
+        "Systems",
+        explorerRenderError,
+        DisplayResultType,
+        BuildSectionRoute);
+}
+
+<PageTitle>Systems | Starforged Atlas</PageTitle>
+<SectorExplorerLayoutSync State="layoutState" />
+
+<ExplorerSystemsSection SectorCache="sectionCache"
+                        Empires="sectorEmpires"
+                        SectorId="@sector.Id"
+                        SelectedSystemId="@(selectedSystem?.Id ?? 0)"
+                        SystemSelected="SelectSystem">
+    @if (selectedSystem is not null)
+    {
+        <article class="detail-panel">
+                    <span class="panel-kicker">System survey</span>
+                    <EditableEntityName Name="@selectedSystem.Name"
+                                        Label="System"
+                                        NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.StarSystem, selectedSystem.Id, name)" />
+                    <dl class="field-grid">
+                        <div><dt>System id</dt><dd>@selectedSystem.Id</dd></div>
+                        <div><dt>Map code</dt><dd>@selectedSystem.MapCode</dd></div>
+                        <div><dt>Allegiance</dt><dd>@DisplayAllegiance(selectedSystem.AllegianceId)</dd></div>
+                        <div><dt>World count</dt><dd>@selectedSystem.Worlds.Count</dd></div>
+                    </dl>
+
+                    <EntityNotesPanel TargetKind="EntityNoteTargetKind.StarSystem"
+                                      TargetId="selectedSystem.Id"
+                                      Title="System notes" />
+
+                    <div class="stellar-grid">
+                        @foreach (var bodyItem in selectedSystem.AstralBodies.Select((body, index) => new { Body = body, Sequence = index }))
+                        {
+                            var bodyImages = GetEntityImages(EntityImageTargetKind.AstralBody, bodyItem.Body.Id);
+
+                            <article class="stellar-card">
+                                @if (GetPrimaryEntityImage(EntityImageTargetKind.AstralBody, bodyItem.Body.Id) is { } primaryAstralImage)
+                                {
+                                    <img class="@($"{GetAstralBodyOrbClass(bodyItem.Body)} entity-orb-image")"
+                                         src="@primaryAstralImage.RelativePath"
+                                         alt="@($"{bodyItem.Body.Role} {bodyItem.Body.Kind}")" />
+                                }
+                                else
+                                {
+                                    <div class="@GetAstralBodyOrbClass(bodyItem.Body)"></div>
+                                }
+
+                                <h3>@bodyItem.Body.Role</h3>
+                                <section class="entity-image-panel compact-empty">
+                                    <div class="image-panel-header">
+                                        <h4>Astral image</h4>
+                                        <span>Multiple allowed</span>
+                                    </div>
+                                    @if (bodyImages.Count > 0)
+                                    {
+                                        <div class="entity-image-grid">
+                                            @foreach (var image in bodyImages)
+                                            {
+                                                <figure>
+                                                    <img src="@image.RelativePath" alt="@image.FileName" />
+                                                    <figcaption>@(image.IsPrimary ? "Primary" : image.FileName)</figcaption>
+                                                </figure>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <p>No image uploaded.</p>
+                                    }
+                                    <label class="image-upload-control">
+                                        <span>Add image</span>
+                                        <InputFile OnChange="@(args => UploadEntityImage(EntityImageTargetKind.AstralBody, bodyItem.Body.Id, args))"
+                                                   accept="image/jpeg,image/png,image/gif,image/webp" />
+                                    </label>
+                                    @if (!string.IsNullOrWhiteSpace(imageUploadStatus))
+                                    {
+                                        <small>@imageUploadStatus</small>
+                                    }
+                                </section>
+                                <dl class="data-list">
+                                    <div><dt>Kind</dt><dd>@bodyItem.Body.Kind</dd></div>
+                                    <div><dt>Type</dt><dd>@bodyItem.Body.Classification</dd></div>
+                                    <div><dt>Luminosity</dt><dd>@Format(bodyItem.Body.Luminosity)</dd></div>
+                                    <div><dt>Mass</dt><dd>@Format(bodyItem.Body.SolarMasses)</dd></div>
+                                </dl>
+
+                                <div class="satellite-list">
+                                    <h4>Satellites</h4>
+                                    @foreach (var satellite in GetAstralBodySatellites(selectedSystem, bodyItem.Sequence))
+                                    {
+                                        if (satellite.World is not null)
+                                        {
+                                            <button type="button" class="satellite-link" @onclick="() => NavigateToWorld(satellite.World.Id)">
+                                                <span>@satellite.Kind</span>
+                                                <strong>@satellite.Name</strong>
+                                            </button>
+                                        }
+                                        else if (satellite.Habitat is not null)
+                                        {
+                                            <button type="button" class="satellite-link habitat" @onclick="() => NavigateToHabitat(satellite.Habitat.Id)">
+                                                <span>Habitat</span>
+                                                <strong>@satellite.Name</strong>
+                                            </button>
+                                        }
+                                    }
+                                    <div class="habitat-create-form">
+                                        <input placeholder="Habitat name"
+                                               @bind="spaceHabitatName"
+                                               maxlength="160" />
+                                        <select @bind="spaceHabitatEmpireId">
+                                            <option value="0">Empire</option>
+                                            @foreach (var empire in ExplorerEmpires.OrderBy(empire => empire.Name))
+                                            {
+                                                <option value="@empire.Id">@empire.Name</option>
+                                            }
+                                        </select>
+                                        <button type="button"
+                                                @onclick="() => CreateAstralBodySpaceHabitatAsync(selectedSystem, bodyItem.Sequence)"
+                                                disabled="@IsSpaceHabitatCreateDisabled">
+                                            Create habitat
+                                        </button>
+                                        @if (!string.IsNullOrWhiteSpace(spaceHabitatStatus))
+                                        {
+                                            <p>@spaceHabitatStatus</p>
+                                        }
+                                    </div>
+                                </div>
+                            </article>
+                        }
+                    </div>
+        </article>
+    }
+</ExplorerSystemsSection>

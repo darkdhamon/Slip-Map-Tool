@@ -328,7 +328,8 @@ dd {
     justify-content: flex-end;
 }
 
-.section-tabs button {
+.section-tabs button,
+.section-tabs a {
     min-height: 40px;
     border: 1px solid rgba(125, 211, 252, 0.28);
     border-radius: 6px;
@@ -336,6 +337,10 @@ dd {
     color: #cbd5e1;
     padding: 8px 12px;
     font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
 }
 
 .section-tabs button:disabled {
@@ -344,7 +349,9 @@ dd {
 }
 
 .section-tabs button.active,
-.section-tabs button:hover {
+.section-tabs button:hover,
+.section-tabs a.active,
+.section-tabs a:hover {
     border-color: var(--accent);
     background: linear-gradient(135deg, rgba(14, 165, 233, 0.34), rgba(124, 58, 237, 0.24));
     color: #f8fbff;
@@ -360,6 +367,16 @@ dd {
     background: rgba(2, 6, 23, 0.72);
     backdrop-filter: blur(8px);
     padding: 20px;
+}
+
+#explorer-navigation-loading,
+#explorer-section-loading {
+    pointer-events: none;
+}
+
+#explorer-navigation-loading .loading-modal,
+#explorer-section-loading .loading-modal {
+    pointer-events: none;
 }
 
 .loading-modal {
@@ -525,7 +542,7 @@ dd {
 
 .timeline-layout {
     display: grid;
-    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    grid-template-columns: minmax(210px, 260px) minmax(320px, 0.95fr) minmax(420px, 1.15fr);
     gap: 18px;
     align-items: start;
 }
@@ -592,6 +609,13 @@ dd {
 .timeline-list {
     display: grid;
     gap: 12px;
+    min-width: 0;
+}
+
+.timeline-detail-panel {
+    position: sticky;
+    top: 18px;
+    min-width: 0;
 }
 
 .timeline-count {
@@ -686,6 +710,35 @@ dd {
     box-shadow: 0 0 16px rgba(56, 189, 248, 0.12);
 }
 
+.timeline-secondary-button {
+    margin-top: 12px;
+    border: 1px solid rgba(125, 211, 252, 0.24);
+    border-radius: 6px;
+    background: rgba(3, 10, 24, 0.62);
+    color: #dff8ff;
+    padding: 8px 10px;
+    font-weight: 800;
+}
+
+.timeline-secondary-button:hover {
+    border-color: var(--accent);
+    background: rgba(14, 165, 233, 0.18);
+}
+
+.timeline-import-data {
+    margin: 12px 0 0;
+    overflow: auto;
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.72);
+    color: #dbeafe;
+    padding: 14px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 .content-grid {
     grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
     align-items: stretch;
@@ -728,6 +781,13 @@ dd {
     touch-action: none;
 }
 
+.workspace-loading-surface {
+    background:
+        radial-gradient(circle at top, rgba(14, 165, 233, 0.14), transparent 38%),
+        linear-gradient(180deg, rgba(2, 6, 23, 0.9), rgba(2, 6, 23, 0.96)),
+        #020617;
+}
+
 .map-request-panel {
     position: absolute;
     left: 50%;
@@ -754,6 +814,68 @@ dd {
     margin: 0;
     color: var(--muted);
     line-height: 1.6;
+}
+
+.inline-loading-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: transparent;
+    backdrop-filter: none;
+}
+
+.workspace-loading-backdrop {
+    justify-items: center;
+}
+
+.workspace-loading-shared-backdrop {
+    place-items: center;
+}
+
+.workspace-loading-modal-host {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    position: relative;
+    min-height: 0;
+    z-index: 3;
+    pointer-events: none;
+    align-self: stretch;
+    justify-self: stretch;
+}
+
+.workspace-loading-modal-host .loading-modal {
+    pointer-events: auto;
+}
+
+.workspace-loading-backdrop .loading-modal {
+    width: min(520px, calc(100% - 32px));
+    background: rgba(5, 14, 30, 0.92);
+}
+
+.workspace-loading-copy {
+    min-height: 0;
+}
+
+.route-planner-loading-backdrop {
+    position: static;
+    inset: auto;
+    padding: 0;
+}
+
+.route-planner-loading-backdrop .loading-modal {
+    width: 100%;
+    background: rgba(5, 14, 30, 0.76);
+    box-shadow: none;
+}
+
+.workspace-loading-note,
+.workspace-loading-error {
+    margin: 0;
+    color: #c8d8ea;
+    line-height: 1.45;
 }
 
 .switch-field {

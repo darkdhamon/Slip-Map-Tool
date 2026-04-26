@@ -1,0 +1,388 @@
+using Bunit;
+using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
+using StarWin.Application.Services;
+using StarWin.Domain.Model.Entity.Civilization;
+using StarWin.Domain.Model.Entity.Media;
+using StarWin.Domain.Model.Entity.Notes;
+using StarWin.Domain.Model.Entity.StarMap;
+using StarWin.Web.Components.Layout;
+using StarWin.Web.Components.Pages;
+
+namespace StarWin.Web.Tests.Pages;
+
+public sealed class AliensPageTests : BunitContext
+{
+    [Fact]
+    public void RendersRequestedRaceInDedicatedPage()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext());
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/aliens?sectorId=7&raceId=1");
+
+        var cut = Render<Aliens>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Alien biology", cut.Markup);
+            Assert.Contains("Aurelian", cut.Markup);
+            Assert.Contains("Homeworld: Helios", cut.Markup);
+            Assert.Contains("Empire memberships", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void FiltersRacesBySearchQueryAndClearsFilters()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(
+            additionalRaces:
+            [
+                CreateRace(2, "Krell", "Reptilian", "Arid")
+            ]));
+
+        var cut = Render<Aliens>();
+
+        cut.Find("input[placeholder='Name, biology, traits...']").Input("Krell");
+
+        cut.WaitForAssertion(() =>
+        {
+            var visibleRows = cut.FindAll(".record-row");
+            Assert.Single(visibleRows);
+            Assert.Contains("Krell", visibleRows[0].TextContent);
+            Assert.Contains("Showing 1 race", cut.Markup);
+        });
+
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Trim() == "Clear filters")
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(2, cut.FindAll(".record-row").Count);
+            Assert.Contains("Showing 2 races", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void FiltersRacesByEnvironmentWhenFilterIsApplied()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(
+            additionalRaces:
+            [
+                CreateRace(2, "Krell", "Reptilian", "Arid")
+            ]));
+
+        var cut = Render<Aliens>();
+
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Trim() == "Show filters")
+            .Click();
+
+        cut.Find("input[placeholder='All environments']").Input("Arid");
+
+        cut.WaitForAssertion(() =>
+        {
+            var visibleRows = cut.FindAll(".record-row");
+            Assert.Single(visibleRows);
+            Assert.Contains("Krell", visibleRows[0].TextContent);
+            Assert.Contains("Showing 1 race", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void LoadMoreRevealsAdditionalRaces()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var additionalRaces = new List<AlienRace>();
+        for (var index = 0; index < 121; index++)
+        {
+            additionalRaces.Add(CreateRace(index + 10, $"Race {index:D3}", "Humanoid", "Temperate"));
+        }
+
+        ConfigureServices(CreateContext(additionalRaces: additionalRaces));
+
+        var cut = Render<Aliens>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Showing 120 races+", cut.Markup);
+            Assert.DoesNotContain("Race 120", cut.Markup);
+        });
+
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Trim() == "Load more")
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Showing 122 races", cut.Markup);
+            Assert.Contains("Race 120", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void NavigatesToRelatedExplorerPagesFromAlienActions()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext());
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/aliens?sectorId=7&raceId=1");
+
+        var cut = Render<Aliens>();
+
+        cut.WaitForAssertion(() => Assert.Contains("Homeworld: Helios", cut.Markup));
+
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Trim() == "Homeworld: Helios")
+            .Click();
+
+        Assert.EndsWith("/sector-explorer/worlds?sectorId=7&systemId=11&worldId=101&raceId=1", navigationManager.Uri, StringComparison.Ordinal);
+
+        cut.FindAll(".relationship-row")
+            .Single(button => button.TextContent.Contains("Orion Compact", StringComparison.Ordinal))
+            .Click();
+
+        Assert.EndsWith("/sector-explorer/empires?sectorId=7&systemId=11&raceId=1&empireId=2", navigationManager.Uri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShowsEmptyMembershipStateWhenRaceHasNoEmpireMemberships()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(
+            additionalRaces:
+            [
+                CreateRace(2, "Nomads", "Avian", "Vacuum", addMembership: false)
+            ]));
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/aliens?sectorId=7&raceId=2");
+
+        var cut = Render<Aliens>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("No empire memberships in this sector.", cut.Markup);
+            Assert.Contains("GURPS template", cut.Markup);
+        });
+    }
+
+    private void ConfigureServices(StarWinExplorerContext context)
+    {
+        Services.AddScoped<SectorExplorerLayoutStateStore>();
+        Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
+        Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
+        Services.AddSingleton<IStarWinImageService>(new FakeImageService());
+        Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());
+        Services.AddSingleton<IStarWinEntityNoteService>(new FakeEntityNoteService());
+    }
+
+    private static StarWinExplorerContext CreateContext(
+        IEnumerable<AlienRace>? additionalRaces = null)
+    {
+        var world = new World
+        {
+            Id = 101,
+            Name = "Helios",
+            WorldType = "Terran",
+            AtmosphereType = "Breathable",
+            StarSystemId = 11
+        };
+
+        world.Colony = new Colony
+        {
+            Id = 201,
+            WorldId = world.Id,
+            Name = "Helios Prime",
+            ColonyClass = "Capital",
+            EstimatedPopulation = 3_200_000_000,
+            RaceId = 1,
+            ColonistRaceName = "Aurelian",
+            ControllingEmpireId = 2,
+            FoundingEmpireId = 2,
+            AllegianceId = 2,
+            AllegianceName = "Orion Compact"
+        };
+        world.Colony.Demographics.Add(new ColonyDemographic
+        {
+            RaceId = 1,
+            RaceName = "Aurelian",
+            PopulationPercent = 92
+        });
+
+        var system = new StarSystem
+        {
+            Id = 11,
+            SectorId = 7,
+            Name = "Helios"
+        };
+        system.Worlds.Add(world);
+
+        var sector = new StarWinSector
+        {
+            Id = 7,
+            Name = "Del Corra"
+        };
+        sector.Systems.Add(system);
+
+        var primaryRace = CreateRace(1, "Aurelian", "Humanoid", "Temperate");
+        primaryRace.HomePlanetId = world.Id;
+
+        var empire = new Empire
+        {
+            Id = 2,
+            Name = "Orion Compact",
+            Planets = 4,
+            NativePopulationMillions = 3200
+        };
+        empire.CivilizationProfile.TechLevel = 9;
+        empire.Founding.FoundingWorldId = world.Id;
+        empire.RaceMemberships.Add(new EmpireRaceMembership
+        {
+            RaceId = primaryRace.Id,
+            IsPrimary = true,
+            Role = EmpireRaceRole.Member,
+            PopulationMillions = 3200
+        });
+
+        var races = new List<AlienRace> { primaryRace };
+        if (additionalRaces is not null)
+        {
+            foreach (var additionalRace in additionalRaces)
+            {
+                additionalRace.HomePlanetId = world.Id;
+                races.Add(additionalRace);
+                world.Colony.Demographics.Add(new ColonyDemographic
+                {
+                    RaceId = additionalRace.Id,
+                    RaceName = additionalRace.Name,
+                    PopulationPercent = 1
+                });
+
+                if (additionalRace.DevotionLevel != AlienDevotionLevel.None)
+                {
+                    empire.RaceMemberships.Add(new EmpireRaceMembership
+                    {
+                        RaceId = additionalRace.Id,
+                        IsPrimary = false,
+                        Role = EmpireRaceRole.Member,
+                        PopulationMillions = 25
+                    });
+                }
+            }
+        }
+
+        return new StarWinExplorerContext([sector], sector, races, [empire], []);
+    }
+
+    private static AlienRace CreateRace(int raceId, string name, string appearanceType, string environmentType, bool addMembership = true)
+    {
+        var race = new AlienRace
+        {
+            Id = raceId,
+            Name = name,
+            AppearanceType = appearanceType,
+            EnvironmentType = environmentType,
+            BodyChemistry = "Carbon",
+            BodyCoverType = "Feathered",
+            GovernmentType = "Council",
+            Diet = "Omnivore",
+            Religion = "Animism",
+            Reproduction = "Sexual",
+            ReproductionMethod = "Live birth",
+            DevotionLevel = AlienDevotionLevel.High,
+            MassKg = 85,
+            SizeCm = 180,
+            LimbPairCount = 2
+        };
+        race.BiologyProfile.Lifespan = 120;
+        race.BiologyProfile.Body = 1;
+        race.BiologyProfile.Mind = 2;
+        race.BiologyProfile.Speed = 1;
+        race.BiologyProfile.PsiRating = 0;
+        race.HomePlanetId = 101;
+
+        if (!addMembership)
+        {
+            race.DevotionLevel = AlienDevotionLevel.None;
+        }
+
+        return race;
+    }
+
+    private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
+    {
+        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(context);
+        }
+
+        public Task<StarWinSector?> LoadSectorAsync(int sectorId, ExplorerSectorLoadSections loadSections, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<StarWinSector?>(context.Sectors.FirstOrDefault(sector => sector.Id == sectorId));
+        }
+    }
+
+    private sealed class FakeSearchService : IStarWinSearchService
+    {
+        public IReadOnlyList<StarWinSearchResult> Search(string query, int maxResults = 30)
+        {
+            return [];
+        }
+    }
+
+    private sealed class FakeImageService : IStarWinImageService
+    {
+        public Task<IReadOnlyList<EntityImage>> GetImagesAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<EntityImage>>([]);
+        }
+
+        public Task<EntityImage> UploadImageAsync(EntityImageTargetKind targetKind, int targetId, string fileName, string contentType, Stream content, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new EntityImage
+            {
+                TargetKind = targetKind,
+                TargetId = targetId,
+                FileName = fileName
+            });
+        }
+    }
+
+    private sealed class FakeEntityNameService : IStarWinEntityNameService
+    {
+        public Task<string> SaveNameAsync(EntityNoteTargetKind targetKind, int targetId, string name, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(name);
+        }
+    }
+
+    private sealed class FakeEntityNoteService : IStarWinEntityNoteService
+    {
+        public Task<EntityNote?> GetNoteAsync(EntityNoteTargetKind targetKind, int targetId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<EntityNote?>(null);
+        }
+
+        public Task<EntityNote?> SaveNoteAsync(EntityNoteTargetKind targetKind, int targetId, string markdown, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<EntityNote?>(new EntityNote
+            {
+                TargetKind = targetKind,
+                TargetId = targetId,
+                Markdown = markdown
+            });
+        }
+    }
+}

@@ -1,4 +1,4 @@
-@if (IsVisible)
+@if (AlwaysRender || IsVisible)
 {
     <p class="loading-elapsed"
        aria-live="off"
@@ -10,13 +10,25 @@
     [Parameter]
     public bool IsVisible { get; set; }
 
+    [Parameter]
+    public bool AlwaysRender { get; set; }
+
+    [Parameter]
+    public long? StartedAtUnixMs { get; set; }
+
     private long? startedAtUnixMs;
 
     protected override void OnParametersSet()
     {
         if (IsVisible)
         {
-            startedAtUnixMs ??= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            startedAtUnixMs = StartedAtUnixMs ?? startedAtUnixMs ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            return;
+        }
+
+        if (AlwaysRender)
+        {
+            startedAtUnixMs = StartedAtUnixMs ?? startedAtUnixMs;
             return;
         }
 

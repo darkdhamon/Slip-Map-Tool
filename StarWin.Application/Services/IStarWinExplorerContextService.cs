@@ -3,9 +3,30 @@ using StarWin.Domain.Model.Entity.StarMap;
 
 namespace StarWin.Application.Services;
 
+[Flags]
+public enum ExplorerSectorLoadSections
+{
+    None = 0,
+    AstralBodies = 1 << 0,
+    Worlds = 1 << 1,
+    WorldCharacteristics = 1 << 2,
+    Colonies = 1 << 3,
+    ColonyDemographics = 1 << 4,
+    SpaceHabitats = 1 << 5,
+    SavedRoutes = 1 << 6,
+    History = 1 << 7
+}
+
 public interface IStarWinExplorerContextService
 {
-    Task<StarWinExplorerContext> LoadAsync(CancellationToken cancellationToken = default);
+    Task<StarWinExplorerContext> LoadShellAsync(
+        bool includeSavedRoutes = true,
+        bool includeReferenceData = true,
+        CancellationToken cancellationToken = default);
+    Task<StarWinSector?> LoadSectorAsync(
+        int sectorId,
+        ExplorerSectorLoadSections loadSections,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record StarWinExplorerContext(

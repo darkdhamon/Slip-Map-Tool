@@ -418,6 +418,9 @@ namespace StarWin.Infrastructure.Data.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
 
+                    b.Property<string>("ImportDataJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<int?>("OtherRaceId")
                         .HasColumnType("int");
 

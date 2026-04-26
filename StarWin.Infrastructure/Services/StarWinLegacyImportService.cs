@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Globalization;
 using System.Data;
 using System.Data.Common;
+using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -280,7 +281,8 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         "ColonyId",
         "PlanetId",
         "StarSystemId",
-        "Description"
+        "Description",
+        "ImportDataJson"
     ];
 
     private static readonly string[] EnvironmentTypes =
@@ -686,44 +688,34 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
 
         var sectorId = sector.Id;
         await ReportImportProgressAsync(progress, 24, "Reading existing records...", "Loading existing systems, worlds, races, empires, colonies, and history keys.");
-        var existingSystemIds = isNewSector
-            ? new HashSet<int>()
+        var existingSystems = isNewSector
+            ? []
             : await dbContext.StarSystems
                 .Where(system => system.SectorId == sectorId)
-                .Select(system => system.Id)
-                .ToHashSetAsync(cancellationToken);
-        var existingWorldIds = isNewSector
-            ? new HashSet<int>()
+                .Include(system => system.AstralBodies)
+                .ToListAsync(cancellationToken);
+        var existingSystemsById = existingSystems.ToDictionary(system => system.Id);
+        var existingSystemIds = existingSystemsById.Keys.ToHashSet();
+        var existingWorlds = isNewSector
+            ? []
             : await dbContext.Worlds
                 .Where(world => world.StarSystemId != null
                     && dbContext.StarSystems.Any(system => system.Id == world.StarSystemId && system.SectorId == sectorId))
-                .Select(world => world.Id)
-                .ToHashSetAsync(cancellationToken);
-        var existingAstralBodyRoles = isNewSector
-            ? new Dictionary<int, HashSet<AstralBodyRole>>()
-            : (await dbContext.Set<AstralBody>()
-                .Where(body => dbContext.StarSystems.Any(system =>
-                    system.Id == EF.Property<int>(body, "StarSystemId") && system.SectorId == sectorId))
-                .Select(body => new
-                {
-                    StarSystemId = EF.Property<int>(body, "StarSystemId"),
-                    body.Role
-                })
-                .ToListAsync(cancellationToken))
-                .GroupBy(body => body.StarSystemId)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group.Select(body => body.Role).ToHashSet());
-        var existingRaceIds = await dbContext.AlienRaces
-            .Select(race => race.Id)
-            .ToHashSetAsync(cancellationToken);
-        var existingEmpireIds = await dbContext.Empires
-            .Select(empire => empire.Id)
-            .ToHashSetAsync(cancellationToken);
+                .Include(world => world.UnusualCharacteristics)
+                .ToListAsync(cancellationToken);
+        var existingWorldsById = existingWorlds.ToDictionary(world => world.Id);
+        var existingWorldIds = existingWorldsById.Keys.ToHashSet();
+        var existingAstralBodyRoles = existingSystems.ToDictionary(
+            system => system.Id,
+            system => system.AstralBodies.Select(body => body.Role).ToHashSet());
         var knownAlienRaces = await dbContext.AlienRaces
             .ToDictionaryAsync(race => race.Id, cancellationToken);
+        var existingRaceIds = knownAlienRaces.Keys.ToHashSet();
         var knownEmpires = await dbContext.Empires
+            .Include(empire => empire.Contacts)
+            .Include(empire => empire.RaceMemberships)
             .ToDictionaryAsync(empire => empire.Id, cancellationToken);
+        var existingEmpireIds = knownEmpires.Keys.ToHashSet();
         var independentEmpireColonyIds = await dbContext.Empires
             .Where(empire => empire.Founding.Origin == EmpireOrigin.IndependentColony
                 && empire.Founding.FoundingColonyId != null)
@@ -733,10 +725,13 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             .Where(habitat => habitat.OrbitTargetKind == OrbitTargetKind.World)
             .Select(habitat => habitat.OrbitTargetId)
             .ToHashSetAsync(cancellationToken);
-        var existingColonyWorldIds = await dbContext.Colonies
-            .Select(colony => colony.WorldId)
-            .ToHashSetAsync(cancellationToken);
+        var existingColonies = await dbContext.Colonies
+            .Include(colony => colony.Demographics)
+            .ToListAsync(cancellationToken);
+        var existingColoniesByWorldId = existingColonies.ToDictionary(colony => colony.WorldId);
+        var existingColonyWorldIds = existingColoniesByWorldId.Keys.ToHashSet();
         var existingHistoryKeys = new HashSet<string>(StringComparer.Ordinal);
+        var existingHistoryByKey = new Dictionary<string, HistoryEvent>(StringComparer.Ordinal);
         if (!isNewSector)
         {
             var existingHistory = await dbContext.HistoryEvents
@@ -744,7 +739,9 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 .ToListAsync(cancellationToken);
             foreach (var history in existingHistory)
             {
-                existingHistoryKeys.Add(BuildHistoryKey(history));
+                var historyKey = BuildHistoryKey(history);
+                existingHistoryKeys.Add(historyKey);
+                existingHistoryByKey[historyKey] = history;
             }
         }
 
@@ -776,6 +773,12 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         var skippedEmpireCount = 0;
         var skippedColonyCount = 0;
         var skippedHistoryCount = 0;
+        var mergedSystemCount = 0;
+        var mergedWorldCount = 0;
+        var mergedAlienCount = 0;
+        var mergedEmpireCount = 0;
+        var mergedColonyCount = 0;
+        var mergedHistoryCount = 0;
         var originalAutoDetectChanges = dbContext.ChangeTracker.AutoDetectChangesEnabled;
         dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
         await using var importTransaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -806,33 +809,29 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 }
 
                 var worlds = BuildWorlds(systemImport, planets, moons, sectorId);
-                var newWorlds = worlds
-                    .Where(world => !existingWorldIds.Contains(world.Id))
-                    .ToList();
-                skippedWorldCount += worlds.Count - newWorlds.Count;
-                foreach (var world in newWorlds)
+                var newWorlds = new List<World>();
+                foreach (var world in worlds)
                 {
-                    existingWorldIds.Add(world.Id);
-                }
-
-                if (existingSystemIds.Add(systemImport.System.Id))
-                {
-                    foreach (var world in newWorlds)
+                    if (existingWorldsById.TryGetValue(world.Id, out var existingWorld))
                     {
-                        batch.Worlds.Add(world);
-                        AddUnusualCharacteristicRows(batch.UnusualCharacteristics, world);
+                        skippedWorldCount++;
+                        if (MergeMissingWorldData(existingWorld, world))
+                        {
+                            mergedWorldCount++;
+                        }
+
+                        continue;
                     }
 
-                    batch.StarSystems.Add(systemImport.System);
-                    AddAstralBodyRows(batch.AstralBodies, systemImport.System.Id, systemImport.System.AstralBodies);
-                    addedSystemCount++;
-                    addedAstralBodyCount += systemImport.System.AstralBodies.Count;
-                    addedWorldCount += newWorlds.Count;
-                    addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
+                    newWorlds.Add(world);
+                    existingWorldIds.Add(world.Id);
+                    existingWorldsById[world.Id] = world;
                 }
-                else
+
+                if (existingSystemsById.TryGetValue(systemImport.System.Id, out var existingSystem))
                 {
                     skippedSystemCount++;
+                    var mergedSystem = MergeMissingStarSystemData(existingSystem, systemImport.System);
                     if (!existingAstralBodyRoles.TryGetValue(systemImport.System.Id, out var existingRoles))
                     {
                         existingRoles = [];
@@ -843,6 +842,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                     {
                         batch.AstralBodies.Add(new AstralBodyImportRow(systemImport.System.Id, astralBody));
                         addedAstralBodyCount++;
+                        mergedSystem = true;
                     }
 
                     foreach (var world in newWorlds)
@@ -851,6 +851,28 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                         AddUnusualCharacteristicRows(batch.UnusualCharacteristics, world);
                     }
 
+                    if (mergedSystem)
+                    {
+                        mergedSystemCount++;
+                    }
+
+                    addedWorldCount += newWorlds.Count;
+                    addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
+                }
+                else
+                {
+                    existingSystemIds.Add(systemImport.System.Id);
+                    existingSystemsById[systemImport.System.Id] = systemImport.System;
+                    foreach (var world in newWorlds)
+                    {
+                        batch.Worlds.Add(world);
+                        AddUnusualCharacteristicRows(batch.UnusualCharacteristics, world);
+                    }
+
+                    batch.StarSystems.Add(systemImport.System);
+                    AddAstralBodyRows(batch.AstralBodies, systemImport.System.Id, systemImport.System.AstralBodies);
+                    addedSystemCount++;
+                    addedAstralBodyCount += systemImport.System.AstralBodies.Count;
                     addedWorldCount += newWorlds.Count;
                     addedMoonCount += newWorlds.Count(world => world.Kind == WorldKind.Moon);
                 }
@@ -888,13 +910,19 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             await ReportImportProgressAsync(progress, 60, "Writing alien races...", $"Preparing {aliens.Count:N0} alien race record(s).");
             foreach (var alienRecord in aliens)
             {
-                if (!existingRaceIds.Add(alienRecord.LegacyId))
+                var alienRace = CreateAlienRace(alienRecord, sectorId);
+                if (knownAlienRaces.TryGetValue(alienRecord.LegacyId, out var existingAlienRace))
                 {
                     skippedAlienCount++;
+                    if (MergeMissingAlienRaceData(existingAlienRace, alienRace))
+                    {
+                        mergedAlienCount++;
+                    }
+
                     continue;
                 }
 
-                var alienRace = CreateAlienRace(alienRecord, sectorId);
+                existingRaceIds.Add(alienRecord.LegacyId);
                 dbContext.AlienRaces.Add(alienRace);
                 knownAlienRaces[alienRace.Id] = alienRace;
                 addedAlienCount++;
@@ -903,13 +931,19 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             await ReportImportProgressAsync(progress, 66, "Writing empires and contacts...", $"Preparing {empires.Count:N0} empire record(s) and {contacts.Count:N0} contact record(s).");
             foreach (var empireRecord in empires)
             {
-                if (!existingEmpireIds.Add(empireRecord.LegacyId))
+                var empire = CreateEmpire(empireRecord, aliens, contacts, sectorId);
+                if (knownEmpires.TryGetValue(empireRecord.LegacyId, out var existingEmpire))
                 {
                     skippedEmpireCount++;
+                    if (MergeMissingEmpireData(existingEmpire, empire))
+                    {
+                        mergedEmpireCount++;
+                    }
+
                     continue;
                 }
 
-                var empire = CreateEmpire(empireRecord, aliens, contacts, sectorId);
+                existingEmpireIds.Add(empireRecord.LegacyId);
                 dbContext.Empires.Add(empire);
                 knownEmpires[empire.Id] = empire;
                 addedEmpireCount++;
@@ -921,7 +955,8 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 71,
                 "Saving races, empires, and contacts...",
                 $"Committing {addedAlienCount:N0} alien race(s), {addedEmpireCount:N0} empire(s), and {addedContactCount:N0} contact(s).",
-                cancellationToken);
+                cancellationToken,
+                clearChangeTracker: false);
 
             var importedColonies = new List<Colony>();
             var importedHistoryEvents = new List<HistoryEvent>();
@@ -930,13 +965,26 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             {
                 var colonyRecord = colonies[colonyIndex];
                 var colony = CreateColony(colonyRecord, aliens, sectorId);
-                if (!existingWorldIds.Contains(colony.WorldId) || !existingColonyWorldIds.Add(colony.WorldId))
+                if (!existingWorldIds.Contains(colony.WorldId))
                 {
                     skippedColonyCount++;
                     continue;
                 }
 
+                if (existingColoniesByWorldId.TryGetValue(colony.WorldId, out var existingColony))
+                {
+                    skippedColonyCount++;
+                    if (MergeMissingColonyData(existingColony, colony))
+                    {
+                        mergedColonyCount++;
+                    }
+
+                    continue;
+                }
+
                 importedColonies.Add(colony);
+                existingColonyWorldIds.Add(colony.WorldId);
+                existingColoniesByWorldId[colony.WorldId] = colony;
                 addedColonyCount++;
 
                 var processedColonyCount = colonyIndex + 1;
@@ -952,12 +1000,19 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             {
                 var historyEvent = historyEvents[historyIndex];
                 var historyKey = BuildHistoryKey(historyEvent);
-                if (!existingHistoryKeys.Add(historyKey))
+                if (existingHistoryByKey.TryGetValue(historyKey, out var existingHistory))
                 {
                     skippedHistoryCount++;
+                    if (MergeMissingHistoryData(existingHistory, historyEvent))
+                    {
+                        mergedHistoryCount++;
+                    }
+
                     continue;
                 }
 
+                existingHistoryKeys.Add(historyKey);
+                existingHistoryByKey[historyKey] = historyEvent;
                 importedHistoryEvents.Add(historyEvent);
                 addedHistoryCount++;
 
@@ -1099,6 +1154,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 $"{sector.Name} merged from {packageName}.",
                 $"Added {addedSystemCount:N0} star systems, {addedAstralBodyCount:N0} astral bodies, {addedWorldCount:N0} worlds, and {addedMoonCount:N0} moon satellites.",
                 $"Added {addedAlienCount:N0} alien races, {addedEmpireCount:N0} empires, {addedContactCount:N0} empire contacts, {addedColonyCount:N0} colonies, and {addedHistoryCount:N0} history events.",
+                $"Backfilled {mergedSystemCount:N0} existing star systems, {mergedWorldCount:N0} worlds, {mergedAlienCount:N0} races, {mergedEmpireCount:N0} empires, {mergedColonyCount:N0} colonies, and {mergedHistoryCount:N0} history events with missing data only.",
                 $"Created {addedIndependentEmpireCount:N0} independent colony empires and {addedSpaceHabitatCount:N0} space habitat satellites from colony/history data.",
                 $"Skipped {skippedSystemCount:N0} existing star systems, {skippedWorldCount:N0} existing worlds, {skippedAlienCount:N0} races, {skippedEmpireCount:N0} empires, {skippedColonyCount:N0} colonies, and {skippedHistoryCount:N0} history events without overwriting."
             ]);
@@ -1470,8 +1526,11 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         historyEvent.ColonyId,
         historyEvent.PlanetId,
         historyEvent.StarSystemId,
-        historyEvent.Description
+        historyEvent.Description,
+        historyEvent.ImportDataJson
     ];
+
+    private static string SerializeImportData<T>(T importData) => JsonSerializer.Serialize(importData);
 
     private static string FormatCoordinates(Coordinates coordinates) => $"{coordinates.X},{coordinates.Y},{coordinates.Z}";
 
@@ -1953,7 +2012,11 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 {
                     SectorId = sectorId,
                     EventType = line.StartsWith("Info", StringComparison.OrdinalIgnoreCase) ? "Info" : "History",
-                    Description = Truncate(line, 1_200)
+                    Description = Truncate(line, 1_200),
+                    ImportDataJson = SerializeImportData(new
+                    {
+                        Line = line
+                    })
                 };
             }
 
@@ -1986,7 +2049,17 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 EmpireId = ParseNullableInt(fields[2]),
                 PlanetId = legacyPlanetId is null ? null : BuildPlanetWorldId(sectorId, legacyPlanetId.Value),
                 StarSystemId = legacySystemId is null ? null : BuildStarSystemId(sectorId, legacySystemId.Value),
-                Description = Truncate(fields[6].Trim(), 1_200)
+                Description = Truncate(fields[6].Trim(), 1_200),
+                ImportDataJson = SerializeImportData(new
+                {
+                    Century = fields[0].Trim(),
+                    Type = fields[1].Trim(),
+                    Race1 = fields[2].Trim(),
+                    Race2 = fields[3].Trim(),
+                    Planet = fields[4].Trim(),
+                    System = fields[5].Trim(),
+                    Event = fields[6].Trim()
+                })
             };
         }
     }
@@ -2657,6 +2730,511 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     private static string Truncate(string value, int maxLength)
     {
         return value.Length <= maxLength ? value : value[..maxLength];
+    }
+
+    private static bool MergeMissingStarSystemData(StarSystem existing, StarSystem imported)
+    {
+        var changed = false;
+
+        if (existing.LegacySystemId is null && imported.LegacySystemId is not null)
+        {
+            existing.LegacySystemId = imported.LegacySystemId;
+            changed = true;
+        }
+
+        changed |= FillMissingString(() => existing.Name, value => existing.Name = value, imported.Name);
+        if (existing.Coordinates == default && imported.Coordinates != default)
+        {
+            existing.Coordinates = imported.Coordinates;
+            changed = true;
+        }
+
+        if (existing.AllegianceId == ushort.MaxValue && imported.AllegianceId != ushort.MaxValue)
+        {
+            existing.AllegianceId = imported.AllegianceId;
+            changed = true;
+        }
+
+        if (existing.MapCode == 0 && imported.MapCode != 0)
+        {
+            existing.MapCode = imported.MapCode;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool MergeMissingWorldData(World existing, World imported)
+    {
+        var changed = false;
+
+        if (existing.LegacyPlanetId is null && imported.LegacyPlanetId is not null)
+        {
+            existing.LegacyPlanetId = imported.LegacyPlanetId;
+            changed = true;
+        }
+
+        if (existing.LegacyMoonId is null && imported.LegacyMoonId is not null)
+        {
+            existing.LegacyMoonId = imported.LegacyMoonId;
+            changed = true;
+        }
+
+        if (existing.StarSystemId is null && imported.StarSystemId is not null)
+        {
+            existing.StarSystemId = imported.StarSystemId;
+            changed = true;
+        }
+
+        if (existing.ParentWorldId is null && imported.ParentWorldId is not null)
+        {
+            existing.ParentWorldId = imported.ParentWorldId;
+            changed = true;
+        }
+
+        if (existing.PrimaryAstralBodySequence is null && imported.PrimaryAstralBodySequence is not null)
+        {
+            existing.PrimaryAstralBodySequence = imported.PrimaryAstralBodySequence;
+            changed = true;
+        }
+
+        changed |= FillMissingString(() => existing.Name, value => existing.Name = value, imported.Name);
+        changed |= FillMissingString(() => existing.WorldType, value => existing.WorldType = value, imported.WorldType);
+        changed |= FillMissingString(() => existing.AtmosphereType, value => existing.AtmosphereType = value, imported.AtmosphereType);
+        changed |= FillMissingString(() => existing.AtmosphereComposition, value => existing.AtmosphereComposition = value, imported.AtmosphereComposition);
+        changed |= FillMissingString(() => existing.WaterType, value => existing.WaterType = value, imported.WaterType);
+
+        if (existing.DiameterKm == 0 && imported.DiameterKm > 0)
+        {
+            existing.DiameterKm = imported.DiameterKm;
+            changed = true;
+        }
+
+        if (existing.DensityTenthsEarth == 0 && imported.DensityTenthsEarth > 0)
+        {
+            existing.DensityTenthsEarth = imported.DensityTenthsEarth;
+            changed = true;
+        }
+
+        if (existing.AlienRaceId is null && imported.AlienRaceId is not null)
+        {
+            existing.AlienRaceId = imported.AlienRaceId;
+            changed = true;
+        }
+
+        if (existing.ControlledByEmpireId is null && imported.ControlledByEmpireId is not null)
+        {
+            existing.ControlledByEmpireId = imported.ControlledByEmpireId;
+            changed = true;
+        }
+
+        if (existing.AllegianceId == ushort.MaxValue && imported.AllegianceId != ushort.MaxValue)
+        {
+            existing.AllegianceId = imported.AllegianceId;
+            changed = true;
+        }
+
+        changed |= FillMissingNullable(() => existing.Albedo, value => existing.Albedo = value, imported.Albedo);
+        changed |= FillMissingNullable(() => existing.OrbitRadiusAu, value => existing.OrbitRadiusAu = value, imported.OrbitRadiusAu);
+        changed |= FillMissingNullable(() => existing.OrbitRadiusKm, value => existing.OrbitRadiusKm = value, imported.OrbitRadiusKm);
+        changed |= FillMissingNullable(() => existing.SmallestMolecularWeightRetained, value => existing.SmallestMolecularWeightRetained = value, imported.SmallestMolecularWeightRetained);
+        changed |= FillMissingNullable(() => existing.AxialTiltDegrees, value => existing.AxialTiltDegrees = value, imported.AxialTiltDegrees);
+        changed |= FillMissingNullable(() => existing.OrbitalInclinationDegrees, value => existing.OrbitalInclinationDegrees = value, imported.OrbitalInclinationDegrees);
+        changed |= FillMissingNullable(() => existing.RotationPeriodHours, value => existing.RotationPeriodHours = value, imported.RotationPeriodHours);
+        changed |= FillMissingNullable(() => existing.EccentricityThousandths, value => existing.EccentricityThousandths = value, imported.EccentricityThousandths);
+        changed |= FillMissingNullable(() => existing.OrbitPeriodDays, value => existing.OrbitPeriodDays = value, imported.OrbitPeriodDays);
+        changed |= FillMissingNullable(() => existing.GravityEarthG, value => existing.GravityEarthG = value, imported.GravityEarthG);
+        changed |= FillMissingNullable(() => existing.MassEarthMasses, value => existing.MassEarthMasses = value, imported.MassEarthMasses);
+        changed |= FillMissingNullable(() => existing.EscapeVelocityKmPerSecond, value => existing.EscapeVelocityKmPerSecond = value, imported.EscapeVelocityKmPerSecond);
+        changed |= FillMissingNullable(() => existing.OxygenPressureAtmospheres, value => existing.OxygenPressureAtmospheres = value, imported.OxygenPressureAtmospheres);
+        changed |= FillMissingNullable(() => existing.BoilingPointCelsius, value => existing.BoilingPointCelsius = value, imported.BoilingPointCelsius);
+        changed |= FillMissingNullable(() => existing.MagneticFieldGauss, value => existing.MagneticFieldGauss = value, imported.MagneticFieldGauss);
+
+        if (existing.Hydrography.WaterPercent == 0
+            && existing.Hydrography.IcePercent == 0
+            && existing.Hydrography.CloudPercent == 0
+            && (imported.Hydrography.WaterPercent > 0 || imported.Hydrography.IcePercent > 0 || imported.Hydrography.CloudPercent > 0))
+        {
+            existing.Hydrography.WaterPercent = imported.Hydrography.WaterPercent;
+            existing.Hydrography.IcePercent = imported.Hydrography.IcePercent;
+            existing.Hydrography.CloudPercent = imported.Hydrography.CloudPercent;
+            changed = true;
+        }
+
+        if (existing.MineralResources.MetalOre == 0
+            && existing.MineralResources.RadioactiveOre == 0
+            && existing.MineralResources.PreciousMetal == 0
+            && existing.MineralResources.RawCrystals == 0
+            && existing.MineralResources.PreciousGems == 0
+            && (imported.MineralResources.MetalOre > 0
+                || imported.MineralResources.RadioactiveOre > 0
+                || imported.MineralResources.PreciousMetal > 0
+                || imported.MineralResources.RawCrystals > 0
+                || imported.MineralResources.PreciousGems > 0))
+        {
+            existing.MineralResources.MetalOre = imported.MineralResources.MetalOre;
+            existing.MineralResources.RadioactiveOre = imported.MineralResources.RadioactiveOre;
+            existing.MineralResources.PreciousMetal = imported.MineralResources.PreciousMetal;
+            existing.MineralResources.RawCrystals = imported.MineralResources.RawCrystals;
+            existing.MineralResources.PreciousGems = imported.MineralResources.PreciousGems;
+            changed = true;
+        }
+
+        var knownCharacteristicCodes = existing.UnusualCharacteristics
+            .Select(characteristic => characteristic.Code)
+            .ToHashSet();
+        foreach (var characteristic in imported.UnusualCharacteristics.Where(characteristic => knownCharacteristicCodes.Add(characteristic.Code)))
+        {
+            existing.UnusualCharacteristics.Add(new UnusualCharacteristic
+            {
+                Code = characteristic.Code,
+                Name = characteristic.Name,
+                Notes = characteristic.Notes
+            });
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool MergeMissingAlienRaceData(AlienRace existing, AlienRace imported)
+    {
+        var changed = false;
+
+        if (existing.HomePlanetId == 0 && imported.HomePlanetId > 0)
+        {
+            existing.HomePlanetId = imported.HomePlanetId;
+            changed = true;
+        }
+
+        changed |= FillMissingString(() => existing.Name, value => existing.Name = value, imported.Name);
+        changed |= FillMissingString(() => existing.EnvironmentType, value => existing.EnvironmentType = value, imported.EnvironmentType);
+        changed |= FillMissingString(() => existing.BodyChemistry, value => existing.BodyChemistry = value, imported.BodyChemistry);
+        changed |= FillMissingString(() => existing.GovernmentType, value => existing.GovernmentType = value, imported.GovernmentType);
+        changed |= FillMissingString(() => existing.BodyCoverType, value => existing.BodyCoverType = value, imported.BodyCoverType);
+        changed |= FillMissingString(() => existing.AppearanceType, value => existing.AppearanceType = value, imported.AppearanceType);
+        changed |= FillMissingString(() => existing.Diet, value => existing.Diet = value, imported.Diet);
+        changed |= FillMissingString(() => existing.Reproduction, value => existing.Reproduction = value, imported.Reproduction);
+        changed |= FillMissingString(() => existing.ReproductionMethod, value => existing.ReproductionMethod = value, imported.ReproductionMethod);
+        changed |= FillMissingString(() => existing.Religion, value => existing.Religion = value, imported.Religion);
+
+        if (existing.Devotion == 0 && imported.Devotion > 0)
+        {
+            existing.Devotion = imported.Devotion;
+            changed = true;
+        }
+
+        if (existing.DevotionLevel == AlienDevotionLevel.None && imported.DevotionLevel != AlienDevotionLevel.None)
+        {
+            existing.DevotionLevel = imported.DevotionLevel;
+            changed = true;
+        }
+
+        if (existing.MassKg == 0 && imported.MassKg > 0)
+        {
+            existing.MassKg = imported.MassKg;
+            changed = true;
+        }
+
+        if (existing.SizeCm == 0 && imported.SizeCm > 0)
+        {
+            existing.SizeCm = imported.SizeCm;
+            changed = true;
+        }
+
+        if (existing.LimbPairCount == 0 && imported.LimbPairCount > 0)
+        {
+            existing.LimbPairCount = imported.LimbPairCount;
+            changed = true;
+        }
+
+        if (existing.BiologyProfile.PsiPower == 0 && imported.BiologyProfile.PsiPower > 0)
+        {
+            existing.BiologyProfile.PsiPower = imported.BiologyProfile.PsiPower;
+            existing.BiologyProfile.PsiRating = imported.BiologyProfile.PsiRating;
+            changed = true;
+        }
+
+        if (existing.BiologyProfile.Body == 0 && imported.BiologyProfile.Body > 0)
+        {
+            existing.BiologyProfile.Body = imported.BiologyProfile.Body;
+            changed = true;
+        }
+
+        if (existing.BiologyProfile.Mind == 0 && imported.BiologyProfile.Mind > 0)
+        {
+            existing.BiologyProfile.Mind = imported.BiologyProfile.Mind;
+            changed = true;
+        }
+
+        if (existing.BiologyProfile.Speed == 0 && imported.BiologyProfile.Speed > 0)
+        {
+            existing.BiologyProfile.Speed = imported.BiologyProfile.Speed;
+            changed = true;
+        }
+
+        if (existing.BiologyProfile.Lifespan == 0 && imported.BiologyProfile.Lifespan > 0)
+        {
+            existing.BiologyProfile.Lifespan = imported.BiologyProfile.Lifespan;
+            changed = true;
+        }
+
+        if ((existing.LegacyAttributes?.Length ?? 0) == 0 && (imported.LegacyAttributes?.Length ?? 0) > 0)
+        {
+            existing.LegacyAttributes = imported.LegacyAttributes ?? Array.Empty<byte>();
+            changed = true;
+        }
+
+        changed |= AddMissingStrings(existing.LimbTypes, imported.LimbTypes);
+        changed |= AddMissingStrings(existing.Abilities, imported.Abilities);
+        changed |= AddMissingStrings(existing.BodyCharacteristics, imported.BodyCharacteristics);
+        changed |= AddMissingStrings(existing.EyeCharacteristics, imported.EyeCharacteristics);
+        changed |= AddMissingStrings(existing.EyeColors, imported.EyeColors);
+        changed |= AddMissingStrings(existing.HairColors, imported.HairColors);
+        changed |= AddMissingStrings(existing.Colors, imported.Colors);
+
+        return changed;
+    }
+
+    private static bool MergeMissingEmpireData(Empire existing, Empire imported)
+    {
+        var changed = false;
+
+        changed |= FillMissingString(() => existing.Name, value => existing.Name = value, imported.Name);
+        changed |= FillMissingNullable(() => existing.LegacyRaceId, value => existing.LegacyRaceId = value, imported.LegacyRaceId);
+
+        changed |= FillMissingByte(() => existing.CivilizationProfile.Militancy, value => existing.CivilizationProfile.Militancy = value, imported.CivilizationProfile.Militancy);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.Determination, value => existing.CivilizationProfile.Determination = value, imported.CivilizationProfile.Determination);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.RacialTolerance, value => existing.CivilizationProfile.RacialTolerance = value, imported.CivilizationProfile.RacialTolerance);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.Progressiveness, value => existing.CivilizationProfile.Progressiveness = value, imported.CivilizationProfile.Progressiveness);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.Loyalty, value => existing.CivilizationProfile.Loyalty = value, imported.CivilizationProfile.Loyalty);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.SocialCohesion, value => existing.CivilizationProfile.SocialCohesion = value, imported.CivilizationProfile.SocialCohesion);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.TechLevel, value => existing.CivilizationProfile.TechLevel = value, imported.CivilizationProfile.TechLevel);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.Art, value => existing.CivilizationProfile.Art = value, imported.CivilizationProfile.Art);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.Individualism, value => existing.CivilizationProfile.Individualism = value, imported.CivilizationProfile.Individualism);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.SpatialAge, value => existing.CivilizationProfile.SpatialAge = value, imported.CivilizationProfile.SpatialAge);
+
+        changed |= FillMissingLong(() => existing.EconomicPowerMcr, value => existing.EconomicPowerMcr = value, imported.EconomicPowerMcr);
+        changed |= FillMissingLong(() => existing.MilitaryPower, value => existing.MilitaryPower = value, imported.MilitaryPower);
+        changed |= FillMissingLong(() => existing.TradeBonusMcr, value => existing.TradeBonusMcr = value, imported.TradeBonusMcr);
+        changed |= FillMissingInt(() => existing.Planets, value => existing.Planets = value, imported.Planets);
+        changed |= FillMissingInt(() => existing.CaptivePlanets, value => existing.CaptivePlanets = value, imported.CaptivePlanets);
+        changed |= FillMissingInt(() => existing.Moons, value => existing.Moons = value, imported.Moons);
+        changed |= FillMissingInt(() => existing.SubjugatedPlanets, value => existing.SubjugatedPlanets = value, imported.SubjugatedPlanets);
+        changed |= FillMissingInt(() => existing.SubjugatedMoons, value => existing.SubjugatedMoons = value, imported.SubjugatedMoons);
+        changed |= FillMissingInt(() => existing.IndependentColonies, value => existing.IndependentColonies = value, imported.IndependentColonies);
+        changed |= FillMissingLong(() => existing.NativePopulationMillions, value => existing.NativePopulationMillions = value, imported.NativePopulationMillions);
+        changed |= FillMissingLong(() => existing.CaptivePopulationMillions, value => existing.CaptivePopulationMillions = value, imported.CaptivePopulationMillions);
+        changed |= FillMissingLong(() => existing.SubjectPopulationMillions, value => existing.SubjectPopulationMillions = value, imported.SubjectPopulationMillions);
+        changed |= FillMissingLong(() => existing.IndependentPopulationMillions, value => existing.IndependentPopulationMillions = value, imported.IndependentPopulationMillions);
+
+        if (existing.Founding.Origin == EmpireOrigin.Unknown && imported.Founding.Origin != EmpireOrigin.Unknown)
+        {
+            existing.Founding.Origin = imported.Founding.Origin;
+            changed = true;
+        }
+
+        changed |= FillMissingNullable(() => existing.Founding.FoundingWorldId, value => existing.Founding.FoundingWorldId = value, imported.Founding.FoundingWorldId);
+        changed |= FillMissingNullable(() => existing.Founding.FoundingColonyId, value => existing.Founding.FoundingColonyId = value, imported.Founding.FoundingColonyId);
+        changed |= FillMissingNullable(() => existing.Founding.ParentEmpireId, value => existing.Founding.ParentEmpireId = value, imported.Founding.ParentEmpireId);
+        changed |= FillMissingNullable(() => existing.Founding.FoundingRaceId, value => existing.Founding.FoundingRaceId = value, imported.Founding.FoundingRaceId);
+        changed |= FillMissingNullable(() => existing.Founding.FoundedCentury, value => existing.Founding.FoundedCentury = value, imported.Founding.FoundedCentury);
+
+        var knownMemberships = existing.RaceMemberships
+            .Select(membership => membership.RaceId)
+            .ToHashSet();
+        foreach (var membership in imported.RaceMemberships.Where(membership => knownMemberships.Add(membership.RaceId)))
+        {
+            existing.RaceMemberships.Add(new EmpireRaceMembership
+            {
+                EmpireId = existing.Id,
+                RaceId = membership.RaceId,
+                Role = membership.Role,
+                PopulationMillions = membership.PopulationMillions,
+                IsPrimary = membership.IsPrimary
+            });
+            changed = true;
+        }
+
+        var knownContacts = existing.Contacts
+            .Select(contact => contact.OtherEmpireId)
+            .ToHashSet();
+        foreach (var contact in imported.Contacts.Where(contact => knownContacts.Add(contact.OtherEmpireId)))
+        {
+            existing.Contacts.Add(new EmpireContact
+            {
+                EmpireId = existing.Id,
+                OtherEmpireId = contact.OtherEmpireId,
+                Relation = contact.Relation,
+                RelationCode = contact.RelationCode,
+                Age = contact.Age
+            });
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static bool MergeMissingColonyData(Colony existing, Colony imported)
+    {
+        var changed = false;
+
+        changed |= FillMissingString(() => existing.Name, value => existing.Name = value, imported.Name);
+        changed |= FillMissingString(() => existing.ColonistRaceName, value => existing.ColonistRaceName = value, imported.ColonistRaceName);
+        changed |= FillMissingString(() => existing.AllegianceName, value => existing.AllegianceName = value, imported.AllegianceName);
+        changed |= FillMissingString(() => existing.ColonyClass, value => existing.ColonyClass = value, imported.ColonyClass);
+        changed |= FillMissingString(() => existing.Starport, value => existing.Starport = value, imported.Starport);
+        changed |= FillMissingString(() => existing.GovernmentType, value => existing.GovernmentType = value, imported.GovernmentType);
+        changed |= FillMissingString(() => existing.ExportResource, value => existing.ExportResource = value, imported.ExportResource);
+        changed |= FillMissingString(() => existing.ImportResource, value => existing.ImportResource = value, imported.ImportResource);
+
+        if (existing.AllegianceId == ushort.MaxValue && imported.AllegianceId != ushort.MaxValue)
+        {
+            existing.AllegianceId = imported.AllegianceId;
+            changed = true;
+        }
+
+        if (existing.RaceId == 0 && imported.RaceId > 0)
+        {
+            existing.RaceId = imported.RaceId;
+            changed = true;
+        }
+
+        changed |= FillMissingNullable(() => existing.ControllingEmpireId, value => existing.ControllingEmpireId = value, imported.ControllingEmpireId);
+        changed |= FillMissingNullable(() => existing.ParentEmpireId, value => existing.ParentEmpireId = value, imported.ParentEmpireId);
+        changed |= FillMissingNullable(() => existing.FoundingEmpireId, value => existing.FoundingEmpireId = value, imported.FoundingEmpireId);
+        changed |= FillMissingByte(() => existing.EncodedPopulation, value => existing.EncodedPopulation = value, imported.EncodedPopulation);
+        changed |= FillMissingLong(() => existing.EstimatedPopulation, value => existing.EstimatedPopulation = value, imported.EstimatedPopulation);
+        changed |= FillMissingByte(() => existing.NativePopulationPercent, value => existing.NativePopulationPercent = value, imported.NativePopulationPercent);
+        changed |= FillMissingByte(() => existing.ColonyClassCode, value => existing.ColonyClassCode = value, imported.ColonyClassCode);
+        changed |= FillMissingByte(() => existing.Crime, value => existing.Crime = value, imported.Crime);
+        changed |= FillMissingByte(() => existing.Law, value => existing.Law = value, imported.Law);
+        changed |= FillMissingByte(() => existing.Stability, value => existing.Stability = value, imported.Stability);
+        changed |= FillMissingByte(() => existing.AgeCenturies, value => existing.AgeCenturies = value, imported.AgeCenturies);
+        changed |= FillMissingByte(() => existing.StarportCode, value => existing.StarportCode = value, imported.StarportCode);
+        changed |= FillMissingByte(() => existing.GovernmentTypeCode, value => existing.GovernmentTypeCode = value, imported.GovernmentTypeCode);
+        changed |= FillMissingUShort(() => existing.GrossWorldProductMcr, value => existing.GrossWorldProductMcr = value, imported.GrossWorldProductMcr);
+        changed |= FillMissingUShort(() => existing.MilitaryPower, value => existing.MilitaryPower = value, imported.MilitaryPower);
+        changed |= FillMissingByte(() => existing.ExportResourceCode, value => existing.ExportResourceCode = value, imported.ExportResourceCode);
+        changed |= FillMissingByte(() => existing.ImportResourceCode, value => existing.ImportResourceCode = value, imported.ImportResourceCode);
+
+        var knownDemographicRaces = existing.Demographics
+            .Select(demographic => demographic.RaceId)
+            .ToHashSet();
+        foreach (var demographic in imported.Demographics.Where(demographic => knownDemographicRaces.Add(demographic.RaceId)))
+        {
+            existing.Demographics.Add(new ColonyDemographic
+            {
+                ColonyId = existing.Id,
+                RaceId = demographic.RaceId,
+                RaceName = demographic.RaceName,
+                PopulationPercent = demographic.PopulationPercent,
+                Population = demographic.Population
+            });
+            changed = true;
+        }
+
+        changed |= AddMissingStrings(existing.Facilities, imported.Facilities);
+
+        return changed;
+    }
+
+    private static bool MergeMissingHistoryData(HistoryEvent existing, HistoryEvent imported)
+    {
+        var changed = false;
+
+        changed |= FillMissingNullable(() => existing.SectorId, value => existing.SectorId = value, imported.SectorId);
+        changed |= FillMissingString(() => existing.EventType, value => existing.EventType = value, imported.EventType);
+        changed |= FillMissingNullable(() => existing.RaceId, value => existing.RaceId = value, imported.RaceId);
+        changed |= FillMissingNullable(() => existing.OtherRaceId, value => existing.OtherRaceId = value, imported.OtherRaceId);
+        changed |= FillMissingNullable(() => existing.EmpireId, value => existing.EmpireId = value, imported.EmpireId);
+        changed |= FillMissingNullable(() => existing.ColonyId, value => existing.ColonyId = value, imported.ColonyId);
+        changed |= FillMissingNullable(() => existing.PlanetId, value => existing.PlanetId = value, imported.PlanetId);
+        changed |= FillMissingNullable(() => existing.StarSystemId, value => existing.StarSystemId = value, imported.StarSystemId);
+        changed |= FillMissingString(() => existing.Description, value => existing.Description = value, imported.Description);
+        changed |= FillMissingString(() => existing.ImportDataJson, value => existing.ImportDataJson = value, imported.ImportDataJson);
+
+        return changed;
+    }
+
+    private static bool FillMissingString(Func<string?> currentValue, Action<string> assignValue, string? importedValue)
+    {
+        if (string.IsNullOrWhiteSpace(currentValue()) && !string.IsNullOrWhiteSpace(importedValue))
+        {
+            assignValue(importedValue);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool FillMissingNullable<T>(Func<T?> currentValue, Action<T?> assignValue, T? importedValue)
+        where T : struct
+    {
+        if (currentValue() is null && importedValue is not null)
+        {
+            assignValue(importedValue);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool FillMissingByte(Func<byte> currentValue, Action<byte> assignValue, byte importedValue)
+    {
+        if (currentValue() == 0 && importedValue > 0)
+        {
+            assignValue(importedValue);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool FillMissingUShort(Func<ushort> currentValue, Action<ushort> assignValue, ushort importedValue)
+    {
+        if (currentValue() == 0 && importedValue > 0)
+        {
+            assignValue(importedValue);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool FillMissingInt(Func<int> currentValue, Action<int> assignValue, int importedValue)
+    {
+        if (currentValue() == 0 && importedValue > 0)
+        {
+            assignValue(importedValue);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool FillMissingLong(Func<long> currentValue, Action<long> assignValue, long importedValue)
+    {
+        if (currentValue() == 0 && importedValue > 0)
+        {
+            assignValue(importedValue);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool AddMissingStrings(IList<string> existing, IEnumerable<string> imported)
+    {
+        var changed = false;
+        var knownValues = existing.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in imported.Where(value => !string.IsNullOrWhiteSpace(value) && knownValues.Add(value)))
+        {
+            existing.Add(value);
+            changed = true;
+        }
+
+        return changed;
     }
 
     private static string BuildHistoryKey(HistoryEvent history)

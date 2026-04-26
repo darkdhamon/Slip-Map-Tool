@@ -28,6 +28,13 @@ When working on an issue branch, use a port in the `10000` range for local runni
 
 After every code change, commit and push the changes.
 
+All new code requires unit tests that cover the new behavior before moving on to the next task.
+
+Testing workflow terms:
+- Unit test: run the automated unit/integration test suite requested for the relevant scope.
+- QA test: direct verification is allowed, including jumping straight to a page or route to check behavior.
+- UAT test: perform user acceptance testing by navigating through the website like a normal user would, using mouse and keyboard interactions rather than jumping directly to target pages/routes unless the user explicitly allows that shortcut.
+
 The original StarWin source code in `Legacy/StarWin2OriginalSource` is reference-only. Do not edit this code directly.
 
 The original Slip Map application code is legacy code. Do not edit it except for changes required to support exporting or migrating data into the new application.
