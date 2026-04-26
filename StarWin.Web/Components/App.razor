@@ -20,6 +20,26 @@
 <body class="@BodyClass">
     <Routes />
     <ReconnectModal />
+    <LoadingModal IsVisible="false"
+                  AlwaysRender="true"
+                  OverlayId="explorer-navigation-loading"
+                  AriaLabel="Opening Sector Explorer"
+                  Kicker="Opening Sector Explorer"
+                  Title="Loading archive records and restoring the explorer workspace."
+                  Steps="@navigationLoadingSteps" />
+    <LoadingModal IsVisible="false"
+                  AlwaysRender="true"
+                  OverlayId="explorer-section-loading"
+                  AriaLabel="Loading section"
+                  Steps="@sectionLoadingSteps">
+        <KickerContent>
+            <span class="panel-kicker" data-section-loading-target>Loading section</span>
+        </KickerContent>
+        <TitleContent>
+            <h2 data-section-loading-status>Preparing explorer records.</h2>
+        </TitleContent>
+    </LoadingModal>
+    <script src="@Assets["js/navigationLoading.js"]"></script>
     <script type="module" src="@Assets["js/loadingElapsedTime.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
@@ -27,6 +47,20 @@
 </html>
 
 @code {
+    private static readonly IReadOnlyList<string> navigationLoadingSteps =
+    [
+        "Connecting to the explorer workspace.",
+        "Loading the current sector archive.",
+        "Preparing the selected explorer section."
+    ];
+
+    private static readonly IReadOnlyList<string> sectionLoadingSteps =
+    [
+        "Resolving the selected sector context.",
+        "Preparing the requested explorer records.",
+        "Rendering the updated section workspace."
+    ];
+
     private string? BodyClass =>
         string.Equals(Configuration["StarforgedAtlas:HostKind"], "Desktop", StringComparison.OrdinalIgnoreCase)
             ? "atlas-desktop-shell"

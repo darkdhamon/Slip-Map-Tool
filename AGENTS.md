@@ -22,9 +22,20 @@ When I tell you to promote the work to `dev`, move the issue from `In progress` 
 
 When a pull request that promotes work to `main` is completed, move all issues connected to that pull request from `In review` to `Done`.
 
+Use `master` as the protected release branch, `dev` as the shared integration branch, and short-lived feature branches for task work. Do not commit feature work directly to `master` or `dev`.
+
 Do not use default Visual Studio installation, Use Visual Studio 2026 Insider Preview.
 
+When working on an issue branch, use a port in the `10000` range for local running and debugging. The last three digits of the port should match the issue number being worked on. For example, issue `123` should use port `10123`. If the issue number is longer than three digits, use the last three digits of the issue number.
+
 After every code change, commit and push the changes.
+
+All new code requires unit tests that cover the new behavior before moving on to the next task.
+
+Testing workflow terms:
+- Unit test: run the automated unit/integration test suite requested for the relevant scope.
+- QA test: direct verification is allowed, including jumping straight to a page or route to check behavior.
+- UAT test: perform user acceptance testing by navigating through the website like a normal user would, using mouse and keyboard interactions rather than jumping directly to target pages/routes unless the user explicitly allows that shortcut.
 
 The original StarWin source code in `Legacy/StarWin2OriginalSource` is reference-only. Do not edit this code directly.
 

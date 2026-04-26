@@ -1,0 +1,80 @@
+param(
+    [string]$Configuration = "Release",
+    [string]$RuntimeIdentifier = "win-x64",
+    [string]$OutputRoot = "artifacts\portable\Starforged-Atlas-Portable"
+)
+
+$ErrorActionPreference = "Stop"
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$desktopProject = Join-Path $repoRoot "StarWin.Desktop\StarWin.Desktop.csproj"
+$launcherProject = Join-Path $repoRoot "StarforgedAtlas.PortableLauncher\StarforgedAtlas.PortableLauncher.csproj"
+$desktopBuildOutput = Join-Path $repoRoot "StarWin.Desktop\bin\$Configuration\net10.0-windows\$RuntimeIdentifier"
+$packageRoot = Join-Path $repoRoot $OutputRoot
+$appRoot = Join-Path $packageRoot "app"
+$zipPath = "$packageRoot.zip"
+
+if (Test-Path $packageRoot)
+{
+    Remove-Item -LiteralPath $packageRoot -Recurse -Force
+}
+
+if (Test-Path $zipPath)
+{
+    Remove-Item -LiteralPath $zipPath -Force
+}
+
+New-Item -ItemType Directory -Path $appRoot -Force | Out-Null
+
+dotnet publish $desktopProject `
+    -c $Configuration `
+    -f net10.0-windows `
+    -r $RuntimeIdentifier `
+    --self-contained true `
+    -o $appRoot
+
+if ($LASTEXITCODE -ne 0)
+{
+    throw "Desktop publish failed."
+}
+
+Get-ChildItem -LiteralPath $desktopBuildOutput -Filter "StarWin.Web.staticwebassets*.json" -ErrorAction Stop |
+    ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $appRoot $_.Name) -Force
+    }
+
+dotnet publish $launcherProject `
+    -c $Configuration `
+    -r $RuntimeIdentifier `
+    --self-contained true `
+    -o $packageRoot
+
+if ($LASTEXITCODE -ne 0)
+{
+    throw "Launcher publish failed."
+}
+
+$launcherPublishArtifact = Join-Path $packageRoot "Starforged Atlas.pdb"
+if (Test-Path $launcherPublishArtifact)
+{
+    Remove-Item -LiteralPath $launcherPublishArtifact -Force
+}
+
+$readmePath = Join-Path $packageRoot "README.txt"
+@"
+Starforged Atlas Portable
+
+Launch the app by double-clicking:
+Starforged Atlas.exe
+
+Notes:
+- Keep the 'app' folder beside the launcher.
+- Portable data is stored in the app\data folder.
+- Avast may flag the portable app as potential malware. This is a known false-positive issue with the current portable build and is planned to be addressed later.
+"@ | Set-Content -Path $readmePath -Encoding ASCII
+
+Compress-Archive -Path (Join-Path $packageRoot '*') -DestinationPath $zipPath
+
+Write-Host "Portable package created:"
+Write-Host "  Folder: $packageRoot"
+Write-Host "  Zip:    $zipPath"

@@ -310,6 +310,7 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.Property(historyEvent => historyEvent.ColonyId);
             entity.Property(historyEvent => historyEvent.EventType).HasMaxLength(80);
             entity.Property(historyEvent => historyEvent.Description).HasMaxLength(1_200);
+            entity.Property(historyEvent => historyEvent.ImportDataJson);
         });
     }
 
