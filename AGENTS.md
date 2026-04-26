@@ -22,6 +22,8 @@ When I tell you to promote the work to `dev`, move the issue from `In progress` 
 
 When a pull request that promotes work to `main` is completed, move all issues connected to that pull request from `In review` to `Done`.
 
+Use `master` as the protected release branch, `dev` as the shared integration branch, and short-lived feature branches for task work. Do not commit feature work directly to `master` or `dev`.
+
 Do not use default Visual Studio installation, Use Visual Studio 2026 Insider Preview.
 
 When working on an issue branch, use a port in the `10000` range for local running and debugging. The last three digits of the port should match the issue number being worked on. For example, issue `123` should use port `10123`. If the issue number is longer than three digits, use the last three digits of the issue number.
