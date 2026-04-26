@@ -7,28 +7,47 @@
 
 @if (!workspaceReady)
 {
-    <div class="sector-map-three" aria-label="sector map workspace">
-        <article class="map-request-panel">
-            <span class="panel-kicker">Map workspace</span>
-            <h2>Loading route-planning workspace</h2>
-            <p>The Overview page is ready. The 3D map and route planner are loading in the background so the main Explorer view can appear faster.</p>
-            @if (!string.IsNullOrWhiteSpace(workspaceLoadError))
-            {
-                <p class="search-empty">@workspaceLoadError</p>
-                <button type="button" class="overlay-action" @onclick="RetryWorkspaceLoadAsync">Retry loading workspace</button>
-            }
-            else
-            {
-                <p class="search-empty">Preparing the cached sector data needed for the map and route planner.</p>
-            }
-        </article>
+    <div class="sector-map-three workspace-loading-surface" aria-label="sector map workspace">
+        <LoadingModal IsVisible="true"
+                      BackdropClass="inline-loading-modal-backdrop workspace-loading-backdrop"
+                      AriaLabel="Loading route-planning workspace"
+                      Kicker="Map workspace"
+                      Title="Loading route-planning workspace"
+                      Detail="The Overview page is ready. The 3D map and route planner are loading in the background so the main Explorer view can appear faster."
+                      StartedAtUnixMs="workspaceLoadStartedAtUnixMs"
+                      Steps="@workspaceLoadingSteps">
+            <AfterMeterContent>
+                @if (!string.IsNullOrWhiteSpace(workspaceLoadError))
+                {
+                    <p class="workspace-loading-error">@workspaceLoadError</p>
+                    <button type="button" class="overlay-action" @onclick="RetryWorkspaceLoadAsync">Retry loading workspace</button>
+                }
+                else
+                {
+                    <p class="workspace-loading-note">Preparing the cached sector data needed for the map and route planner.</p>
+                }
+            </AfterMeterContent>
+        </LoadingModal>
     </div>
 
     <div class="stacked-panels">
         <article class="feature-panel route-planner-panel">
-            <span class="panel-kicker">Route planner</span>
-            <h2>Loading route-planning workspace</h2>
-            <p>Route planning becomes available once the cached sector map workspace finishes loading.</p>
+            <LoadingModal IsVisible="true"
+                          BackdropClass="inline-loading-modal-backdrop route-planner-loading-backdrop"
+                          AriaLabel="Loading route planner"
+                          Kicker="Route planner"
+                          Title="Loading route-planning workspace"
+                          Detail="Route planning becomes available once the cached sector map workspace finishes loading."
+                          StartedAtUnixMs="workspaceLoadStartedAtUnixMs"
+                          Steps="@workspaceLoadingSteps">
+                <AfterMeterContent>
+                    @if (!string.IsNullOrWhiteSpace(workspaceLoadError))
+                    {
+                        <p class="workspace-loading-error">@workspaceLoadError</p>
+                        <button type="button" class="overlay-action" @onclick="RetryWorkspaceLoadAsync">Retry loading workspace</button>
+                    }
+                </AfterMeterContent>
+            </LoadingModal>
         </article>
     </div>
 }
@@ -308,6 +327,13 @@ else
         "Finding the shortest unavoidable void crossing."
     ];
 
+    private static readonly IReadOnlyList<string> workspaceLoadingSteps =
+    [
+        "Load the cached sector archive into the Explorer workspace.",
+        "Prepare route, empire, and system lookups for the 3D map.",
+        "Unlock the interactive map and route planner controls."
+    ];
+
     private static readonly IReadOnlyList<string> mapContextLoadingSteps =
     [
         "Load the current sector cache from the database.",
@@ -343,8 +369,8 @@ else
     private bool sectorMapRequested;
     private bool autoLoadRequested;
     private bool workspaceReady;
-    private bool workspaceLoadStarted;
     private bool workspaceLoading;
+    private long? workspaceLoadStartedAtUnixMs;
     private string workspaceLoadError = string.Empty;
     private bool mapContextRefreshing;
     private string mapContextStatus = string.Empty;
@@ -421,7 +447,6 @@ else
     {
         if (firstRender)
         {
-            workspaceLoadStarted = true;
             if (!workspaceReady)
             {
                 StateHasChanged();
@@ -513,6 +538,7 @@ else
         }
 
         workspaceLoading = true;
+        workspaceLoadStartedAtUnixMs ??= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         workspaceLoadError = string.Empty;
 
         try
@@ -545,6 +571,8 @@ else
             {
                 sectorMapRequested = true;
             }
+
+            workspaceLoadStartedAtUnixMs = null;
         }
         catch (Exception ex)
         {

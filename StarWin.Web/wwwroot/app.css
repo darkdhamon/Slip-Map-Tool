@@ -781,6 +781,13 @@ dd {
     touch-action: none;
 }
 
+.workspace-loading-surface {
+    background:
+        radial-gradient(circle at top, rgba(14, 165, 233, 0.14), transparent 38%),
+        linear-gradient(180deg, rgba(2, 6, 23, 0.9), rgba(2, 6, 23, 0.96)),
+        #020617;
+}
+
 .map-request-panel {
     position: absolute;
     left: 50%;
@@ -807,6 +814,45 @@ dd {
     margin: 0;
     color: var(--muted);
     line-height: 1.6;
+}
+
+.inline-loading-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: transparent;
+    backdrop-filter: none;
+}
+
+.workspace-loading-backdrop {
+    justify-items: center;
+}
+
+.workspace-loading-backdrop .loading-modal {
+    width: min(520px, calc(100% - 32px));
+    background: rgba(5, 14, 30, 0.92);
+}
+
+.route-planner-loading-backdrop {
+    position: static;
+    inset: auto;
+    padding: 0;
+}
+
+.route-planner-loading-backdrop .loading-modal {
+    width: 100%;
+    background: rgba(5, 14, 30, 0.76);
+    box-shadow: none;
+}
+
+.workspace-loading-note,
+.workspace-loading-error {
+    margin: 0;
+    color: #c8d8ea;
+    line-height: 1.45;
 }
 
 .switch-field {
