@@ -865,6 +865,7 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
                 Enabled = true
             };
             startupTimer.Tick += (_, _) => UpdateElapsedTime();
+            startupTimer.Start();
 
             UpdateElapsedTime();
             contentPanel.Controls.Add(progressBar);
@@ -990,6 +991,8 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             elapsedLabel.Text = elapsed.TotalHours >= 1
                 ? $"Elapsed time: {(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
                 : $"Elapsed time: {elapsed.Minutes:00}:{elapsed.Seconds:00}";
+            elapsedLabel.Invalidate();
+            elapsedLabel.Update();
         }
 
         private void PositionOnPrimaryScreen()
