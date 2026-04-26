@@ -1136,7 +1136,8 @@ internal static class StarWinDesktopPaths
 
     public static string GetWebContentRoot()
     {
-        return FindWebContentRoot(AppContext.BaseDirectory)
+        return FindPackagedWebContentRoot(AppContext.BaseDirectory)
+            ?? FindWebContentRoot(AppContext.BaseDirectory)
             ?? FindWebContentRoot(Environment.CurrentDirectory)
             ?? AppContext.BaseDirectory;
     }
@@ -1171,6 +1172,14 @@ internal static class StarWinDesktopPaths
         }
 
         return null;
+    }
+
+    private static string? FindPackagedWebContentRoot(string startDirectory)
+    {
+        var packagedRoot = Path.Combine(startDirectory, "wwwroot");
+        return Directory.Exists(packagedRoot)
+            ? startDirectory
+            : null;
     }
 
     private static string GetApplicationDataRoot()
