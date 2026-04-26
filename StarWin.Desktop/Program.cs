@@ -377,6 +377,11 @@ internal static class DesktopBackendCoordinator
         }
     }
 
+    public static bool IsKnownAliveProcess(int processId)
+    {
+        return IsProcessAlive(processId);
+    }
+
     private static Mutex CreateStateMutex()
     {
         return new Mutex(false, StateMutexName);
@@ -572,11 +577,11 @@ internal sealed class DesktopBackendMonitor(WebApplication app) : IDisposable
                 return;
             }
 
-            var remainingClientIds = state.ClientProcessIds
-                .Where(pid => pid != Environment.ProcessId)
+            var activeClientIds = state.ClientProcessIds
+                .Where(DesktopBackendCoordinator.IsKnownAliveProcess)
                 .ToList();
 
-            if (remainingClientIds.Count == 0)
+            if (activeClientIds.Count == 0)
             {
                 lifetime.StopApplication();
                 return;
@@ -860,6 +865,7 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
                 Enabled = true
             };
             startupTimer.Tick += (_, _) => UpdateElapsedTime();
+            startupTimer.Start();
 
             UpdateElapsedTime();
             contentPanel.Controls.Add(progressBar);
@@ -985,6 +991,8 @@ internal sealed class DesktopStartupSplashScreen : IDesktopStartupReporter
             elapsedLabel.Text = elapsed.TotalHours >= 1
                 ? $"Elapsed time: {(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
                 : $"Elapsed time: {elapsed.Minutes:00}:{elapsed.Seconds:00}";
+            elapsedLabel.Invalidate();
+            elapsedLabel.Update();
         }
 
         private void PositionOnPrimaryScreen()
@@ -1136,7 +1144,8 @@ internal static class StarWinDesktopPaths
 
     public static string GetWebContentRoot()
     {
-        return FindWebContentRoot(AppContext.BaseDirectory)
+        return FindPackagedWebContentRoot(AppContext.BaseDirectory)
+            ?? FindWebContentRoot(AppContext.BaseDirectory)
             ?? FindWebContentRoot(Environment.CurrentDirectory)
             ?? AppContext.BaseDirectory;
     }
@@ -1173,10 +1182,17 @@ internal static class StarWinDesktopPaths
         return null;
     }
 
+    private static string? FindPackagedWebContentRoot(string startDirectory)
+    {
+        var packagedRoot = Path.Combine(startDirectory, "wwwroot");
+        return Directory.Exists(packagedRoot)
+            ? startDirectory
+            : null;
+    }
+
     private static string GetApplicationDataRoot()
     {
-        var dataRoot = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var atlasRoot = Path.Combine(dataRoot, "Starforged Atlas");
+        var atlasRoot = Path.Combine(AppContext.BaseDirectory, "data");
         Directory.CreateDirectory(atlasRoot);
 
         return atlasRoot;

@@ -24,6 +24,8 @@ When a pull request that promotes work to `main` is completed, move all issues c
 
 Do not use default Visual Studio installation, Use Visual Studio 2026 Insider Preview.
 
+When working on an issue branch, use a port in the `10000` range for local running and debugging. The last three digits of the port should match the issue number being worked on. For example, issue `123` should use port `10123`. If the issue number is longer than three digits, use the last three digits of the issue number.
+
 After every code change, commit and push the changes.
 
 All new code requires unit tests that cover the new behavior before moving on to the next task.

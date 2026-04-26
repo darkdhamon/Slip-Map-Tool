@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Starforged Atlas</AssemblyName>
+    <RootNamespace>StarforgedAtlas.PortableLauncher</RootNamespace>
+    <AssemblyTitle>Starforged Atlas Portable Launcher</AssemblyTitle>
+    <Product>Starforged Atlas</Product>
+    <ApplicationIcon>..\StarWin.Desktop\Assets\StarforgedAtlasLogo.ico</ApplicationIcon>
+    <UseWindowsForms>true</UseWindowsForms>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+</Project>
