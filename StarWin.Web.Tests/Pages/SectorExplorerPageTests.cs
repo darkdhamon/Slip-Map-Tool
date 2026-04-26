@@ -45,6 +45,35 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
+    public void MapWorkspaceShowsSingleSharedLoadingModalWhileDeferredWorkspaceLoads()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector)
+        {
+            DelayReload = true
+        };
+
+        ConfigureServices(sector, workspace);
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(cut.FindAll(".loading-modal"));
+            Assert.Contains("Preparing map workspace", cut.Markup);
+            Assert.Contains("Preparing route-planning workspace", cut.Markup);
+        });
+
+        workspace.ReleaseReload();
+
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+    }
+
+    [Fact]
     public void MapWorkspaceUpdatesOverviewQueryWithoutParentCallback()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;

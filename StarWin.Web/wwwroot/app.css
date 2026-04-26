@@ -788,6 +788,14 @@ dd {
         #020617;
 }
 
+.workspace-loading-layout {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(360px, 1.4fr) minmax(300px, 0.6fr);
+    gap: 18px;
+    align-items: start;
+}
+
 .map-request-panel {
     position: absolute;
     left: 50%;
@@ -831,9 +839,17 @@ dd {
     justify-items: center;
 }
 
+.workspace-loading-shared-backdrop {
+    place-items: center;
+}
+
 .workspace-loading-backdrop .loading-modal {
     width: min(520px, calc(100% - 32px));
     background: rgba(5, 14, 30, 0.92);
+}
+
+.workspace-loading-copy {
+    min-height: 0;
 }
 
 .route-planner-loading-backdrop {
@@ -2753,6 +2769,10 @@ dd {
 
     .sector-map-three {
         min-height: 480px;
+    }
+
+    .workspace-loading-layout {
+        grid-template-columns: 1fr;
     }
 
     .map-system span {
