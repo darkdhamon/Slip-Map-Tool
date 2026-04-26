@@ -15,9 +15,6 @@
 
 @{
     var sector = GetSelectedSector();
-    var mapSector = GetMapSector();
-    var mapPanelTitle = GetMapPanelTitle(sector);
-    var mapContextActionLabel = GetMapContextActionLabel();
     var sectorSummary = GetSectorSummary(sector);
     var overviewData = GetSectorOverviewData(sector.Id);
     var usesSectionCache = ShouldUseSectionCache(activeSection);
@@ -25,7 +22,6 @@
     var needsSectorEmpireList = activeSection is "Overview" or "Systems" or "Colonies" or "Empires";
     var sectionCache = usesSectionCache ? GetSectorCache(sector) : null;
     var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
-    var selectedMapSystem = mapSector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? mapSector.Systems.FirstOrDefault();
     var selectedHabitat = selectedSystem?.SpaceHabitats.FirstOrDefault(habitat => habitat.Id == selectedHabitatId);
     var selectedWorld = selectedHabitat is null
         ? selectedSystem?.Worlds.FirstOrDefault(world => world.Id == selectedWorldId) ?? selectedSystem?.Worlds.FirstOrDefault()
@@ -48,9 +44,6 @@
     var selectedColonyWorld = selectedColony is null || !WorldsById.TryGetValue(selectedColony.WorldId, out var colonyWorld)
         ? null
         : colonyWorld;
-    var selectedRoutePlan = activeSection == "Overview"
-        ? GetPlottedRoutePlan(sector)
-        : null;
     RenderFragment? heroContent = activeSection == "Overview"
         ? @<ExplorerHero />
         : null;
@@ -93,268 +86,37 @@
 {
     case "Overview":
         <section class="overview-layout">
-                <div class="sector-map-three" @ref="sectorMapElement" aria-label="interactive 3D sector map">
-                    @if (!sectorMapRequested)
-                    {
-                        <article class="map-request-panel">
-                            <span class="panel-kicker">3D Sector Map</span>
-                            <h2>@mapPanelTitle</h2>
-                            <p>The interactive map is available on request so large imported sectors do not slow down the explorer while you browse records.</p>
-                            <label class="switch-field">
-                                <input type="checkbox"
-                                       checked="@autoLoadSectorMap"
-                                       @onchange="ToggleAutoLoadSectorMap" />
-                                <span>Auto-load map this session</span>
-                            </label>
-                            <button type="button" class="overlay-action" @onclick="LoadSectorMap">Load 3D map</button>
-                            @if (!string.IsNullOrWhiteSpace(mapContextStatus))
-                            {
-                                <p class="search-empty">@mapContextStatus</p>
-                            }
-                        </article>
-                    }
-                    else
-                    {
-                        <div class="map-hud">
-                            <span>3D Sector Map</span>
-                            <strong>@mapSector.Name</strong>
-                            <small>@GetSectorMapSystemCount(mapSector, selectedMapSystem) of @mapSector.Systems.Count systems within @sectorMapViewDistanceParsecs parsecs@(IsSectorMapCapped(mapSector, selectedMapSystem) ? $" (closest {sectorMapRenderLimit:N0} shown)" : string.Empty)</small>
-                        <small>@GetSectorMapRouteCount(mapSector, selectedMapSystem) visible hyperlanes</small>
-                            @if (!string.IsNullOrWhiteSpace(sectorMapPerformanceStatus))
-                            {
-                                <small class="map-performance-status">@sectorMapPerformanceStatus</small>
-                            }
-                            @if (selectedRoutePlan is { } hudRoutePlan)
-                            {
-                                <small>@hudRoutePlan.Legs.Count route legs from @hudRoutePlan.Origin.Name to @hudRoutePlan.Destination.Name; @hudRoutePlan.OffHyperlaneLegCount off-lane</small>
-                            }
-                            <label class="switch-field compact">
-                                <input type="checkbox"
-                                       checked="@autoLoadSectorMap"
-                                       @onchange="ToggleAutoLoadSectorMap" />
-                                <span>Auto-load</span>
-                            </label>
-                            <label class="map-distance-control">
-                                <span>View distance</span>
-                                <input type="range"
-                                       min="@DefaultSectorMapViewDistanceParsecs"
-                                       max="@GetSectorMapMaximumViewDistance(sector)"
-                                       step="1"
-                                       @bind="sectorMapViewDistanceParsecs"
-                                       @bind:event="oninput" />
-                                <strong>@sectorMapViewDistanceParsecs pc</strong>
-                            </label>
-                            <button type="button" class="overlay-action" @onclick="RefreshSectorMapContextAsync" disabled="@mapContextRefreshing">@mapContextActionLabel</button>
-                            @if (!string.IsNullOrWhiteSpace(mapContextStatus))
-                            {
-                                <small>@mapContextStatus</small>
-                            }
-                        </div>
-                        <button type="button" class="map-fullscreen-button" @onclick="ToggleSectorMapFullscreen">
-                            <span class="enter-fullscreen">Full screen</span>
-                            <span class="exit-fullscreen">Exit full screen</span>
-                        </button>
-                        <div class="map-controls-hint">
-                            <span>Drag rotate</span>
-                            <span>WASD/QE rotate</span>
-                            <span>Wheel zoom</span>
-                            <span>Right-drag pan</span>
-                        </div>
-                    }
-                    @if (sectorMapRequested && selectedMapSystem is not null)
-                    {
-                        <article class="fullscreen-system-overlay">
-                            <span class="panel-kicker">Current system</span>
-                            <h2>@selectedMapSystem.Name</h2>
-                            <dl class="data-list">
-                                <div><dt>Coordinates</dt><dd>@DisplayCoordinates(selectedMapSystem.Coordinates)</dd></div>
-                                <div><dt>Allegiance</dt><dd>@DisplayAllegiance(selectedMapSystem.AllegianceId)</dd></div>
-                                <div><dt>Astral bodies</dt><dd>@selectedMapSystem.AstralBodies.Count</dd></div>
-                                <div><dt>Worlds</dt><dd>@selectedMapSystem.Worlds.Count</dd></div>
-                            </dl>
-                            <button type="button" class="overlay-action" @onclick="RecenterSectorMap">Recenter map</button>
-                            <button type="button" class="overlay-action" @onclick="OpenSelectedSystemRecord">Open system record</button>
-                        </article>
-                    }
-                    @if (sectorMapRequested)
-                    {
-                        <article class="fullscreen-route-planner route-planner-panel">
-                            <span class="panel-kicker">Route planner</span>
-                            <h2>Plot hyperlane route</h2>
-                            <label>
-                                Origin
-                                <input list="fullscreen-route-system-options"
-                                       placeholder="Select origin..."
-                                       @bind="routeOriginText"
-                                       @bind:after="ApplyRouteOriginText" />
-                            </label>
-                            <label>
-                                Destination
-                                <input list="fullscreen-route-system-options"
-                                       placeholder="Select destination..."
-                                       @bind="routeDestinationText"
-                                       @bind:after="ApplyRouteDestinationText" />
-                            </label>
-                            <datalist id="fullscreen-route-system-options">
-                                @foreach (var system in GetRouteSystemOptions())
-                                {
-                                    <option value="@FormatRouteOption(system)" />
-                                }
-                            </datalist>
-                            <div class="parent-actions">
-                                <button type="button" @onclick="PlotSelectedRouteAsync" disabled="@sectionLoadingVisible">Plot route</button>
-                                <button type="button" @onclick="ClearSelectedRoute">Clear route</button>
-                            </div>
-                            <div class="form-grid">
-                                <label>
-                                    Optimization
-                                    <select @bind="routeOptimizationMode">
-                                        <option value="@RouteOptimizationMode.ShortestDistance">Shortest distance</option>
-                                        <option value="@RouteOptimizationMode.ShortestTravelTime">Shortest travel time</option>
-                                    </select>
-                                </label>
-                                <MultiSelectCombo Label="Avoid empires"
-                                                  Placeholder="Avoid selected empires..."
-                                                  SearchPlaceholder="Search empires..."
-                                                  Options="@GetRouteEmpireOptions()"
-                                                  SelectedIds="avoidedEmpireIds"
-                                                  SelectedIdsChanged="UpdateAvoidedEmpires" />
-                                <MultiSelectCombo Label="Avoid systems"
-                                                  Placeholder="Avoid selected systems..."
-                                                  SearchPlaceholder="Search systems..."
-                                                  Options="@GetRouteSystemOptions()"
-                                                  SelectedIds="avoidedSystemIds"
-                                                  SelectedIdsChanged="UpdateAvoidedSystems" />
-                            </div>
-                            @if (selectedRoutePlan is { } fullscreenRoutePlan)
-                            {
-                                <dl class="field-grid">
-                                    <div><dt>Origin</dt><dd>@fullscreenRoutePlan.Origin.Name</dd></div>
-                                    <div><dt>Destination</dt><dd>@fullscreenRoutePlan.Destination.Name</dd></div>
-                                    <div><dt>Route distance</dt><dd>@Format(fullscreenRoutePlan.TotalDistanceParsecs) pc</dd></div>
-                                    <div><dt>Travel time</dt><dd>@FormatTravelTime(fullscreenRoutePlan.TotalTravelTimeYears)</dd></div>
-                                    <div><dt>Hyperlane jumps</dt><dd>@fullscreenRoutePlan.HyperlaneJumpCount</dd></div>
-                                    <div><dt>Off-lane legs</dt><dd>@fullscreenRoutePlan.OffHyperlaneLegCount</dd></div>
-                                </dl>
-                                <div class="route-leg-list compact">
-                                    @foreach (var leg in fullscreenRoutePlan.Legs)
-                                    {
-                                        <button type="button"
-                                                class="route-leg @GetRouteLegCssClass(leg)"
-                                                @onclick="() => SelectSystem(leg.Target.Id)">
-                                            <span>@GetRouteLegTierLabel(leg)</span>
-                                            <strong>@leg.Source.Name to @leg.Target.Name</strong>
-                                            <small>@Format(leg.DistanceParsecs) pc • @FormatTravelTime(leg.TravelTimeYears) • @GetRouteLegOwnerLabel(leg)</small>
-                                        </button>
-                                    }
-                                </div>
-                            }
-                            else if (routeDestinationSystemId is not 0)
-                            {
-                                <p>No route could be plotted without an off-lane flight over @Format(GetOffLaneMaximumDistanceParsecs(sector)) parsecs.</p>
-                            }
-                        </article>
-                    }
-                    <LoadingModal IsVisible="@sectionLoadingVisible"
-                                  BackdropClass="fullscreen-loading-modal-backdrop"
-                                  AriaLabel="Loading route"
-                                  Kicker="@($"Loading {sectionLoadingTarget}")"
-                                  Title="@sectionLoadingStatus"
-                                  Steps="@routePlannerLoadingSteps" />
+            @if (!overviewMapWorkspaceReady)
+            {
+                <div class="sector-map-three" aria-label="sector map workspace">
+                    <article class="map-request-panel">
+                        <span class="panel-kicker">Map workspace</span>
+                        <h2>Preparing map workspace</h2>
+                        <p>The Overview page is ready first. The 3D map and route planner load in right after the initial page render so they do not block the rest of the Explorer.</p>
+                    </article>
                 </div>
 
                 <div class="stacked-panels">
                     <article class="feature-panel route-planner-panel">
                         <span class="panel-kicker">Route planner</span>
-                        <h2>Plot hyperlane route</h2>
-                        <label>
-                            Origin
-                            <input list="route-system-options"
-                                   placeholder="Select origin..."
-                                   @bind="routeOriginText"
-                                   @bind:after="ApplyRouteOriginText" />
-                        </label>
-                        <label>
-                            Destination
-                            <input list="route-system-options"
-                                   placeholder="Select destination..."
-                                   @bind="routeDestinationText"
-                                   @bind:after="ApplyRouteDestinationText" />
-                        </label>
-                        <datalist id="route-system-options">
-                            @foreach (var system in GetRouteSystemOptions())
-                            {
-                                <option value="@FormatRouteOption(system)" />
-                            }
-                        </datalist>
-                        <div class="parent-actions">
-                            <button type="button" @onclick="PlotSelectedRouteAsync" disabled="@sectionLoadingVisible">Plot route</button>
-                            <button type="button" @onclick="ClearSelectedRoute">Clear route</button>
-                        </div>
-                        <div class="form-grid">
-                            <label>
-                                Optimization
-                                <select @bind="routeOptimizationMode">
-                                    <option value="@RouteOptimizationMode.ShortestDistance">Shortest distance</option>
-                                    <option value="@RouteOptimizationMode.ShortestTravelTime">Shortest travel time</option>
-                                </select>
-                            </label>
-                            <MultiSelectCombo Label="Avoid empires"
-                                              Placeholder="Avoid selected empires..."
-                                              SearchPlaceholder="Search empires..."
-                                              Options="@GetRouteEmpireOptions()"
-                                              SelectedIds="avoidedEmpireIds"
-                                              SelectedIdsChanged="UpdateAvoidedEmpires" />
-                            <MultiSelectCombo Label="Avoid systems"
-                                              Placeholder="Avoid selected systems..."
-                                              SearchPlaceholder="Search systems..."
-                                              Options="@GetRouteSystemOptions()"
-                                              SelectedIds="avoidedSystemIds"
-                                              SelectedIdsChanged="UpdateAvoidedSystems" />
-                        </div>
-                        @if (selectedRoutePlan is { } routePlan)
-                        {
-                            <dl class="field-grid">
-                                <div><dt>Origin</dt><dd>@routePlan.Origin.Name</dd></div>
-                                <div><dt>Destination</dt><dd>@routePlan.Destination.Name</dd></div>
-                                <div><dt>Direct distance</dt><dd>@Format(routePlan.DirectDistanceParsecs) pc</dd></div>
-                                <div><dt>Route distance</dt><dd>@Format(routePlan.TotalDistanceParsecs) pc</dd></div>
-                                <div><dt>Travel time</dt><dd>@FormatTravelTime(routePlan.TotalTravelTimeYears)</dd></div>
-                                <div><dt>Extra travel</dt><dd>@Format(routePlan.ExtraDistanceParsecs) pc</dd></div>
-                                <div><dt>Hyperlane jumps</dt><dd>@routePlan.HyperlaneJumpCount</dd></div>
-                                <div><dt>Off-lane legs</dt><dd>@routePlan.OffHyperlaneLegCount</dd></div>
-                                <div><dt>Off-lane limit</dt><dd>@Format(GetOffLaneMaximumDistanceParsecs(sector)) pc</dd></div>
-                            </dl>
-                            <div class="route-leg-list">
-                                @foreach (var leg in routePlan.Legs)
-                                {
-                                    <button type="button"
-                                            class="route-leg @GetRouteLegCssClass(leg)"
-                                            @onclick="() => SelectSystem(leg.Target.Id)">
-                                        <span>@GetRouteLegTierLabel(leg)</span>
-                                        <strong>@leg.Source.Name to @leg.Target.Name</strong>
-                                        <small>@Format(leg.DistanceParsecs) pc • @FormatTravelTime(leg.TravelTimeYears) • @GetRouteLegOwnerLabel(leg)</small>
-                                    </button>
-                                }
-                            </div>
-                        }
-                        else if (routeDestinationSystemId is not 0)
-                        {
-                            <p>No route could be plotted without an off-lane flight over @Format(GetOffLaneMaximumDistanceParsecs(sector)) parsecs.</p>
-                        }
+                        <h2>Preparing route-planning workspace</h2>
+                        <p>The route planner is loading as a follow-up component after the main Overview content appears.</p>
                     </article>
                 </div>
+            }
+            else
+            {
+                <SectorExplorerMapWorkspace SelectedSector="sector"
+                                            SelectedSystemId="selectedSystemId"
+                                            SelectedSystemChanged="HandleOverviewSystemSelectedAsync"
+                                            OpenSystemRecordRequested="HandleOverviewOpenSystemRecordRequestedAsync"
+                                            OverviewData="overviewData"
+                                            AutoLoadRequested="autoLoadSectorMap"
+                                            AutoLoadRequestedChanged="HandleOverviewAutoLoadSectorMapChangedAsync" />
+            }
         </section>
         break;
 }
-
-<LoadingModal IsVisible="@mapContextRefreshing"
-              AriaLabel="@(Workspace.IsLoaded ? "Refreshing map context" : "Loading map context")"
-              Kicker="@(Workspace.IsLoaded ? "Refreshing map context" : "Loading map context")"
-              Title="@(Workspace.IsLoaded ? "Refreshing the cached 3D sector map data." : "Loading the cached 3D sector map data for the first time.")"
-              Detail="@mapContextStatus"
-              Steps="@mapContextLoadingSteps" />
-
 @code {
     private static readonly IReadOnlyList<string> routePlannerLoadingSteps =
     [
@@ -412,6 +174,7 @@
     private bool sectionLoadingVisible;
     private bool sectionLoadingAwaitingTargetRender;
     private DateTimeOffset sectionLoadingStartedAtUtc;
+    private bool overviewMapWorkspaceReady;
     private int selectedSectorId;
     private int selectedSystemId;
     private string selectedSystemText = string.Empty;
@@ -739,7 +502,7 @@
 
     private static bool RequiresSavedRoutesInShell(string sectionName)
     {
-        return sectionName is "Overview" or "Configuration" or "Hyperlanes";
+        return sectionName is "Configuration" or "Hyperlanes";
     }
 
     private static bool RequiresReferenceDataInShell(string sectionName)
@@ -790,6 +553,11 @@
         {
             await RestoreExplorerSessionAsync();
             browserSessionReady = true;
+            if (activeSection == "Overview" && !overviewMapWorkspaceReady)
+            {
+                overviewMapWorkspaceReady = true;
+            }
+
             StateHasChanged();
             return;
         }
@@ -811,18 +579,11 @@
                 return;
             }
 
-            if (activeSection != "Overview")
+            if (activeSection == "Overview")
             {
-                renderedOverview = false;
-                await CompleteSectionLoadingIfReadyAsync();
-                return;
-            }
-
-            if (!sectorMapRequested)
-            {
-                if (autoLoadSectorMap)
+                if (!overviewMapWorkspaceReady)
                 {
-                    await LoadSectorMap();
+                    overviewMapWorkspaceReady = true;
                     StateHasChanged();
                     return;
                 }
@@ -832,40 +593,7 @@
                 return;
             }
 
-            var sector = GetMapSector();
-            if (!firstRender
-                && renderedOverview
-                && renderedSectorId == sector.Id
-                && renderedSystemId == selectedSystemId
-                && renderedViewDistanceParsecs == sectorMapViewDistanceParsecs
-                && renderedMapRenderLimit == sectorMapRenderLimit
-                && renderedRouteOriginSystemId == routeOriginSystemId
-                && renderedRouteDestinationSystemId == routeDestinationSystemId
-                && renderedRouteConfigurationStamp == GetRouteConfigurationStamp(sector))
-            {
-                await CompleteSectionLoadingIfReadyAsync();
-                return;
-            }
-
-            sectorMapModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/sectorMap3d.js");
-            dotNetReference ??= DotNetObjectReference.Create(this);
-
-            await sectorMapModule.InvokeVoidAsync(
-                "renderSectorMap",
-                sectorMapElement,
-                BuildSectorMap(sector, selectedSystemId),
-                selectedSystemId,
-                dotNetReference);
-
-            renderedSectorId = sector.Id;
-            renderedSystemId = selectedSystemId;
-            renderedViewDistanceParsecs = sectorMapViewDistanceParsecs;
-            renderedMapRenderLimit = sectorMapRenderLimit;
-            renderedRouteOriginSystemId = routeOriginSystemId;
-            renderedRouteDestinationSystemId = routeDestinationSystemId;
-            renderedRouteConfigurationStamp = GetRouteConfigurationStamp(sector);
-            renderedOverview = true;
-            explorerRenderError = string.Empty;
+            renderedOverview = false;
             await CompleteSectionLoadingIfReadyAsync();
         }
         catch (Exception ex)
@@ -1190,13 +918,7 @@
         selectedWorldId = sector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Id ?? 0;
         selectedColonyId = sector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Colony?.Id ?? 0;
         selectedHabitatId = 0;
-        sectorMapViewDistanceParsecs = Math.Min(
-            sectorMapViewDistanceParsecs,
-            GetSectorMapMaximumViewDistance(sector));
-        ResetSectorMapPerformanceLimit();
         SelectDefaultCivilizationRecords(sector);
-        ClearSelectedRoute();
-        sectorMapRequested = autoLoadSectorMap && Workspace.IsLoaded;
         SyncCurrentExplorerRoute(replaceHistory: true);
         await PersistExplorerSessionAsync();
     }
@@ -1237,6 +959,30 @@
     {
         selectedSystemText = value;
         ApplySelectedSystemText();
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleOverviewSystemSelectedAsync(int systemId)
+    {
+        if (systemId <= 0)
+        {
+            return;
+        }
+
+        selectedSystemId = systemId;
+        SelectDefaultWorld();
+        await PersistExplorerSessionAsync();
+    }
+
+    private async Task HandleOverviewAutoLoadSectorMapChangedAsync(bool value)
+    {
+        autoLoadSectorMap = value;
+        await PersistExplorerSessionAsync();
+    }
+
+    private Task HandleOverviewOpenSystemRecordRequestedAsync(int systemId)
+    {
+        NavigateToSystemRecord(systemId);
         return Task.CompletedTask;
     }
 
@@ -1459,7 +1205,6 @@
         selectedSectorId = sector.Id;
         await LoadSectorOverviewDataAsync(sector.Id);
         autoLoadSectorMap = storedSelection.AutoLoadSectorMap;
-        sectorMapRequested = autoLoadSectorMap && Workspace.IsLoaded;
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;
@@ -1469,9 +1214,6 @@
         selectedWorldId = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId)?.Worlds.FirstOrDefault()?.Id ?? 0;
         selectedColonyId = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId)?.Worlds.FirstOrDefault()?.Colony?.Id ?? 0;
         selectedHabitatId = 0;
-        sectorMapViewDistanceParsecs = Math.Min(
-            sectorMapViewDistanceParsecs,
-            GetSectorMapMaximumViewDistance(sector));
         SelectDefaultCivilizationRecords(sector);
         SyncCurrentExplorerRoute(replaceHistory: true);
     }

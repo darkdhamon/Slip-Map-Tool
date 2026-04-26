@@ -1,0 +1,1448 @@
+@inject IStarWinWorkspace Workspace
+@inject IJSRuntime JS
+@using StarWin.Domain.Model.Entity.Civilization
+@using StarWin.Domain.Model.Entity.StarMap
+@using StarWin.Domain.Services
+@implements IAsyncDisposable
+
+@if (!workspaceReady)
+{
+    <div class="sector-map-three" aria-label="sector map workspace">
+        <article class="map-request-panel">
+            <span class="panel-kicker">Map workspace</span>
+            <h2>Loading route-planning workspace</h2>
+            <p>The Overview page is ready. The 3D map and route planner are loading in the background so the main Explorer view can appear faster.</p>
+            @if (!string.IsNullOrWhiteSpace(workspaceLoadError))
+            {
+                <p class="search-empty">@workspaceLoadError</p>
+                <button type="button" class="overlay-action" @onclick="RetryWorkspaceLoadAsync">Retry loading workspace</button>
+            }
+            else
+            {
+                <p class="search-empty">Preparing the cached sector data needed for the map and route planner.</p>
+            }
+        </article>
+    </div>
+
+    <div class="stacked-panels">
+        <article class="feature-panel route-planner-panel">
+            <span class="panel-kicker">Route planner</span>
+            <h2>Loading route-planning workspace</h2>
+            <p>Route planning becomes available once the cached sector map workspace finishes loading.</p>
+        </article>
+    </div>
+}
+else
+{
+    var mapSector = GetMapSector();
+    var selectedMapSystem = mapSector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? mapSector.Systems.FirstOrDefault();
+    var selectedRoutePlan = GetPlottedRoutePlan(mapSector);
+    var mapPanelTitle = mapSector.Name;
+    var mapContextActionLabel = Workspace.IsLoaded ? "Refresh map context" : "Load map context";
+
+    <div class="sector-map-three" @ref="sectorMapElement" aria-label="interactive 3D sector map">
+        @if (!sectorMapRequested)
+        {
+            <article class="map-request-panel">
+                <span class="panel-kicker">3D Sector Map</span>
+                <h2>@mapPanelTitle</h2>
+                <p>The interactive map is available on request so large imported sectors do not slow down the explorer while you browse records.</p>
+                <label class="switch-field">
+                    <input type="checkbox"
+                           checked="@autoLoadRequested"
+                           @onchange="ToggleAutoLoadSectorMap" />
+                    <span>Auto-load map this session</span>
+                </label>
+                <button type="button" class="overlay-action" @onclick="LoadSectorMap">Load 3D map</button>
+                @if (!string.IsNullOrWhiteSpace(mapContextStatus))
+                {
+                    <p class="search-empty">@mapContextStatus</p>
+                }
+            </article>
+        }
+        else
+        {
+            <div class="map-hud">
+                <span>3D Sector Map</span>
+                <strong>@mapSector.Name</strong>
+                <small>@GetSectorMapSystemCount(mapSector, selectedMapSystem) of @mapSector.Systems.Count systems within @sectorMapViewDistanceParsecs parsecs@(IsSectorMapCapped(mapSector, selectedMapSystem) ? $" (closest {sectorMapRenderLimit:N0} shown)" : string.Empty)</small>
+                <small>@GetSectorMapRouteCount(mapSector, selectedMapSystem) visible hyperlanes</small>
+                @if (!string.IsNullOrWhiteSpace(sectorMapPerformanceStatus))
+                {
+                    <small class="map-performance-status">@sectorMapPerformanceStatus</small>
+                }
+                @if (selectedRoutePlan is { } hudRoutePlan)
+                {
+                    <small>@hudRoutePlan.Legs.Count route legs from @hudRoutePlan.Origin.Name to @hudRoutePlan.Destination.Name; @hudRoutePlan.OffHyperlaneLegCount off-lane</small>
+                }
+                <label class="switch-field compact">
+                    <input type="checkbox"
+                           checked="@autoLoadRequested"
+                           @onchange="ToggleAutoLoadSectorMap" />
+                    <span>Auto-load</span>
+                </label>
+                <label class="map-distance-control">
+                    <span>View distance</span>
+                    <input type="range"
+                           min="@DefaultSectorMapViewDistanceParsecs"
+                           max="@GetSectorMapMaximumViewDistance(mapSector)"
+                           step="1"
+                           @bind="sectorMapViewDistanceParsecs"
+                           @bind:event="oninput" />
+                    <strong>@sectorMapViewDistanceParsecs pc</strong>
+                </label>
+                <button type="button" class="overlay-action" @onclick="RefreshSectorMapContextAsync" disabled="@mapContextRefreshing">@mapContextActionLabel</button>
+                @if (!string.IsNullOrWhiteSpace(mapContextStatus))
+                {
+                    <small>@mapContextStatus</small>
+                }
+            </div>
+            <button type="button" class="map-fullscreen-button" @onclick="ToggleSectorMapFullscreen">
+                <span class="enter-fullscreen">Full screen</span>
+                <span class="exit-fullscreen">Exit full screen</span>
+            </button>
+            <div class="map-controls-hint">
+                <span>Drag rotate</span>
+                <span>WASD/QE rotate</span>
+                <span>Wheel zoom</span>
+                <span>Right-drag pan</span>
+            </div>
+        }
+        @if (sectorMapRequested && selectedMapSystem is not null)
+        {
+            <article class="fullscreen-system-overlay">
+                <span class="panel-kicker">Current system</span>
+                <h2>@selectedMapSystem.Name</h2>
+                <dl class="data-list">
+                    <div><dt>Coordinates</dt><dd>@DisplayCoordinates(selectedMapSystem.Coordinates)</dd></div>
+                    <div><dt>Allegiance</dt><dd>@DisplayAllegiance(selectedMapSystem.AllegianceId)</dd></div>
+                    <div><dt>Astral bodies</dt><dd>@selectedMapSystem.AstralBodies.Count</dd></div>
+                    <div><dt>Worlds</dt><dd>@selectedMapSystem.Worlds.Count</dd></div>
+                </dl>
+                <button type="button" class="overlay-action" @onclick="RecenterSectorMap">Recenter map</button>
+                <button type="button" class="overlay-action" @onclick="OpenSelectedSystemRecordAsync">Open system record</button>
+            </article>
+        }
+        @if (sectorMapRequested)
+        {
+            <article class="fullscreen-route-planner route-planner-panel">
+                <span class="panel-kicker">Route planner</span>
+                <h2>Plot hyperlane route</h2>
+                <label>
+                    Origin
+                    <input list="fullscreen-route-system-options"
+                           placeholder="Select origin..."
+                           @bind="routeOriginText"
+                           @bind:after="ApplyRouteOriginText" />
+                </label>
+                <label>
+                    Destination
+                    <input list="fullscreen-route-system-options"
+                           placeholder="Select destination..."
+                           @bind="routeDestinationText"
+                           @bind:after="ApplyRouteDestinationText" />
+                </label>
+                <datalist id="fullscreen-route-system-options">
+                    @foreach (var system in GetRouteSystemOptions())
+                    {
+                        <option value="@FormatRouteOption(system)" />
+                    }
+                </datalist>
+                <div class="parent-actions">
+                    <button type="button" @onclick="PlotSelectedRouteAsync" disabled="@sectionLoadingVisible">Plot route</button>
+                    <button type="button" @onclick="ClearSelectedRoute">Clear route</button>
+                </div>
+                <div class="form-grid">
+                    <label>
+                        Optimization
+                        <select @bind="routeOptimizationMode">
+                            <option value="@RouteOptimizationMode.ShortestDistance">Shortest distance</option>
+                            <option value="@RouteOptimizationMode.ShortestTravelTime">Shortest travel time</option>
+                        </select>
+                    </label>
+                    <MultiSelectCombo Label="Avoid empires"
+                                      Placeholder="Avoid selected empires..."
+                                      SearchPlaceholder="Search empires..."
+                                      Options="@GetRouteEmpireOptions()"
+                                      SelectedIds="avoidedEmpireIds"
+                                      SelectedIdsChanged="UpdateAvoidedEmpires" />
+                    <MultiSelectCombo Label="Avoid systems"
+                                      Placeholder="Avoid selected systems..."
+                                      SearchPlaceholder="Search systems..."
+                                      Options="@GetRouteSystemOptions()"
+                                      SelectedIds="avoidedSystemIds"
+                                      SelectedIdsChanged="UpdateAvoidedSystems" />
+                </div>
+                @if (selectedRoutePlan is { } fullscreenRoutePlan)
+                {
+                    <dl class="field-grid">
+                        <div><dt>Origin</dt><dd>@fullscreenRoutePlan.Origin.Name</dd></div>
+                        <div><dt>Destination</dt><dd>@fullscreenRoutePlan.Destination.Name</dd></div>
+                        <div><dt>Route distance</dt><dd>@Format(fullscreenRoutePlan.TotalDistanceParsecs) pc</dd></div>
+                        <div><dt>Travel time</dt><dd>@FormatTravelTime(fullscreenRoutePlan.TotalTravelTimeYears)</dd></div>
+                        <div><dt>Hyperlane jumps</dt><dd>@fullscreenRoutePlan.HyperlaneJumpCount</dd></div>
+                        <div><dt>Off-lane legs</dt><dd>@fullscreenRoutePlan.OffHyperlaneLegCount</dd></div>
+                    </dl>
+                    <div class="route-leg-list compact">
+                        @foreach (var leg in fullscreenRoutePlan.Legs)
+                        {
+                            <button type="button"
+                                    class="route-leg @GetRouteLegCssClass(leg)"
+                                    @onclick="() => SelectSystemAsync(leg.Target.Id)">
+                                <span>@GetRouteLegTierLabel(leg)</span>
+                                <strong>@leg.Source.Name to @leg.Target.Name</strong>
+                                <small>@Format(leg.DistanceParsecs) pc • @FormatTravelTime(leg.TravelTimeYears) • @GetRouteLegOwnerLabel(leg)</small>
+                            </button>
+                        }
+                    </div>
+                }
+                else if (routeDestinationSystemId is not 0)
+                {
+                    <p>No route could be plotted without an off-lane flight over @Format(GetOffLaneMaximumDistanceParsecs(mapSector)) parsecs.</p>
+                }
+            </article>
+        }
+        <LoadingModal IsVisible="@sectionLoadingVisible"
+                      BackdropClass="fullscreen-loading-modal-backdrop"
+                      AriaLabel="Loading route"
+                      Kicker="@($"Loading {sectionLoadingTarget}")"
+                      Title="@sectionLoadingStatus"
+                      Steps="@routePlannerLoadingSteps" />
+    </div>
+
+    <div class="stacked-panels">
+        <article class="feature-panel route-planner-panel">
+            <span class="panel-kicker">Route planner</span>
+            <h2>Plot hyperlane route</h2>
+            <label>
+                Origin
+                <input list="route-system-options"
+                       placeholder="Select origin..."
+                       @bind="routeOriginText"
+                       @bind:after="ApplyRouteOriginText" />
+            </label>
+            <label>
+                Destination
+                <input list="route-system-options"
+                       placeholder="Select destination..."
+                       @bind="routeDestinationText"
+                       @bind:after="ApplyRouteDestinationText" />
+            </label>
+            <datalist id="route-system-options">
+                @foreach (var system in GetRouteSystemOptions())
+                {
+                    <option value="@FormatRouteOption(system)" />
+                }
+            </datalist>
+            <div class="parent-actions">
+                <button type="button" @onclick="PlotSelectedRouteAsync" disabled="@sectionLoadingVisible">Plot route</button>
+                <button type="button" @onclick="ClearSelectedRoute">Clear route</button>
+            </div>
+            <div class="form-grid">
+                <label>
+                    Optimization
+                    <select @bind="routeOptimizationMode">
+                        <option value="@RouteOptimizationMode.ShortestDistance">Shortest distance</option>
+                        <option value="@RouteOptimizationMode.ShortestTravelTime">Shortest travel time</option>
+                    </select>
+                </label>
+                <MultiSelectCombo Label="Avoid empires"
+                                  Placeholder="Avoid selected empires..."
+                                  SearchPlaceholder="Search empires..."
+                                  Options="@GetRouteEmpireOptions()"
+                                  SelectedIds="avoidedEmpireIds"
+                                  SelectedIdsChanged="UpdateAvoidedEmpires" />
+                <MultiSelectCombo Label="Avoid systems"
+                                  Placeholder="Avoid selected systems..."
+                                  SearchPlaceholder="Search systems..."
+                                  Options="@GetRouteSystemOptions()"
+                                  SelectedIds="avoidedSystemIds"
+                                  SelectedIdsChanged="UpdateAvoidedSystems" />
+            </div>
+            @if (selectedRoutePlan is { } routePlan)
+            {
+                <dl class="field-grid">
+                    <div><dt>Origin</dt><dd>@routePlan.Origin.Name</dd></div>
+                    <div><dt>Destination</dt><dd>@routePlan.Destination.Name</dd></div>
+                    <div><dt>Direct distance</dt><dd>@Format(routePlan.DirectDistanceParsecs) pc</dd></div>
+                    <div><dt>Route distance</dt><dd>@Format(routePlan.TotalDistanceParsecs) pc</dd></div>
+                    <div><dt>Travel time</dt><dd>@FormatTravelTime(routePlan.TotalTravelTimeYears)</dd></div>
+                    <div><dt>Extra travel</dt><dd>@Format(routePlan.ExtraDistanceParsecs) pc</dd></div>
+                    <div><dt>Hyperlane jumps</dt><dd>@routePlan.HyperlaneJumpCount</dd></div>
+                    <div><dt>Off-lane legs</dt><dd>@routePlan.OffHyperlaneLegCount</dd></div>
+                    <div><dt>Off-lane limit</dt><dd>@Format(GetOffLaneMaximumDistanceParsecs(mapSector)) pc</dd></div>
+                </dl>
+                <div class="route-leg-list">
+                    @foreach (var leg in routePlan.Legs)
+                    {
+                        <button type="button"
+                                class="route-leg @GetRouteLegCssClass(leg)"
+                                @onclick="() => SelectSystemAsync(leg.Target.Id)">
+                            <span>@GetRouteLegTierLabel(leg)</span>
+                            <strong>@leg.Source.Name to @leg.Target.Name</strong>
+                            <small>@Format(leg.DistanceParsecs) pc • @FormatTravelTime(leg.TravelTimeYears) • @GetRouteLegOwnerLabel(leg)</small>
+                        </button>
+                    }
+                </div>
+            }
+            else if (routeDestinationSystemId is not 0)
+            {
+                <p>No route could be plotted without an off-lane flight over @Format(GetOffLaneMaximumDistanceParsecs(mapSector)) parsecs.</p>
+            }
+        </article>
+    </div>
+
+    <LoadingModal IsVisible="@mapContextRefreshing"
+                  AriaLabel="@(Workspace.IsLoaded ? "Refreshing map context" : "Loading map context")"
+                  Kicker="@(Workspace.IsLoaded ? "Refreshing map context" : "Loading map context")"
+                  Title="@(Workspace.IsLoaded ? "Refreshing the cached 3D sector map data." : "Loading the cached 3D sector map data for the first time.")"
+                  Detail="@mapContextStatus"
+                  Steps="@mapContextLoadingSteps" />
+}
+
+@code {
+    private static readonly IReadOnlyList<string> routePlannerLoadingSteps =
+    [
+        "Reading the current system and destination.",
+        "Following connected hyperlane networks.",
+        "Finding the shortest unavoidable void crossing."
+    ];
+
+    private static readonly IReadOnlyList<string> mapContextLoadingSteps =
+    [
+        "Load the current sector cache from the database.",
+        "Refresh system, route, and civilization references for the map.",
+        "Prepare the 3D map so the selected sector can render."
+    ];
+
+    private const int DefaultSectorMapViewDistanceParsecs = 5;
+    private const int MaximumSectorMapViewDistanceParsecs = 20;
+    private const int SectorMapUnrestrictedRenderedSystems = int.MaxValue;
+    private const int SectorMapMinimumRenderedSystems = 150;
+    private const int ComboAllFilterId = -1;
+
+    [Parameter, EditorRequired] public StarWinSector SelectedSector { get; set; } = default!;
+    [Parameter] public int SelectedSystemId { get; set; }
+    [Parameter] public EventCallback<int> SelectedSystemChanged { get; set; }
+    [Parameter] public EventCallback<int> OpenSystemRecordRequested { get; set; }
+    [Parameter] public ExplorerSectorOverviewData? OverviewData { get; set; }
+    [Parameter] public bool AutoLoadRequested { get; set; }
+    [Parameter] public EventCallback<bool> AutoLoadRequestedChanged { get; set; }
+
+    private ElementReference sectorMapElement;
+    private DotNetObjectReference<SectorExplorerMapWorkspace>? dotNetReference;
+    private IJSObjectReference? sectorMapModule;
+    private int renderedSectorId;
+    private int renderedSystemId;
+    private int renderedViewDistanceParsecs;
+    private int renderedMapRenderLimit;
+    private int renderedRouteOriginSystemId;
+    private int renderedRouteDestinationSystemId;
+    private long renderedRouteConfigurationStamp;
+    private bool renderedOverview;
+    private bool sectorMapRequested;
+    private bool autoLoadRequested;
+    private bool workspaceReady;
+    private bool workspaceLoadStarted;
+    private bool workspaceLoading;
+    private string workspaceLoadError = string.Empty;
+    private bool mapContextRefreshing;
+    private string mapContextStatus = string.Empty;
+    private SectorMapRoutePlan? plottedRoutePlan;
+    private int plottedRouteSectorId;
+    private int plottedRouteOriginSystemId;
+    private int plottedRouteDestinationSystemId;
+    private RouteOptimizationMode plottedRouteOptimizationMode = RouteOptimizationMode.ShortestDistance;
+    private long plottedRouteConfigurationStamp;
+    private readonly Dictionary<RouteGraphCacheKey, IReadOnlyDictionary<int, List<SectorMapRouteLeg>>> routeGraphCaches = [];
+    private readonly Dictionary<int, IReadOnlyList<SectorMapRoute>> generatedSectorRouteCache = [];
+    private int selectedSystemId;
+    private int lastSelectedSystemId;
+    private int lastSelectedSectorId;
+    private string routeOriginText = string.Empty;
+    private int routeOriginSystemId;
+    private string routeDestinationText = string.Empty;
+    private int routeDestinationSystemId;
+    private string renderError = string.Empty;
+    private int sectorMapViewDistanceParsecs = DefaultSectorMapViewDistanceParsecs;
+    private int sectorMapRenderLimit = SectorMapUnrestrictedRenderedSystems;
+    private string sectorMapPerformanceStatus = string.Empty;
+    private RouteOptimizationMode routeOptimizationMode = RouteOptimizationMode.ShortestDistance;
+    private HashSet<int> avoidedEmpireIds = [];
+    private HashSet<int> avoidedSystemIds = [];
+    private string sectionLoadingTarget = string.Empty;
+    private string sectionLoadingStatus = string.Empty;
+    private bool sectionLoadingVisible;
+
+    private IReadOnlyDictionary<int, Empire> EmpiresById =>
+        Workspace.Empires.ToDictionary(empire => empire.Id);
+
+    protected override void OnParametersSet()
+    {
+        autoLoadRequested = AutoLoadRequested;
+        workspaceReady = Workspace.IsLoaded;
+
+        var previousSectorId = lastSelectedSectorId;
+        var previousSelectedSystemId = lastSelectedSystemId;
+
+        var selectionSector = GetSelectionSector();
+        var resolvedSystemId = selectionSector.Systems.Any(system => system.Id == SelectedSystemId)
+            ? SelectedSystemId
+            : selectionSector.Systems.FirstOrDefault()?.Id ?? 0;
+
+        selectedSystemId = resolvedSystemId;
+
+        if (previousSectorId != SelectedSector.Id)
+        {
+            ResetSectorMapPerformanceLimit();
+            ClearSelectedRoute();
+            renderedOverview = false;
+            sectorMapRequested = autoLoadRequested && workspaceReady;
+        }
+
+        if (routeOriginSystemId == 0
+            || routeOriginSystemId == previousSelectedSystemId
+            || previousSectorId != SelectedSector.Id)
+        {
+            routeOriginSystemId = selectedSystemId;
+            routeOriginText = FormatSelectedSystem(selectionSector, routeOriginSystemId);
+        }
+
+        if (selectedSystemId != previousSelectedSystemId)
+        {
+            renderedOverview = false;
+        }
+
+        lastSelectedSectorId = SelectedSector.Id;
+        lastSelectedSystemId = selectedSystemId;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            workspaceLoadStarted = true;
+            if (!workspaceReady)
+            {
+                workspaceLoading = true;
+                StateHasChanged();
+                await Task.Yield();
+                await EnsureWorkspaceReadyAsync();
+                StateHasChanged();
+                return;
+            }
+
+            if (autoLoadRequested)
+            {
+                sectorMapRequested = true;
+                StateHasChanged();
+                return;
+            }
+        }
+
+        if (!workspaceReady || !sectorMapRequested)
+        {
+            return;
+        }
+
+        try
+        {
+            var sector = GetMapSector();
+            if (renderedOverview
+                && renderedSectorId == sector.Id
+                && renderedSystemId == selectedSystemId
+                && renderedViewDistanceParsecs == sectorMapViewDistanceParsecs
+                && renderedMapRenderLimit == sectorMapRenderLimit
+                && renderedRouteOriginSystemId == routeOriginSystemId
+                && renderedRouteDestinationSystemId == routeDestinationSystemId
+                && renderedRouteConfigurationStamp == GetRouteConfigurationStamp(sector))
+            {
+                return;
+            }
+
+            sectorMapModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/sectorMap3d.js");
+            dotNetReference ??= DotNetObjectReference.Create(this);
+
+            await sectorMapModule.InvokeVoidAsync(
+                "renderSectorMap",
+                sectorMapElement,
+                BuildSectorMap(sector, selectedSystemId),
+                selectedSystemId,
+                dotNetReference);
+
+            renderedSectorId = sector.Id;
+            renderedSystemId = selectedSystemId;
+            renderedViewDistanceParsecs = sectorMapViewDistanceParsecs;
+            renderedMapRenderLimit = sectorMapRenderLimit;
+            renderedRouteOriginSystemId = routeOriginSystemId;
+            renderedRouteDestinationSystemId = routeDestinationSystemId;
+            renderedRouteConfigurationStamp = GetRouteConfigurationStamp(sector);
+            renderedOverview = true;
+            renderError = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            renderError = ex.GetBaseException().Message;
+            StateHasChanged();
+        }
+    }
+
+    private StarWinSector GetSelectionSector()
+    {
+        return Workspace.IsLoaded
+            ? GetMapSector()
+            : SelectedSector;
+    }
+
+    private StarWinSector GetMapSector()
+    {
+        return Workspace.Sectors.FirstOrDefault(item => item.Id == SelectedSector.Id)
+            ?? Workspace.CurrentSector
+            ?? SelectedSector;
+    }
+
+    private async Task EnsureWorkspaceReadyAsync(bool forceReload = false)
+    {
+        if (workspaceLoading && !forceReload)
+        {
+            return;
+        }
+
+        if (workspaceReady && !forceReload)
+        {
+            return;
+        }
+
+        workspaceLoading = true;
+        workspaceLoadError = string.Empty;
+
+        try
+        {
+            if (!Workspace.IsLoaded || forceReload)
+            {
+                await Workspace.ReloadAsync();
+            }
+
+            workspaceReady = Workspace.IsLoaded;
+            if (!workspaceReady)
+            {
+                workspaceLoadError = "The workspace did not finish loading.";
+                return;
+            }
+
+            generatedSectorRouteCache.Clear();
+            routeGraphCaches.Clear();
+            renderedOverview = false;
+            mapContextStatus = string.Empty;
+
+            var sector = GetSelectionSector();
+            if (routeOriginSystemId == 0)
+            {
+                routeOriginSystemId = selectedSystemId;
+                routeOriginText = FormatSelectedSystem(sector, routeOriginSystemId);
+            }
+
+            if (autoLoadRequested)
+            {
+                sectorMapRequested = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            workspaceLoadError = ex.GetBaseException().Message;
+        }
+        finally
+        {
+            workspaceLoading = false;
+        }
+    }
+
+    private Task RetryWorkspaceLoadAsync()
+    {
+        return EnsureWorkspaceReadyAsync(forceReload: true);
+    }
+
+    private async Task LoadSectorMap()
+    {
+        if (!workspaceReady)
+        {
+            await EnsureWorkspaceReadyAsync();
+            if (!workspaceReady)
+            {
+                return;
+            }
+        }
+
+        sectorMapRequested = true;
+        renderedOverview = false;
+    }
+
+    private async Task RefreshSectorMapContextAsync()
+    {
+        if (mapContextRefreshing)
+        {
+            return;
+        }
+
+        var loadingMapContext = !Workspace.IsLoaded;
+        mapContextRefreshing = true;
+        mapContextStatus = loadingMapContext
+            ? "Loading cached sector map context..."
+            : "Refreshing cached sector map context...";
+        StateHasChanged();
+        await Task.Yield();
+
+        try
+        {
+            await EnsureWorkspaceReadyAsync(forceReload: true);
+            generatedSectorRouteCache.Clear();
+            routeGraphCaches.Clear();
+            renderedOverview = false;
+            mapContextStatus = loadingMapContext
+                ? "Sector map context loaded."
+                : "Sector map context refreshed.";
+        }
+        catch (Exception ex)
+        {
+            mapContextStatus = $"Map context refresh failed: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            mapContextRefreshing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleAutoLoadSectorMap(ChangeEventArgs args)
+    {
+        autoLoadRequested = args.Value is bool value && value;
+        await AutoLoadRequestedChanged.InvokeAsync(autoLoadRequested);
+
+        if (autoLoadRequested)
+        {
+            await LoadSectorMap();
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ToggleSectorMapFullscreen()
+    {
+        if (!sectorMapRequested)
+        {
+            await LoadSectorMap();
+            return;
+        }
+
+        sectorMapModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/sectorMap3d.js");
+        await sectorMapModule.InvokeVoidAsync("toggleMapFullscreen", sectorMapElement);
+    }
+
+    private async Task RecenterSectorMap()
+    {
+        if (!sectorMapRequested || selectedSystemId == 0)
+        {
+            return;
+        }
+
+        sectorMapModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/sectorMap3d.js");
+        await sectorMapModule.InvokeVoidAsync("recenterSectorMap", sectorMapElement, selectedSystemId);
+    }
+
+    [JSInvokable]
+    public async Task SelectSystemFromMap(int systemId)
+    {
+        await SelectSystemAsync(systemId);
+    }
+
+    private async Task SelectSystemAsync(int systemId)
+    {
+        selectedSystemId = systemId;
+        await SelectedSystemChanged.InvokeAsync(systemId);
+        renderedOverview = false;
+        StateHasChanged();
+    }
+
+    private async Task OpenSelectedSystemRecordAsync()
+    {
+        if (selectedSystemId <= 0)
+        {
+            return;
+        }
+
+        await OpenSystemRecordRequested.InvokeAsync(selectedSystemId);
+    }
+
+    [JSInvokable]
+    public Task ReduceSectorMapRenderLimit(int suggestedMaximumSystems, double averageFrameMilliseconds, int previousMaximumSystems)
+    {
+        var nextLimit = Math.Clamp(suggestedMaximumSystems, SectorMapMinimumRenderedSystems, SectorMapUnrestrictedRenderedSystems);
+        if (nextLimit >= sectorMapRenderLimit)
+        {
+            return Task.CompletedTask;
+        }
+
+        sectorMapRenderLimit = nextLimit;
+        sectorMapPerformanceStatus = $"The map reduced visible systems from {previousMaximumSystems:N0} to {sectorMapRenderLimit:N0} to improve performance after slow frames ({averageFrameMilliseconds:0} ms avg).";
+        renderedOverview = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void ResetSectorMapPerformanceLimit()
+    {
+        sectorMapRenderLimit = SectorMapUnrestrictedRenderedSystems;
+        sectorMapPerformanceStatus = string.Empty;
+        renderedMapRenderLimit = 0;
+    }
+
+    private void ApplyRouteOriginText()
+    {
+        var sector = GetSelectionSector();
+        var systemId = ParseComboId(routeOriginText);
+        if (systemId == ComboAllFilterId || sector.Systems.All(system => system.Id != systemId))
+        {
+            routeOriginSystemId = 0;
+            routeOriginText = string.Empty;
+            ClearPlottedRoutePlan();
+            renderedOverview = false;
+            return;
+        }
+
+        routeOriginSystemId = systemId;
+        routeOriginText = FormatSelectedSystem(sector, routeOriginSystemId);
+        ClearPlottedRoutePlan();
+        renderedOverview = false;
+    }
+
+    private void ApplyRouteDestinationText()
+    {
+        var sector = GetSelectionSector();
+        var systemId = ParseComboId(routeDestinationText);
+        if (systemId == ComboAllFilterId || sector.Systems.All(system => system.Id != systemId))
+        {
+            routeDestinationSystemId = 0;
+            routeDestinationText = string.Empty;
+            ClearPlottedRoutePlan();
+            renderedOverview = false;
+            return;
+        }
+
+        routeDestinationSystemId = systemId;
+        routeDestinationText = FormatSelectedSystem(sector, routeDestinationSystemId);
+        ClearPlottedRoutePlan();
+        renderedOverview = false;
+    }
+
+    private void ClearPlottedRoutePlan()
+    {
+        plottedRoutePlan = null;
+        plottedRouteSectorId = 0;
+        plottedRouteOriginSystemId = 0;
+        plottedRouteDestinationSystemId = 0;
+        plottedRouteOptimizationMode = RouteOptimizationMode.ShortestDistance;
+        plottedRouteConfigurationStamp = 0;
+    }
+
+    private async Task PlotSelectedRouteAsync()
+    {
+        if (sectionLoadingVisible)
+        {
+            return;
+        }
+
+        if (!workspaceReady)
+        {
+            await EnsureWorkspaceReadyAsync();
+            if (!workspaceReady)
+            {
+                return;
+            }
+        }
+
+        sectionLoadingTarget = "Route";
+        sectionLoadingStatus = "Reading origin system and destination...";
+        sectionLoadingVisible = true;
+        StateHasChanged();
+        await Task.Yield();
+        await Task.Delay(60);
+
+        ApplyRouteOriginText();
+        ApplyRouteDestinationText();
+        if (routeOriginSystemId == 0 || routeDestinationSystemId == 0)
+        {
+            sectionLoadingVisible = false;
+            sectionLoadingTarget = string.Empty;
+            sectionLoadingStatus = string.Empty;
+            StateHasChanged();
+            return;
+        }
+
+        var sector = GetMapSector();
+        var origin = sector.Systems.FirstOrDefault(system => system.Id == routeOriginSystemId);
+        var destination = sector.Systems.FirstOrDefault(system => system.Id == routeDestinationSystemId);
+        if (origin is null || destination is null || origin.Id == destination.Id)
+        {
+            ClearPlottedRoutePlan();
+            sectionLoadingVisible = false;
+            sectionLoadingTarget = string.Empty;
+            sectionLoadingStatus = string.Empty;
+            StateHasChanged();
+            return;
+        }
+
+        sectionLoadingStatus = "Following hyperlanes as far as possible...";
+        StateHasChanged();
+        await Task.Yield();
+        await Task.Delay(40);
+
+        var adjacency = await GetRouteAdjacencyAsync(sector);
+
+        sectionLoadingStatus = routeOptimizationMode == RouteOptimizationMode.ShortestTravelTime
+            ? "Optimizing total travel time..."
+            : "Optimizing total travel distance...";
+        StateHasChanged();
+        await Task.Yield();
+        plottedRoutePlan = await Task.Run(() => BuildHyperlanePreferredRoute(origin, destination, adjacency));
+        plottedRouteSectorId = sector.Id;
+        plottedRouteOriginSystemId = origin.Id;
+        plottedRouteDestinationSystemId = destination.Id;
+        plottedRouteOptimizationMode = routeOptimizationMode;
+        plottedRouteConfigurationStamp = GetRouteConfigurationStamp(sector);
+
+        await LoadSectorMap();
+        renderedOverview = false;
+        sectionLoadingStatus = "Rendering route map...";
+        StateHasChanged();
+        await Task.Delay(140);
+
+        sectionLoadingVisible = false;
+        sectionLoadingTarget = string.Empty;
+        sectionLoadingStatus = string.Empty;
+        StateHasChanged();
+    }
+
+    private void ClearSelectedRoute()
+    {
+        var sector = GetSelectionSector();
+        routeOriginSystemId = selectedSystemId;
+        routeOriginText = FormatSelectedSystem(sector, routeOriginSystemId);
+        routeDestinationSystemId = 0;
+        routeDestinationText = string.Empty;
+        ClearPlottedRoutePlan();
+        renderedOverview = false;
+    }
+
+    private static int ParseComboId(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return 0;
+        }
+
+        var separatorIndex = value.IndexOf(" - ", StringComparison.Ordinal);
+        var token = separatorIndex >= 0 ? value[..separatorIndex] : value;
+        return int.TryParse(token.Trim(), out var id) ? id : 0;
+    }
+
+    private static string FormatSelectedSystem(StarWinSector sector, int systemId)
+    {
+        var system = sector.Systems.FirstOrDefault(item => item.Id == systemId);
+        return system is null ? string.Empty : $"{system.Id} - {system.Name}";
+    }
+
+    private static string DisplayCoordinates(Coordinates coordinates)
+    {
+        return $"{coordinates.X:0.#}, {coordinates.Y:0.#}, {coordinates.Z:0.#}";
+    }
+
+    private static string Format(double value)
+    {
+        return value.ToString("0.###");
+    }
+
+    private static string DisplayAllegiance(ushort allegianceId)
+    {
+        return allegianceId == ushort.MaxValue ? "Independent" : $"Empire {allegianceId}";
+    }
+
+    private object BuildSectorMap(StarWinSector sector, int focusedSystemId)
+    {
+        var routePlan = GetPlottedRoutePlan(sector);
+        var mappedSystems = GetSectorMapSystems(sector, focusedSystemId, routePlan).ToList();
+        var routes = BuildVisibleSectorMapRoutes(sector, mappedSystems, focusedSystemId, routePlan);
+
+        return new
+        {
+            systems = mappedSystems.Select(system => new
+            {
+                id = system.Id,
+                name = system.Name,
+                x = system.Coordinates.X,
+                y = system.Coordinates.Y,
+                z = system.Coordinates.Z,
+                allegianceId = system.AllegianceId,
+                worldCount = system.Worlds.Count,
+                habitatCount = system.SpaceHabitats.Count
+            }).ToList(),
+            routes = routes.Select(route => new
+            {
+                sourceSystemId = route.SourceSystemId,
+                targetSystemId = route.TargetSystemId,
+                distanceParsecs = route.DistanceParsecs,
+                travelTimeYears = route.TravelTimeYears,
+                technologyLevel = route.TechnologyLevel,
+                tierName = route.TierName,
+                primaryOwnerEmpireId = route.PrimaryOwnerEmpireId,
+                primaryOwnerEmpireName = route.PrimaryOwnerEmpireName,
+                secondaryOwnerEmpireId = route.SecondaryOwnerEmpireId,
+                secondaryOwnerEmpireName = route.SecondaryOwnerEmpireName
+            }).ToList(),
+            focusedSystemId,
+            offLaneDistanceParsecs = GetOffLaneMaximumDistanceParsecs(sector),
+            renderedSystemLimit = sectorMapRenderLimit
+        };
+    }
+
+    private IReadOnlyList<StarSystem> GetSectorMapSystems(StarWinSector sector, int focusedSystemId, SectorMapRoutePlan? routePlan = null)
+    {
+        var focusedSystem = sector.Systems.FirstOrDefault(system => system.Id == focusedSystemId) ?? sector.Systems.FirstOrDefault();
+        if (focusedSystem is null)
+        {
+            return [];
+        }
+
+        var systemsInRange = sector.Systems
+            .Where(system => SectorRoutePlanner.CalculateParsecDistance(focusedSystem.Coordinates, system.Coordinates) <= sectorMapViewDistanceParsecs)
+            .OrderBy(system => SectorRoutePlanner.CalculateParsecDistance(focusedSystem.Coordinates, system.Coordinates))
+            .ThenBy(system => system.Name)
+            .ThenBy(system => system.Id)
+            .ToList();
+
+        if (routePlan is not null)
+        {
+            foreach (var routeSystem in routePlan.Systems)
+            {
+                if (systemsInRange.All(system => system.Id != routeSystem.Id))
+                {
+                    systemsInRange.Add(routeSystem);
+                }
+            }
+        }
+
+        return systemsInRange.Count <= sectorMapRenderLimit
+            ? systemsInRange
+            : systemsInRange.Take(sectorMapRenderLimit).ToList();
+    }
+
+    private SectorMapRoutePlan? GetPlottedRoutePlan(StarWinSector sector)
+    {
+        return plottedRoutePlan is not null
+            && plottedRouteSectorId == sector.Id
+            && plottedRouteOriginSystemId == routeOriginSystemId
+            && plottedRouteDestinationSystemId == routeDestinationSystemId
+            && plottedRouteOptimizationMode == routeOptimizationMode
+            && plottedRouteConfigurationStamp == GetRouteConfigurationStamp(sector)
+            ? plottedRoutePlan
+            : null;
+    }
+
+    private async Task<IReadOnlyDictionary<int, List<SectorMapRouteLeg>>> GetRouteAdjacencyAsync(StarWinSector sector)
+    {
+        var configurationStamp = GetRouteConfigurationStamp(sector);
+        var cacheKey = new RouteGraphCacheKey(sector.Id, configurationStamp);
+        if (routeGraphCaches.TryGetValue(cacheKey, out var cachedAdjacency))
+        {
+            return cachedAdjacency;
+        }
+
+        var adjacency = await Task.Run(() => BuildRouteAdjacency(sector, EmpiresById));
+        routeGraphCaches[cacheKey] = adjacency;
+        return adjacency;
+    }
+
+    private IReadOnlyDictionary<int, List<SectorMapRouteLeg>> BuildRouteAdjacency(
+        StarWinSector sector,
+        IReadOnlyDictionary<int, Empire> empiresById)
+    {
+        var adjacency = sector.Systems.ToDictionary(system => system.Id, _ => new List<SectorMapRouteLeg>());
+        var systemsById = sector.Systems.ToDictionary(system => system.Id);
+
+        foreach (var route in GetSectorHyperlaneRoutes(sector))
+        {
+            if (!systemsById.TryGetValue(route.SourceSystemId, out var source)
+                || !systemsById.TryGetValue(route.TargetSystemId, out var target))
+            {
+                continue;
+            }
+
+            var leg = new SectorMapRouteLeg(
+                source,
+                target,
+                route.DistanceParsecs,
+                route.TravelTimeYears,
+                true,
+                route.TechnologyLevel,
+                route.TierName,
+                route.PrimaryOwnerEmpireId,
+                route.PrimaryOwnerEmpireName,
+                route.SecondaryOwnerEmpireId,
+                route.SecondaryOwnerEmpireName);
+            adjacency[source.Id].Add(leg);
+            adjacency[target.Id].Add(leg with { Source = target, Target = source });
+        }
+
+        var offLaneMaximumDistanceParsecs = GetOffLaneMaximumDistanceParsecs(sector);
+        if (sector.Systems.Count < 2 || offLaneMaximumDistanceParsecs <= 0)
+        {
+            return adjacency;
+        }
+
+        for (var sourceIndex = 0; sourceIndex < sector.Systems.Count; sourceIndex++)
+        {
+            var source = sector.Systems[sourceIndex];
+            for (var targetIndex = sourceIndex + 1; targetIndex < sector.Systems.Count; targetIndex++)
+            {
+                var target = sector.Systems[targetIndex];
+                var distanceParsecs = SectorRoutePlanner.CalculateParsecDistance(source.Coordinates, target.Coordinates);
+                if (distanceParsecs > offLaneMaximumDistanceParsecs)
+                {
+                    continue;
+                }
+
+                var technologyLevel = ResolveOffLaneTechnologyLevel(source, target, empiresById);
+                var travelTimeYears = SectorRoutePlanner.CalculateOffLaneTravelTimeYears(
+                    sector.Configuration,
+                    technologyLevel,
+                    distanceParsecs);
+
+                var leg = new SectorMapRouteLeg(
+                    source,
+                    target,
+                    distanceParsecs,
+                    travelTimeYears,
+                    false,
+                    technologyLevel,
+                    "Off-lane");
+                adjacency[source.Id].Add(leg);
+                adjacency[target.Id].Add(leg with { Source = target, Target = source });
+            }
+        }
+
+        return adjacency;
+    }
+
+    private SectorMapRoutePlan? BuildHyperlanePreferredRoute(
+        StarSystem origin,
+        StarSystem destination,
+        IReadOnlyDictionary<int, List<SectorMapRouteLeg>> adjacency)
+    {
+        if (!adjacency.ContainsKey(origin.Id) || !adjacency.ContainsKey(destination.Id))
+        {
+            return null;
+        }
+
+        var searchResult = SearchPreferredRoute(origin, destination.Id, adjacency);
+        var routePath = BuildRoutePath(searchResult, origin.Id, destination.Id);
+        return routePath is not null ? BuildRoutePlan(origin, destination, routePath) : null;
+    }
+
+    private static SectorMapRoutePlan BuildRoutePlan(StarSystem origin, StarSystem destination, IReadOnlyList<SectorMapRouteLeg> legs)
+    {
+        var routeSystems = legs
+            .Select(leg => leg.Source)
+            .Concat(legs.Select(leg => leg.Target))
+            .DistinctBy(system => system.Id)
+            .ToList();
+
+        return new SectorMapRoutePlan(origin, destination, routeSystems, legs);
+    }
+
+    private PreferredRouteSearchResult SearchPreferredRoute(
+        StarSystem origin,
+        int destinationSystemId,
+        IReadOnlyDictionary<int, List<SectorMapRouteLeg>> adjacency)
+    {
+        var costs = adjacency.Keys.ToDictionary(systemId => systemId, _ => double.PositiveInfinity);
+        var previousLegs = new Dictionary<int, SectorMapRouteLeg>();
+        var queue = new PriorityQueue<int, double>();
+        var settledSystemIds = new HashSet<int>();
+
+        costs[origin.Id] = 0;
+        queue.Enqueue(origin.Id, 0);
+
+        while (queue.Count > 0)
+        {
+            var systemId = queue.Dequeue();
+            if (!settledSystemIds.Add(systemId))
+            {
+                continue;
+            }
+
+            if (systemId == destinationSystemId)
+            {
+                break;
+            }
+
+            foreach (var leg in adjacency[systemId])
+            {
+                var nextSystemId = leg.Target.Id;
+                if (ShouldSkipLeg(origin.Id, destinationSystemId, leg))
+                {
+                    continue;
+                }
+
+                var legCost = routeOptimizationMode == RouteOptimizationMode.ShortestTravelTime
+                    ? leg.TravelTimeYears
+                    : leg.DistanceParsecs;
+                var nextCost = costs[systemId] + legCost;
+                if (nextCost >= costs[nextSystemId])
+                {
+                    continue;
+                }
+
+                costs[nextSystemId] = nextCost;
+                previousLegs[nextSystemId] = leg;
+                queue.Enqueue(nextSystemId, nextCost);
+            }
+        }
+
+        return new PreferredRouteSearchResult(costs, previousLegs);
+    }
+
+    private bool ShouldSkipLeg(int originSystemId, int destinationSystemId, SectorMapRouteLeg leg)
+    {
+        if (avoidedSystemIds.Contains(leg.Target.Id)
+            && leg.Target.Id != destinationSystemId
+            && leg.Target.Id != originSystemId)
+        {
+            return true;
+        }
+
+        if (avoidedSystemIds.Contains(leg.Source.Id)
+            && leg.Source.Id != destinationSystemId
+            && leg.Source.Id != originSystemId)
+        {
+            return true;
+        }
+
+        if (leg.PrimaryOwnerEmpireId is int primaryOwnerEmpireId && avoidedEmpireIds.Contains(primaryOwnerEmpireId))
+        {
+            return true;
+        }
+
+        if (leg.SecondaryOwnerEmpireId is int secondaryOwnerEmpireId && avoidedEmpireIds.Contains(secondaryOwnerEmpireId))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static IReadOnlyList<SectorMapRouteLeg>? BuildRoutePath(PreferredRouteSearchResult searchResult, int originSystemId, int targetSystemId)
+    {
+        if (originSystemId == targetSystemId)
+        {
+            return [];
+        }
+
+        if (!searchResult.PreviousLegs.ContainsKey(targetSystemId))
+        {
+            return null;
+        }
+
+        var legs = new List<SectorMapRouteLeg>();
+        var currentSystemId = targetSystemId;
+        while (currentSystemId != originSystemId)
+        {
+            var leg = searchResult.PreviousLegs[currentSystemId];
+            legs.Add(leg);
+            currentSystemId = leg.Source.Id;
+        }
+
+        legs.Reverse();
+        return legs;
+    }
+
+    private static string GetRouteLegCssClass(SectorMapRouteLeg leg)
+    {
+        if (!leg.IsHyperlane)
+        {
+            return "off-lane";
+        }
+
+        return leg.TechnologyLevel switch
+        {
+            6 => "tl6-hyperlane",
+            7 => "tl7-hyperlane",
+            8 => "tl8-hyperlane",
+            9 => "tl9-hyperlane",
+            10 => "tl10-hyperlane",
+            _ => "tl6-hyperlane"
+        };
+    }
+
+    private static string GetRouteLegTierLabel(SectorMapRouteLeg leg)
+    {
+        return !leg.IsHyperlane
+            ? $"Off-lane TL{leg.TechnologyLevel}"
+            : $"TL{leg.TechnologyLevel} {leg.TierName}";
+    }
+
+    private static string GetRouteLegOwnerLabel(SectorMapRouteLeg leg)
+    {
+        if (string.IsNullOrWhiteSpace(leg.PrimaryOwnerEmpireName))
+        {
+            return "No owner";
+        }
+
+        return string.IsNullOrWhiteSpace(leg.SecondaryOwnerEmpireName)
+            ? leg.PrimaryOwnerEmpireName
+            : $"{leg.PrimaryOwnerEmpireName} / {leg.SecondaryOwnerEmpireName}";
+    }
+
+    private int GetSectorMapSystemCount(StarWinSector sector, StarSystem? focusedSystem)
+    {
+        return GetSectorMapSystems(sector, focusedSystem?.Id ?? 0).Count;
+    }
+
+    private bool IsSectorMapCapped(StarWinSector sector, StarSystem? focusedSystem)
+    {
+        var focused = focusedSystem ?? sector.Systems.FirstOrDefault();
+        return focused is not null
+            && sector.Systems.Count(system => SectorRoutePlanner.CalculateParsecDistance(focused.Coordinates, system.Coordinates) <= sectorMapViewDistanceParsecs) > sectorMapRenderLimit;
+    }
+
+    private int GetSectorMapRouteCount(StarWinSector sector, StarSystem? focusedSystem)
+    {
+        var focusedSystemId = focusedSystem?.Id ?? 0;
+        var routePlan = GetPlottedRoutePlan(sector);
+        return BuildVisibleSectorMapRoutes(
+            sector,
+            GetSectorMapSystems(sector, focusedSystemId, routePlan),
+            focusedSystemId,
+            routePlan).Count;
+    }
+
+    private IReadOnlyList<SectorMapRoute> BuildVisibleSectorMapRoutes(
+        StarWinSector sector,
+        IReadOnlyList<StarSystem> systems,
+        int selectedSystemId,
+        SectorMapRoutePlan? routePlan)
+    {
+        var systemIds = systems.Select(system => system.Id).ToHashSet();
+        var routePathKeys = routePlan?.Legs
+            .Where(leg => leg.IsHyperlane)
+            .Select(leg => GetSectorMapRouteKey(leg.Source.Id, leg.Target.Id))
+            .ToHashSet() ?? [];
+
+        return GetSectorHyperlaneRoutes(sector)
+            .Where(route => systemIds.Contains(route.SourceSystemId) && systemIds.Contains(route.TargetSystemId))
+            .Where(route => route.TechnologyLevel < 10
+                || route.SourceSystemId == selectedSystemId
+                || route.TargetSystemId == selectedSystemId
+                || routePathKeys.Contains(GetSectorMapRouteKey(route.SourceSystemId, route.TargetSystemId)))
+            .ToList();
+    }
+
+    private IReadOnlyList<SectorMapRoute> GetSectorHyperlaneRoutes(StarWinSector sector)
+    {
+        if (sector.SavedRoutes.Count > 0)
+        {
+            return sector.SavedRoutes
+                .Select(route => new SectorMapRoute(
+                    route.SourceSystemId,
+                    route.TargetSystemId,
+                    (double)route.DistanceParsecs,
+                    (double)route.TravelTimeYears,
+                    route.TechnologyLevel,
+                    route.TierName,
+                    route.PrimaryOwnerEmpireId,
+                    route.PrimaryOwnerEmpireName,
+                    route.SecondaryOwnerEmpireId,
+                    route.SecondaryOwnerEmpireName))
+                .ToList();
+        }
+
+        if (generatedSectorRouteCache.TryGetValue(sector.Id, out var cachedRoutes))
+        {
+            return cachedRoutes;
+        }
+
+        var routes = SectorRoutePlanner.BuildHyperlaneRoutes(sector, EmpiresById)
+            .Select(route => new SectorMapRoute(
+                route.SourceSystemId,
+                route.TargetSystemId,
+                route.DistanceParsecs,
+                route.TravelTimeYears,
+                route.TechnologyLevel,
+                route.TierName,
+                route.PrimaryOwnerEmpireId,
+                route.PrimaryOwnerEmpireName,
+                route.SecondaryOwnerEmpireId,
+                route.SecondaryOwnerEmpireName))
+            .ToList();
+        generatedSectorRouteCache[sector.Id] = routes;
+        return routes;
+    }
+
+    private static (int SourceId, int TargetId) GetSectorMapRouteKey(int sourceId, int targetId)
+    {
+        return sourceId < targetId ? (sourceId, targetId) : (targetId, sourceId);
+    }
+
+    private static int ResolveOffLaneTechnologyLevel(
+        StarSystem source,
+        StarSystem target,
+        IReadOnlyDictionary<int, Empire> empiresById)
+    {
+        if (SectorRoutePlanner.TryResolveHyperlaneRule(source, target, new SectorConfiguration(), empiresById, out var tier, out _))
+        {
+            return tier;
+        }
+
+        return 6;
+    }
+
+    private static double GetOffLaneMaximumDistanceParsecs(StarWinSector sector)
+    {
+        return (double)sector.Configuration.OffLaneMaximumDistanceParsecs;
+    }
+
+    private long GetRouteConfigurationStamp(StarWinSector sector)
+    {
+        return HashCode.Combine(
+            sector.Configuration.UpdatedAtUtc.Ticks,
+            sector.SavedRoutes.Count,
+            routeOptimizationMode,
+            string.Join(',', avoidedEmpireIds.OrderBy(id => id)),
+            string.Join(',', avoidedSystemIds.OrderBy(id => id)));
+    }
+
+    private IEnumerable<KeyValuePair<int, string>> GetRouteEmpireOptions()
+    {
+        return OverviewData?.Empires
+            .Select(empire => new KeyValuePair<int, string>(empire.Id, empire.Name))
+            .ToList() ?? [];
+    }
+
+    private IEnumerable<KeyValuePair<int, string>> GetRouteSystemOptions()
+    {
+        return OverviewData?.Systems
+            .Select(system => new KeyValuePair<int, string>(system.Id, system.Name))
+            .ToList() ?? [];
+    }
+
+    private static string FormatRouteOption(KeyValuePair<int, string> option)
+    {
+        return $"{option.Key} - {option.Value}";
+    }
+
+    private void UpdateAvoidedEmpires(HashSet<int> selectedIds)
+    {
+        avoidedEmpireIds = selectedIds;
+        ClearPlottedRoutePlan();
+        renderedOverview = false;
+    }
+
+    private void UpdateAvoidedSystems(HashSet<int> selectedIds)
+    {
+        avoidedSystemIds = selectedIds;
+        ClearPlottedRoutePlan();
+        renderedOverview = false;
+    }
+
+    private static string FormatTravelTime(double years)
+    {
+        if (years < 1d / 365d)
+        {
+            return $"{years * 24d * 365d:0.##} hours";
+        }
+
+        if (years < 1d)
+        {
+            return $"{years * 365d:0.##} days";
+        }
+
+        return $"{years:0.##} years";
+    }
+
+    private static int GetSectorMapMaximumViewDistance(StarWinSector sector)
+    {
+        return MaximumSectorMapViewDistanceParsecs;
+    }
+
+    private enum RouteOptimizationMode
+    {
+        ShortestDistance,
+        ShortestTravelTime
+    }
+
+    private sealed record SectorMapRoute(
+        int SourceSystemId,
+        int TargetSystemId,
+        double DistanceParsecs,
+        double TravelTimeYears,
+        int TechnologyLevel,
+        string TierName,
+        int? PrimaryOwnerEmpireId,
+        string PrimaryOwnerEmpireName,
+        int? SecondaryOwnerEmpireId,
+        string SecondaryOwnerEmpireName);
+
+    private sealed record SectorMapRoutePlan(
+        StarSystem Origin,
+        StarSystem Destination,
+        IReadOnlyList<StarSystem> Systems,
+        IReadOnlyList<SectorMapRouteLeg> Legs)
+    {
+        public double DirectDistanceParsecs => SectorRoutePlanner.CalculateParsecDistance(Origin.Coordinates, Destination.Coordinates);
+
+        public double TotalDistanceParsecs => Legs.Sum(leg => leg.DistanceParsecs);
+
+        public double TotalTravelTimeYears => Legs.Sum(leg => leg.TravelTimeYears);
+
+        public double ExtraDistanceParsecs => Math.Max(0, TotalDistanceParsecs - DirectDistanceParsecs);
+
+        public int HyperlaneJumpCount => Legs.Count(leg => leg.IsHyperlane);
+
+        public int OffHyperlaneLegCount => Legs.Count(leg => !leg.IsHyperlane);
+    }
+
+    private sealed record SectorMapRouteLeg(
+        StarSystem Source,
+        StarSystem Target,
+        double DistanceParsecs,
+        double TravelTimeYears,
+        bool IsHyperlane,
+        int TechnologyLevel = 0,
+        string TierName = "Off-lane",
+        int? PrimaryOwnerEmpireId = null,
+        string PrimaryOwnerEmpireName = "",
+        int? SecondaryOwnerEmpireId = null,
+        string SecondaryOwnerEmpireName = "");
+
+    private sealed record RouteGraphCacheKey(
+        int SectorId,
+        long ConfigurationStamp);
+
+    private sealed record PreferredRouteSearchResult(
+        IReadOnlyDictionary<int, double> Costs,
+        IReadOnlyDictionary<int, SectorMapRouteLeg> PreviousLegs);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (sectorMapModule is not null)
+        {
+            try
+            {
+                await sectorMapModule.InvokeVoidAsync("disposeSectorMap", sectorMapElement);
+                await sectorMapModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        dotNetReference?.Dispose();
+    }
+}
