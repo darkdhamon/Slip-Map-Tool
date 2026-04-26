@@ -5,11 +5,8 @@
 @inject IStarWinExplorerContextService ExplorerContextService
 @inject IStarWinExplorerQueryService ExplorerQueryService
 @inject IStarWinSearchService SearchService
-@inject IStarWinImageService ImageService
-@inject IStarWinEntityNameService EntityNameService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JS
-@implements IAsyncDisposable
 @using Microsoft.AspNetCore.WebUtilities
 @using StarWin.Domain.Services
 
@@ -162,14 +159,8 @@
     private int selectedEmpireId;
     private string searchQuery = string.Empty;
     private IReadOnlyList<StarWinSearchResult> searchResults = [];
-    private DotNetObjectReference<SectorExplorer>? dotNetReference;
-    private IJSObjectReference? loadMoreScrollModule;
     private bool browserSessionRestored;
     private bool browserSessionReady;
-    private IReadOnlyList<EntityImage> entityImages = [];
-    private bool entityImagesLoaded;
-    private bool entityImagesLoading;
-    private string imageUploadStatus = string.Empty;
     private string explorerRenderError = string.Empty;
 
     private IReadOnlyDictionary<int, AlienRace>? alienRacesById;
@@ -476,13 +467,6 @@
                 return;
             }
 
-            if (activeSection == "Systems")
-            {
-                await CompleteSectionLoadingIfReadyAsync();
-                _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
-                return;
-            }
-
             if (activeSection == "Overview")
             {
                 if (!overviewMapWorkspaceReady)
@@ -507,35 +491,6 @@
             sectionLoadingStatus = string.Empty;
             await HideSectionLoadingOverlayAsync();
             StateHasChanged();
-        }
-    }
-
-    private async Task EnsureEntityImagesLoadedAsync(bool backgroundLoad = false)
-    {
-        if (entityImagesLoaded || entityImagesLoading)
-        {
-            return;
-        }
-
-        entityImagesLoading = true;
-        try
-        {
-            entityImages = await ImageService.GetImagesAsync();
-            entityImagesLoaded = true;
-            explorerRenderError = string.Empty;
-
-            if (backgroundLoad)
-            {
-                await InvokeAsync(StateHasChanged);
-            }
-            else
-            {
-                StateHasChanged();
-            }
-        }
-        finally
-        {
-            entityImagesLoading = false;
         }
     }
 
@@ -750,36 +705,6 @@
         selectedSystemText = value;
         ApplySelectedSystemText();
         return Task.CompletedTask;
-    }
-
-    private async Task ConfigureRecordObserverAsync(
-        string key,
-        bool hasMoreRecords,
-        Func<bool> isConfigured,
-        Action<bool> setConfigured,
-        ElementReference loadMoreElement,
-        string loadMoreMethodName)
-    {
-        if (!hasMoreRecords)
-        {
-            setConfigured(false);
-            if (loadMoreScrollModule is not null)
-            {
-                await loadMoreScrollModule.InvokeVoidAsync("disconnectLoadMore", key);
-            }
-
-            return;
-        }
-
-        if (isConfigured())
-        {
-            return;
-        }
-
-        loadMoreScrollModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/timelineInfiniteScroll.js");
-        dotNetReference ??= DotNetObjectReference.Create(this);
-        await loadMoreScrollModule.InvokeVoidAsync("observeLoadMore", key, loadMoreElement, dotNetReference, loadMoreMethodName);
-        setConfigured(true);
     }
 
     private async Task RestoreExplorerSessionAsync()
@@ -1010,17 +935,6 @@
         return AlienRacesById.TryGetValue(raceId, out var race) ? race.Name : raceId.ToString();
     }
 
-    private async Task SaveEntityNameAsync(EntityNoteTargetKind targetKind, int targetId, string name)
-    {
-        await EntityNameService.SaveNameAsync(targetKind, targetId, name);
-        await RefreshExplorerDataAsync();
-        var sector = GetSelectedSector();
-        sectorCacheBuilder.Invalidate(sector.Id);
-        alienRacesById = null;
-        empiresById = null;
-        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-    }
-
     private static bool ContainsTimelineQuery(string? value, string query)
     {
         return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
@@ -1097,69 +1011,6 @@
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
     }
 
-    private static string DisplayPoints(int points)
-    {
-        return points > 0 ? $"+{points} points" : $"{points} points";
-    }
-
-    private static RenderFragment RenderGurpsTraitGroup(string title, IEnumerable<GurpsTemplateTrait> traits)
-    {
-        return @<article>
-            <h4>@title</h4>
-            @if (!traits.Any())
-            {
-                <p>No entries.</p>
-            }
-            @foreach (var trait in traits)
-            {
-                <div class="gurps-trait">
-                    <span>@DisplayTraitName(trait)</span>
-                    <strong>@DisplayPoints(trait.PointCost)</strong>
-                    @if (!string.IsNullOrWhiteSpace(trait.Notes))
-                    {
-                        <small>@trait.Notes</small>
-                    }
-                </div>
-            }
-        </article>;
-    }
-
-    private static string DisplayTraitName(GurpsTemplateTrait trait)
-    {
-        return trait.Level == 0 ? trait.Name : $"{trait.Name} {trait.Level:+#;-#;0}";
-    }
-
-    private IReadOnlyList<EntityImage> GetEntityImages(EntityImageTargetKind targetKind, int targetId)
-    {
-        return entityImages
-            .Where(image => image.TargetKind == targetKind && image.TargetId == targetId)
-            .OrderByDescending(image => image.IsPrimary)
-            .ThenBy(image => image.UploadedAt)
-            .ToList();
-    }
-
-    private EntityImage? GetPrimaryEntityImage(EntityImageTargetKind targetKind, int targetId)
-    {
-        return GetEntityImages(targetKind, targetId).FirstOrDefault();
-    }
-
-    private async Task UploadEntityImage(EntityImageTargetKind targetKind, int targetId, InputFileChangeEventArgs args)
-    {
-        var file = args.File;
-        try
-        {
-            await using var stream = file.OpenReadStream(10 * 1024 * 1024);
-            await ImageService.UploadImageAsync(targetKind, targetId, file.Name, file.ContentType, stream);
-            entityImages = await ImageService.GetImagesAsync();
-            entityImagesLoaded = true;
-            imageUploadStatus = $"{file.Name} uploaded.";
-        }
-        catch (Exception exception)
-        {
-            imageUploadStatus = exception.Message;
-        }
-    }
-
     private static string DisplayCoordinates(Coordinates coordinates)
     {
         return $"{coordinates.XParsecs:0.#}, {coordinates.YParsecs:0.#}, {coordinates.ZParsecs:0.#}";
@@ -1198,21 +1049,9 @@
         return int.TryParse(idText, out var id) ? id : ComboAllFilterId;
     }
 
-    private static string DisplayPopulation(long population)
-    {
-        return population >= 1_000_000_000
-            ? $"{population / 1_000_000_000m:0.#} billion"
-            : $"{population / 1_000_000m:0.#} million";
-    }
-
     private static string Format(double? value)
     {
         return value is null ? "N/A" : $"{value:0.###}";
-    }
-
-    private static string DisplayDateTime(DateTime value)
-    {
-        return value == default ? "Not saved" : value.ToLocalTime().ToString("g");
     }
 
     private static string DisplayResultType(StarWinSearchResultType type)
@@ -1231,31 +1070,8 @@
         return ExplorerSectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? explorerContext.CurrentSector;
     }
 
-    private static int GetGurpsTechLevel(Empire empire)
-    {
-        return empire.CivilizationProfile.TechLevel + 2;
-    }
-
     private sealed record ColonyListing(StarWinSector Sector, StarSystem System, World World, Colony Colony);
 
     private sealed record ExplorerSessionSelection(int SectorId, int SystemId, string? SectionSlug = null);
-
-    public async ValueTask DisposeAsync()
-    {
-        if (loadMoreScrollModule is not null)
-        {
-            try
-            {
-                await loadMoreScrollModule.InvokeVoidAsync("disconnectAllLoadMore");
-                await loadMoreScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
-                await loadMoreScrollModule.DisposeAsync();
-            }
-            catch (JSDisconnectedException)
-            {
-            }
-        }
-
-        dotNetReference?.Dispose();
-    }
 }
 
