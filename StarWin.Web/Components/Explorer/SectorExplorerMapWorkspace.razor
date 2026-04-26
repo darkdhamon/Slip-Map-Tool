@@ -9,23 +9,23 @@
 
 @if (!workspaceReady)
 {
-    <div class="workspace-loading-layout">
-        <div class="sector-map-three workspace-loading-surface" aria-label="sector map workspace">
-            <article class="map-request-panel workspace-loading-copy">
-                <span class="panel-kicker">3D sector map</span>
-                <h2>Preparing map workspace</h2>
-                <p>The Overview page is ready first. The cached 3D map and route planner finish loading together in the background.</p>
-            </article>
-        </div>
+    <div class="sector-map-three workspace-loading-surface" aria-label="sector map workspace">
+        <article class="map-request-panel workspace-loading-copy">
+            <span class="panel-kicker">3D sector map</span>
+            <h2>Preparing map workspace</h2>
+            <p>The Overview page is ready first. The cached 3D map and route planner finish loading together in the background.</p>
+        </article>
+    </div>
 
-        <div class="stacked-panels">
-            <article class="feature-panel route-planner-panel">
-                <span class="panel-kicker">Route planner</span>
-                <h2>Preparing route-planning workspace</h2>
-                <p>Route plotting unlocks as soon as the shared map workspace finishes loading.</p>
-            </article>
-        </div>
+    <div class="stacked-panels">
+        <article class="feature-panel route-planner-panel">
+            <span class="panel-kicker">Route planner</span>
+            <h2>Preparing route-planning workspace</h2>
+            <p>Route plotting unlocks as soon as the shared map workspace finishes loading.</p>
+        </article>
+    </div>
 
+    <div class="workspace-loading-modal-host">
         <LoadingModal IsVisible="true"
                       BackdropClass="inline-loading-modal-backdrop workspace-loading-backdrop workspace-loading-shared-backdrop"
                       AriaLabel="Loading route-planning workspace"
