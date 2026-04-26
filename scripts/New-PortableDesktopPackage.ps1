@@ -70,6 +70,7 @@ Starforged Atlas.exe
 Notes:
 - Keep the 'app' folder beside the launcher.
 - Portable data is stored in the app\data folder.
+- Avast may flag the portable app as potential malware. This is a known false-positive issue with the current portable build and is planned to be addressed later.
 "@ | Set-Content -Path $readmePath -Encoding ASCII
 
 Compress-Archive -Path (Join-Path $packageRoot '*') -DestinationPath $zipPath
