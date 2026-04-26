@@ -10,6 +10,8 @@ namespace StarWin.Web.Components.Pages;
 public partial class Timeline : ComponentBase
 {
     private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
+    private const string TimelineLoadingTimerFunction = "starforgedAtlasNavigation.getSectionLoadingStartedAt";
+    private const string ClearTimelineLoadingTimerFunction = "starforgedAtlasNavigation.clearSectionLoadingStartedAt";
 
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
@@ -37,6 +39,7 @@ public partial class Timeline : ComponentBase
     private bool initialTimelineLoadCompleted;
     private bool browserSessionReady;
     private bool browserSessionRestored;
+    private long timelinePageLoadingStartedAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
     protected IReadOnlyList<AlienRace> ExplorerAlienRaces => explorerContext.AlienRaces;
@@ -56,6 +59,7 @@ public partial class Timeline : ComponentBase
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
         timelinePageLoadingVisible = true;
         initialTimelineLoadCompleted = false;
+        timelinePageLoadingStartedAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     }
 
     protected override async Task OnParametersSetAsync()
@@ -85,6 +89,7 @@ public partial class Timeline : ComponentBase
         }
 
         await RestoreExplorerSessionAsync();
+        await RestoreTimelineLoadingTimerAsync();
         browserSessionReady = true;
         StateHasChanged();
     }
@@ -207,17 +212,53 @@ public partial class Timeline : ComponentBase
         return Task.CompletedTask;
     }
 
-    protected Task HandleTimelineLoadingStateChangedAsync(bool isLoading)
+    protected async Task HandleTimelineLoadingStateChangedAsync(bool isLoading)
     {
         if (initialTimelineLoadCompleted || isLoading)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         initialTimelineLoadCompleted = true;
         timelinePageLoadingVisible = false;
+        await ClearTimelineLoadingTimerAsync();
         StateHasChanged();
-        return Task.CompletedTask;
+    }
+
+    private async Task RestoreTimelineLoadingTimerAsync()
+    {
+        long? preservedStartedAtUnixMs;
+        try
+        {
+            preservedStartedAtUnixMs = await JS.InvokeAsync<long?>(TimelineLoadingTimerFunction);
+        }
+        catch (InvalidOperationException)
+        {
+            return;
+        }
+        catch (JSException)
+        {
+            return;
+        }
+
+        if (preservedStartedAtUnixMs is > 0)
+        {
+            timelinePageLoadingStartedAtUnixMs = preservedStartedAtUnixMs.Value;
+        }
+    }
+
+    private async Task ClearTimelineLoadingTimerAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync(ClearTimelineLoadingTimerFunction);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (JSException)
+        {
+        }
     }
 
     private async Task RefreshExplorerDataAsync(CancellationToken cancellationToken = default)

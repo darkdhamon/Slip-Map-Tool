@@ -42,6 +42,12 @@
             <span class="panel-kicker">Loading Timeline</span>
             <h2>Preparing timeline events for the selected sector.</h2>
             <p class="loading-progress-detail">The page will stay visible until the first chronology batch is ready.</p>
+            <p class="loading-elapsed"
+               aria-live="off"
+               data-loading-timer="true"
+               data-started-at-unix-ms="@timelinePageLoadingStartedAtUnixMs">
+                Elapsed time: 00:00.0
+            </p>
             <div class="loading-meter" aria-hidden="true">
                 <span></span>
             </div>

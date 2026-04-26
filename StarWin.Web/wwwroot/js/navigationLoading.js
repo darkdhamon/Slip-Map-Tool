@@ -1,6 +1,7 @@
 (function () {
     const navigationOverlayId = "explorer-navigation-loading";
     const sectionOverlayId = "explorer-section-loading";
+    const sectionLoadingStartedAtKey = "starforgedAtlas.sectionLoadingStartedAtUnixMs";
 
     function getOverlay(overlayId) {
         return document.getElementById(overlayId);
@@ -14,7 +15,7 @@
         document.body.classList.toggle("navigation-loading-active", hasVisibleOverlay);
     }
 
-    function resetOverlayTimer(overlay) {
+    function resetOverlayTimer(overlay, startedAtUnixMs) {
         if (!overlay) {
             return;
         }
@@ -24,16 +25,53 @@
             return;
         }
 
-        timer.dataset.startedAtUnixMs = String(Date.now());
+        timer.dataset.startedAtUnixMs = String(startedAtUnixMs ?? Date.now());
     }
 
-    function showOverlay(overlayId) {
+    function getSessionStorage() {
+        try {
+            return window.sessionStorage;
+        }
+        catch {
+            return null;
+        }
+    }
+
+    function setStoredSectionLoadingStartedAt(startedAtUnixMs) {
+        const sessionStorage = getSessionStorage();
+        if (!sessionStorage) {
+            return;
+        }
+
+        sessionStorage.setItem(sectionLoadingStartedAtKey, String(startedAtUnixMs));
+    }
+
+    function getStoredSectionLoadingStartedAt() {
+        const sessionStorage = getSessionStorage();
+        if (!sessionStorage) {
+            return null;
+        }
+
+        const value = Number(sessionStorage.getItem(sectionLoadingStartedAtKey));
+        return Number.isFinite(value) && value > 0 ? value : null;
+    }
+
+    function clearStoredSectionLoadingStartedAt() {
+        const sessionStorage = getSessionStorage();
+        if (!sessionStorage) {
+            return;
+        }
+
+        sessionStorage.removeItem(sectionLoadingStartedAtKey);
+    }
+
+    function showOverlay(overlayId, startedAtUnixMs) {
         const overlay = getOverlay(overlayId);
         if (!overlay) {
             return;
         }
 
-        resetOverlayTimer(overlay);
+        resetOverlayTimer(overlay, startedAtUnixMs);
         overlay.hidden = false;
         updateBodyLoadingState();
     }
@@ -76,7 +114,9 @@
                 status.textContent = "Preparing " + (sectionName || "explorer") + " records.";
             }
 
-            showOverlay(sectionOverlayId);
+            const startedAtUnixMs = Date.now();
+            setStoredSectionLoadingStartedAt(startedAtUnixMs);
+            showOverlay(sectionOverlayId, startedAtUnixMs);
         },
         showSectionRouteLoading(event, url, sectionName) {
             if (event) {
@@ -107,6 +147,12 @@
         },
         hideSectionLoading() {
             hideOverlay(sectionOverlayId);
+        },
+        getSectionLoadingStartedAt() {
+            return getStoredSectionLoadingStartedAt();
+        },
+        clearSectionLoadingStartedAt() {
+            clearStoredSectionLoadingStartedAt();
         }
     };
 

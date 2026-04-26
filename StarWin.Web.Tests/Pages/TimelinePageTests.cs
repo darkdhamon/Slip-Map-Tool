@@ -137,6 +137,7 @@ public sealed class TimelinePageTests : BunitContext
         {
             Assert.Contains("Loading Timeline", cut.Markup);
             Assert.Contains("Preparing timeline events for the selected sector.", cut.Markup);
+            Assert.Contains("Elapsed time:", cut.Markup);
         });
 
         queryService.ReleaseFirstTimelinePage();
