@@ -236,7 +236,7 @@
         await PersistExplorerSessionAsync();
     }
 
-    private void ApplySelectedSystemText()
+    private async Task ApplySelectedSystemTextAsync()
     {
         var sector = GetSelectedSector();
         var systemId = ParseComboId(selectedSystemText);
@@ -246,9 +246,16 @@
             return;
         }
 
+        if (systemId == selectedSystemId)
+        {
+            selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+            return;
+        }
+
         selectedSystemId = systemId;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        _ = PersistExplorerSessionAsync();
+        SyncCurrentExplorerRoute(replaceHistory: true);
+        await PersistExplorerSessionAsync();
     }
 
     private async Task HandleSectorChangedAsync(int sectorId)
@@ -257,11 +264,10 @@
         await SelectDefaultSystem();
     }
 
-    private Task HandleSelectedSystemTextChanged(string value)
+    private async Task HandleSelectedSystemTextChanged(string value)
     {
         selectedSystemText = value;
-        ApplySelectedSystemText();
-        return Task.CompletedTask;
+        await ApplySelectedSystemTextAsync();
     }
 
     private async Task RestoreExplorerSessionAsync()
@@ -388,33 +394,24 @@
 
     private void SyncCurrentExplorerRoute(bool replaceHistory = false)
     {
-        var targetUri = BuildSectionUri(OverviewSectionName, selectedSectorId);
+        var targetUri = BuildSectionUri(OverviewSectionName, selectedSectorId, selectedSystemId);
         var absoluteTargetUri = NavigationManager.ToAbsoluteUri(targetUri).ToString();
         if (string.Equals(NavigationManager.Uri, absoluteTargetUri, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        try
-        {
-            JS.InvokeVoidAsync("starforgedAtlasNavigation.syncExplorerUrl", targetUri, replaceHistory);
-        }
-        catch (InvalidOperationException)
-        {
-        }
-        catch (JSDisconnectedException)
-        {
-        }
+        NavigationManager.NavigateTo(targetUri, replace: replaceHistory);
     }
 
     private string BuildSectionRoute(string sectionName)
     {
-        return SectorExplorerRoutes.BuildSectionUri(sectionName, selectedSectorId);
+        return SectorExplorerRoutes.BuildSectionUri(sectionName, selectedSectorId, selectedSystemId);
     }
 
-    private static string BuildSectionUri(string sectionName, int sectorId)
+    private static string BuildSectionUri(string sectionName, int sectorId, int systemId)
     {
-        return SectorExplorerRoutes.BuildSectionUri(sectionName, sectorId);
+        return SectorExplorerRoutes.BuildSectionUri(sectionName, sectorId, systemId);
     }
 
     private (int? SectorId, int? SystemId, int? WorldId, int? ColonyId, int? HabitatId, int? RaceId, int? EmpireId) GetCurrentRequest()

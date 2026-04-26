@@ -98,6 +98,64 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
+    public async Task OverviewSystemSelectorRetargetsMapAndPreservesSystemIdInUrl()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer?sectorId=7&systemId=11");
+
+        var cut = Render<SectorExplorer>();
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.FindComponent<SectorExplorerMapWorkspace>()));
+
+        var handler = typeof(SectorExplorer).GetMethod("HandleSelectedSystemTextChanged", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(handler);
+
+        await cut.InvokeAsync(() => (Task)handler!.Invoke(cut.Instance, ["12 - Selene"])!);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.EndsWith("/sector-explorer?sectorId=7&systemId=12", navigationManager.Uri, StringComparison.Ordinal);
+            Assert.Equal(12, cut.FindComponent<SectorExplorerMapWorkspace>().Instance.SystemId);
+        });
+    }
+
+    [Fact]
+    public async Task MapSelectionUpdatesOverviewSystemSelector()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer?sectorId=7&systemId=11");
+
+        var cut = Render<SectorExplorer>();
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.FindComponent<SectorExplorerMapWorkspace>()));
+
+        var mapWorkspace = cut.FindComponent<SectorExplorerMapWorkspace>();
+        await cut.InvokeAsync(() => mapWorkspace.Instance.SelectSystemFromMap(12));
+
+        var selectedSystemTextField = typeof(SectorExplorer).GetField("selectedSystemText", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(selectedSystemTextField);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.EndsWith("/sector-explorer?sectorId=7&systemId=12", navigationManager.Uri, StringComparison.Ordinal);
+            Assert.Equal("12 - Selene", selectedSystemTextField!.GetValue(cut.Instance));
+            Assert.Equal(12, cut.FindComponent<SectorExplorerMapWorkspace>().Instance.SystemId);
+        });
+    }
+
+    [Fact]
     public void MapWorkspaceNavigatesDirectlyToSystemsPage()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
