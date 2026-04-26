@@ -7,6 +7,7 @@ using StarWin.Domain.Model.Entity.Media;
 using StarWin.Domain.Model.Entity.Notes;
 using StarWin.Domain.Model.Entity.StarMap;
 using StarWin.Domain.Model.ViewModel;
+using StarWin.Web.Components.Explorer;
 using StarWin.Web.Components.Layout;
 using StarWin.Web.Components.Pages;
 
@@ -41,6 +42,56 @@ public sealed class SectorExplorerPageTests : BunitContext
             Assert.DoesNotContain("Loading route-planning workspace", cut.Markup);
         });
 
+    }
+
+    [Fact]
+    public void MapWorkspaceUpdatesOverviewQueryWithoutParentCallback()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer?sectorId=7&systemId=11");
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11));
+
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+        cut.InvokeAsync(() => cut.Instance.SelectSystemFromMap(12));
+
+        Assert.EndsWith("/sector-explorer?sectorId=7&systemId=12", navigationManager.Uri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MapWorkspaceNavigatesDirectlyToSystemsPage()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer?sectorId=7&systemId=12");
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 12));
+
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+        cut.FindAll("button.overlay-action")
+            .First(button => button.TextContent.Contains("Load 3D map", StringComparison.Ordinal))
+            .Click();
+        cut.WaitForAssertion(() => Assert.Contains("Open system record", cut.Markup));
+        cut.FindAll("button.overlay-action")
+            .First(button => button.TextContent.Contains("Open system record", StringComparison.Ordinal))
+            .Click();
+
+        Assert.EndsWith("/sector-explorer/systems?sectorId=7&systemId=12", navigationManager.Uri, StringComparison.Ordinal);
     }
 
     private void ConfigureServices(StarWinSector sector, FakeWorkspace workspace)
@@ -93,14 +144,22 @@ public sealed class SectorExplorerPageTests : BunitContext
 
         system.Worlds.Add(world);
         sector.Systems.Add(system);
+        sector.Systems.Add(new StarSystem
+        {
+            Id = 12,
+            SectorId = 7,
+            Name = "Selene",
+            Coordinates = new Coordinates(1, 0, 0),
+            AllegianceId = 8
+        });
         sector.SavedRoutes.Add(new SectorSavedRoute
         {
             Id = 1,
             SectorId = 7,
             SourceSystemId = 11,
-            TargetSystemId = 11,
-            DistanceParsecs = 0m,
-            TravelTimeYears = 0m,
+            TargetSystemId = 12,
+            DistanceParsecs = 1m,
+            TravelTimeYears = 0.01m,
             TechnologyLevel = 6,
             TierName = "Basic Hyperlane"
         });

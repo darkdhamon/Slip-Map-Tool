@@ -106,13 +106,8 @@
             }
             else
             {
-                <SectorExplorerMapWorkspace SelectedSector="sector"
-                                            SelectedSystemId="selectedSystemId"
-                                            SelectedSystemChanged="HandleOverviewSystemSelectedAsync"
-                                            OpenSystemRecordRequested="HandleOverviewOpenSystemRecordRequestedAsync"
-                                            OverviewData="overviewData"
-                                            AutoLoadRequested="autoLoadSectorMap"
-                                            AutoLoadRequestedChanged="HandleOverviewAutoLoadSectorMapChangedAsync" />
+                <SectorExplorerMapWorkspace SectorId="selectedSectorId"
+                                            SystemId="selectedSystemId" />
             }
         </section>
         break;
@@ -169,7 +164,6 @@
     private IReadOnlyList<StarWinSearchResult> searchResults = [];
     private DotNetObjectReference<SectorExplorer>? dotNetReference;
     private IJSObjectReference? loadMoreScrollModule;
-    private bool autoLoadSectorMap;
     private bool browserSessionRestored;
     private bool browserSessionReady;
     private IReadOnlyList<EntityImage> entityImages = [];
@@ -758,30 +752,6 @@
         return Task.CompletedTask;
     }
 
-    private async Task HandleOverviewSystemSelectedAsync(int systemId)
-    {
-        if (systemId <= 0)
-        {
-            return;
-        }
-
-        selectedSystemId = systemId;
-        SelectDefaultWorld();
-        await PersistExplorerSessionAsync();
-    }
-
-    private async Task HandleOverviewAutoLoadSectorMapChangedAsync(bool value)
-    {
-        autoLoadSectorMap = value;
-        await PersistExplorerSessionAsync();
-    }
-
-    private Task HandleOverviewOpenSystemRecordRequestedAsync(int systemId)
-    {
-        NavigateToSystemRecord(systemId);
-        return Task.CompletedTask;
-    }
-
     private async Task ConfigureRecordObserverAsync(
         string key,
         bool hasMoreRecords,
@@ -864,7 +834,6 @@
 
         selectedSectorId = sector.Id;
         await LoadSectorOverviewDataAsync(sector.Id);
-        autoLoadSectorMap = storedSelection.AutoLoadSectorMap;
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;
@@ -883,7 +852,7 @@
             return;
         }
 
-        var selection = new ExplorerSessionSelection(selectedSectorId, selectedSystemId, autoLoadSectorMap, GetSectionSlug(activeSection));
+        var selection = new ExplorerSessionSelection(selectedSectorId, selectedSystemId, GetSectionSlug(activeSection));
         var value = System.Text.Json.JsonSerializer.Serialize(selection);
         try
         {
@@ -1269,7 +1238,7 @@
 
     private sealed record ColonyListing(StarWinSector Sector, StarSystem System, World World, Colony Colony);
 
-    private sealed record ExplorerSessionSelection(int SectorId, int SystemId, bool AutoLoadSectorMap = false, string? SectionSlug = null);
+    private sealed record ExplorerSessionSelection(int SectorId, int SystemId, string? SectionSlug = null);
 
     public async ValueTask DisposeAsync()
     {

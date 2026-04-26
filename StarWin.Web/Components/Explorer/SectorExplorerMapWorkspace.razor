@@ -1,5 +1,7 @@
 @inject IStarWinWorkspace Workspace
 @inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+@using Microsoft.AspNetCore.WebUtilities
 @using StarWin.Domain.Model.Entity.Civilization
 @using StarWin.Domain.Model.Entity.StarMap
 @using StarWin.Domain.Services
@@ -347,13 +349,10 @@ else
     private const int SectorMapMinimumRenderedSystems = 150;
     private const int ComboAllFilterId = -1;
 
-    [Parameter, EditorRequired] public StarWinSector SelectedSector { get; set; } = default!;
-    [Parameter] public int SelectedSystemId { get; set; }
-    [Parameter] public EventCallback<int> SelectedSystemChanged { get; set; }
-    [Parameter] public EventCallback<int> OpenSystemRecordRequested { get; set; }
-    [Parameter] public ExplorerSectorOverviewData? OverviewData { get; set; }
-    [Parameter] public bool AutoLoadRequested { get; set; }
-    [Parameter] public EventCallback<bool> AutoLoadRequestedChanged { get; set; }
+    private const string AutoLoadSessionStorageKey = "starforgedAtlas.mapWorkspace.autoLoad";
+
+    [Parameter, EditorRequired] public int SectorId { get; set; }
+    [Parameter] public int SystemId { get; set; }
 
     private ElementReference sectorMapElement;
     private DotNetObjectReference<SectorExplorerMapWorkspace>? dotNetReference;
@@ -368,6 +367,7 @@ else
     private bool renderedOverview;
     private bool sectorMapRequested;
     private bool autoLoadRequested;
+    private bool autoLoadPreferenceRestored;
     private bool workspaceReady;
     private bool workspaceLoading;
     private long? workspaceLoadStartedAtUnixMs;
@@ -385,6 +385,7 @@ else
     private int selectedSystemId;
     private int lastSelectedSystemId;
     private int lastSelectedSectorId;
+    private int lastRequestedSystemId;
     private string routeOriginText = string.Empty;
     private int routeOriginSystemId;
     private string routeDestinationText = string.Empty;
@@ -405,20 +406,20 @@ else
 
     protected override void OnParametersSet()
     {
-        autoLoadRequested = AutoLoadRequested;
-        workspaceReady = Workspace.IsLoaded;
+        workspaceReady = Workspace.IsLoaded && TryGetKnownSector() is not null;
 
         var previousSectorId = lastSelectedSectorId;
         var previousSelectedSystemId = lastSelectedSystemId;
+        var systemParameterChanged = SystemId != lastRequestedSystemId;
 
-        var selectionSector = GetSelectionSector();
-        var resolvedSystemId = selectionSector.Systems.Any(system => system.Id == SelectedSystemId)
-            ? SelectedSystemId
-            : selectionSector.Systems.FirstOrDefault()?.Id ?? 0;
+        var selectionSector = TryGetKnownSector();
+        var resolvedSystemId = selectionSector is null
+            ? (SystemId > 0 ? SystemId : selectedSystemId)
+            : ResolveSelectedSystemId(selectionSector, systemParameterChanged || previousSectorId != SectorId ? SystemId : selectedSystemId);
 
         selectedSystemId = resolvedSystemId;
 
-        if (previousSectorId != SelectedSector.Id)
+        if (previousSectorId != SectorId)
         {
             ResetSectorMapPerformanceLimit();
             ClearSelectedRoute();
@@ -428,10 +429,12 @@ else
 
         if (routeOriginSystemId == 0
             || routeOriginSystemId == previousSelectedSystemId
-            || previousSectorId != SelectedSector.Id)
+            || previousSectorId != SectorId)
         {
             routeOriginSystemId = selectedSystemId;
-            routeOriginText = FormatSelectedSystem(selectionSector, routeOriginSystemId);
+            routeOriginText = selectionSector is null
+                ? string.Empty
+                : FormatSelectedSystem(selectionSector, routeOriginSystemId);
         }
 
         if (selectedSystemId != previousSelectedSystemId)
@@ -439,14 +442,17 @@ else
             renderedOverview = false;
         }
 
-        lastSelectedSectorId = SelectedSector.Id;
+        lastSelectedSectorId = SectorId;
         lastSelectedSystemId = selectedSystemId;
+        lastRequestedSystemId = SystemId;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            await RestoreAutoLoadPreferenceAsync();
+
             if (!workspaceReady)
             {
                 StateHasChanged();
@@ -513,16 +519,38 @@ else
 
     private StarWinSector GetSelectionSector()
     {
-        return Workspace.IsLoaded
-            ? GetMapSector()
-            : SelectedSector;
+        return GetMapSector();
+    }
+
+    private static int ResolveSelectedSystemId(StarWinSector sector, int requestedSystemId)
+    {
+        if (requestedSystemId > 0 && sector.Systems.Any(system => system.Id == requestedSystemId))
+        {
+            return requestedSystemId;
+        }
+
+        return sector.Systems.FirstOrDefault()?.Id ?? 0;
     }
 
     private StarWinSector GetMapSector()
     {
-        return Workspace.Sectors.FirstOrDefault(item => item.Id == SelectedSector.Id)
-            ?? Workspace.CurrentSector
-            ?? SelectedSector;
+        return TryGetKnownSector()
+            ?? throw new InvalidOperationException($"Sector {SectorId} is not available in the map workspace.");
+    }
+
+    private StarWinSector? TryGetKnownSector()
+    {
+        if (Workspace.Sectors.FirstOrDefault(item => item.Id == SectorId) is { } requestedSector)
+        {
+            return requestedSector;
+        }
+
+        if (Workspace.CurrentSector is { } currentSector && currentSector.Id == SectorId)
+        {
+            return currentSector;
+        }
+
+        return null;
     }
 
     private async Task EnsureWorkspaceReadyAsync(bool forceReload = false)
@@ -548,10 +576,10 @@ else
                 await Workspace.ReloadAsync();
             }
 
-            workspaceReady = Workspace.IsLoaded;
+            workspaceReady = Workspace.IsLoaded && TryGetKnownSector() is not null;
             if (!workspaceReady)
             {
-                workspaceLoadError = "The workspace did not finish loading.";
+                workspaceLoadError = $"Sector {SectorId} is not available in the workspace.";
                 return;
             }
 
@@ -643,7 +671,7 @@ else
     private async Task ToggleAutoLoadSectorMap(ChangeEventArgs args)
     {
         autoLoadRequested = args.Value is bool value && value;
-        await AutoLoadRequestedChanged.InvokeAsync(autoLoadRequested);
+        await PersistAutoLoadPreferenceAsync();
 
         if (autoLoadRequested)
         {
@@ -682,22 +710,25 @@ else
         await SelectSystemAsync(systemId);
     }
 
-    private async Task SelectSystemAsync(int systemId)
+    private Task SelectSystemAsync(int systemId)
     {
         selectedSystemId = systemId;
-        await SelectedSystemChanged.InvokeAsync(systemId);
+        ClearSelectedRoute();
+        SyncCurrentPageQuery();
         renderedOverview = false;
         StateHasChanged();
+        return Task.CompletedTask;
     }
 
-    private async Task OpenSelectedSystemRecordAsync()
+    private Task OpenSelectedSystemRecordAsync()
     {
         if (selectedSystemId <= 0)
         {
-            return;
+            return Task.CompletedTask;
         }
 
-        await OpenSystemRecordRequested.InvokeAsync(selectedSystemId);
+        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Systems", SectorId, selectedSystemId));
+        return Task.CompletedTask;
     }
 
     [JSInvokable]
@@ -1347,16 +1378,32 @@ else
 
     private IEnumerable<KeyValuePair<int, string>> GetRouteEmpireOptions()
     {
-        return OverviewData?.Empires
-            .Select(empire => new KeyValuePair<int, string>(empire.Id, empire.Name))
-            .ToList() ?? [];
+        var sector = GetMapSector();
+
+        return GetSectorHyperlaneRoutes(sector)
+            .SelectMany(route => new[]
+            {
+                route.PrimaryOwnerEmpireId is int primaryOwnerId && !string.IsNullOrWhiteSpace(route.PrimaryOwnerEmpireName)
+                    ? new KeyValuePair<int, string>?(new(primaryOwnerId, route.PrimaryOwnerEmpireName))
+                    : null,
+                route.SecondaryOwnerEmpireId is int secondaryOwnerId && !string.IsNullOrWhiteSpace(route.SecondaryOwnerEmpireName)
+                    ? new KeyValuePair<int, string>?(new(secondaryOwnerId, route.SecondaryOwnerEmpireName))
+                    : null
+            })
+            .Where(option => option is not null)
+            .Select(option => option!.Value)
+            .DistinctBy(option => option.Key)
+            .OrderBy(option => option.Value)
+            .ToList();
     }
 
     private IEnumerable<KeyValuePair<int, string>> GetRouteSystemOptions()
     {
-        return OverviewData?.Systems
+        return GetMapSector().Systems
+            .OrderBy(system => system.Name)
+            .ThenBy(system => system.Id)
             .Select(system => new KeyValuePair<int, string>(system.Id, system.Name))
-            .ToList() ?? [];
+            .ToList();
     }
 
     private static string FormatRouteOption(KeyValuePair<int, string> option)
@@ -1376,6 +1423,65 @@ else
         avoidedSystemIds = selectedIds;
         ClearPlottedRoutePlan();
         renderedOverview = false;
+    }
+
+    private async Task RestoreAutoLoadPreferenceAsync()
+    {
+        if (autoLoadPreferenceRestored)
+        {
+            return;
+        }
+
+        autoLoadPreferenceRestored = true;
+        try
+        {
+            var storedValue = await JS.InvokeAsync<string?>("sessionStorage.getItem", AutoLoadSessionStorageKey);
+            autoLoadRequested = string.Equals(storedValue, "true", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private async Task PersistAutoLoadPreferenceAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("sessionStorage.setItem", AutoLoadSessionStorageKey, autoLoadRequested.ToString().ToLowerInvariant());
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    private void SyncCurrentPageQuery()
+    {
+        var currentUri = new Uri(NavigationManager.Uri);
+        var query = QueryHelpers.ParseQuery(currentUri.Query)
+            .ToDictionary(
+                item => item.Key,
+                item => (string?)item.Value.ToString(),
+                StringComparer.OrdinalIgnoreCase);
+
+        query["sectorId"] = SectorId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        if (selectedSystemId > 0)
+        {
+            query["systemId"] = selectedSystemId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            query.Remove("systemId");
+        }
+
+        var targetUri = QueryHelpers.AddQueryString(currentUri.GetLeftPart(UriPartial.Path), query);
+        NavigationManager.NavigateTo(targetUri, replace: true);
     }
 
     private static string FormatTravelTime(double years)
