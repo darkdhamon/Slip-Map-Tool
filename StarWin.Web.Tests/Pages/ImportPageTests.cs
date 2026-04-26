@@ -23,6 +23,17 @@ public sealed class ImportPageTests : BunitContext
         Assert.Contains("Coming soon", cut.Markup);
         Assert.DoesNotContain("StarWin JSON", cut.Markup);
         Assert.DoesNotContain("legacy export packages", cut.Markup, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Collect all files for the single StarWin 2 sector you want to import", cut.Markup);
+        Assert.Contains("All files for the sector should use the same base file name", cut.Markup);
+        Assert.Contains(".sun", cut.Markup);
+        Assert.Contains(".pln", cut.Markup);
+        Assert.Contains(".mon", cut.Markup);
+        Assert.Contains(".aln", cut.Markup);
+        Assert.Contains(".col", cut.Markup);
+        Assert.Contains(".con", cut.Markup);
+        Assert.Contains(".emp", cut.Markup);
+        Assert.Contains(".his", cut.Markup);
+        Assert.Contains(".nam", cut.Markup);
     }
 
     [Fact]

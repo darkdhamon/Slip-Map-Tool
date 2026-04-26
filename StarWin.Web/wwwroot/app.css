@@ -2093,6 +2093,30 @@ dd {
     color: #f8fbff;
 }
 
+.import-instructions {
+    display: grid;
+    gap: 10px;
+    border: 1px solid rgba(125, 211, 252, 0.16);
+    border-radius: 8px;
+    background: rgba(3, 10, 24, 0.54);
+    margin-bottom: 16px;
+    padding: 14px;
+}
+
+.import-instructions h3,
+.import-instructions p {
+    margin: 0;
+}
+
+.import-instructions h3 {
+    color: #dff8ff;
+    font-size: 1rem;
+}
+
+.import-extension-tags {
+    margin-top: 0;
+}
+
 .import-actions {
     margin-top: 18px;
 }
