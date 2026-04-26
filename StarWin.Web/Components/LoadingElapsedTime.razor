@@ -1,0 +1,50 @@
+@if (AlwaysRender || IsVisible)
+{
+    <p class="loading-elapsed"
+       aria-live="off"
+       data-loading-timer="true"
+       data-started-at-unix-ms="@startedAtUnixMs">Elapsed time: @GetInitialElapsedDisplay()</p>
+}
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public bool AlwaysRender { get; set; }
+
+    [Parameter]
+    public long? StartedAtUnixMs { get; set; }
+
+    private long? startedAtUnixMs;
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible)
+        {
+            startedAtUnixMs = StartedAtUnixMs ?? startedAtUnixMs ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            return;
+        }
+
+        if (AlwaysRender)
+        {
+            startedAtUnixMs = StartedAtUnixMs ?? startedAtUnixMs;
+            return;
+        }
+
+        startedAtUnixMs = null;
+    }
+
+    private string GetInitialElapsedDisplay()
+    {
+        if (startedAtUnixMs is null)
+        {
+            return "00:00.0";
+        }
+
+        var elapsed = DateTimeOffset.UtcNow - DateTimeOffset.FromUnixTimeMilliseconds(startedAtUnixMs.Value);
+        return elapsed.TotalHours >= 1
+            ? $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
+            : $"{elapsed.Minutes:00}:{elapsed.Seconds:00}.{elapsed.Milliseconds / 100}";
+    }
+}

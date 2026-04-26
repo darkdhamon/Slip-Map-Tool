@@ -11,15 +11,18 @@ public sealed class StarWinDatabaseWorkspace : IStarWinWorkspace
 {
     private readonly IDbContextFactory<StarWinDbContext> dbContextFactory;
     private readonly SemaphoreSlim reloadLock = new(1, 1);
+    private static readonly StarWinSector EmptySector = new() { Id = 0, Name = "No sectors loaded" };
 
     public StarWinDatabaseWorkspace(IDbContextFactory<StarWinDbContext> dbContextFactory)
     {
         this.dbContextFactory = dbContextFactory;
     }
 
+    public bool IsLoaded { get; private set; }
+
     public IReadOnlyList<StarWinSector> Sectors { get; private set; } = [];
 
-    public StarWinSector CurrentSector { get; private set; } = new() { Id = 0, Name = "No sectors loaded" };
+    public StarWinSector CurrentSector { get; private set; } = EmptySector;
 
     public IReadOnlyList<AlienRace> AlienRaces { get; private set; } = [];
 
@@ -27,7 +30,7 @@ public sealed class StarWinDatabaseWorkspace : IStarWinWorkspace
 
     public IReadOnlyList<EmpireContact> EmpireContacts { get; private set; } = [];
 
-    public CivilizationGeneratorSettings CivilizationSettings { get; private set; } = BuildCivilizationSettings(new StarWinSector { Id = 0, Name = "No sectors loaded" });
+    public CivilizationGeneratorSettings CivilizationSettings { get; private set; } = BuildCivilizationSettings(EmptySector);
 
     public ArmyGeneratorSettings ArmySettings { get; private set; } = new();
 
@@ -49,6 +52,7 @@ public sealed class StarWinDatabaseWorkspace : IStarWinWorkspace
             CivilizationSettings = BuildCivilizationSettings(CurrentSector);
             ArmySettings = new ArmyGeneratorSettings();
             PreviewGurpsTemplate = BuildPreviewGurpsTemplate();
+            IsLoaded = true;
         }
         finally
         {

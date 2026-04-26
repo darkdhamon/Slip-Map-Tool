@@ -43,11 +43,13 @@ public static class DependencyInjection
 
         services.AddDbContext<StarWinDbContext>(
             ConfigureDatabase,
+            contextLifetime: ServiceLifetime.Scoped,
             optionsLifetime: ServiceLifetime.Singleton);
         services.AddDbContextFactory<StarWinDbContext>(ConfigureDatabase);
 
         services.AddSingleton<IStarWinWorkspace, StarWinDatabaseWorkspace>();
         services.AddScoped<IStarWinExplorerContextService, StarWinExplorerContextService>();
+        services.AddScoped<IStarWinExplorerQueryService, StarWinExplorerQueryService>();
         services.AddScoped<IStarWinSearchService, StarWinSearchService>();
         services.AddScoped<IStarWinImageService, StarWinImageService>();
         services.AddScoped<IStarWinEntityNoteService, StarWinEntityNoteService>();

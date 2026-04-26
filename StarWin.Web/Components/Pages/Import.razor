@@ -138,29 +138,18 @@
         </article>
     </section>
 
-    @if (importLoadingVisible)
-    {
-        <div class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="@importLoadingLabel">
-            <section class="loading-modal">
-                <span class="panel-kicker">@importLoadingLabel</span>
-                <h2>@importLoadingStatus</h2>
-                @if (!string.IsNullOrWhiteSpace(importLoadingDetail))
-                {
-                    <p class="loading-progress-detail">@importLoadingDetail</p>
-                }
-                <div class="loading-meter import-progress-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@importLoadingProgressPercent">
-                    <span style="width: @importLoadingProgressPercent%;"></span>
-                </div>
-                <strong class="loading-progress-value">@importLoadingProgressPercent%</strong>
-                <ol>
-                    @foreach (var step in importLoadingSteps)
-                    {
-                        <li>@step</li>
-                    }
-                </ol>
-            </section>
-        </div>
-    }
+    <LoadingModal IsVisible="@importLoadingVisible"
+                  AriaLabel="@importLoadingLabel"
+                  Kicker="@importLoadingLabel"
+                  Title="@importLoadingStatus"
+                  Detail="@importLoadingDetail"
+                  MeterClass="loading-meter import-progress-meter"
+                  ProgressPercent="@importLoadingProgressPercent"
+                  Steps="@importLoadingSteps">
+        <AfterMeterContent>
+            <strong class="loading-progress-value">@importLoadingProgressPercent%</strong>
+        </AfterMeterContent>
+    </LoadingModal>
 </section>
 
 @code {

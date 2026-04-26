@@ -5,13 +5,14 @@ using StarWin.Infrastructure.Data;
 
 namespace StarWin.Infrastructure.Services;
 
-public sealed class StarWinSectorConfigurationService(StarWinDbContext dbContext) : IStarWinSectorConfigurationService
+public sealed class StarWinSectorConfigurationService(IDbContextFactory<StarWinDbContext> dbContextFactory) : IStarWinSectorConfigurationService
 {
     public async Task<string> SaveSectorNameAsync(
         int sectorId,
         string name,
         CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var normalizedName = name.Trim();
         if (string.IsNullOrWhiteSpace(normalizedName))
         {
@@ -41,6 +42,7 @@ public sealed class StarWinSectorConfigurationService(StarWinDbContext dbContext
         SectorConfiguration configuration,
         CancellationToken cancellationToken = default)
     {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await dbContext.Set<SectorConfiguration>()
             .FirstOrDefaultAsync(item => item.SectorId == sectorId, cancellationToken);
 
