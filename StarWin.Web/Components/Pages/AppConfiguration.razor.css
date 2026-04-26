@@ -1,0 +1,69 @@
+.app-configuration-grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+}
+
+.danger-copy {
+    color: #ff9c9c;
+}
+
+.danger-action,
+.secondary-action {
+    border-radius: 999px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    padding: 0.85rem 1.4rem;
+    transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.danger-action {
+    background: linear-gradient(135deg, #a32020 0%, #d83b3b 100%);
+    box-shadow: 0 0.8rem 1.6rem rgba(216, 59, 59, 0.24);
+    color: #fff6f6;
+}
+
+.danger-action:hover:not(:disabled),
+.secondary-action:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.danger-action:disabled,
+.secondary-action:disabled {
+    cursor: wait;
+    opacity: 0.7;
+}
+
+.secondary-action {
+    background: rgba(142, 180, 255, 0.12);
+    border-color: rgba(142, 180, 255, 0.3);
+    color: #d8e6ff;
+}
+
+.confirmation-backdrop {
+    align-items: center;
+    background: rgba(2, 9, 24, 0.78);
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    left: 0;
+    padding: 1.5rem;
+    position: fixed;
+    right: 0;
+    top: 0;
+    z-index: 1200;
+}
+
+.confirmation-dialog {
+    max-width: 34rem;
+    width: min(100%, 34rem);
+}
+
+.confirmation-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.85rem;
+    margin-top: 1.5rem;
+}
