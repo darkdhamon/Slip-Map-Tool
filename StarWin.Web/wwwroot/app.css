@@ -842,6 +842,8 @@ dd {
     min-height: 0;
     z-index: 3;
     pointer-events: none;
+    align-self: stretch;
+    justify-self: stretch;
 }
 
 .workspace-loading-modal-host .loading-modal {
