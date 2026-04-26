@@ -377,6 +377,11 @@ internal static class DesktopBackendCoordinator
         }
     }
 
+    public static bool IsKnownAliveProcess(int processId)
+    {
+        return IsProcessAlive(processId);
+    }
+
     private static Mutex CreateStateMutex()
     {
         return new Mutex(false, StateMutexName);
@@ -572,11 +577,11 @@ internal sealed class DesktopBackendMonitor(WebApplication app) : IDisposable
                 return;
             }
 
-            var remainingClientIds = state.ClientProcessIds
-                .Where(pid => pid != Environment.ProcessId)
+            var activeClientIds = state.ClientProcessIds
+                .Where(DesktopBackendCoordinator.IsKnownAliveProcess)
                 .ToList();
 
-            if (remainingClientIds.Count == 0)
+            if (activeClientIds.Count == 0)
             {
                 lifetime.StopApplication();
                 return;

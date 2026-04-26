@@ -9,6 +9,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $desktopProject = Join-Path $repoRoot "StarWin.Desktop\StarWin.Desktop.csproj"
 $launcherProject = Join-Path $repoRoot "StarforgedAtlas.PortableLauncher\StarforgedAtlas.PortableLauncher.csproj"
+$desktopBuildOutput = Join-Path $repoRoot "StarWin.Desktop\bin\$Configuration\net10.0-windows\$RuntimeIdentifier"
 $packageRoot = Join-Path $repoRoot $OutputRoot
 $appRoot = Join-Path $packageRoot "app"
 $zipPath = "$packageRoot.zip"
@@ -36,6 +37,11 @@ if ($LASTEXITCODE -ne 0)
 {
     throw "Desktop publish failed."
 }
+
+Get-ChildItem -LiteralPath $desktopBuildOutput -Filter "StarWin.Web.staticwebassets*.json" -ErrorAction Stop |
+    ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $appRoot $_.Name) -Force
+    }
 
 dotnet publish $launcherProject `
     -c $Configuration `
