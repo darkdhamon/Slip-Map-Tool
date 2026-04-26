@@ -20,23 +20,23 @@ public sealed class ImportPageTests : BunitContext
 
         Assert.Contains("StarWin 2 files", cut.Markup);
         Assert.Contains("Slip Map JSON", cut.Markup);
+        Assert.Contains("Coming soon", cut.Markup);
         Assert.DoesNotContain("StarWin JSON", cut.Markup);
         Assert.DoesNotContain("legacy export packages", cut.Markup, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void SelectingSlipMapJsonUpdatesAcceptedFileTypes()
+    public void SlipMapJsonSourceIsDisabledUntilImplemented()
     {
         ConfigureServices();
 
         var cut = Render<Import>();
-        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Slip Map JSON").Click();
+        var slipMapButton = cut.FindAll("button").Single(button => button.TextContent.Contains("Slip Map JSON", StringComparison.Ordinal));
 
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("<span>Slip Map JSON</span>", cut.Markup);
-            Assert.Contains("accept=\".json,application/json\"", cut.Markup);
-        });
+        Assert.True(slipMapButton.HasAttribute("disabled"));
+        Assert.Contains("Coming soon", slipMapButton.TextContent);
+        Assert.Contains("<span>StarWin 2 files</span>", cut.Markup);
+        Assert.Contains("accept=\".zip,application/zip,application/x-zip-compressed\"", cut.Markup);
     }
 
     private void ConfigureServices()

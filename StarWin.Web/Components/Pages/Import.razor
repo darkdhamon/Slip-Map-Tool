@@ -22,7 +22,16 @@
             <div class="segmented-control" role="group" aria-label="Import source">
                 @foreach (var source in importSources)
                 {
-                    <button type="button" class="@(selectedSource == source.Key ? "active" : null)" @onclick="() => selectedSource = source.Key" disabled="@importLoadingVisible">@source.Label</button>
+                    <button type="button"
+                            class="@(selectedSource == source.Key ? "active" : null)"
+                            @onclick="() => selectedSource = source.Key"
+                            disabled="@(importLoadingVisible || !source.IsAvailable)">
+                        @source.Label
+                        @if (!source.IsAvailable)
+                        {
+                            <span>Coming soon</span>
+                        }
+                    </button>
                 }
             </div>
 
@@ -155,8 +164,8 @@
 @code {
     private readonly ImportSource[] importSources =
     [
-        new("starwin-files", "StarWin 2 files"),
-        new("slipmap-json", "Slip Map JSON")
+        new("starwin-files", "StarWin 2 files", true),
+        new("slipmap-json", "Slip Map JSON", false)
     ];
 
     private string selectedSource = "starwin-files";
@@ -364,5 +373,5 @@
         return allegianceId == ushort.MaxValue ? "Independent" : allegianceId.ToString();
     }
 
-    private sealed record ImportSource(string Key, string Label);
+    private sealed record ImportSource(string Key, string Label, bool IsAvailable);
 }
