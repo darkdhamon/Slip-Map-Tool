@@ -11,7 +11,7 @@
         <div class="hero-copy">
             <p class="eyebrow">Import</p>
             <h1>Bring legacy sectors and slip maps into the new archive.</h1>
-            <p class="hero-summary">Load StarWin 2 sector data, legacy export packages, and Slip Map JSON into the shared Starforged Atlas workspace.</p>
+            <p class="hero-summary">Load StarWin 2 sector data and Slip Map JSON into the shared Starforged Atlas workspace.</p>
         </div>
     </header>
 
@@ -156,7 +156,6 @@
     private readonly ImportSource[] importSources =
     [
         new("starwin-files", "StarWin 2 files"),
-        new("starwin-json", "StarWin JSON"),
         new("slipmap-json", "Slip Map JSON")
     ];
 
@@ -184,7 +183,7 @@
     private string AcceptedFileTypes => selectedSource switch
     {
         "starwin-files" => ".zip,application/zip,application/x-zip-compressed",
-        "starwin-json" or "slipmap-json" => ".json,application/json",
+        "slipmap-json" => ".json,application/json",
         _ => string.Empty
     };
 
