@@ -12,38 +12,8 @@
 
 @{
     var sector = GetSelectedSector();
-    var sectorSummary = GetSectorSummary(sector);
     var overviewData = GetSectorOverviewData(sector.Id);
-    var usesSectionCache = ShouldUseSectionCache(activeSection);
-    var needsSectorRaceList = activeSection is "Overview" or "Colonies" or "Aliens" or "Empires";
-    var needsSectorEmpireList = activeSection is "Overview" or "Systems" or "Colonies" or "Empires";
-    var sectionCache = usesSectionCache ? GetSectorCache(sector) : null;
-    var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
-    var selectedHabitat = selectedSystem?.SpaceHabitats.FirstOrDefault(habitat => habitat.Id == selectedHabitatId);
-    var selectedWorld = selectedHabitat is null
-        ? selectedSystem?.Worlds.FirstOrDefault(world => world.Id == selectedWorldId) ?? selectedSystem?.Worlds.FirstOrDefault()
-        : null;
-    var sectorWorlds = sectionCache?.Worlds ?? [];
-    var sectorColonies = sectionCache?.Colonies ?? [];
-    var sectorRaceIds = sectionCache?.RaceIds ?? sectorSummary.RaceIds;
-    var sectorEmpireIds = sectionCache?.EmpireIds ?? sectorSummary.EmpireIds;
-    var sectorRaces = needsSectorRaceList
-        ? ExplorerAlienRaces.Where(race => sectorRaceIds.Contains(race.Id)).OrderBy(race => race.Name).ToList()
-        : [];
-    var sectorEmpires = needsSectorEmpireList
-        ? ExplorerEmpires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList()
-        : [];
-    var selectedColony = activeSection is "Colonies" or "Empires"
-        ? sectorColonies.Select(item => item.Colony).FirstOrDefault(colony => colony.Id == selectedColonyId)
-            ?? selectedWorld?.Colony
-            ?? sectorColonies.Select(item => item.Colony).FirstOrDefault()
-        : null;
-    var selectedColonyWorld = selectedColony is null || !WorldsById.TryGetValue(selectedColony.WorldId, out var colonyWorld)
-        ? null
-        : colonyWorld;
-    RenderFragment? heroContent = activeSection == "Overview"
-        ? @<ExplorerHero />
-        : null;
+    RenderFragment heroContent = @<ExplorerHero />;
     var layoutState = new SectorExplorerLayoutState(
         heroContent,
         ExplorerSectors,
@@ -61,7 +31,7 @@
         searchResults,
         EventCallback.Factory.Create<StarWinSearchResult>(this, NavigateToSearchResult),
         sections,
-        activeSection,
+        OverviewSectionName,
         explorerRenderError,
         DisplayResultType,
         BuildSectionRoute);
@@ -70,48 +40,39 @@
 <PageTitle>Sector Explorer | Starforged Atlas</PageTitle>
 <SectorExplorerLayoutSync State="layoutState" />
 
-@if (activeSection == "Overview")
-{
-    <ExplorerMetricsBand SystemCount="@(overviewData?.SystemCount ?? 0)"
-                         WorldCount="@(overviewData?.WorldCount ?? 0)"
-                         ColonyCount="@(overviewData?.ColonyCount ?? 0)"
-                         EmpireCount="@(overviewData?.EmpireCount ?? 0)"
-                         RaceCount="@(overviewData?.RaceCount ?? 0)" />
-}
+<ExplorerMetricsBand SystemCount="@(overviewData?.SystemCount ?? 0)"
+                     WorldCount="@(overviewData?.WorldCount ?? 0)"
+                     ColonyCount="@(overviewData?.ColonyCount ?? 0)"
+                     EmpireCount="@(overviewData?.EmpireCount ?? 0)"
+                     RaceCount="@(overviewData?.RaceCount ?? 0)" />
 
-@switch (activeSection)
-{
-    case "Overview":
-        <section class="overview-layout">
-            @if (!overviewMapWorkspaceReady)
-            {
-                <div class="sector-map-three" aria-label="sector map workspace">
-                    <article class="map-request-panel">
-                        <span class="panel-kicker">Map workspace</span>
-                        <h2>Preparing map workspace</h2>
-                        <p>The Overview page is ready first. The 3D map and route planner load in right after the initial page render so they do not block the rest of the Explorer.</p>
-                    </article>
-                </div>
+<section class="overview-layout">
+    @if (!overviewMapWorkspaceReady)
+    {
+        <div class="sector-map-three" aria-label="sector map workspace">
+            <article class="map-request-panel">
+                <span class="panel-kicker">Map workspace</span>
+                <h2>Preparing map workspace</h2>
+                <p>The Overview page is ready first. The 3D map and route planner load in right after the initial page render so they do not block the rest of the Explorer.</p>
+            </article>
+        </div>
 
-                <div class="stacked-panels">
-                    <article class="feature-panel route-planner-panel">
-                        <span class="panel-kicker">Route planner</span>
-                        <h2>Preparing route-planning workspace</h2>
-                        <p>The route planner is loading as a follow-up component after the main Overview content appears.</p>
-                    </article>
-                </div>
-            }
-            else
-            {
-                <SectorExplorerMapWorkspace SectorId="selectedSectorId"
-                                            SystemId="selectedSystemId" />
-            }
-        </section>
-        break;
-}
+        <div class="stacked-panels">
+            <article class="feature-panel route-planner-panel">
+                <span class="panel-kicker">Route planner</span>
+                <h2>Preparing route-planning workspace</h2>
+                <p>The route planner is loading as a follow-up component after the main Overview content appears.</p>
+            </article>
+        </div>
+    }
+    else
+    {
+        <SectorExplorerMapWorkspace SectorId="selectedSectorId"
+                                    SystemId="selectedSystemId" />
+    }
+</section>
 @code {
-    private const int ColonyBatchSize = 120;
-    private const int ExplorerListBatchSize = 120;
+    private const string OverviewSectionName = "Overview";
     private const int ComboAllFilterId = -1;
     private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
 
@@ -137,69 +98,20 @@
     public int? RequestedEmpireId { get; set; }
 
     private static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
-    private readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
     private readonly Dictionary<int, ExplorerSectorOverviewData> sectorOverviewDataById = [];
-    private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
     private StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
-    private string activeSection = "Overview";
     private (int? SectorId, int? SystemId, int? WorldId, int? ColonyId, int? HabitatId, int? RaceId, int? EmpireId) lastAppliedRequest;
-    private string sectionLoadingTarget = string.Empty;
-    private string sectionLoadingStatus = string.Empty;
-    private bool sectionLoadingVisible;
-    private bool sectionLoadingAwaitingTargetRender;
-    private DateTimeOffset sectionLoadingStartedAtUtc;
     private bool overviewMapWorkspaceReady;
     private int selectedSectorId;
     private int selectedSystemId;
     private string selectedSystemText = string.Empty;
-    private int selectedWorldId;
-    private int selectedColonyId;
-    private int selectedHabitatId;
-    private int selectedRaceId;
-    private int selectedEmpireId;
     private string searchQuery = string.Empty;
     private IReadOnlyList<StarWinSearchResult> searchResults = [];
     private bool browserSessionRestored;
     private bool browserSessionReady;
     private string explorerRenderError = string.Empty;
 
-    private IReadOnlyDictionary<int, AlienRace>? alienRacesById;
-    private IReadOnlyDictionary<int, Empire>? empiresById;
-    private IReadOnlyDictionary<int, World>? worldsById;
-
-    private ExplorerSectorCache GetSectorCache(StarWinSector sector)
-    {
-        return sectorCacheBuilder.Get(sector);
-    }
-
-    private ExplorerSectorSummary GetSectorSummary(StarWinSector sector)
-    {
-        return sectorCacheBuilder.GetSummary(sector);
-    }
-
-    private static bool ShouldUseSectionCache(string sectionName)
-    {
-        return sectionName is "Systems" or "Colonies" or "Aliens" or "Empires";
-    }
-
-    private IReadOnlyDictionary<int, AlienRace> AlienRacesById =>
-        alienRacesById ??= ExplorerAlienRaces.ToDictionary(race => race.Id);
-
-    private IReadOnlyDictionary<int, Empire> EmpiresById =>
-        empiresById ??= ExplorerEmpires.ToDictionary(empire => empire.Id);
-
-    private IReadOnlyDictionary<int, World> WorldsById =>
-        worldsById ??= ExplorerSectors
-            .SelectMany(sector => sector.Systems)
-            .SelectMany(system => system.Worlds)
-            .GroupBy(world => world.Id)
-            .ToDictionary(group => group.Key, group => group.First());
-
     private IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
-
-    private IReadOnlyList<AlienRace> ExplorerAlienRaces => explorerContext.AlienRaces;
-
-    private IReadOnlyList<Empire> ExplorerEmpires => explorerContext.Empires;
 
     protected override async Task OnInitializedAsync()
     {
@@ -213,9 +125,6 @@
         await LoadSectorOverviewDataAsync(initialSector.Id);
         selectedSystemId = initialSector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
-        selectedWorldId = initialSector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Id ?? 0;
-        selectedColonyId = initialSector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Colony?.Id ?? 0;
-        SelectDefaultCivilizationRecords(initialSector);
         ApplyRequestedSelection(initialSector);
         lastAppliedRequest = GetCurrentRequest();
     }
@@ -244,189 +153,31 @@
 
     private async Task RefreshExplorerDataAsync(CancellationToken cancellationToken = default)
     {
-        var previousSectorIds = ExplorerSectors.Select(sector => sector.Id).ToList();
         var previousSectorId = selectedSectorId;
         var previousSystemId = selectedSystemId;
-        var previousWorldId = selectedWorldId;
-        var previousColonyId = selectedColonyId;
-        var previousHabitatId = selectedHabitatId;
-        var previousRaceId = selectedRaceId;
-        var previousEmpireId = selectedEmpireId;
 
-        explorerContext = await ExplorerContextService.LoadShellAsync(
-            includeSavedRoutes: RequiresSavedRoutesInShell(activeSection),
-            includeReferenceData: RequiresReferenceDataInShell(activeSection),
-            cancellationToken: cancellationToken);
-        loadedSectorSectionsById.Clear();
-        ResetExplorerCaches(previousSectorIds);
+        explorerContext = await ExplorerContextService.LoadShellAsync(cancellationToken: cancellationToken);
 
         if (ExplorerSectors.Count == 0)
         {
             selectedSectorId = 0;
             selectedSystemId = 0;
-            selectedWorldId = 0;
-            selectedColonyId = 0;
-            selectedHabitatId = 0;
-            selectedRaceId = 0;
-            selectedEmpireId = 0;
             selectedSystemText = string.Empty;
             return;
         }
 
         var selectedSector = ExplorerSectors.FirstOrDefault(sector => sector.Id == previousSectorId) ?? explorerContext.CurrentSector;
-        selectedSector = await EnsureSectorDataLoadedAsync(selectedSector.Id, activeSection, cancellationToken) ?? selectedSector;
         selectedSectorId = selectedSector.Id;
         await LoadSectorOverviewDataAsync(selectedSector.Id, cancellationToken);
         selectedSystemId = selectedSector.Systems.Any(system => system.Id == previousSystemId)
             ? previousSystemId
             : selectedSector.Systems.FirstOrDefault()?.Id ?? 0;
-        selectedWorldId = selectedSector.Systems
-            .SelectMany(system => system.Worlds)
-            .Any(world => world.Id == previousWorldId)
-            ? previousWorldId
-            : selectedSector.Systems.FirstOrDefault(system => system.Id == selectedSystemId)?.Worlds.FirstOrDefault()?.Id ?? 0;
-        selectedColonyId = selectedSector.Systems
-            .SelectMany(system => system.Worlds)
-            .Select(world => world.Colony)
-            .Where(colony => colony is not null)
-            .Select(colony => colony!)
-            .Any(colony => colony.Id == previousColonyId)
-            ? previousColonyId
-            : selectedSector.Systems
-                .SelectMany(system => system.Worlds)
-                .FirstOrDefault(world => world.Id == selectedWorldId)
-                ?.Colony?.Id ?? 0;
-        selectedHabitatId = selectedSector.Systems
-            .SelectMany(system => system.SpaceHabitats)
-            .Any(habitat => habitat.Id == previousHabitatId)
-            ? previousHabitatId
-            : 0;
         selectedSystemText = FormatSelectedSystem(selectedSector, selectedSystemId);
-
-        var sectorSummary = GetSectorSummary(selectedSector);
-        selectedRaceId = sectorSummary.RaceIds.Contains(previousRaceId)
-            ? previousRaceId
-            : ExplorerAlienRaces.FirstOrDefault(race => sectorSummary.RaceIds.Contains(race.Id))?.Id ?? 0;
-        selectedEmpireId = sectorSummary.EmpireIds.Contains(previousEmpireId)
-            ? previousEmpireId
-            : ExplorerEmpires.FirstOrDefault(empire => sectorSummary.EmpireIds.Contains(empire.Id))?.Id ?? 0;
 
         if (!string.IsNullOrWhiteSpace(searchQuery))
         {
             RunSearch();
         }
-    }
-
-    private void ResetExplorerCaches(IEnumerable<int>? sectorIdsToInvalidate = null)
-    {
-        foreach (var sectorId in sectorIdsToInvalidate ?? ExplorerSectors.Select(sector => sector.Id))
-        {
-            sectorCacheBuilder.Invalidate(sectorId);
-            sectorOverviewDataById.Remove(sectorId);
-        }
-
-        alienRacesById = null;
-        empiresById = null;
-        worldsById = null;
-    }
-
-    private async Task<StarWinSector?> EnsureSectorDataLoadedAsync(
-        int sectorId,
-        string sectionName,
-        CancellationToken cancellationToken = default)
-    {
-        var requiredSections = GetSectorLoadSections(sectionName);
-        if (sectorId <= 0
-            || requiredSections == ExplorerSectorLoadSections.None)
-        {
-            return ExplorerSectors.FirstOrDefault(sector => sector.Id == sectorId);
-        }
-
-        loadedSectorSectionsById.TryGetValue(sectorId, out var loadedSections);
-        if ((loadedSections & requiredSections) == requiredSections)
-        {
-            return ExplorerSectors.FirstOrDefault(sector => sector.Id == sectorId);
-        }
-
-        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiredSections, cancellationToken);
-        if (detailedSector is null)
-        {
-            return ExplorerSectors.FirstOrDefault(sector => sector.Id == sectorId);
-        }
-
-        MergeSectorIntoExplorerContext(detailedSector);
-        loadedSectorSectionsById[sectorId] = loadedSections | requiredSections;
-
-        ResetExplorerCaches([sectorId]);
-        return detailedSector;
-    }
-
-    private void MergeSectorIntoExplorerContext(StarWinSector sector)
-    {
-        var sectors = ExplorerSectors.ToList();
-        var existingSectorIndex = sectors.FindIndex(item => item.Id == sector.Id);
-        if (existingSectorIndex >= 0)
-        {
-            sectors[existingSectorIndex] = sector;
-        }
-        else
-        {
-            sectors.Add(sector);
-            sectors = sectors.OrderBy(item => item.Name).ToList();
-        }
-
-        var currentSector = explorerContext.CurrentSector.Id == sector.Id
-            ? sector
-            : sectors.FirstOrDefault(item => item.Id == explorerContext.CurrentSector.Id) ?? sector;
-
-        explorerContext = explorerContext with
-        {
-            Sectors = sectors,
-            CurrentSector = currentSector
-        };
-    }
-
-    private static ExplorerSectorLoadSections GetSectorLoadSections(string sectionName)
-    {
-        return sectionName switch
-        {
-            "Systems" => ExplorerSectorLoadSections.AstralBodies
-                | ExplorerSectorLoadSections.Worlds
-                | ExplorerSectorLoadSections.SpaceHabitats,
-            "Worlds" => ExplorerSectorLoadSections.AstralBodies
-                | ExplorerSectorLoadSections.Worlds
-                | ExplorerSectorLoadSections.WorldCharacteristics
-                | ExplorerSectorLoadSections.Colonies
-                | ExplorerSectorLoadSections.ColonyDemographics
-                | ExplorerSectorLoadSections.SpaceHabitats,
-            "Colonies" => ExplorerSectorLoadSections.Worlds
-                | ExplorerSectorLoadSections.Colonies
-                | ExplorerSectorLoadSections.ColonyDemographics,
-            "Aliens" => ExplorerSectorLoadSections.Worlds
-                | ExplorerSectorLoadSections.Colonies
-                | ExplorerSectorLoadSections.ColonyDemographics,
-            "Empires" => ExplorerSectorLoadSections.Worlds
-                | ExplorerSectorLoadSections.Colonies
-                | ExplorerSectorLoadSections.ColonyDemographics,
-            "Configuration" => ExplorerSectorLoadSections.SavedRoutes,
-            "Hyperlanes" => ExplorerSectorLoadSections.SavedRoutes,
-            _ => ExplorerSectorLoadSections.None
-        };
-    }
-
-    private static bool RequiresOverviewData(string sectionName)
-    {
-        return sectionName == "Overview";
-    }
-
-    private static bool RequiresSavedRoutesInShell(string sectionName)
-    {
-        return sectionName is "Configuration" or "Hyperlanes";
-    }
-
-    private static bool RequiresReferenceDataInShell(string sectionName)
-    {
-        return sectionName is "Systems" or "Worlds" or "Colonies" or "Aliens" or "Empires";
     }
 
     private ExplorerSectorOverviewData? GetSectorOverviewData(int sectorId)
@@ -436,7 +187,7 @@
 
     private async Task LoadSectorOverviewDataAsync(int sectorId, CancellationToken cancellationToken = default)
     {
-        if (sectorId <= 0 || !RequiresOverviewData(activeSection))
+        if (sectorId <= 0)
         {
             return;
         }
@@ -450,7 +201,7 @@
         {
             await RestoreExplorerSessionAsync();
             browserSessionReady = true;
-            if (activeSection == "Overview" && !overviewMapWorkspaceReady)
+            if (!overviewMapWorkspaceReady)
             {
                 overviewMapWorkspaceReady = true;
             }
@@ -461,222 +212,28 @@
 
         try
         {
-            if (activeSection == "Timeline")
+            if (!overviewMapWorkspaceReady)
             {
-                await CompleteSectionLoadingIfReadyAsync();
+                overviewMapWorkspaceReady = true;
+                StateHasChanged();
                 return;
             }
-
-            if (activeSection == "Overview")
-            {
-                if (!overviewMapWorkspaceReady)
-                {
-                    overviewMapWorkspaceReady = true;
-                    StateHasChanged();
-                    return;
-                }
-
-                await CompleteSectionLoadingIfReadyAsync();
-                return;
-            }
-
-            await CompleteSectionLoadingIfReadyAsync();
         }
         catch (Exception ex)
         {
             explorerRenderError = ex.GetBaseException().Message;
-            sectionLoadingVisible = false;
-            sectionLoadingAwaitingTargetRender = false;
-            sectionLoadingTarget = string.Empty;
-            sectionLoadingStatus = string.Empty;
-            await HideSectionLoadingOverlayAsync();
             StateHasChanged();
         }
-    }
-
-    private async Task SelectSectionAsync(string sectionName)
-    {
-        if (activeSection == sectionName || sectionLoadingVisible)
-        {
-            return;
-        }
-
-        sectionLoadingTarget = sectionName;
-        sectionLoadingStatus = $"Preparing {sectionName} records...";
-        sectionLoadingAwaitingTargetRender = false;
-        sectionLoadingVisible = true;
-        sectionLoadingStartedAtUtc = DateTimeOffset.UtcNow;
-        explorerRenderError = string.Empty;
-        StateHasChanged();
-        await ShowSectionLoadingOverlayAsync(sectionName);
-
-        await Task.Delay(80);
-
-        sectionLoadingStatus = $"Loading {sectionName} data...";
-        StateHasChanged();
-        await EnsureSectorDataLoadedAsync(selectedSectorId, sectionName);
-
-        sectionLoadingStatus = $"Rendering {sectionName}...";
-        SetActiveSection(sectionName);
-        sectionLoadingAwaitingTargetRender = true;
-        StateHasChanged();
-    }
-
-    private async Task CompleteSectionLoadingIfReadyAsync()
-    {
-        if (!sectionLoadingVisible
-            || !sectionLoadingAwaitingTargetRender
-            || !string.Equals(activeSection, sectionLoadingTarget, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        sectionLoadingStatus = $"{activeSection} ready.";
-        StateHasChanged();
-
-        var elapsed = DateTimeOffset.UtcNow - sectionLoadingStartedAtUtc;
-        var remainingVisibleTime = TimeSpan.FromMilliseconds(450) - elapsed;
-        if (remainingVisibleTime > TimeSpan.Zero)
-        {
-            await Task.Delay(remainingVisibleTime);
-        }
-
-        sectionLoadingVisible = false;
-        sectionLoadingAwaitingTargetRender = false;
-        sectionLoadingTarget = string.Empty;
-        sectionLoadingStatus = string.Empty;
-        await HideSectionLoadingOverlayAsync();
-        StateHasChanged();
-    }
-
-    private async Task HideSectionLoadingOverlayAsync()
-    {
-        try
-        {
-            await JS.InvokeVoidAsync("starforgedAtlasNavigation.hideSectionLoading");
-        }
-        catch (InvalidOperationException)
-        {
-        }
-        catch (JSDisconnectedException)
-        {
-        }
-    }
-
-    private async Task ShowSectionLoadingOverlayAsync(string sectionName)
-    {
-        try
-        {
-            await JS.InvokeVoidAsync("starforgedAtlasNavigation.showSectionLoading", sectionName);
-        }
-        catch (InvalidOperationException)
-        {
-        }
-        catch (JSDisconnectedException)
-        {
-        }
-    }
-
-    private void SelectSystem(int systemId)
-    {
-        selectedSystemId = systemId;
-        var sector = GetSelectedSector();
-        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        if (activeSection == "Overview")
-        {
-            SetActiveSection("Overview");
-            SelectDefaultWorld();
-            _ = PersistExplorerSessionAsync();
-            return;
-        }
-
-        NavigateToSystemRecord(systemId);
-    }
-
-    private void OpenSelectedSystemRecord()
-    {
-        NavigateToSystemRecord(selectedSystemId);
-    }
-
-    private void NavigateToSystemRecord(int systemId)
-    {
-        if (systemId <= 0)
-        {
-            return;
-        }
-
-        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Systems", selectedSectorId, systemId));
-    }
-
-    private void SelectWorld(int worldId)
-    {
-        var sector = GetSelectedSector();
-        var system = sector.Systems.FirstOrDefault(system => system.Worlds.Any(world => world.Id == worldId));
-        if (system is not null)
-        {
-            selectedSystemId = system.Id;
-            selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        }
-
-        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Worlds", selectedSectorId, selectedSystemId, worldId: worldId));
-        _ = PersistExplorerSessionAsync();
-    }
-
-    private void SelectColony(int colonyId)
-    {
-        var sector = GetSelectedSector();
-        var listing = sector.Systems
-            .SelectMany(system => system.Worlds.Select(world => new { system, world }))
-            .FirstOrDefault(item => item.world.Colony?.Id == colonyId);
-        if (listing is null)
-        {
-            return;
-        }
-
-        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Colonies", selectedSectorId, listing.system.Id, listing.world.Id, colonyId));
-    }
-
-    private void SelectRace(int raceId)
-    {
-        selectedRaceId = raceId;
-        SetActiveSection("Aliens");
-    }
-
-    private void SelectEmpire(int empireId)
-    {
-        selectedEmpireId = empireId;
-        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Empires", selectedSectorId, selectedSystemId, empireId: empireId));
     }
 
     private async Task SelectDefaultSystem()
     {
         await LoadSectorOverviewDataAsync(selectedSectorId);
-        var loadedSector = await EnsureSectorDataLoadedAsync(selectedSectorId, activeSection);
-        if (loadedSector is not null)
-        {
-            selectedSectorId = loadedSector.Id;
-        }
-
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedWorldId = sector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Id ?? 0;
-        selectedColonyId = sector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Colony?.Id ?? 0;
-        selectedHabitatId = 0;
-        SelectDefaultCivilizationRecords(sector);
         SyncCurrentExplorerRoute(replaceHistory: true);
         await PersistExplorerSessionAsync();
-    }
-
-    private void SelectDefaultWorld()
-    {
-        var sector = GetSelectedSector();
-        var system = sector.Systems.FirstOrDefault(item => item.Id == selectedSystemId);
-        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedWorldId = system?.Worlds.FirstOrDefault()?.Id ?? 0;
-        selectedColonyId = system?.Worlds.FirstOrDefault()?.Colony?.Id ?? 0;
-        selectedHabitatId = 0;
-        _ = PersistExplorerSessionAsync();
     }
 
     private void ApplySelectedSystemText()
@@ -691,7 +248,7 @@
 
         selectedSystemId = systemId;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        SelectDefaultWorld();
+        _ = PersistExplorerSessionAsync();
     }
 
     private async Task HandleSectorChangedAsync(int sectorId)
@@ -763,10 +320,6 @@
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedWorldId = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId)?.Worlds.FirstOrDefault()?.Id ?? 0;
-        selectedColonyId = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId)?.Worlds.FirstOrDefault()?.Colony?.Id ?? 0;
-        selectedHabitatId = 0;
-        SelectDefaultCivilizationRecords(sector);
         SyncCurrentExplorerRoute(replaceHistory: true);
     }
 
@@ -777,7 +330,7 @@
             return;
         }
 
-        var selection = new ExplorerSessionSelection(selectedSectorId, selectedSystemId, GetSectionSlug(activeSection));
+        var selection = new ExplorerSessionSelection(selectedSectorId, selectedSystemId);
         var value = System.Text.Json.JsonSerializer.Serialize(selection);
         try
         {
@@ -791,13 +344,24 @@
     private void RunSearch()
     {
         var sector = GetSelectedSector();
-        var sectorSummary = GetSectorSummary(sector);
+        var raceIds = sector.Systems
+            .SelectMany(system => system.Worlds)
+            .Select(world => world.Colony?.RaceId)
+            .Where(raceId => raceId is not null)
+            .Select(raceId => (int)raceId!.Value)
+            .ToHashSet();
+        var empireIds = sector.Systems
+            .SelectMany(system => system.Worlds)
+            .Select(world => world.Colony?.AllegianceId)
+            .Where(empireId => empireId is not null && empireId != ushort.MaxValue)
+            .Select(empireId => (int)empireId!.Value)
+            .ToHashSet();
 
         searchResults = SearchService.Search(searchQuery)
             .Where(result => result.Type switch
             {
-                StarWinSearchResultType.AlienRace => result.RaceId is int raceId && sectorSummary.RaceIds.Contains(raceId),
-                StarWinSearchResultType.Empire => result.EmpireId is int empireId && sectorSummary.EmpireIds.Contains(empireId),
+                StarWinSearchResultType.AlienRace => result.RaceId is int raceId && raceIds.Contains(raceId),
+                StarWinSearchResultType.Empire => result.EmpireId is int empireId && empireIds.Contains(empireId),
                 _ => true
             })
             .ToList();
@@ -805,69 +369,26 @@
 
     private void NavigateToSearchResult(StarWinSearchResult result)
     {
-        SetActiveSection(sections.Contains(result.Tab) ? result.Tab : "Overview", syncRoute: false);
+        var sectionName = sections.Contains(result.Tab) ? result.Tab : OverviewSectionName;
+        var sectorId = result.SectorId ?? selectedSectorId;
+        var systemId = result.SystemId ?? ResolveSystemIdFromSearchResult(result, sectorId);
 
-        if (result.SectorId is int sectorId)
-        {
-            selectedSectorId = sectorId;
-        }
-
-        if (result.SystemId is int systemId)
-        {
-            selectedSystemId = systemId;
-        }
-
-        if (result.WorldId is int worldId)
-        {
-            selectedWorldId = worldId;
-            selectedColonyId = GetSelectedSector().Systems
-                .SelectMany(system => system.Worlds)
-                .FirstOrDefault(world => world.Id == worldId)
-                ?.Colony?.Id ?? 0;
-            selectedHabitatId = 0;
-        }
-
-        if (result.SpaceHabitatId is int habitatId)
-        {
-            selectedHabitatId = habitatId;
-            SetActiveSection("Worlds", syncRoute: false);
-        }
-
-        if (result.RaceId is int raceId)
-        {
-            selectedRaceId = raceId;
-        }
-
-        if (result.EmpireId is int empireId)
-        {
-            selectedEmpireId = empireId;
-        }
-
-        var sector = GetSelectedSector();
-        if (sector.Systems.All(system => system.Id != selectedSystemId))
-        {
-            selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
-        }
-
-        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         searchQuery = result.Title;
         searchResults = [];
-        SyncCurrentExplorerRoute(replaceHistory: true);
-        _ = PersistExplorerSessionAsync();
-    }
-
-    private void SetActiveSection(string sectionName, bool syncRoute = true)
-    {
-        activeSection = sections.Contains(sectionName) ? sectionName : "Overview";
-        if (syncRoute)
-        {
-            SyncCurrentExplorerRoute();
-        }
+        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri(
+            sectionName,
+            sectorId,
+            systemId,
+            result.WorldId ?? 0,
+            0,
+            result.SpaceHabitatId ?? 0,
+            result.RaceId ?? 0,
+            result.EmpireId ?? 0));
     }
 
     private void SyncCurrentExplorerRoute(bool replaceHistory = false)
     {
-        var targetUri = BuildSectionUri(activeSection, selectedSectorId);
+        var targetUri = BuildSectionUri(OverviewSectionName, selectedSectorId);
         var absoluteTargetUri = NavigationManager.ToAbsoluteUri(targetUri).ToString();
         if (string.Equals(NavigationManager.Uri, absoluteTargetUri, StringComparison.OrdinalIgnoreCase))
         {
@@ -891,11 +412,6 @@
         return SectorExplorerRoutes.BuildSectionUri(sectionName, selectedSectorId);
     }
 
-    private static string GetSectionSlug(string sectionName)
-    {
-        return SectorExplorerRoutes.GetSectionSlug(sectionName);
-    }
-
     private static string BuildSectionUri(string sectionName, int sectorId)
     {
         return SectorExplorerRoutes.BuildSectionUri(sectionName, sectorId);
@@ -913,45 +429,6 @@
             RequestedEmpireId);
     }
 
-    private string DisplayAllegiance(ushort allegianceId)
-    {
-        if (allegianceId == ushort.MaxValue)
-        {
-            return "Independent";
-        }
-
-        return EmpiresById.TryGetValue(allegianceId, out var empire) ? empire.Name : allegianceId.ToString();
-    }
-
-    private string DisplayEmpire(int? empireId)
-    {
-        return empireId is null
-            ? "Unassigned"
-            : EmpiresById.TryGetValue(empireId.Value, out var empire) ? empire.Name : empireId.Value.ToString();
-    }
-
-    private string DisplayRace(int raceId)
-    {
-        return AlienRacesById.TryGetValue(raceId, out var race) ? race.Name : raceId.ToString();
-    }
-
-    private static bool ContainsTimelineQuery(string? value, string query)
-    {
-        return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
-    }
-
-    private void SelectDefaultCivilizationRecords(StarWinSector sector)
-    {
-        var sectorSummary = GetSectorSummary(sector);
-
-        selectedRaceId = sectorSummary.RaceIds.Contains(selectedRaceId)
-            ? selectedRaceId
-            : ExplorerAlienRaces.FirstOrDefault(race => sectorSummary.RaceIds.Contains(race.Id))?.Id ?? 0;
-        selectedEmpireId = sectorSummary.EmpireIds.Contains(selectedEmpireId)
-            ? selectedEmpireId
-            : ExplorerEmpires.FirstOrDefault(empire => sectorSummary.EmpireIds.Contains(empire.Id))?.Id ?? 0;
-    }
-
     private void ApplyRequestedSelection(StarWinSector sector)
     {
         if (RequestedSystemId is int requestedSystemId
@@ -966,9 +443,6 @@
             if (worldSystem is not null)
             {
                 selectedSystemId = worldSystem.Id;
-                selectedWorldId = requestedWorldId;
-                selectedColonyId = worldSystem.Worlds.FirstOrDefault(world => world.Id == requestedWorldId)?.Colony?.Id ?? 0;
-                selectedHabitatId = 0;
             }
         }
 
@@ -980,9 +454,6 @@
             if (colonyListing is not null)
             {
                 selectedSystemId = colonyListing.system.Id;
-                selectedWorldId = colonyListing.world.Id;
-                selectedColonyId = requestedColonyId;
-                selectedHabitatId = 0;
             }
         }
 
@@ -992,28 +463,10 @@
             if (habitatSystem is not null)
             {
                 selectedSystemId = habitatSystem.Id;
-                selectedHabitatId = requestedHabitatId;
-                selectedColonyId = 0;
             }
         }
 
-        var sectorSummary = GetSectorSummary(sector);
-        if (RequestedRaceId is int requestedRaceId && sectorSummary.RaceIds.Contains(requestedRaceId))
-        {
-            selectedRaceId = requestedRaceId;
-        }
-
-        if (RequestedEmpireId is int requestedEmpireId && sectorSummary.EmpireIds.Contains(requestedEmpireId))
-        {
-            selectedEmpireId = requestedEmpireId;
-        }
-
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-    }
-
-    private static string DisplayCoordinates(Coordinates coordinates)
-    {
-        return $"{coordinates.XParsecs:0.#}, {coordinates.YParsecs:0.#}, {coordinates.ZParsecs:0.#}";
     }
 
     private static string FormatSystemOption(StarSystem system)
@@ -1027,16 +480,6 @@
         return system is null ? string.Empty : FormatSystemOption(system);
     }
 
-    private static string FormatRaceOption(AlienRace race)
-    {
-        return $"{race.Id} - {race.Name}";
-    }
-
-    private static string FormatEmpireOption(Empire empire)
-    {
-        return $"{empire.Id} - {empire.Name}";
-    }
-
     private static int ParseComboId(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -1047,11 +490,6 @@
         var separatorIndex = value.IndexOf(" - ", StringComparison.Ordinal);
         var idText = separatorIndex < 0 ? value : value[..separatorIndex];
         return int.TryParse(idText, out var id) ? id : ComboAllFilterId;
-    }
-
-    private static string Format(double? value)
-    {
-        return value is null ? "N/A" : $"{value:0.###}";
     }
 
     private static string DisplayResultType(StarWinSearchResultType type)
@@ -1070,8 +508,26 @@
         return ExplorerSectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? explorerContext.CurrentSector;
     }
 
-    private sealed record ColonyListing(StarWinSector Sector, StarSystem System, World World, Colony Colony);
+    private int ResolveSystemIdFromSearchResult(StarWinSearchResult result, int sectorId)
+    {
+        var sector = ExplorerSectors.FirstOrDefault(item => item.Id == sectorId) ?? GetSelectedSector();
+        if (result.WorldId is int worldId
+            && sector.Systems.FirstOrDefault(system => system.Worlds.Any(world => world.Id == worldId)) is { } worldSystem)
+        {
+            return worldSystem.Id;
+        }
 
-    private sealed record ExplorerSessionSelection(int SectorId, int SystemId, string? SectionSlug = null);
+        if (result.SpaceHabitatId is int habitatId
+            && sector.Systems.FirstOrDefault(system => system.SpaceHabitats.Any(habitat => habitat.Id == habitatId)) is { } habitatSystem)
+        {
+            return habitatSystem.Id;
+        }
+
+        return result.SystemId
+            ?? sector.Systems.FirstOrDefault()?.Id
+            ?? 0;
+    }
+
+    private sealed record ExplorerSessionSelection(int SectorId, int SystemId);
 }
 
