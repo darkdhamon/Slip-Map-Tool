@@ -35,7 +35,8 @@ public sealed class ImportPageTests : BunitContext
 
         Assert.True(slipMapButton.HasAttribute("disabled"));
         Assert.Contains("Coming soon", slipMapButton.TextContent);
-        Assert.Contains("<span>StarWin 2 files</span>", cut.Markup);
+        Assert.Contains("class=\"import-source-badge\"", cut.Markup);
+        Assert.Contains("<span class=\"import-source-label\">StarWin 2 files</span>", cut.Markup);
         Assert.Contains("accept=\".zip,application/zip,application/x-zip-compressed\"", cut.Markup);
     }
 

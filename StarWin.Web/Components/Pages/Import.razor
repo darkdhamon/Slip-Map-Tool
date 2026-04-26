@@ -23,13 +23,13 @@
                 @foreach (var source in importSources)
                 {
                     <button type="button"
-                            class="@(selectedSource == source.Key ? "active" : null)"
+                            class="import-source-button @(selectedSource == source.Key ? "active" : null)"
                             @onclick="() => selectedSource = source.Key"
                             disabled="@(importLoadingVisible || !source.IsAvailable)">
-                        @source.Label
+                        <span class="import-source-label">@source.Label</span>
                         @if (!source.IsAvailable)
                         {
-                            <span>Coming soon</span>
+                            <span class="import-source-badge">Coming soon</span>
                         }
                     </button>
                 }
