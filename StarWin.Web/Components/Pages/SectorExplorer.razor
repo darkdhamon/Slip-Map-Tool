@@ -1,6 +1,5 @@
 @layout SectorExplorerLayout
 @page "/sector-explorer"
-@page "/sector-explorer/{SectionSlug}"
 @rendermode InteractiveServer
 @inject IStarWinWorkspace Workspace
 @inject IStarWinExplorerContextService ExplorerContextService
@@ -401,16 +400,13 @@
     [SupplyParameterFromQuery(Name = "empireId")]
     public int? RequestedEmpireId { get; set; }
 
-    [Parameter]
-    public string? SectionSlug { get; set; }
-
     private static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
     private readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
     private readonly Dictionary<int, ExplorerSectorOverviewData> sectorOverviewDataById = [];
     private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
     private StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     private string activeSection = "Overview";
-    private string lastAppliedSectionSlug = string.Empty;
+    private (int? SectorId, int? SystemId, int? WorldId, int? ColonyId, int? HabitatId, int? RaceId, int? EmpireId) lastAppliedRequest;
     private string sectionLoadingTarget = string.Empty;
     private string sectionLoadingStatus = string.Empty;
     private bool sectionLoadingVisible;
@@ -508,8 +504,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        activeSection = GetSectionNameFromSlug(SectionSlug);
-        lastAppliedSectionSlug = SectionSlug ?? string.Empty;
         await RefreshExplorerDataAsync();
 
         var initialSector = RequestedSectorId is int requestedSectorId
@@ -526,18 +520,17 @@
         selectedColonyId = initialSector.Systems.FirstOrDefault()?.Worlds.FirstOrDefault()?.Colony?.Id ?? 0;
         SelectDefaultCivilizationRecords(initialSector);
         ApplyRequestedSelection(initialSector);
+        lastAppliedRequest = GetCurrentRequest();
     }
 
     protected override void OnParametersSet()
     {
-        var currentSectionSlug = SectionSlug ?? string.Empty;
-        if (string.Equals(lastAppliedSectionSlug, currentSectionSlug, StringComparison.Ordinal))
+        var currentRequest = GetCurrentRequest();
+        if (currentRequest == lastAppliedRequest)
         {
             return;
         }
 
-        lastAppliedSectionSlug = currentSectionSlug;
-        activeSection = GetSectionNameFromSlug(SectionSlug);
         if (ExplorerSectors.Count > 0)
         {
             if (RequestedSectorId is int requestedSectorId
@@ -548,6 +541,8 @@
 
             ApplyRequestedSelection(GetSelectedSector());
         }
+
+        lastAppliedRequest = currentRequest;
     }
 
     private async Task RefreshExplorerDataAsync(CancellationToken cancellationToken = default)
@@ -1602,11 +1597,6 @@
         return SectorExplorerRoutes.BuildSectionUri(sectionName, selectedSectorId);
     }
 
-    private static string GetSectionNameFromSlug(string? sectionSlug)
-    {
-        return SectorExplorerRoutes.GetSectionNameFromSlug(sectionSlug);
-    }
-
     private static string GetSectionSlug(string sectionName)
     {
         return SectorExplorerRoutes.GetSectionSlug(sectionName);
@@ -1615,6 +1605,18 @@
     private static string BuildSectionUri(string sectionName, int sectorId)
     {
         return SectorExplorerRoutes.BuildSectionUri(sectionName, sectorId);
+    }
+
+    private (int? SectorId, int? SystemId, int? WorldId, int? ColonyId, int? HabitatId, int? RaceId, int? EmpireId) GetCurrentRequest()
+    {
+        return (
+            RequestedSectorId,
+            RequestedSystemId,
+            RequestedWorldId,
+            RequestedColonyId,
+            RequestedHabitatId,
+            RequestedRaceId,
+            RequestedEmpireId);
     }
 
     private string DisplayAllegiance(ushort allegianceId)
