@@ -10,13 +10,16 @@
     [Parameter]
     public bool IsVisible { get; set; }
 
+    [Parameter]
+    public long? StartedAtUnixMs { get; set; }
+
     private long? startedAtUnixMs;
 
     protected override void OnParametersSet()
     {
         if (IsVisible)
         {
-            startedAtUnixMs ??= DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            startedAtUnixMs = StartedAtUnixMs ?? startedAtUnixMs ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             return;
         }
 

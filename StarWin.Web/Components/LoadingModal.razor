@@ -1,0 +1,130 @@
+@if (AlwaysRender || IsVisible)
+{
+    <div id="@OverlayId"
+         class="@BackdropClass"
+         role="status"
+         aria-live="polite"
+         aria-label="@AriaLabel"
+         hidden="@(!IsVisible)">
+        <section class="loading-modal">
+            @if (KickerContent is not null)
+            {
+                @KickerContent
+            }
+            else if (!string.IsNullOrWhiteSpace(Kicker))
+            {
+                <span class="panel-kicker">@Kicker</span>
+            }
+
+            @if (TitleContent is not null)
+            {
+                @TitleContent
+            }
+            else if (!string.IsNullOrWhiteSpace(Title))
+            {
+                <h2>@Title</h2>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Detail))
+            {
+                <p class="loading-progress-detail">@Detail</p>
+            }
+
+            <LoadingElapsedTime IsVisible="@IsVisible"
+                                StartedAtUnixMs="StartedAtUnixMs" />
+
+            @if (BeforeMeterContent is not null)
+            {
+                @BeforeMeterContent
+            }
+
+            @if (ShowMeter)
+            {
+                if (ProgressPercent is int progressPercent)
+                {
+                    <div class="@MeterClass"
+                         role="progressbar"
+                         aria-valuemin="0"
+                         aria-valuemax="100"
+                         aria-valuenow="@progressPercent">
+                        <span style="width: @progressPercent%;"></span>
+                    </div>
+                }
+                else
+                {
+                    <div class="@MeterClass" aria-hidden="true">
+                        <span></span>
+                    </div>
+                }
+            }
+
+            @if (AfterMeterContent is not null)
+            {
+                @AfterMeterContent
+            }
+
+            @if (Steps.Count > 0)
+            {
+                <ol>
+                    @foreach (var step in Steps)
+                    {
+                        <li>@step</li>
+                    }
+                </ol>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public bool AlwaysRender { get; set; }
+
+    [Parameter]
+    public string? OverlayId { get; set; }
+
+    [Parameter]
+    public string BackdropClass { get; set; } = "loading-modal-backdrop";
+
+    [Parameter]
+    public string AriaLabel { get; set; } = "Loading";
+
+    [Parameter]
+    public string? Kicker { get; set; }
+
+    [Parameter]
+    public RenderFragment? KickerContent { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public RenderFragment? TitleContent { get; set; }
+
+    [Parameter]
+    public string? Detail { get; set; }
+
+    [Parameter]
+    public long? StartedAtUnixMs { get; set; }
+
+    [Parameter]
+    public bool ShowMeter { get; set; } = true;
+
+    [Parameter]
+    public int? ProgressPercent { get; set; }
+
+    [Parameter]
+    public string MeterClass { get; set; } = "loading-meter";
+
+    [Parameter]
+    public RenderFragment? BeforeMeterContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? AfterMeterContent { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<string> Steps { get; set; } = [];
+}

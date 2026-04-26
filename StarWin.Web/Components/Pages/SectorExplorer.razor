@@ -310,23 +310,12 @@
                             }
                         </article>
                     }
-                    @if (sectionLoadingVisible)
-                    {
-                        <div class="fullscreen-loading-modal-backdrop" role="status" aria-live="polite" aria-label="Loading route">
-                            <section class="loading-modal">
-                                <span class="panel-kicker">Loading @sectionLoadingTarget</span>
-                                <h2>@sectionLoadingStatus</h2>
-                                <div class="loading-meter" aria-hidden="true">
-                                    <span></span>
-                                </div>
-                                <ol>
-                                    <li>Reading the current system and destination.</li>
-                                    <li>Following connected hyperlane networks.</li>
-                                    <li>Finding the shortest unavoidable void crossing.</li>
-                                </ol>
-                            </section>
-                        </div>
-                    }
+                    <LoadingModal IsVisible="@sectionLoadingVisible"
+                                  BackdropClass="fullscreen-loading-modal-backdrop"
+                                  AriaLabel="Loading route"
+                                  Kicker="@($"Loading {sectionLoadingTarget}")"
+                                  Title="@sectionLoadingStatus"
+                                  Steps="@routePlannerLoadingSteps" />
                 </div>
 
                 <div class="stacked-panels">
@@ -415,34 +404,28 @@
     }
 </section>
 
-@if (mapContextRefreshing)
-{
-    var mapContextLoadingLabel = Workspace.IsLoaded ? "Refreshing map context" : "Loading map context";
-    var mapContextLoadingStatus = Workspace.IsLoaded
-        ? "Refreshing the cached 3D sector map data."
-        : "Loading the cached 3D sector map data for the first time.";
-
-    <div class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="@mapContextLoadingLabel">
-        <section class="loading-modal">
-            <span class="panel-kicker">@mapContextLoadingLabel</span>
-            <h2>@mapContextLoadingStatus</h2>
-            @if (!string.IsNullOrWhiteSpace(mapContextStatus))
-            {
-                <p class="loading-progress-detail">@mapContextStatus</p>
-            }
-            <div class="loading-meter" aria-hidden="true">
-                <span></span>
-            </div>
-            <ol>
-                <li>Load the current sector cache from the database.</li>
-                <li>Refresh system, route, and civilization references for the map.</li>
-                <li>Prepare the 3D map so the selected sector can render.</li>
-            </ol>
-        </section>
-    </div>
-}
+<LoadingModal IsVisible="@mapContextRefreshing"
+              AriaLabel="@(Workspace.IsLoaded ? "Refreshing map context" : "Loading map context")"
+              Kicker="@(Workspace.IsLoaded ? "Refreshing map context" : "Loading map context")"
+              Title="@(Workspace.IsLoaded ? "Refreshing the cached 3D sector map data." : "Loading the cached 3D sector map data for the first time.")"
+              Detail="@mapContextStatus"
+              Steps="@mapContextLoadingSteps" />
 
 @code {
+    private static readonly IReadOnlyList<string> routePlannerLoadingSteps =
+    [
+        "Reading the current system and destination.",
+        "Following connected hyperlane networks.",
+        "Finding the shortest unavoidable void crossing."
+    ];
+
+    private static readonly IReadOnlyList<string> mapContextLoadingSteps =
+    [
+        "Load the current sector cache from the database.",
+        "Refresh system, route, and civilization references for the map.",
+        "Prepare the 3D map so the selected sector can render."
+    ];
+
     private const int DefaultSectorMapViewDistanceParsecs = 5;
     private const int MaximumSectorMapViewDistanceParsecs = 20;
     private const int SectorMapUnrestrictedRenderedSystems = int.MaxValue;

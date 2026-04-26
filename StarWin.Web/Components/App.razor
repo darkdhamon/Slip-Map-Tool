@@ -20,36 +20,25 @@
 <body class="@BodyClass">
     <Routes />
     <ReconnectModal />
-    <div id="explorer-navigation-loading" class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="Opening Sector Explorer" hidden>
-        <section class="loading-modal">
-            <span class="panel-kicker">Opening Sector Explorer</span>
-            <h2>Loading archive records and restoring the explorer workspace.</h2>
-            <p class="loading-elapsed" aria-live="off" data-loading-timer="true">Elapsed time: 00:00.0</p>
-            <div class="loading-meter" aria-hidden="true">
-                <span></span>
-            </div>
-            <ol>
-                <li>Connecting to the explorer workspace.</li>
-                <li>Loading the current sector archive.</li>
-                <li>Preparing the selected explorer section.</li>
-            </ol>
-        </section>
-    </div>
-    <div id="explorer-section-loading" class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="Loading section" hidden>
-        <section class="loading-modal">
+    <LoadingModal IsVisible="false"
+                  AlwaysRender="true"
+                  OverlayId="explorer-navigation-loading"
+                  AriaLabel="Opening Sector Explorer"
+                  Kicker="Opening Sector Explorer"
+                  Title="Loading archive records and restoring the explorer workspace."
+                  Steps="@navigationLoadingSteps" />
+    <LoadingModal IsVisible="false"
+                  AlwaysRender="true"
+                  OverlayId="explorer-section-loading"
+                  AriaLabel="Loading section"
+                  Steps="@sectionLoadingSteps">
+        <KickerContent>
             <span class="panel-kicker" data-section-loading-target>Loading section</span>
+        </KickerContent>
+        <TitleContent>
             <h2 data-section-loading-status>Preparing explorer records.</h2>
-            <p class="loading-elapsed" aria-live="off" data-loading-timer="true">Elapsed time: 00:00.0</p>
-            <div class="loading-meter" aria-hidden="true">
-                <span></span>
-            </div>
-            <ol>
-                <li>Resolving the selected sector context.</li>
-                <li>Preparing the requested explorer records.</li>
-                <li>Rendering the updated section workspace.</li>
-            </ol>
-        </section>
-    </div>
+        </TitleContent>
+    </LoadingModal>
     <script src="@Assets["js/navigationLoading.js"]"></script>
     <script type="module" src="@Assets["js/loadingElapsedTime.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
@@ -58,6 +47,20 @@
 </html>
 
 @code {
+    private static readonly IReadOnlyList<string> navigationLoadingSteps =
+    [
+        "Connecting to the explorer workspace.",
+        "Loading the current sector archive.",
+        "Preparing the selected explorer section."
+    ];
+
+    private static readonly IReadOnlyList<string> sectionLoadingSteps =
+    [
+        "Resolving the selected sector context.",
+        "Preparing the requested explorer records.",
+        "Rendering the updated section workspace."
+    ];
+
     private string? BodyClass =>
         string.Equals(Configuration["StarforgedAtlas:HostKind"], "Desktop", StringComparison.OrdinalIgnoreCase)
             ? "atlas-desktop-shell"

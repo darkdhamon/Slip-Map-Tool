@@ -260,29 +260,21 @@
     </SectorExplorerShell>
 </section>
 
-@if (routeSaveLoadingVisible)
-{
-    <div class="loading-modal-backdrop" role="status" aria-live="polite" aria-label="Saving current routes">
-        <section class="loading-modal">
-            <span class="panel-kicker">Saving current routes</span>
-            <h2>@routeSaveLoadingStatus</h2>
-            @if (!string.IsNullOrWhiteSpace(routeSaveLoadingDetail))
-            {
-                <p class="loading-progress-detail">@routeSaveLoadingDetail</p>
-            }
-            @if (routeSaveProcessedItems is int processedItems && routeSaveTotalItems is int totalItems && totalItems > 0)
-            {
-                <strong class="loading-progress-value">@processedItems / @totalItems systems processed</strong>
-            }
-            <div class="loading-meter import-progress-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@routeSaveLoadingPercent">
-                <span style="width: @(routeSaveLoadingPercent)%"></span>
-            </div>
-            <strong class="loading-progress-value">@routeSaveLoadingPercent%</strong>
-            <ol>
-                <li>Load the current sector and empire data.</li>
-                <li>Generate exactly one route per system pair.</li>
-                <li>Write the refreshed route cache to the database.</li>
-            </ol>
-        </section>
-    </div>
-}
+<LoadingModal IsVisible="@routeSaveLoadingVisible"
+              AriaLabel="Saving current routes"
+              Kicker="Saving current routes"
+              Title="@routeSaveLoadingStatus"
+              Detail="@routeSaveLoadingDetail"
+              MeterClass="loading-meter import-progress-meter"
+              ProgressPercent="@routeSaveLoadingPercent"
+              Steps="@routeSaveLoadingSteps">
+    <BeforeMeterContent>
+        @if (routeSaveProcessedItems is int processedItems && routeSaveTotalItems is int totalItems && totalItems > 0)
+        {
+            <strong class="loading-progress-value">@processedItems / @totalItems systems processed</strong>
+        }
+    </BeforeMeterContent>
+    <AfterMeterContent>
+        <strong class="loading-progress-value">@routeSaveLoadingPercent%</strong>
+    </AfterMeterContent>
+</LoadingModal>

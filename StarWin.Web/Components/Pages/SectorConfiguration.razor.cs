@@ -11,6 +11,13 @@ namespace StarWin.Web.Components.Pages;
 
 public partial class SectorConfiguration : ComponentBase
 {
+    private static readonly IReadOnlyList<string> routeSaveLoadingSteps =
+    [
+        "Load the current sector and empire data.",
+        "Generate exactly one route per system pair.",
+        "Write the refreshed route cache to the database."
+    ];
+
     private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
 
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;

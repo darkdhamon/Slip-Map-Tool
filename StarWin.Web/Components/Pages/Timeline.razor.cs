@@ -12,6 +12,12 @@ public partial class Timeline : ComponentBase
     private const string ExplorerSessionStorageKey = "starforgedAtlas.explorerSelection";
     private const string TimelineLoadingTimerFunction = "starforgedAtlasNavigation.getSectionLoadingStartedAt";
     private const string ClearTimelineLoadingTimerFunction = "starforgedAtlasNavigation.clearSectionLoadingStartedAt";
+    private static readonly IReadOnlyList<string> timelineLoadingSteps =
+    [
+        "Resolve the selected sector context.",
+        "Load the first timeline event page.",
+        "Render the chronology and detail workspace."
+    ];
 
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
