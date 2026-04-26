@@ -881,9 +881,10 @@ else
 
     private void ClearSelectedRoute()
     {
-        var sector = GetSelectionSector();
         routeOriginSystemId = selectedSystemId;
-        routeOriginText = FormatSelectedSystem(sector, routeOriginSystemId);
+        routeOriginText = TryGetKnownSector() is { } sector
+            ? FormatSelectedSystem(sector, routeOriginSystemId)
+            : string.Empty;
         routeDestinationSystemId = 0;
         routeDestinationText = string.Empty;
         ClearPlottedRoutePlan();
