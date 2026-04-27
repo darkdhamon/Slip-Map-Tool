@@ -13,14 +13,25 @@ internal sealed class PortableLauncher
     private const string PortableZipAssetName = "Starforged-Atlas-Portable.zip";
     private const string SkipUpdateCheckArgument = "--skip-update-check";
     private const string ApplyUpdateArgument = "--apply-update";
+    private const string RestoreBackupArgument = "--restore-backup";
     private const string StagingRootArgument = "--staging-root";
     private const string TargetRootArgument = "--target-root";
     private const string WaitForPidArgument = "--wait-for-pid";
+    private const string BackupRootArgument = "--backup-root";
+    private const string ReleaseTagArgument = "--release-tag";
+    private const string PreviousVersionArgument = "--previous-version";
+    private const string PostUpdateValidationArgument = "--post-update-validation";
     private const string HelperExecutableName = "StarforgedAtlas.UpdateHelper.exe";
     private static readonly Uri LatestReleaseApiUri = new("https://api.github.com/repos/darkdhamon/Slip-Map-Tool/releases/latest");
 
     public async Task RunAsync(string[] args)
     {
+        if (args.Contains(RestoreBackupArgument, StringComparer.OrdinalIgnoreCase))
+        {
+            await RestoreBackupAsync(args);
+            return;
+        }
+
         if (args.Contains(ApplyUpdateArgument, StringComparer.OrdinalIgnoreCase))
         {
             await ApplyUpdateAsync(args);
@@ -39,30 +50,35 @@ internal sealed class PortableLauncher
             return;
         }
 
+        var postUpdateValidation = TryGetPostUpdateValidation(args, packageRoot);
+
         try
         {
-            var update = await TryGetAvailableUpdateAsync(targetPath);
-            if (update is not null)
+            if (postUpdateValidation is null)
             {
-                var releaseLabel = string.IsNullOrWhiteSpace(update.ReleaseName)
-                    ? update.ReleaseTag
-                    : $"{update.ReleaseName} ({update.ReleaseTag})";
-
-                var prompt = $"A newer version of Starforged Atlas is available.{Environment.NewLine}{Environment.NewLine}Current version: {update.CurrentTag}{Environment.NewLine}Latest version: {releaseLabel}{Environment.NewLine}{Environment.NewLine}Download and install the update now?";
-                var result = MessageBox.Show(
-                    prompt,
-                    "Starforged Atlas update available",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Information);
-
-                if (result == DialogResult.Yes)
+                var update = await TryGetAvailableUpdateAsync(packageRoot, targetPath);
+                if (update is not null)
                 {
-                    await DownloadAndApplyUpdateAsync(packageRoot, update);
-                    return;
+                    var releaseLabel = string.IsNullOrWhiteSpace(update.ReleaseName)
+                        ? update.ReleaseTag
+                        : $"{update.ReleaseName} ({update.ReleaseTag})";
+
+                    var prompt = $"A newer version of Starforged Atlas is available.{Environment.NewLine}{Environment.NewLine}Current version: {update.CurrentTag}{Environment.NewLine}Latest version: {releaseLabel}{Environment.NewLine}{Environment.NewLine}Download and install the update now?";
+                    var result = MessageBox.Show(
+                        prompt,
+                        "Starforged Atlas update available",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Information);
+
+                    if (result == DialogResult.Yes)
+                    {
+                        await DownloadAndApplyUpdateAsync(packageRoot, update);
+                        return;
+                    }
                 }
             }
 
-            StartDesktopApplication(targetPath, appRoot);
+            await RunDesktopApplicationAsync(packageRoot, targetPath, appRoot, postUpdateValidation);
         }
         catch (Exception ex)
         {
@@ -72,20 +88,53 @@ internal sealed class PortableLauncher
         }
     }
 
-    private static void StartDesktopApplication(string targetPath, string appRoot)
+    private async Task RunDesktopApplicationAsync(
+        string packageRoot,
+        string targetPath,
+        string appRoot,
+        PortableUpdateValidationContext? postUpdateValidation)
     {
         var startInfo = new ProcessStartInfo
         {
             FileName = targetPath,
             WorkingDirectory = appRoot,
-            UseShellExecute = true,
-            Arguments = SkipUpdateCheckArgument
+            UseShellExecute = false
         };
+        startInfo.ArgumentList.Add(SkipUpdateCheckArgument);
 
-        Process.Start(startInfo);
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Starforged Atlas could not start the desktop application.");
+        await process.WaitForExitAsync();
+
+        if (postUpdateValidation is not null)
+        {
+            await HandlePostUpdateExitAsync(packageRoot, postUpdateValidation);
+        }
     }
 
-    private async Task<PortableReleaseUpdate?> TryGetAvailableUpdateAsync(string desktopExecutablePath)
+    private async Task HandlePostUpdateExitAsync(string packageRoot, PortableUpdateValidationContext validationContext)
+    {
+        if (!Directory.Exists(validationContext.BackupRoot))
+        {
+            return;
+        }
+
+        var result = MessageBox.Show(
+            $"The updated Starforged Atlas app has exited.{Environment.NewLine}{Environment.NewLine}Did the update work okay?{Environment.NewLine}{Environment.NewLine}Choose Yes to keep the new version.{Environment.NewLine}Choose No to restore the previous portable backup and ignore release {validationContext.ReleaseTag} in future update checks.",
+            "Starforged Atlas update check-in",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+
+        if (result == DialogResult.Yes)
+        {
+            TryDeleteDirectory(Path.GetDirectoryName(validationContext.BackupRoot)!);
+            return;
+        }
+
+        await StartRestoreBackupHelperAsync(packageRoot, validationContext);
+    }
+
+    private async Task<PortableReleaseUpdate?> TryGetAvailableUpdateAsync(string packageRoot, string desktopExecutablePath)
     {
         var currentTag = FileVersionInfo.GetVersionInfo(desktopExecutablePath).ProductVersion;
         if (!StarforgedReleaseVersion.TryParse(currentTag, out var currentVersion))
@@ -124,6 +173,12 @@ internal sealed class PortableLauncher
             return null;
         }
 
+        var updateState = PortableUpdateStateStore.Load(packageRoot);
+        if (updateState.ShouldIgnore(release.TagName))
+        {
+            return null;
+        }
+
         return new PortableReleaseUpdate(
             currentTag ?? "0.0.0",
             release.TagName,
@@ -136,8 +191,10 @@ internal sealed class PortableLauncher
         var stagingParent = Path.Combine(Path.GetTempPath(), "StarforgedAtlasUpdate", Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
         var zipPath = Path.Combine(stagingParent, PortableZipAssetName);
         var extractRoot = Path.Combine(stagingParent, "package");
+        var backupRoot = Path.Combine(Path.GetTempPath(), "StarforgedAtlasBackup", Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture), "package");
 
         Directory.CreateDirectory(stagingParent);
+        Directory.CreateDirectory(Path.GetDirectoryName(backupRoot)!);
 
         try
         {
@@ -186,6 +243,9 @@ internal sealed class PortableLauncher
                         stagingParent,
                         extractRoot,
                         packageRoot,
+                        backupRoot,
+                        update.ReleaseTag,
+                        update.CurrentTag,
                         currentProcessId);
 
                     Process.Start(startInfo);
@@ -194,6 +254,7 @@ internal sealed class PortableLauncher
         catch
         {
             TryDeleteDirectory(stagingParent);
+            TryDeleteDirectory(Path.GetDirectoryName(backupRoot)!);
             throw;
         }
     }
@@ -256,6 +317,9 @@ internal sealed class PortableLauncher
         string workingDirectory,
         string stagingRoot,
         string targetRoot,
+        string backupRoot,
+        string releaseTag,
+        string previousVersion,
         int waitForPid)
     {
         var startInfo = new ProcessStartInfo
@@ -270,6 +334,12 @@ internal sealed class PortableLauncher
         startInfo.ArgumentList.Add(stagingRoot);
         startInfo.ArgumentList.Add(TargetRootArgument);
         startInfo.ArgumentList.Add(targetRoot);
+        startInfo.ArgumentList.Add(BackupRootArgument);
+        startInfo.ArgumentList.Add(backupRoot);
+        startInfo.ArgumentList.Add(ReleaseTagArgument);
+        startInfo.ArgumentList.Add(releaseTag);
+        startInfo.ArgumentList.Add(PreviousVersionArgument);
+        startInfo.ArgumentList.Add(previousVersion);
         startInfo.ArgumentList.Add(WaitForPidArgument);
         startInfo.ArgumentList.Add(waitForPid.ToString(CultureInfo.InvariantCulture));
 
@@ -280,6 +350,9 @@ internal sealed class PortableLauncher
     {
         var stagingRoot = GetRequiredArgumentValue(args, StagingRootArgument);
         var targetRoot = GetRequiredArgumentValue(args, TargetRootArgument);
+        var backupRoot = GetRequiredArgumentValue(args, BackupRootArgument);
+        var releaseTag = GetRequiredArgumentValue(args, ReleaseTagArgument);
+        var previousVersion = GetRequiredArgumentValue(args, PreviousVersionArgument);
         var waitForPidValue = GetRequiredArgumentValue(args, WaitForPidArgument);
 
         if (!int.TryParse(waitForPidValue, NumberStyles.None, CultureInfo.InvariantCulture, out var waitForPid))
@@ -300,9 +373,126 @@ internal sealed class PortableLauncher
                     progress.Report(new UpdateProgressInfo("Waiting for the launcher to close...", null, null));
                     await WaitForProcessExitAsync(waitForPid);
 
-                    PortablePackageInstaller.InstallPackage(stagingRoot, targetRoot, preservedDataPath, progress);
+                    PortablePackageInstaller.InstallPackage(stagingRoot, targetRoot, preservedDataPath, backupRoot, progress);
 
-                    progress.Report(new UpdateProgressInfo("Restarting Starforged Atlas...", null, 100));
+                    progress.Report(new UpdateProgressInfo("Restarting Starforged Atlas...", "The launcher will check whether the update worked when the app exits.", 100));
+
+                    var launcherPath = Path.Combine(targetRoot, LauncherExecutableName);
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = launcherPath,
+                        WorkingDirectory = targetRoot,
+                        UseShellExecute = true
+                    };
+                    startInfo.ArgumentList.Add(PostUpdateValidationArgument);
+                    startInfo.ArgumentList.Add(ReleaseTagArgument);
+                    startInfo.ArgumentList.Add(releaseTag);
+                    startInfo.ArgumentList.Add(PreviousVersionArgument);
+                    startInfo.ArgumentList.Add(previousVersion);
+                    startInfo.ArgumentList.Add(BackupRootArgument);
+                    startInfo.ArgumentList.Add(backupRoot);
+
+                    Process.Start(startInfo);
+                });
+        }
+        catch (Exception ex)
+        {
+            ShowError(
+                "Starforged Atlas could not apply the downloaded update.",
+                ex.GetBaseException().Message);
+        }
+        finally
+        {
+            TryDeleteDirectory(Path.GetDirectoryName(preservedDataPath)!);
+            TryDeleteDirectory(Path.GetDirectoryName(stagingRoot)!);
+        }
+    }
+
+    private async Task StartRestoreBackupHelperAsync(string packageRoot, PortableUpdateValidationContext validationContext)
+    {
+        var helperParent = Path.Combine(Path.GetTempPath(), "StarforgedAtlasRollback", Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture));
+        Directory.CreateDirectory(helperParent);
+
+        try
+        {
+            var helperExecutablePath = CreateUpdateHelperExecutable(helperParent);
+            var startInfo = CreateRestoreBackupHelperStartInfo(
+                helperExecutablePath,
+                helperParent,
+                validationContext.BackupRoot,
+                packageRoot,
+                validationContext.ReleaseTag,
+                validationContext.PreviousVersion,
+                Environment.ProcessId);
+
+            Process.Start(startInfo);
+        }
+        catch
+        {
+            TryDeleteDirectory(helperParent);
+            throw;
+        }
+    }
+
+    internal static ProcessStartInfo CreateRestoreBackupHelperStartInfo(
+        string helperExecutablePath,
+        string workingDirectory,
+        string backupRoot,
+        string targetRoot,
+        string releaseTag,
+        string previousVersion,
+        int waitForPid)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = helperExecutablePath,
+            UseShellExecute = true,
+            WorkingDirectory = workingDirectory
+        };
+
+        startInfo.ArgumentList.Add(RestoreBackupArgument);
+        startInfo.ArgumentList.Add(BackupRootArgument);
+        startInfo.ArgumentList.Add(backupRoot);
+        startInfo.ArgumentList.Add(TargetRootArgument);
+        startInfo.ArgumentList.Add(targetRoot);
+        startInfo.ArgumentList.Add(ReleaseTagArgument);
+        startInfo.ArgumentList.Add(releaseTag);
+        startInfo.ArgumentList.Add(PreviousVersionArgument);
+        startInfo.ArgumentList.Add(previousVersion);
+        startInfo.ArgumentList.Add(WaitForPidArgument);
+        startInfo.ArgumentList.Add(waitForPid.ToString(CultureInfo.InvariantCulture));
+
+        return startInfo;
+    }
+
+    private async Task RestoreBackupAsync(string[] args)
+    {
+        var backupRoot = GetRequiredArgumentValue(args, BackupRootArgument);
+        var targetRoot = GetRequiredArgumentValue(args, TargetRootArgument);
+        var releaseTag = GetRequiredArgumentValue(args, ReleaseTagArgument);
+        var previousVersion = GetRequiredArgumentValue(args, PreviousVersionArgument);
+        var waitForPidValue = GetRequiredArgumentValue(args, WaitForPidArgument);
+
+        if (!int.TryParse(waitForPidValue, NumberStyles.None, CultureInfo.InvariantCulture, out var waitForPid))
+        {
+            throw new InvalidOperationException("The rollback helper did not receive a valid process id to wait for.");
+        }
+
+        try
+        {
+            await LauncherProgressDialog.RunAsync(
+                "Restoring Starforged Atlas backup",
+                "Preparing the rollback...",
+                async progress =>
+                {
+                    progress.Report(new UpdateProgressInfo("Waiting for the launcher to close...", null, null));
+                    await WaitForProcessExitAsync(waitForPid);
+
+                    PortablePackageInstaller.RestoreBackup(backupRoot, targetRoot, progress);
+                    PortableUpdateStateStore.IgnoreRelease(targetRoot, releaseTag);
+                    PortableUpdateFailureReporter.ReportFailedUpdate(releaseTag, previousVersion);
+
+                    progress.Report(new UpdateProgressInfo("Restarting the previous version...", null, 100));
 
                     var launcherPath = Path.Combine(targetRoot, LauncherExecutableName);
                     var startInfo = new ProcessStartInfo
@@ -318,13 +508,12 @@ internal sealed class PortableLauncher
         catch (Exception ex)
         {
             ShowError(
-                "Starforged Atlas could not apply the downloaded update.",
+                "Starforged Atlas could not restore the previous backup.",
                 ex.GetBaseException().Message);
         }
         finally
         {
-            TryDeleteDirectory(Path.GetDirectoryName(preservedDataPath)!);
-            TryDeleteDirectory(Path.GetDirectoryName(stagingRoot)!);
+            TryDeleteDirectory(Path.GetDirectoryName(backupRoot)!);
         }
     }
 
@@ -400,6 +589,40 @@ internal sealed class PortableLauncher
             MessageBoxButtons.OK,
             MessageBoxIcon.Error);
     }
+
+    private static PortableUpdateValidationContext? TryGetPostUpdateValidation(string[] args, string packageRoot)
+    {
+        if (!args.Contains(PostUpdateValidationArgument, StringComparer.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var releaseTag = TryGetOptionalArgumentValue(args, ReleaseTagArgument);
+        var previousVersion = TryGetOptionalArgumentValue(args, PreviousVersionArgument);
+        var backupRoot = TryGetOptionalArgumentValue(args, BackupRootArgument);
+
+        if (string.IsNullOrWhiteSpace(releaseTag)
+            || string.IsNullOrWhiteSpace(previousVersion)
+            || string.IsNullOrWhiteSpace(backupRoot))
+        {
+            return null;
+        }
+
+        return new PortableUpdateValidationContext(packageRoot, releaseTag, previousVersion, backupRoot);
+    }
+
+    private static string? TryGetOptionalArgumentValue(string[] args, string argumentName)
+    {
+        for (var index = 0; index < args.Length - 1; index++)
+        {
+            if (string.Equals(args[index], argumentName, StringComparison.OrdinalIgnoreCase))
+            {
+                return args[index + 1];
+            }
+        }
+
+        return null;
+    }
 }
 
 internal static class PortablePackageInstaller
@@ -408,8 +631,11 @@ internal static class PortablePackageInstaller
         string stagingRoot,
         string targetRoot,
         string preservedDataPath,
+        string backupRoot,
         IProgress<UpdateProgressInfo>? progress = null)
     {
+        progress?.Report(new UpdateProgressInfo("Creating a rollback backup...", null, 5));
+        CreateBackup(targetRoot, backupRoot);
         progress?.Report(new UpdateProgressInfo("Preserving your portable data...", null, 15));
         PreservePortableData(targetRoot, preservedDataPath);
         progress?.Report(new UpdateProgressInfo("Replacing application files...", null, 55));
@@ -417,6 +643,26 @@ internal static class PortablePackageInstaller
         progress?.Report(new UpdateProgressInfo("Restoring your portable data...", null, 85));
         RestorePortableData(targetRoot, preservedDataPath);
         progress?.Report(new UpdateProgressInfo("Finishing the update...", null, 95));
+    }
+
+    public static void RestoreBackup(
+        string backupRoot,
+        string targetRoot,
+        IProgress<UpdateProgressInfo>? progress = null)
+    {
+        progress?.Report(new UpdateProgressInfo("Restoring the previous portable package...", null, 45));
+        ReplacePackageContents(backupRoot, targetRoot);
+        progress?.Report(new UpdateProgressInfo("Finishing the rollback...", null, 90));
+    }
+
+    private static void CreateBackup(string targetRoot, string backupRoot)
+    {
+        if (!Directory.Exists(targetRoot))
+        {
+            return;
+        }
+
+        PortableLauncher.CopyDirectory(targetRoot, backupRoot, overwrite: true);
     }
 
     private static void PreservePortableData(string targetRoot, string preservedDataPath)
@@ -463,6 +709,12 @@ internal sealed record PortableReleaseUpdate(
     string ReleaseTag,
     string? ReleaseName,
     string DownloadUrl);
+
+internal sealed record PortableUpdateValidationContext(
+    string PackageRoot,
+    string ReleaseTag,
+    string PreviousVersion,
+    string BackupRoot);
 
 internal readonly record struct UpdateProgressInfo(string Message, string? Detail, int? Percent);
 
@@ -601,4 +853,240 @@ internal static class LauncherProgressDialog
 
         return Task.CompletedTask;
     }
+}
+
+internal static class PortableUpdateStateStore
+{
+    private const string StateFileName = "portable-launcher-state.json";
+
+    public static PortableUpdateState Load(string packageRoot)
+    {
+        var path = GetStatePath(packageRoot);
+        if (!File.Exists(path))
+        {
+            return new PortableUpdateState([]);
+        }
+
+        try
+        {
+            var state = JsonSerializer.Deserialize<PortableUpdateState>(File.ReadAllText(path));
+            return state ?? new PortableUpdateState([]);
+        }
+        catch
+        {
+            return new PortableUpdateState([]);
+        }
+    }
+
+    public static void IgnoreRelease(string packageRoot, string releaseTag)
+    {
+        var state = Load(packageRoot);
+        if (state.ShouldIgnore(releaseTag))
+        {
+            return;
+        }
+
+        var ignoredReleases = state.IgnoredReleases
+            .Concat([releaseTag])
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        Save(packageRoot, new PortableUpdateState(ignoredReleases));
+    }
+
+    public static void Save(string packageRoot, PortableUpdateState state)
+    {
+        var path = GetStatePath(packageRoot);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, JsonSerializer.Serialize(state, PortableJsonContext.Default.PortableUpdateState));
+    }
+
+    private static string GetStatePath(string packageRoot)
+    {
+        return Path.Combine(packageRoot, "app", "data", StateFileName);
+    }
+}
+
+internal sealed record PortableUpdateState(string[] IgnoredReleases)
+{
+    public bool ShouldIgnore(string releaseTag)
+        => IgnoredReleases.Any(candidate => string.Equals(candidate, releaseTag, StringComparison.OrdinalIgnoreCase));
+}
+
+internal static class PortableUpdateFailureReporter
+{
+    private const string GitHubOwner = "darkdhamon";
+    private const string GitHubRepo = "Slip-Map-Tool";
+    private const string GitHubProjectTitle = "Starforged Atlas Task Board";
+
+    public static void ReportFailedUpdate(string releaseTag, string previousVersion)
+    {
+        var title = $"Bugfix: portable update rollback for {releaseTag}";
+        var body = BuildIssueBody(releaseTag, previousVersion);
+
+        if (TryCreateIssueWithGh(title, body, out var issueUrl))
+        {
+            TryAddIssueToProject(issueUrl!);
+            return;
+        }
+
+        OpenIssueDraftInBrowser(title, body);
+    }
+
+    internal static string BuildIssueBody(string releaseTag, string previousVersion)
+    {
+        return
+            $"A user restored the portable backup after testing release `{releaseTag}`.{Environment.NewLine}{Environment.NewLine}" +
+            $"Previous version: `{previousVersion}`{Environment.NewLine}" +
+            $"Rolled back at: `{DateTimeOffset.Now:O}`{Environment.NewLine}{Environment.NewLine}" +
+            "The updated app exited and the user indicated that the update did not work correctly, so the launcher restored the backup and will ignore this release for future portable update checks.";
+    }
+
+    internal static Uri BuildIssueDraftUri(string title, string body)
+    {
+        var builder = new UriBuilder($"https://github.com/{GitHubOwner}/{GitHubRepo}/issues/new");
+        builder.Query =
+            $"title={Uri.EscapeDataString(title)}&labels={Uri.EscapeDataString("bug")}&body={Uri.EscapeDataString(body)}";
+        return builder.Uri;
+    }
+
+    private static bool TryCreateIssueWithGh(string title, string body, out string? issueUrl)
+    {
+        issueUrl = null;
+
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "gh",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                ArgumentList =
+                {
+                    "issue",
+                    "create",
+                    "--repo",
+                    $"{GitHubOwner}/{GitHubRepo}",
+                    "--label",
+                    "bug",
+                    "--title",
+                    title,
+                    "--body",
+                    body
+                }
+            });
+
+            if (process is null)
+            {
+                return false;
+            }
+
+            issueUrl = process.StandardOutput.ReadToEnd().Trim();
+            process.WaitForExit();
+            return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(issueUrl);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void TryAddIssueToProject(string issueUrl)
+    {
+        try
+        {
+            using var listProcess = Process.Start(new ProcessStartInfo
+            {
+                FileName = "gh",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                ArgumentList =
+                {
+                    "project",
+                    "list",
+                    "--owner",
+                    GitHubOwner,
+                    "--format",
+                    "json"
+                }
+            });
+
+            if (listProcess is null)
+            {
+                return;
+            }
+
+            var json = listProcess.StandardOutput.ReadToEnd();
+            listProcess.WaitForExit();
+            if (listProcess.ExitCode != 0)
+            {
+                return;
+            }
+
+            var projects = JsonSerializer.Deserialize(json, PortableJsonContext.Default.GitHubProjectSummaryArray);
+            var project = projects?.FirstOrDefault(candidate =>
+                string.Equals(candidate.Title, GitHubProjectTitle, StringComparison.OrdinalIgnoreCase));
+            if (project is null)
+            {
+                return;
+            }
+
+            using var addProcess = Process.Start(new ProcessStartInfo
+            {
+                FileName = "gh",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                ArgumentList =
+                {
+                    "project",
+                    "item-add",
+                    project.Number.ToString(CultureInfo.InvariantCulture),
+                    "--owner",
+                    GitHubOwner,
+                    "--url",
+                    issueUrl
+                }
+            });
+
+            addProcess?.WaitForExit();
+        }
+        catch
+        {
+        }
+    }
+
+    private static void OpenIssueDraftInBrowser(string title, string body)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = BuildIssueDraftUri(title, body).ToString(),
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+        }
+    }
+}
+
+[JsonSerializable(typeof(PortableUpdateState))]
+[JsonSerializable(typeof(GitHubProjectSummary[]))]
+internal partial class PortableJsonContext : JsonSerializerContext
+{
+}
+
+internal sealed class GitHubProjectSummary
+{
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    [JsonPropertyName("number")]
+    public int Number { get; set; }
 }
