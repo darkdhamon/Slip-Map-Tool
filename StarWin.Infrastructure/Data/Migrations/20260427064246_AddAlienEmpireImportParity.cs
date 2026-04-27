@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,15 +11,6 @@ namespace StarWin.Infrastructure.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "Religion",
-                table: "AlienRaces");
-
-            migrationBuilder.RenameColumn(
-                name: "GovernmentType",
-                table: "AlienRaces",
-                newName: "HairType");
-
             migrationBuilder.AddColumn<int>(
                 name: "CivilizationModifiers_Art",
                 table: "Empires",
@@ -86,13 +78,13 @@ namespace StarWin.Infrastructure.Data.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "ImportDataJson",
                 table: "Empires",
-                type: "nvarchar(max)",
+                type: UnboundedTextType(migrationBuilder),
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "Abilities",
                 table: "AlienRaces",
-                type: "nvarchar(max)",
+                type: UnboundedTextType(migrationBuilder),
                 nullable: false,
                 defaultValue: "");
 
@@ -107,7 +99,7 @@ namespace StarWin.Infrastructure.Data.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "BodyCharacteristics",
                 table: "AlienRaces",
-                type: "nvarchar(max)",
+                type: UnboundedTextType(migrationBuilder),
                 nullable: false,
                 defaultValue: "");
 
@@ -178,21 +170,21 @@ namespace StarWin.Infrastructure.Data.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "Colors",
                 table: "AlienRaces",
-                type: "nvarchar(max)",
+                type: UnboundedTextType(migrationBuilder),
                 nullable: false,
                 defaultValue: "");
 
             migrationBuilder.AddColumn<string>(
                 name: "EyeCharacteristics",
                 table: "AlienRaces",
-                type: "nvarchar(max)",
+                type: UnboundedTextType(migrationBuilder),
                 nullable: false,
                 defaultValue: "");
 
             migrationBuilder.AddColumn<string>(
                 name: "EyeColors",
                 table: "AlienRaces",
-                type: "nvarchar(max)",
+                type: UnboundedTextType(migrationBuilder),
                 nullable: false,
                 defaultValue: "");
 
@@ -207,20 +199,28 @@ namespace StarWin.Infrastructure.Data.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "HairColors",
                 table: "AlienRaces",
-                type: "nvarchar(max)",
+                type: UnboundedTextType(migrationBuilder),
+                nullable: false,
+                defaultValue: "");
+
+            migrationBuilder.AddColumn<string>(
+                name: "HairType",
+                table: "AlienRaces",
+                type: "nvarchar(120)",
+                maxLength: 120,
                 nullable: false,
                 defaultValue: "");
 
             migrationBuilder.AddColumn<string>(
                 name: "ImportDataJson",
                 table: "AlienRaces",
-                type: "nvarchar(max)",
+                type: UnboundedTextType(migrationBuilder),
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "LimbTypes",
                 table: "AlienRaces",
-                type: "nvarchar(max)",
+                type: UnboundedTextType(migrationBuilder),
                 nullable: false,
                 defaultValue: "");
 
@@ -243,8 +243,9 @@ namespace StarWin.Infrastructure.Data.Migrations
                 name: "Religions",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Id = table.Column<int>(type: IntegerKeyType(migrationBuilder), nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1")
+                        .Annotation("Sqlite:Autoincrement", true),
                     Name = table.Column<string>(type: "nvarchar(160)", maxLength: 160, nullable: false),
                     Type = table.Column<string>(type: "nvarchar(120)", maxLength: 120, nullable: false),
                     IsUserDefined = table.Column<bool>(type: "bit", nullable: false)
@@ -290,6 +291,18 @@ namespace StarWin.Infrastructure.Data.Migrations
                 table: "Religions",
                 column: "Name",
                 unique: true);
+
+            NormalizeLegacyEnumLabels(migrationBuilder);
+            BackfillLegacyGovernmentTypes(migrationBuilder);
+            BackfillLegacyReligions(migrationBuilder);
+
+            migrationBuilder.DropColumn(
+                name: "GovernmentType",
+                table: "AlienRaces");
+
+            migrationBuilder.DropColumn(
+                name: "Religion",
+                table: "AlienRaces");
         }
 
         /// <inheritdoc />
@@ -410,6 +423,10 @@ namespace StarWin.Infrastructure.Data.Migrations
                 table: "AlienRaces");
 
             migrationBuilder.DropColumn(
+                name: "HairType",
+                table: "AlienRaces");
+
+            migrationBuilder.DropColumn(
                 name: "ImportDataJson",
                 table: "AlienRaces");
 
@@ -425,10 +442,13 @@ namespace StarWin.Infrastructure.Data.Migrations
                 name: "TemperaturePreference",
                 table: "AlienRaces");
 
-            migrationBuilder.RenameColumn(
-                name: "HairType",
+            migrationBuilder.AddColumn<string>(
+                name: "GovernmentType",
                 table: "AlienRaces",
-                newName: "GovernmentType");
+                type: "nvarchar(120)",
+                maxLength: 120,
+                nullable: false,
+                defaultValue: "");
 
             migrationBuilder.AddColumn<string>(
                 name: "Religion",
@@ -437,6 +457,127 @@ namespace StarWin.Infrastructure.Data.Migrations
                 maxLength: 160,
                 nullable: false,
                 defaultValue: "");
+        }
+
+        private static string UnboundedTextType(MigrationBuilder migrationBuilder)
+        {
+            return migrationBuilder.ActiveProvider.Contains("Sqlite", StringComparison.OrdinalIgnoreCase)
+                ? "TEXT"
+                : "nvarchar(max)";
+        }
+
+        private static string IntegerKeyType(MigrationBuilder migrationBuilder)
+        {
+            return migrationBuilder.ActiveProvider.Contains("Sqlite", StringComparison.OrdinalIgnoreCase)
+                ? "INTEGER"
+                : "int";
+        }
+
+        private static void BackfillLegacyGovernmentTypes(MigrationBuilder migrationBuilder)
+        {
+            if (migrationBuilder.ActiveProvider.Contains("Sqlite", StringComparison.OrdinalIgnoreCase))
+            {
+                migrationBuilder.Sql(
+                    """
+                    UPDATE "Empires"
+                    SET "GovernmentType" = COALESCE(NULLIF("GovernmentType", ''), (
+                        SELECT "GovernmentType"
+                        FROM "AlienRaces"
+                        WHERE "AlienRaces"."Id" = "Empires"."LegacyRaceId"
+                    ))
+                    WHERE ("GovernmentType" IS NULL OR TRIM("GovernmentType") = '')
+                      AND "LegacyRaceId" IS NOT NULL;
+                    """);
+
+                return;
+            }
+
+            migrationBuilder.Sql(
+                """
+                UPDATE empire
+                SET empire.GovernmentType = race.GovernmentType
+                FROM Empires AS empire
+                INNER JOIN AlienRaces AS race ON race.Id = empire.LegacyRaceId
+                WHERE (empire.GovernmentType IS NULL OR LTRIM(RTRIM(empire.GovernmentType)) = '')
+                  AND race.GovernmentType IS NOT NULL
+                  AND LTRIM(RTRIM(race.GovernmentType)) <> '';
+                """);
+        }
+
+        private static void NormalizeLegacyEnumLabels(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
+                UPDATE AlienRaces
+                SET DevotionLevel = CASE TRIM(DevotionLevel)
+                    WHEN 'Moderate' THEN 'Fair'
+                    WHEN 'Low' THEN 'Poor'
+                    ELSE DevotionLevel
+                END,
+                BiologyProfile_PsiRating = CASE TRIM(BiologyProfile_PsiRating)
+                    WHEN 'Very Poor' THEN 'VeryPoor'
+                    ELSE BiologyProfile_PsiRating
+                END
+                WHERE DevotionLevel IN ('Moderate', 'Low')
+                   OR BiologyProfile_PsiRating = 'Very Poor';
+                """);
+        }
+
+        private static void BackfillLegacyReligions(MigrationBuilder migrationBuilder)
+        {
+            if (migrationBuilder.ActiveProvider.Contains("Sqlite", StringComparison.OrdinalIgnoreCase))
+            {
+                migrationBuilder.Sql(
+                    """
+                    INSERT OR IGNORE INTO "Religions" ("Name", "Type", "IsUserDefined")
+                    SELECT DISTINCT TRIM("Religion"), TRIM("Religion"), 0
+                    FROM "AlienRaces"
+                    WHERE "Religion" IS NOT NULL AND TRIM("Religion") <> '';
+                    """);
+
+                migrationBuilder.Sql(
+                    """
+                    INSERT OR IGNORE INTO "EmpireReligions" ("EmpireId", "ReligionId", "ReligionName", "PopulationPercent")
+                    SELECT empire."Id", religion."Id", religion."Name", 100
+                    FROM "Empires" AS empire
+                    INNER JOIN "AlienRaces" AS race ON race."Id" = empire."LegacyRaceId"
+                    INNER JOIN "Religions" AS religion ON religion."Name" = TRIM(race."Religion")
+                    WHERE race."Religion" IS NOT NULL AND TRIM(race."Religion") <> '';
+                    """);
+
+                return;
+            }
+
+            migrationBuilder.Sql(
+                """
+                INSERT INTO Religions (Name, Type, IsUserDefined)
+                SELECT DISTINCT LTRIM(RTRIM(race.Religion)), LTRIM(RTRIM(race.Religion)), CAST(0 AS bit)
+                FROM AlienRaces AS race
+                WHERE race.Religion IS NOT NULL
+                  AND LTRIM(RTRIM(race.Religion)) <> ''
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM Religions AS existing
+                      WHERE existing.Name = LTRIM(RTRIM(race.Religion))
+                  );
+                """);
+
+            migrationBuilder.Sql(
+                """
+                INSERT INTO EmpireReligions (EmpireId, ReligionId, ReligionName, PopulationPercent)
+                SELECT empire.Id, religion.Id, religion.Name, CAST(100 AS decimal(18,2))
+                FROM Empires AS empire
+                INNER JOIN AlienRaces AS race ON race.Id = empire.LegacyRaceId
+                INNER JOIN Religions AS religion ON religion.Name = LTRIM(RTRIM(race.Religion))
+                WHERE race.Religion IS NOT NULL
+                  AND LTRIM(RTRIM(race.Religion)) <> ''
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM EmpireReligions AS existing
+                      WHERE existing.EmpireId = empire.Id
+                        AND existing.ReligionId = religion.Id
+                  );
+                """);
         }
     }
 }

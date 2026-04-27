@@ -81,11 +81,13 @@ public static class DependencyInjection
             await UpgradeSqliteDatabaseAsync(dbContext);
             await StarSystemNameUniqueness.EnsureUniquePersistedNamesAsync(dbContext);
             await dbContext.Database.MigrateAsync();
+            await BackfillAlienEmpireImportParityDataAsync(dbContext);
             return;
         }
 
         await StarSystemNameUniqueness.EnsureUniquePersistedNamesAsync(dbContext);
         await dbContext.Database.MigrateAsync();
+        await BackfillAlienEmpireImportParityDataAsync(dbContext);
     }
 
     private static async Task UpgradeSqliteDatabaseAsync(StarWinDbContext dbContext)
@@ -156,6 +158,8 @@ public static class DependencyInjection
                     """);
             }
 
+            await EnsureAlienEmpireImportParitySqliteAsync(connection);
+
             await ExecuteNonQueryAsync(
                 connection,
                 """
@@ -217,6 +221,221 @@ public static class DependencyInjection
             File.Copy(backupPath, databasePath, overwrite: true);
             throw;
         }
+    }
+
+    private static async Task EnsureAlienEmpireImportParitySqliteAsync(SqliteConnection connection)
+    {
+        await EnsureColumnAsync(connection, "Empires", "GovernmentType", "TEXT NOT NULL DEFAULT ''");
+        await EnsureColumnAsync(connection, "Empires", "ImportDataJson", "TEXT NULL");
+        await EnsureColumnAsync(connection, "Empires", "CivilizationModifiers_Art", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "Empires", "CivilizationModifiers_Determination", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "Empires", "CivilizationModifiers_Individualism", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "Empires", "CivilizationModifiers_Loyalty", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "Empires", "CivilizationModifiers_Militancy", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "Empires", "CivilizationModifiers_Progressiveness", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "Empires", "CivilizationModifiers_RacialTolerance", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "Empires", "CivilizationModifiers_SocialCohesion", "INTEGER NOT NULL DEFAULT 0");
+
+        await EnsureColumnAsync(connection, "AlienRaces", "Abilities", "TEXT NOT NULL DEFAULT ''");
+        await EnsureColumnAsync(connection, "AlienRaces", "AtmosphereBreathed", "TEXT NOT NULL DEFAULT ''");
+        await EnsureColumnAsync(connection, "AlienRaces", "BodyCharacteristics", "TEXT NOT NULL DEFAULT ''");
+        await EnsureColumnAsync(connection, "AlienRaces", "CivilizationProfile_Art", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "AlienRaces", "CivilizationProfile_Determination", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "AlienRaces", "CivilizationProfile_Individualism", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "AlienRaces", "CivilizationProfile_Loyalty", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "AlienRaces", "CivilizationProfile_Militancy", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "AlienRaces", "CivilizationProfile_Progressiveness", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "AlienRaces", "CivilizationProfile_RacialTolerance", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "AlienRaces", "CivilizationProfile_SocialCohesion", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "AlienRaces", "ColorPattern", "TEXT NOT NULL DEFAULT ''");
+        await EnsureColumnAsync(connection, "AlienRaces", "Colors", "TEXT NOT NULL DEFAULT ''");
+        await EnsureColumnAsync(connection, "AlienRaces", "EyeCharacteristics", "TEXT NOT NULL DEFAULT ''");
+        await EnsureColumnAsync(connection, "AlienRaces", "EyeColors", "TEXT NOT NULL DEFAULT ''");
+        await EnsureColumnAsync(connection, "AlienRaces", "GravityPreference", "TEXT NOT NULL DEFAULT ''");
+        await EnsureColumnAsync(connection, "AlienRaces", "HairColors", "TEXT NOT NULL DEFAULT ''");
+        await EnsureColumnAsync(connection, "AlienRaces", "HairType", "TEXT NOT NULL DEFAULT ''");
+        await EnsureColumnAsync(connection, "AlienRaces", "ImportDataJson", "TEXT NULL");
+        await EnsureColumnAsync(connection, "AlienRaces", "LimbTypes", "TEXT NOT NULL DEFAULT ''");
+        await EnsureColumnAsync(connection, "AlienRaces", "RequiresUserRename", "INTEGER NOT NULL DEFAULT 0");
+        await EnsureColumnAsync(connection, "AlienRaces", "TemperaturePreference", "TEXT NOT NULL DEFAULT ''");
+
+        await ExecuteNonQueryAsync(
+            connection,
+            """
+            CREATE TABLE IF NOT EXISTS "Religions" (
+                "Id" INTEGER NOT NULL CONSTRAINT "PK_Religions" PRIMARY KEY AUTOINCREMENT,
+                "Name" TEXT NOT NULL,
+                "Type" TEXT NOT NULL,
+                "IsUserDefined" INTEGER NOT NULL DEFAULT 0
+            )
+            """);
+
+        await ExecuteNonQueryAsync(
+            connection,
+            """
+            CREATE TABLE IF NOT EXISTS "EmpireReligions" (
+                "EmpireId" INTEGER NOT NULL,
+                "ReligionId" INTEGER NOT NULL,
+                "ReligionName" TEXT NOT NULL,
+                "PopulationPercent" REAL NOT NULL,
+                CONSTRAINT "PK_EmpireReligions" PRIMARY KEY ("EmpireId", "ReligionId"),
+                CONSTRAINT "FK_EmpireReligions_Empires_EmpireId" FOREIGN KEY ("EmpireId") REFERENCES "Empires" ("Id") ON DELETE CASCADE,
+                CONSTRAINT "FK_EmpireReligions_Religions_ReligionId" FOREIGN KEY ("ReligionId") REFERENCES "Religions" ("Id") ON DELETE CASCADE
+            )
+            """);
+
+        await ExecuteNonQueryAsync(
+            connection,
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_Religions_Name"
+            ON "Religions" ("Name")
+            """);
+
+        await ExecuteNonQueryAsync(
+            connection,
+            """
+            CREATE INDEX IF NOT EXISTS "IX_EmpireReligions_ReligionId"
+            ON "EmpireReligions" ("ReligionId")
+            """);
+
+        if (await ColumnExistsAsync(connection, "AlienRaces", "GovernmentType"))
+        {
+            await ExecuteNonQueryAsync(
+                connection,
+                """
+                UPDATE "Empires"
+                SET "GovernmentType" = COALESCE(NULLIF("GovernmentType", ''), (
+                    SELECT "GovernmentType"
+                    FROM "AlienRaces"
+                    WHERE "AlienRaces"."Id" = "Empires"."LegacyRaceId"
+                ))
+                WHERE ("GovernmentType" IS NULL OR TRIM("GovernmentType") = '')
+                  AND "LegacyRaceId" IS NOT NULL;
+                """);
+        }
+
+        if (await ColumnExistsAsync(connection, "AlienRaces", "Religion"))
+        {
+            await ExecuteNonQueryAsync(
+                connection,
+                """
+                INSERT OR IGNORE INTO "Religions" ("Name", "Type", "IsUserDefined")
+                SELECT DISTINCT TRIM("Religion"), TRIM("Religion"), 0
+                FROM "AlienRaces"
+                WHERE "Religion" IS NOT NULL AND TRIM("Religion") <> '';
+                """);
+
+            await ExecuteNonQueryAsync(
+                connection,
+                """
+                INSERT OR IGNORE INTO "EmpireReligions" ("EmpireId", "ReligionId", "ReligionName", "PopulationPercent")
+                SELECT empire."Id", religion."Id", religion."Name", 100
+                FROM "Empires" AS empire
+                INNER JOIN "AlienRaces" AS race ON race."Id" = empire."LegacyRaceId"
+                INNER JOIN "Religions" AS religion ON religion."Name" = TRIM(race."Religion")
+                WHERE race."Religion" IS NOT NULL AND TRIM(race."Religion") <> '';
+                """);
+        }
+    }
+
+    private static async Task BackfillAlienEmpireImportParityDataAsync(StarWinDbContext dbContext, CancellationToken cancellationToken = default)
+    {
+        if (!await dbContext.Database.CanConnectAsync(cancellationToken))
+        {
+            return;
+        }
+
+        await NormalizeLegacyAlienEnumValuesAsync(dbContext, cancellationToken);
+
+        dbContext.ChangeTracker.Clear();
+
+        var races = await dbContext.AlienRaces
+            .OrderBy(race => race.Id)
+            .ToListAsync(cancellationToken);
+        var empires = await dbContext.Empires
+            .OrderBy(empire => empire.Id)
+            .ToListAsync(cancellationToken);
+
+        var racesById = races.ToDictionary(race => race.Id);
+        var changed = false;
+
+        foreach (var race in races)
+        {
+            changed |= FillMissingCivilizationProfile(race);
+        }
+
+        foreach (var empire in empires)
+        {
+            if (empire.LegacyRaceId is not int legacyRaceId
+                || !racesById.TryGetValue(legacyRaceId, out var race)
+                || race.ImportDataJson is not null
+                || string.IsNullOrWhiteSpace(race.HairType)
+                || !string.IsNullOrWhiteSpace(empire.GovernmentType))
+            {
+                continue;
+            }
+
+            empire.GovernmentType = race.HairType;
+            race.HairType = string.Empty;
+            changed = true;
+        }
+
+        if (changed)
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private static bool FillMissingCivilizationProfile(StarWin.Domain.Model.Entity.Civilization.AlienRace race)
+    {
+        var changed = false;
+        changed |= FillMissingCivilizationValue(race.CivilizationProfile.Militancy, GetLegacyAttribute(race.LegacyAttributes, 1), value => race.CivilizationProfile.Militancy = value);
+        changed |= FillMissingCivilizationValue(race.CivilizationProfile.Determination, GetLegacyAttribute(race.LegacyAttributes, 2), value => race.CivilizationProfile.Determination = value);
+        changed |= FillMissingCivilizationValue(race.CivilizationProfile.RacialTolerance, GetLegacyAttribute(race.LegacyAttributes, 3), value => race.CivilizationProfile.RacialTolerance = value);
+        changed |= FillMissingCivilizationValue(race.CivilizationProfile.Progressiveness, GetLegacyAttribute(race.LegacyAttributes, 4), value => race.CivilizationProfile.Progressiveness = value);
+        changed |= FillMissingCivilizationValue(race.CivilizationProfile.Loyalty, GetLegacyAttribute(race.LegacyAttributes, 5), value => race.CivilizationProfile.Loyalty = value);
+        changed |= FillMissingCivilizationValue(race.CivilizationProfile.SocialCohesion, GetLegacyAttribute(race.LegacyAttributes, 6), value => race.CivilizationProfile.SocialCohesion = value);
+        changed |= FillMissingCivilizationValue(race.CivilizationProfile.Art, GetLegacyAttribute(race.LegacyAttributes, 13), value => race.CivilizationProfile.Art = value);
+        changed |= FillMissingCivilizationValue(race.CivilizationProfile.Individualism, GetLegacyAttribute(race.LegacyAttributes, 14), value => race.CivilizationProfile.Individualism = value);
+        return changed;
+    }
+
+    private static bool FillMissingCivilizationValue(byte currentValue, byte importedValue, Action<byte> assignValue)
+    {
+        if (currentValue != 0 || importedValue == 0)
+        {
+            return false;
+        }
+
+        assignValue(importedValue);
+        return true;
+    }
+
+    private static Task NormalizeLegacyAlienEnumValuesAsync(StarWinDbContext dbContext, CancellationToken cancellationToken)
+    {
+        return dbContext.Database.ExecuteSqlRawAsync(
+            """
+            UPDATE AlienRaces
+            SET DevotionLevel = CASE TRIM(DevotionLevel)
+                WHEN 'Moderate' THEN 'Fair'
+                WHEN 'Low' THEN 'Poor'
+                ELSE DevotionLevel
+            END,
+            BiologyProfile_PsiRating = CASE TRIM(BiologyProfile_PsiRating)
+                WHEN 'Very Poor' THEN 'VeryPoor'
+                ELSE BiologyProfile_PsiRating
+            END
+            WHERE DevotionLevel IN ('Moderate', 'Low')
+               OR BiologyProfile_PsiRating = 'Very Poor';
+            """,
+            cancellationToken);
+    }
+
+    private static byte GetLegacyAttribute(IReadOnlyList<byte>? attributes, int oneBasedIndex)
+    {
+        return attributes is not null && oneBasedIndex >= 1 && oneBasedIndex <= attributes.Count
+            ? attributes[oneBasedIndex - 1]
+            : (byte)0;
     }
 
     private static async Task<string> CreateSqliteBackupAsync(string databasePath)

@@ -31,8 +31,7 @@ namespace StarWin.Infrastructure.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Abilities")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired();
 
                     b.Property<string>("AppearanceType")
                         .IsRequired()
@@ -45,8 +44,7 @@ namespace StarWin.Infrastructure.Data.Migrations
                         .HasColumnType("nvarchar(120)");
 
                     b.Property<string>("BodyCharacteristics")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired();
 
                     b.Property<string>("BodyChemistry")
                         .IsRequired()
@@ -64,8 +62,7 @@ namespace StarWin.Infrastructure.Data.Migrations
                         .HasColumnType("nvarchar(120)");
 
                     b.Property<string>("Colors")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired();
 
                     b.Property<byte>("Devotion")
                         .HasColumnType("tinyint");
@@ -86,12 +83,10 @@ namespace StarWin.Infrastructure.Data.Migrations
                         .HasColumnType("nvarchar(80)");
 
                     b.Property<string>("EyeCharacteristics")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired();
 
                     b.Property<string>("EyeColors")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired();
 
                     b.Property<string>("GravityPreference")
                         .IsRequired()
@@ -99,8 +94,7 @@ namespace StarWin.Infrastructure.Data.Migrations
                         .HasColumnType("nvarchar(80)");
 
                     b.Property<string>("HairColors")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired();
 
                     b.Property<string>("HairType")
                         .IsRequired()
@@ -111,18 +105,16 @@ namespace StarWin.Infrastructure.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("ImportDataJson")
-                        .HasColumnType("nvarchar(max)");
+                        ;
 
                     b.Property<byte[]>("LegacyAttributes")
-                        .IsRequired()
-                        .HasColumnType("varbinary(max)");
+                        .IsRequired();
 
                     b.Property<byte>("LimbPairCount")
                         .HasColumnType("tinyint");
 
                     b.Property<string>("LimbTypes")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired();
 
                     b.Property<short>("MassKg")
                         .HasColumnType("smallint");
@@ -339,7 +331,7 @@ namespace StarWin.Infrastructure.Data.Migrations
                         .HasColumnType("nvarchar(120)");
 
                     b.Property<string>("ImportDataJson")
-                        .HasColumnType("nvarchar(max)");
+                        ;
 
                     b.Property<int>("IndependentColonies")
                         .HasColumnType("int");
@@ -502,7 +494,7 @@ namespace StarWin.Infrastructure.Data.Migrations
                         .HasColumnType("nvarchar(80)");
 
                     b.Property<string>("ImportDataJson")
-                        .HasColumnType("nvarchar(max)");
+                        ;
 
                     b.Property<int?>("OtherRaceId")
                         .HasColumnType("int");
@@ -614,8 +606,7 @@ namespace StarWin.Infrastructure.Data.Migrations
 
                     b.Property<string>("Markdown")
                         .IsRequired()
-                        .HasMaxLength(16000)
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(16000);
 
                     b.Property<int>("TargetId")
                         .HasColumnType("int");
