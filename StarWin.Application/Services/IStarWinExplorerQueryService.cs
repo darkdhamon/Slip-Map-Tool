@@ -3,6 +3,7 @@ namespace StarWin.Application.Services;
 public interface IStarWinExplorerQueryService
 {
     Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default);
+    Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default);
     Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default);
     Task<ExplorerAlienRaceListItem?> LoadAlienRaceListItemAsync(int sectorId, int raceId, CancellationToken cancellationToken = default);
     Task<ExplorerAlienRaceDetail?> LoadAlienRaceDetailAsync(int sectorId, int raceId, CancellationToken cancellationToken = default);
@@ -23,10 +24,23 @@ public sealed record ExplorerSectorOverviewData(
     IReadOnlyList<ExplorerLookupOption> Systems,
     IReadOnlyList<ExplorerLookupOption> Empires);
 
+public sealed record ExplorerAlienRaceFilterOptions(
+    IReadOnlyList<string> EnvironmentTypes,
+    IReadOnlyList<string> AppearanceTypes,
+    IReadOnlyList<int> StarWinTechLevels,
+    IReadOnlyList<string> GurpsTechLevels);
+
 public sealed record ExplorerAlienRaceListPageRequest(
     int SectorId,
     int Offset,
-    int Limit);
+    int Limit,
+    string? Query = null,
+    string? EnvironmentType = null,
+    string? AppearanceType = null,
+    int? MaxTotalPointCost = null,
+    byte? StarWinTechLevel = null,
+    string? GurpsTechLevel = null,
+    bool RequireSuperscience = false);
 
 public sealed record ExplorerAlienRaceListPage(
     IReadOnlyList<ExplorerAlienRaceListItem> Items,

@@ -3,12 +3,9 @@ using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.JSInterop;
 using System.Globalization;
 using StarWin.Application.Services;
-using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.Media;
 using StarWin.Domain.Model.Entity.Notes;
 using StarWin.Domain.Model.Entity.StarMap;
-using StarWin.Domain.Model.ViewModel;
-using StarWin.Domain.Services;
 using StarWin.Web.Components.Explorer;
 
 namespace StarWin.Web.Components.Pages;
@@ -50,16 +47,20 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     protected string raceQuery = string.Empty;
     protected string raceEnvironment = string.Empty;
     protected string raceAppearance = string.Empty;
+    protected string raceMaxPointCost = string.Empty;
+    protected string raceStarWinTechLevel = string.Empty;
+    protected string raceGurpsTechLevel = string.Empty;
+    protected bool raceRequireSuperscience;
     protected bool raceHasMoreRecords;
     protected bool showRaceFilters;
     protected ExplorerAlienRaceDetail? selectedRaceDetail;
+    protected ExplorerAlienRaceFilterOptions raceFilterOptions = new([], [], [], []);
 
     private IReadOnlyList<EntityImage> entityImages = [];
     private bool entityImagesLoaded;
     private bool entityImagesLoading;
     private bool raceListLoading;
     private bool raceDetailLoading;
-    private bool raceSearchInProgress;
     private string imageUploadStatus = string.Empty;
     private ElementReference raceLoadMoreElement;
     private DotNetObjectReference<Aliens>? dotNetReference;
@@ -67,7 +68,6 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     private bool raceObserverConfigured;
     private bool browserSessionReady;
     private bool browserSessionRestored;
-    private int raceSearchVersion;
     private int loadedRaceSectorId;
     private readonly List<ExplorerAlienRaceListItem> loadedRaceSummaries = [];
 
@@ -219,39 +219,15 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         await LoadRacePageAsync(resetList: true);
     }
 
-    protected IEnumerable<AlienRace> GetFilteredRaces(IReadOnlyList<AlienRace> races)
-    {
-        return races
-            .Where(RaceMatches)
-            .OrderBy(race => race.Name)
-            .ThenBy(race => race.Id);
-    }
-
-    protected IEnumerable<ExplorerAlienRaceListItem> GetFilteredRaces(IReadOnlyList<ExplorerAlienRaceListItem> races)
-    {
-        return races
-            .Where(RaceMatches)
-            .OrderBy(race => race.Name)
-            .ThenBy(race => race.RaceId);
-    }
-
     protected void ResetRaceWindow()
     {
         raceObserverConfigured = false;
     }
 
-    protected Task ResetRaceWindowAsync()
+    protected async Task HandleRaceFiltersChangedAsync()
     {
         ResetRaceWindow();
-        raceSearchVersion++;
-        raceSearchInProgress = false;
-
-        if (HasActiveRaceFilters())
-        {
-            _ = SearchRemainingRacePagesAsync(raceSearchVersion);
-        }
-
-        return Task.CompletedTask;
+        await LoadRacePageAsync(resetList: true);
     }
 
     protected void ToggleRaceFilters()
@@ -264,9 +240,11 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         raceQuery = string.Empty;
         raceEnvironment = string.Empty;
         raceAppearance = string.Empty;
+        raceMaxPointCost = string.Empty;
+        raceStarWinTechLevel = string.Empty;
+        raceGurpsTechLevel = string.Empty;
+        raceRequireSuperscience = false;
         showRaceFilters = false;
-        raceSearchVersion++;
-        raceSearchInProgress = false;
         ResetRaceWindow();
     }
 
@@ -284,66 +262,6 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             .OrderByDescending(image => image.IsPrimary)
             .ThenBy(image => image.UploadedAt)
             .ToList();
-    }
-
-    private bool RaceMatches(AlienRace race)
-    {
-        if (!string.IsNullOrWhiteSpace(raceEnvironment)
-            && !string.Equals(race.EnvironmentType, raceEnvironment, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(raceAppearance)
-            && !string.Equals(race.AppearanceType, raceAppearance, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(raceQuery))
-        {
-            return true;
-        }
-
-        var query = raceQuery.Trim();
-        return ContainsQuery(race.Name, query)
-            || ContainsQuery(race.Id.ToString(), query)
-            || ContainsQuery(race.AppearanceType, query)
-            || ContainsQuery(race.BodyChemistry, query)
-            || ContainsQuery(race.EnvironmentType, query)
-            || ContainsQuery(race.ReproductionMethod, query)
-            || ContainsQuery(race.Diet, query)
-            || ContainsQuery(race.BiologyProfile.Body.ToString(), query)
-            || ContainsQuery(race.BiologyProfile.Mind.ToString(), query)
-            || ContainsQuery(race.BiologyProfile.Speed.ToString(), query)
-            || ContainsQuery(race.BiologyProfile.PsiRating.ToString(), query)
-            || ContainsQuery(selectedRaceDetail?.HomeWorld?.Name, query);
-    }
-
-    private bool RaceMatches(ExplorerAlienRaceListItem race)
-    {
-        if (!string.IsNullOrWhiteSpace(raceEnvironment)
-            && !string.Equals(race.EnvironmentType, raceEnvironment, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(raceAppearance)
-            && !string.Equals(race.AppearanceType, raceAppearance, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(raceQuery))
-        {
-            return true;
-        }
-
-        var query = raceQuery.Trim();
-        return ContainsQuery(race.Name, query)
-            || ContainsQuery(race.RaceId.ToString(CultureInfo.InvariantCulture), query)
-            || ContainsQuery(race.AppearanceType, query)
-            || ContainsQuery(race.EnvironmentType, query);
     }
 
     private async Task ConfigureRaceObserverAsync()
@@ -444,15 +362,13 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
 
     private async Task LoadRacePageAsync(bool resetList, CancellationToken cancellationToken = default)
     {
-        raceSearchVersion++;
-        raceSearchInProgress = false;
-
         if (selectedSectorId <= 0)
         {
             loadedRaceSummaries.Clear();
             raceHasMoreRecords = false;
             selectedRaceId = 0;
             selectedRaceDetail = null;
+            raceFilterOptions = new([], [], [], []);
             return;
         }
 
@@ -462,6 +378,7 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             loadedRaceSectorId = selectedSectorId;
             raceHasMoreRecords = false;
             raceObserverConfigured = false;
+            raceFilterOptions = await ExplorerQueryService.LoadAlienRaceFilterOptionsAsync(selectedSectorId, cancellationToken);
             await LoadMoreRaceSummariesAsync(cancellationToken);
         }
 
@@ -480,7 +397,7 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         try
         {
             var page = await ExplorerQueryService.LoadAlienRaceListPageAsync(
-                new ExplorerAlienRaceListPageRequest(selectedSectorId, loadedRaceSummaries.Count, ExplorerListBatchSize),
+                BuildRaceListRequest(loadedRaceSummaries.Count),
                 cancellationToken);
 
             foreach (var item in page.Items)
@@ -496,6 +413,10 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             {
                 selectedRaceId = loadedRaceSummaries[0].RaceId;
             }
+            else if (selectedRaceId > 0 && loadedRaceSummaries.All(item => item.RaceId != selectedRaceId))
+            {
+                selectedRaceId = loadedRaceSummaries.FirstOrDefault()?.RaceId ?? 0;
+            }
 
             await EnsureSelectedRaceSummaryVisibleAsync(cancellationToken);
             await EnsureSelectedRaceDetailAsync(cancellationToken);
@@ -507,43 +428,13 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         }
     }
 
-    private async Task SearchRemainingRacePagesAsync(int searchVersion, CancellationToken cancellationToken = default)
-    {
-        if (selectedSectorId <= 0 || !HasActiveRaceFilters())
-        {
-            return;
-        }
-
-        if (GetFilteredRaces(LoadedRaceSummaries).Any() || !raceHasMoreRecords)
-        {
-            return;
-        }
-
-        raceSearchInProgress = true;
-        await InvokeAsync(StateHasChanged);
-
-        try
-        {
-            while (searchVersion == raceSearchVersion
-                && HasActiveRaceFilters()
-                && raceHasMoreRecords
-                && !GetFilteredRaces(LoadedRaceSummaries).Any())
-            {
-                await LoadMoreRaceSummariesAsync(cancellationToken);
-            }
-        }
-        finally
-        {
-            if (searchVersion == raceSearchVersion)
-            {
-                raceSearchInProgress = false;
-                await InvokeAsync(StateHasChanged);
-            }
-        }
-    }
-
     private async Task EnsureSelectedRaceSummaryVisibleAsync(CancellationToken cancellationToken = default)
     {
+        if (HasActiveRaceFilters())
+        {
+            return;
+        }
+
         var requestedRaceId = RequestedRaceId ?? selectedRaceId;
         if (requestedRaceId <= 0 || loadedRaceSummaries.Any(item => item.RaceId == requestedRaceId))
         {
@@ -566,7 +457,9 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
 
     private async Task EnsureSelectedRaceDetailAsync(CancellationToken cancellationToken = default)
     {
-        var targetRaceId = RequestedRaceId ?? selectedRaceId;
+        var targetRaceId = HasActiveRaceFilters()
+            ? selectedRaceId
+            : RequestedRaceId ?? selectedRaceId;
         if (targetRaceId <= 0)
         {
             targetRaceId = loadedRaceSummaries.FirstOrDefault()?.RaceId ?? 0;
@@ -651,16 +544,42 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         return int.TryParse(idText, out var id) ? id : ComboAllFilterId;
     }
 
-    private static bool ContainsQuery(string? value, string query)
-    {
-        return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
-    }
-
     private bool HasActiveRaceFilters()
     {
         return !string.IsNullOrWhiteSpace(raceQuery)
             || !string.IsNullOrWhiteSpace(raceEnvironment)
-            || !string.IsNullOrWhiteSpace(raceAppearance);
+            || !string.IsNullOrWhiteSpace(raceAppearance)
+            || !string.IsNullOrWhiteSpace(raceMaxPointCost)
+            || !string.IsNullOrWhiteSpace(raceStarWinTechLevel)
+            || !string.IsNullOrWhiteSpace(raceGurpsTechLevel)
+            || raceRequireSuperscience;
+    }
+
+    private ExplorerAlienRaceListPageRequest BuildRaceListRequest(int offset)
+    {
+        byte? starWinTechLevel = null;
+        if (byte.TryParse(raceStarWinTechLevel, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedStarWinTechLevel))
+        {
+            starWinTechLevel = parsedStarWinTechLevel;
+        }
+
+        int? maxTotalPointCost = null;
+        if (int.TryParse(raceMaxPointCost, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedMaxTotalPointCost))
+        {
+            maxTotalPointCost = parsedMaxTotalPointCost;
+        }
+
+        return new ExplorerAlienRaceListPageRequest(
+            selectedSectorId,
+            offset,
+            ExplorerListBatchSize,
+            string.IsNullOrWhiteSpace(raceQuery) ? null : raceQuery.Trim(),
+            string.IsNullOrWhiteSpace(raceEnvironment) ? null : raceEnvironment.Trim(),
+            string.IsNullOrWhiteSpace(raceAppearance) ? null : raceAppearance.Trim(),
+            maxTotalPointCost,
+            starWinTechLevel,
+            string.IsNullOrWhiteSpace(raceGurpsTechLevel) ? null : raceGurpsTechLevel.Trim(),
+            raceRequireSuperscience);
     }
 
     public async ValueTask DisposeAsync()

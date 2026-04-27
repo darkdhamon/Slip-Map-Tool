@@ -1,6 +1,9 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using StarWin.Application.Services;
+using StarWin.Domain.Model.Entity.Civilization;
+using StarWin.Domain.Model.Entity.Notes;
+using StarWin.Domain.Services;
 using StarWin.Infrastructure.Data;
 
 namespace StarWin.Infrastructure.Services;
@@ -119,6 +122,69 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             empires);
     }
 
+    public async Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var raceIds = await LoadSectorRaceIdsAsync(dbContext, sectorId, cancellationToken);
+        if (raceIds.Count == 0)
+        {
+            return new ExplorerAlienRaceFilterOptions([], [], [], []);
+        }
+
+        var environmentTypes = await dbContext.AlienRaces
+            .AsNoTracking()
+            .Where(race => raceIds.Contains(race.Id) && !string.IsNullOrWhiteSpace(race.EnvironmentType))
+            .Select(race => race.EnvironmentType)
+            .Distinct()
+            .OrderBy(value => value)
+            .ToListAsync(cancellationToken);
+
+        var appearanceTypes = await dbContext.AlienRaces
+            .AsNoTracking()
+            .Where(race => raceIds.Contains(race.Id) && !string.IsNullOrWhiteSpace(race.AppearanceType))
+            .Select(race => race.AppearanceType)
+            .Distinct()
+            .OrderBy(value => value)
+            .ToListAsync(cancellationToken);
+
+        var sectorEmpireIds = await LoadSectorEmpireIdsAsync(dbContext, sectorId, cancellationToken);
+        var starWinTechLevels = sectorEmpireIds.Count == 0
+            ? []
+            : await dbContext.Empires
+                .AsNoTracking()
+                .Where(empire => sectorEmpireIds.Contains(empire.Id))
+                .Select(empire => (int)empire.CivilizationProfile.TechLevel)
+                .Distinct()
+                .OrderBy(value => value)
+                .ToListAsync(cancellationToken);
+
+        var superscienceRaceIds = await LoadSuperscienceRaceIdsAsync(dbContext, raceIds, cancellationToken);
+        var gurpsTechLevelPairs = sectorEmpireIds.Count == 0
+            ? []
+            : await (
+                from empire in dbContext.Empires.AsNoTracking()
+                from membership in empire.RaceMemberships
+                where sectorEmpireIds.Contains(empire.Id) && raceIds.Contains(membership.RaceId)
+                select new
+                {
+                    GurpsTechLevel = (int)empire.CivilizationProfile.TechLevel + 2,
+                    membership.RaceId
+                })
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+        return new ExplorerAlienRaceFilterOptions(
+            environmentTypes,
+            appearanceTypes,
+            starWinTechLevels,
+            gurpsTechLevelPairs
+                .Select(value => GurpsTechnologyLevelMapper.FormatDisplay(value.GurpsTechLevel, superscienceRaceIds.Contains(value.RaceId)))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(value => value, StringComparer.Ordinal)
+                .ToList());
+    }
+
     public async Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -129,9 +195,14 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             return new ExplorerAlienRaceListPage([], false);
         }
 
-        var races = await dbContext.AlienRaces
+        var sectorEmpireIds = await LoadSectorEmpireIdsAsync(dbContext, request.SectorId, cancellationToken);
+        var racesQuery = dbContext.AlienRaces
             .AsNoTracking()
-            .Where(race => raceIds.Contains(race.Id))
+            .Where(race => raceIds.Contains(race.Id));
+
+        racesQuery = ApplyAlienRaceFilters(dbContext, racesQuery, sectorEmpireIds, request);
+
+        var races = await racesQuery
             .OrderBy(race => race.Name)
             .ThenBy(race => race.Id)
             .Select(race => new ExplorerAlienRaceListItem(
@@ -419,6 +490,95 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         return $"Century {century}";
     }
 
+    private static IQueryable<AlienRace> ApplyAlienRaceFilters(
+        StarWinDbContext dbContext,
+        IQueryable<AlienRace> racesQuery,
+        HashSet<int> sectorEmpireIds,
+        ExplorerAlienRaceListPageRequest request)
+    {
+        if (!string.IsNullOrWhiteSpace(request.Query))
+        {
+            var searchPattern = $"%{request.Query.Trim()}%";
+            racesQuery = racesQuery.Where(race =>
+                EF.Functions.Like(race.Name, searchPattern)
+                || dbContext.EntityNotes.Any(note =>
+                    note.TargetKind == EntityNoteTargetKind.AlienRace
+                    && note.TargetId == race.Id
+                    && EF.Functions.Like(note.Markdown, searchPattern)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.EnvironmentType))
+        {
+            var environmentType = request.EnvironmentType.Trim();
+            racesQuery = racesQuery.Where(race => race.EnvironmentType == environmentType);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.AppearanceType))
+        {
+            var appearanceType = request.AppearanceType.Trim();
+            racesQuery = racesQuery.Where(race => race.AppearanceType == appearanceType);
+        }
+
+        if (request.MaxTotalPointCost is int maxTotalPointCost)
+        {
+            racesQuery = racesQuery.Where(race =>
+                (((race.BiologyProfile.Body >= 16 ? 3 : race.BiologyProfile.Body <= 4 ? -3 : ((int)race.BiologyProfile.Body - 10) / 2) * 10)
+                + ((race.BiologyProfile.Mind >= 16 ? 3 : race.BiologyProfile.Mind <= 4 ? -3 : ((int)race.BiologyProfile.Mind - 10) / 2) * 20)
+                + ((race.BiologyProfile.Speed >= 16 ? 3 : race.BiologyProfile.Speed <= 4 ? -3 : ((int)race.BiologyProfile.Speed - 10) / 2) * 20)
+                + (race.MassKg >= 130 ? 10 : race.MassKg <= 50 ? -10 : 0)
+                + (race.BiologyProfile.Speed >= 12 ? 5 : 0)
+                + (race.BiologyProfile.Lifespan >= 36 ? 2 : 0)
+                + (race.BiologyProfile.PsiRating >= PsiPowerRating.Good ? Math.Max(1, (int)race.BiologyProfile.PsiPower) * 5 : 0)
+                + (race.EnvironmentType.Contains("Vacuum") ? 5 : 0)
+                + (race.EnvironmentType.Contains("Aquatic") ? 10 : 0)
+                + (race.AppearanceType.Contains("Avian") ? 40 : 0)
+                + (race.BodyCoverType.Contains("Hard") || race.BodyCoverType.Contains("Crystal") || race.BodyCoverType.Contains("Scales") ? 5 : 0)
+                + (sectorEmpireIds.Count > 0 && dbContext.Empires.Any(empire =>
+                    sectorEmpireIds.Contains(empire.Id)
+                    && empire.CivilizationProfile.TechLevel >= 9
+                    && empire.RaceMemberships.Any(membership => membership.RaceId == race.Id)) ? 1 : 0)
+                + (race.EnvironmentType.Contains("Subterranean") ? -10 : 0)
+                + (race.Diet.Contains("Mineral") || race.Diet.Contains("Energy") ? -10 : 0)
+                + ((race.BiologyProfile.PsiRating == PsiPowerRating.VeryPoor || race.BiologyProfile.PsiRating == PsiPowerRating.Poor) ? -5 : 0)
+                + (race.EnvironmentType.Contains("Aquatic") ? 1 : 0)
+                + (race.EnvironmentType.Contains("Aerial") ? 2 : 0)
+                + (race.BiologyProfile.Mind >= 12 ? 2 : 0)) <= maxTotalPointCost);
+        }
+
+        if (request.StarWinTechLevel is byte starWinTechLevel)
+        {
+            racesQuery = racesQuery.Where(race => dbContext.Empires.Any(empire =>
+                sectorEmpireIds.Contains(empire.Id)
+                && empire.CivilizationProfile.TechLevel == starWinTechLevel
+                && empire.RaceMemberships.Any(membership => membership.RaceId == race.Id)));
+        }
+
+        var requireSuperscience = request.RequireSuperscience;
+        if (GurpsTechnologyLevelMapper.TryParseDisplay(request.GurpsTechLevel, out var gurpsTechLevel, out var gurpsSuperscience))
+        {
+            requireSuperscience |= gurpsSuperscience;
+            var mappedStarWinTechLevel = gurpsTechLevel - 2;
+            racesQuery = racesQuery.Where(race => dbContext.Empires.Any(empire =>
+                sectorEmpireIds.Contains(empire.Id)
+                && empire.CivilizationProfile.TechLevel == mappedStarWinTechLevel
+                && empire.RaceMemberships.Any(membership => membership.RaceId == race.Id)));
+        }
+
+        if (requireSuperscience)
+        {
+            racesQuery = racesQuery.Where(race =>
+                (from colony in dbContext.Colonies
+                 join colonyWorld in dbContext.Worlds on colony.WorldId equals colonyWorld.Id
+                 join homeWorld in dbContext.Worlds on race.HomePlanetId equals homeWorld.Id
+                 where colony.RaceId == race.Id
+                    && colonyWorld.StarSystemId != homeWorld.StarSystemId
+                 select colony.Id)
+                .Any());
+        }
+
+        return racesQuery;
+    }
+
     private static async Task<HashSet<int>> LoadSectorRaceIdsAsync(StarWinDbContext dbContext, int sectorId, CancellationToken cancellationToken)
     {
         var raceIds = new HashSet<int>();
@@ -460,6 +620,27 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             .ToListAsync(cancellationToken));
 
         return raceIds;
+    }
+
+    private static async Task<HashSet<int>> LoadSuperscienceRaceIdsAsync(StarWinDbContext dbContext, HashSet<int> raceIds, CancellationToken cancellationToken)
+    {
+        if (raceIds.Count == 0)
+        {
+            return [];
+        }
+
+        var superscienceRaceIds = await (
+            from race in dbContext.AlienRaces.AsNoTracking()
+            join homeWorld in dbContext.Worlds.AsNoTracking() on race.HomePlanetId equals homeWorld.Id
+            join colony in dbContext.Colonies.AsNoTracking() on race.Id equals colony.RaceId
+            join colonyWorld in dbContext.Worlds.AsNoTracking() on colony.WorldId equals colonyWorld.Id
+            where raceIds.Contains(race.Id)
+                && colonyWorld.StarSystemId != homeWorld.StarSystemId
+            select race.Id)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return superscienceRaceIds.ToHashSet();
     }
 
     private static async Task<HashSet<int>> LoadSectorEmpireIdsAsync(StarWinDbContext dbContext, int sectorId, CancellationToken cancellationToken)

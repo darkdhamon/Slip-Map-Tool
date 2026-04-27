@@ -426,6 +426,11 @@ public sealed class SectorExplorerPageTests : BunitContext
             return Task.FromResult(overviewData);
         }
 
+        public Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
         public Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();

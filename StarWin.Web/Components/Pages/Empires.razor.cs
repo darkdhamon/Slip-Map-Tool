@@ -7,6 +7,7 @@ using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.Media;
 using StarWin.Domain.Model.Entity.Notes;
 using StarWin.Domain.Model.Entity.StarMap;
+using StarWin.Domain.Services;
 using StarWin.Web.Components.Explorer;
 
 namespace StarWin.Web.Components.Pages;
@@ -652,7 +653,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     protected static int GetGurpsTechLevel(Empire empire)
     {
-        return empire.CivilizationProfile.TechLevel + 2;
+        return GurpsTechnologyLevelMapper.GetBaseTechLevel(empire.CivilizationProfile.TechLevel);
     }
 
     public async ValueTask DisposeAsync()

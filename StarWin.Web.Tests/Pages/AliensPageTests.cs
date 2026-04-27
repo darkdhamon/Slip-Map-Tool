@@ -6,6 +6,7 @@ using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.Media;
 using StarWin.Domain.Model.Entity.Notes;
 using StarWin.Domain.Model.Entity.StarMap;
+using StarWin.Domain.Services;
 using StarWin.Web.Components.Layout;
 using StarWin.Web.Components.Pages;
 
@@ -60,7 +61,7 @@ public sealed class AliensPageTests : BunitContext
 
         var cut = Render<Aliens>();
 
-        cut.Find("input[placeholder='Name, appearance, environment...']").Input("Krell");
+        cut.Find("input[placeholder='Name, summary, or notes...']").Input("Krell");
 
         cut.WaitForAssertion(() =>
         {
@@ -162,25 +163,19 @@ public sealed class AliensPageTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var additionalRaces = new List<AlienRace>();
-        for (var index = 0; index < 30; index++)
-        {
-            additionalRaces.Add(CreateRace(index + 10, $"Race {index:D3}", "Humanoid", "Temperate"));
-        }
-
-        additionalRaces.Add(CreateRace(999, "Zeta Melolonian", "Insectoid", "Temperate"));
+        var additionalRaces = new List<AlienRace> { CreateRace(999, "Zeta Melolonian", "Insectoid", "Temperate") };
 
         var context = CreateContext(additionalRaces: additionalRaces);
         ConfigureServices(context, queryService: new DelayedAlienRaceQueryService(context, TimeSpan.FromMilliseconds(250)));
 
         var cut = Render<Aliens>();
 
-        cut.Find("input[placeholder='Name, appearance, environment...']").Input("Melolonian");
+        cut.Find("input[placeholder='Name, summary, or notes...']").Input("Melolonian");
 
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Searching races", cut.Markup);
-            Assert.Contains("Looking through additional race records for matches", cut.Markup);
+            Assert.Contains("Looking for race matches in the database", cut.Markup);
         });
 
         cut.WaitForAssertion(() =>
@@ -188,6 +183,79 @@ public sealed class AliensPageTests : BunitContext
             Assert.Contains("Zeta Melolonian", cut.Markup);
             Assert.DoesNotContain("Searching races", cut.Markup);
         }, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void FiltersRacesByTotalCostAndTechLevelsThroughQueryService()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var context = CreateContext(
+            additionalRaces:
+            [
+                CreateRace(2, "Krell", "Reptilian", "Arid"),
+                CreateRace(3, "Meloloian", "Insectoid", "Temperate")
+            ]);
+
+        context.Empires[0].CivilizationProfile.TechLevel = 6;
+        context.Empires[0].RaceMemberships.Clear();
+        context.Empires[0].RaceMemberships.Add(new EmpireRaceMembership
+        {
+            RaceId = 1,
+            IsPrimary = true,
+            Role = EmpireRaceRole.Member,
+            PopulationMillions = 3200
+        });
+        context = context with
+        {
+            Empires =
+            [
+                context.Empires[0],
+                new Empire
+                {
+                    Id = 3,
+                    Name = "Krell Reach",
+                    GovernmentType = "Council",
+                    CivilizationProfile = new CivilizationProfile { TechLevel = 8 },
+                    RaceMemberships =
+                    {
+                        new EmpireRaceMembership
+                        {
+                            RaceId = 2,
+                            IsPrimary = true,
+                            Role = EmpireRaceRole.Member,
+                            PopulationMillions = 200
+                        }
+                    }
+                }
+            ]
+        };
+
+        ConfigureServices(context);
+
+        var cut = Render<Aliens>();
+
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Trim() == "Show filters")
+            .Click();
+
+        cut.Find("input[placeholder='Any StarWin TL']").Input("8");
+
+        cut.WaitForAssertion(() =>
+        {
+            var visibleRows = cut.FindAll(".record-row");
+            Assert.Single(visibleRows);
+            Assert.Contains("Krell", visibleRows[0].TextContent);
+        });
+
+        cut.Find("input[placeholder='Any point cost']").Input("0");
+
+        cut.WaitForAssertion(() =>
+        {
+            var visibleRows = cut.FindAll(".record-row");
+            Assert.Single(visibleRows);
+            Assert.Contains("Krell", visibleRows[0].TextContent);
+        });
     }
 
     [Fact]
@@ -482,9 +550,30 @@ public sealed class AliensPageTests : BunitContext
             throw new NotSupportedException();
         }
 
+        public Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            var races = GetSectorRaces(sectorId);
+            var superscienceRaceIds = GetSuperscienceRaceIds(sectorId);
+            var empires = GetSectorEmpires(sectorId);
+
+            return Task.FromResult(new ExplorerAlienRaceFilterOptions(
+                races.Select(race => race.EnvironmentType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value).ToList(),
+                races.Select(race => race.AppearanceType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value).ToList(),
+                empires.Select(empire => (int)empire.CivilizationProfile.TechLevel).Distinct().OrderBy(value => value).ToList(),
+                empires.SelectMany(empire => empire.RaceMemberships
+                        .Where(membership => races.Any(race => race.Id == membership.RaceId))
+                        .Select(membership => GurpsTechnologyLevelMapper.FormatDisplay(
+                            empire.CivilizationProfile.TechLevel,
+                            superscienceRaceIds.Contains(membership.RaceId))))
+                    .Distinct()
+                    .OrderBy(value => value)
+                    .ToList()));
+        }
+
         public virtual Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default)
         {
             var items = GetSectorRaces(request.SectorId)
+                .Where(race => MatchesRaceFilters(request, race))
                 .OrderBy(race => race.Name)
                 .ThenBy(race => race.Id)
                 .Select(race => new ExplorerAlienRaceListItem(race.Id, race.Name, race.AppearanceType, race.EnvironmentType))
@@ -565,13 +654,188 @@ public sealed class AliensPageTests : BunitContext
 
             return context.AlienRaces.Where(race => raceIds.Contains(race.Id)).ToList();
         }
+
+        private IReadOnlyList<Empire> GetSectorEmpires(int sectorId)
+        {
+            var sectorRaceIds = GetSectorRaces(sectorId).Select(race => race.Id).ToHashSet();
+            return context.Empires
+                .Where(empire => empire.RaceMemberships.Any(membership => sectorRaceIds.Contains(membership.RaceId)))
+                .ToList();
+        }
+
+        private HashSet<int> GetSuperscienceRaceIds(int sectorId)
+        {
+            var sector = context.Sectors.First(item => item.Id == sectorId);
+            var homeSystems = sector.Systems
+                .SelectMany(system => system.Worlds)
+                .Where(world => world.AlienRaceId.HasValue)
+                .ToDictionary(world => world.AlienRaceId!.Value, world => world.StarSystemId);
+
+            return sector.Systems
+                .SelectMany(system => system.Worlds)
+                .Where(world => world.Colony is not null && homeSystems.TryGetValue(world.Colony.RaceId, out var homeSystemId) && homeSystemId != world.StarSystemId)
+                .Select(world => world.Colony!.RaceId)
+                .Select(raceId => (int)raceId)
+                .ToHashSet();
+        }
+
+        private bool MatchesRaceFilters(ExplorerAlienRaceListPageRequest request, AlienRace race)
+        {
+            if (!string.IsNullOrWhiteSpace(request.Query))
+            {
+                var query = request.Query.Trim();
+                if (!race.Name.Contains(query, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.EnvironmentType)
+                && !string.Equals(race.EnvironmentType, request.EnvironmentType, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.AppearanceType)
+                && !string.Equals(race.AppearanceType, request.AppearanceType, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var sectorEmpires = GetSectorEmpires(request.SectorId)
+                .Where(empire => empire.RaceMemberships.Any(membership => membership.RaceId == race.Id))
+                .ToList();
+
+            if (request.StarWinTechLevel.HasValue
+                && sectorEmpires.All(empire => empire.CivilizationProfile.TechLevel != request.StarWinTechLevel.Value))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.GurpsTechLevel)
+                && GurpsTechnologyLevelMapper.TryParseDisplay(request.GurpsTechLevel, out var gurpsTechLevel, out _)
+                && sectorEmpires.All(empire => GurpsTechnologyLevelMapper.GetBaseTechLevel(empire.CivilizationProfile.TechLevel) != gurpsTechLevel))
+            {
+                return false;
+            }
+
+            var requiresSuperscience = request.RequireSuperscience
+                || (!string.IsNullOrWhiteSpace(request.GurpsTechLevel)
+                    && GurpsTechnologyLevelMapper.TryParseDisplay(request.GurpsTechLevel, out _, out var gurpsSuperscience)
+                    && gurpsSuperscience);
+            if (requiresSuperscience && !GetSuperscienceRaceIds(request.SectorId).Contains(race.Id))
+            {
+                return false;
+            }
+
+            if (request.MaxTotalPointCost.HasValue && CalculateTotalPointCost(race, sectorEmpires.FirstOrDefault()) > request.MaxTotalPointCost.Value)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private static int CalculateTotalPointCost(AlienRace race, Empire? primaryEmpire)
+        {
+            var total = AttributeDelta(race.BiologyProfile.Body) * 10
+                + AttributeDelta(race.BiologyProfile.Mind) * 20
+                + AttributeDelta(race.BiologyProfile.Speed) * 20;
+
+            if (race.MassKg >= 130)
+            {
+                total += 10;
+            }
+            else if (race.MassKg <= 50)
+            {
+                total -= 10;
+            }
+
+            if (race.BiologyProfile.Speed >= 12)
+            {
+                total += 5;
+            }
+
+            if (race.BiologyProfile.Lifespan >= 36)
+            {
+                total += 2;
+            }
+
+            if (race.BiologyProfile.PsiRating >= PsiPowerRating.Good)
+            {
+                total += Math.Max(1, (int)race.BiologyProfile.PsiPower) * 5;
+            }
+
+            if (race.EnvironmentType.Contains("Vacuum", StringComparison.OrdinalIgnoreCase))
+            {
+                total += 5;
+            }
+
+            if (race.EnvironmentType.Contains("Aquatic", StringComparison.OrdinalIgnoreCase))
+            {
+                total += 10;
+                total += 1;
+            }
+
+            if (race.AppearanceType.Contains("Avian", StringComparison.OrdinalIgnoreCase))
+            {
+                total += 40;
+            }
+
+            if (race.BodyCoverType.Contains("Hard", StringComparison.OrdinalIgnoreCase)
+                || race.BodyCoverType.Contains("Crystal", StringComparison.OrdinalIgnoreCase)
+                || race.BodyCoverType.Contains("Scales", StringComparison.OrdinalIgnoreCase))
+            {
+                total += 5;
+            }
+
+            if (primaryEmpire?.CivilizationProfile.TechLevel >= 9)
+            {
+                total += 1;
+            }
+
+            if (race.EnvironmentType.Contains("Subterranean", StringComparison.OrdinalIgnoreCase))
+            {
+                total -= 10;
+            }
+
+            if (race.Diet.Contains("Mineral", StringComparison.OrdinalIgnoreCase)
+                || race.Diet.Contains("Energy", StringComparison.OrdinalIgnoreCase))
+            {
+                total -= 10;
+            }
+
+            if (race.BiologyProfile.PsiRating is PsiPowerRating.VeryPoor or PsiPowerRating.Poor)
+            {
+                total -= 5;
+            }
+
+            if (race.EnvironmentType.Contains("Aerial", StringComparison.OrdinalIgnoreCase))
+            {
+                total += 2;
+            }
+
+            if (race.BiologyProfile.Mind >= 12)
+            {
+                total += 2;
+            }
+
+            return total;
+        }
+
+        private static int AttributeDelta(byte score)
+        {
+            return Math.Clamp((score - 10) / 2, -3, 3);
+        }
     }
 
     private sealed class DelayedAlienRaceQueryService(StarWinExplorerContext context, TimeSpan delay) : FakeExplorerQueryService(context)
     {
         public override async Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default)
         {
-            if (request.Offset > 0)
+            if (!string.IsNullOrWhiteSpace(request.Query)
+                || !string.IsNullOrWhiteSpace(request.EnvironmentType)
+                || !string.IsNullOrWhiteSpace(request.AppearanceType))
             {
                 await Task.Delay(delay, cancellationToken);
             }

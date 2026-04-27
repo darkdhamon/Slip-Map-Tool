@@ -4,7 +4,7 @@
 
 @{
     var sector = GetSelectedSector();
-    var sectorRaces = GetFilteredRaces(LoadedRaceSummaries).ToList();
+    var sectorRaces = LoadedRaceSummaries.ToList();
     var sectorEmpires = selectedRaceDetail?.Empires ?? [];
     var selectedRace = selectedRaceDetail?.Race;
     var layoutState = new SectorExplorerLayoutState(
@@ -35,10 +35,10 @@
                     <summary class="record-filter-summary">Search</summary>
                     <label>
                         Search
-                        <input placeholder="Name, appearance, environment..."
+                        <input placeholder="Name, summary, or notes..."
                                @bind="raceQuery"
                                @bind:event="oninput"
-                               @bind:after="ResetRaceWindowAsync" />
+                               @bind:after="HandleRaceFiltersChangedAsync" />
                     </label>
                     <button type="button" class="timeline-clear-button" @onclick="ToggleRaceFilters">
                         @(showRaceFilters ? "Hide filters" : "Show filters")
@@ -51,9 +51,9 @@
                                    placeholder="All environments"
                                    @bind="raceEnvironment"
                                    @bind:event="oninput"
-                                   @bind:after="ResetRaceWindowAsync" />
+                                   @bind:after="HandleRaceFiltersChangedAsync" />
                             <datalist id="race-environment-options">
-                                @foreach (var environment in sectorRaces.Select(race => race.EnvironmentType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value))
+                                @foreach (var environment in raceFilterOptions.EnvironmentTypes)
                                 {
                                     <option value="@environment" />
                                 }
@@ -65,25 +65,65 @@
                                    placeholder="All appearances"
                                    @bind="raceAppearance"
                                    @bind:event="oninput"
-                                   @bind:after="ResetRaceWindowAsync" />
+                                   @bind:after="HandleRaceFiltersChangedAsync" />
                             <datalist id="race-appearance-options">
-                                @foreach (var appearance in sectorRaces.Select(race => race.AppearanceType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value))
+                                @foreach (var appearance in raceFilterOptions.AppearanceTypes)
                                 {
                                     <option value="@appearance" />
                                 }
                             </datalist>
                         </label>
+                        <label>
+                            Max total cost
+                            <input type="number"
+                                   placeholder="Any point cost"
+                                   @bind="raceMaxPointCost"
+                                   @bind:event="oninput"
+                                   @bind:after="HandleRaceFiltersChangedAsync" />
+                        </label>
+                        <label>
+                            StarWin tech level
+                            <input list="race-starwind-tech-options"
+                                   placeholder="Any StarWin TL"
+                                   @bind="raceStarWinTechLevel"
+                                   @bind:event="oninput"
+                                   @bind:after="HandleRaceFiltersChangedAsync" />
+                            <datalist id="race-starwind-tech-options">
+                                @foreach (var techLevel in raceFilterOptions.StarWinTechLevels)
+                                {
+                                    <option value="@techLevel" />
+                                }
+                            </datalist>
+                        </label>
+                        <label>
+                            GURPS tech level
+                            <input list="race-gurps-tech-options"
+                                   placeholder="Any GURPS TL"
+                                   @bind="raceGurpsTechLevel"
+                                   @bind:event="oninput"
+                                   @bind:after="HandleRaceFiltersChangedAsync" />
+                            <datalist id="race-gurps-tech-options">
+                                @foreach (var techLevel in raceFilterOptions.GurpsTechLevels)
+                                {
+                                    <option value="@techLevel" />
+                                }
+                            </datalist>
+                        </label>
+                        <label class="alien-toggle-label">
+                            <input type="checkbox" @bind="raceRequireSuperscience" @bind:after="HandleRaceFiltersChangedAsync" />
+                            <span>Require superscience (^)</span>
+                        </label>
                     }
-                    <button type="button" class="timeline-clear-button" @onclick="ClearRaceFilters">Clear filters</button>
+                    <button type="button" class="timeline-clear-button" @onclick="@(async () => { ClearRaceFilters(); await LoadRacePageAsync(resetList: true); })">Clear filters</button>
                 </details>
                 <div class="timeline-count">Showing @sectorRaces.Count race@(sectorRaces.Count == 1 ? string.Empty : "s")@(raceHasMoreRecords ? "+" : string.Empty)</div>
                 @if (sectorRaces.Count == 0)
                 {
                     <article class="timeline-event-card">
-                        @if (raceSearchInProgress)
+                        @if (raceListLoading)
                         {
                             <span class="timeline-century">Searching races</span>
-                            <p>Looking through additional race records for matches...</p>
+                            <p>Looking for race matches in the database...</p>
                         }
                         else
                         {
