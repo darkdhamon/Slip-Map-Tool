@@ -1,5 +1,3 @@
-@inject NavigationManager NavigationManager
-
 <header class="site-header">
     <a class="brand" href="">
         <img class="brand-mark" src="assets/images/StarforgedAtlasLogo.png" alt="" aria-hidden="true" />
@@ -7,22 +5,18 @@
     </a>
 
     <nav class="site-nav" aria-label="Primary">
-        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">Home</NavLink>
-        <a class="nav-link @(IsSectorExplorerRoute ? "active" : null)"
-           href="/sector-explorer"
-           onclick="window.starforgedAtlasNavigation.showExplorerLoading(event, '/sector-explorer')">
+        <NavLink class="nav-link" ActiveClass="nav-link-active" href="" Match="NavLinkMatch.All">Home</NavLink>
+        <NavLink class="nav-link"
+                 ActiveClass="nav-link-active"
+                 href="sector-explorer"
+                 Match="NavLinkMatch.Prefix"
+                 onclick="window.starforgedAtlasNavigation.showExplorerLoading(event, '/sector-explorer')">
             Sector Explorer
-        </a>
-        <NavLink class="nav-link" href="party-manager">Party Manager</NavLink>
-        <NavLink class="nav-link" href="generators">Generators</NavLink>
-        <NavLink class="nav-link" href="import">Import</NavLink>
-        <NavLink class="nav-link" href="app-configuration">App Configuration</NavLink>
-        <NavLink class="nav-link" href="about">About</NavLink>
+        </NavLink>
+        <NavLink class="nav-link" ActiveClass="nav-link-active" href="party-manager">Party Manager</NavLink>
+        <NavLink class="nav-link" ActiveClass="nav-link-active" href="generators">Generators</NavLink>
+        <NavLink class="nav-link" ActiveClass="nav-link-active" href="import">Import</NavLink>
+        <NavLink class="nav-link" ActiveClass="nav-link-active" href="app-configuration">App Configuration</NavLink>
+        <NavLink class="nav-link" ActiveClass="nav-link-active" href="about">About</NavLink>
     </nav>
 </header>
-
-@code {
-    private bool IsSectorExplorerRoute =>
-        NavigationManager.ToBaseRelativePath(NavigationManager.Uri)
-            .StartsWith("sector-explorer", StringComparison.OrdinalIgnoreCase);
-}
