@@ -435,6 +435,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         empireHasMoreRecords = false;
         empireObserverConfigured = false;
         await InvokeAsync(StateHasChanged);
+        await Task.Yield();
 
         try
         {
