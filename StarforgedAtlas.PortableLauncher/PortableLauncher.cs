@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO.Compression;
 using System.Net.Http.Headers;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -15,6 +16,7 @@ internal sealed class PortableLauncher
     private const string StagingRootArgument = "--staging-root";
     private const string TargetRootArgument = "--target-root";
     private const string WaitForPidArgument = "--wait-for-pid";
+    private const string HelperExecutableName = "StarforgedAtlas.UpdateHelper.exe";
     private static readonly Uri LatestReleaseApiUri = new("https://api.github.com/repos/darkdhamon/Slip-Map-Tool/releases/latest");
 
     public async Task RunAsync(string[] args)
@@ -139,46 +141,118 @@ internal sealed class PortableLauncher
 
         try
         {
-            using var client = new HttpClient
-            {
-                Timeout = TimeSpan.FromMinutes(5)
-            };
+            await LauncherProgressDialog.RunAsync(
+                "Starforged Atlas update",
+                "Downloading the latest portable release...",
+                async progress =>
+                {
+                    using var client = new HttpClient
+                    {
+                        Timeout = TimeSpan.FromMinutes(5)
+                    };
 
-            await using (var responseStream = await client.GetStreamAsync(update.DownloadUrl))
-            await using (var fileStream = File.Create(zipPath))
-            {
-                await responseStream.CopyToAsync(fileStream);
-            }
+                    client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("StarforgedAtlasPortableLauncher", "1.0"));
 
-            ZipFile.ExtractToDirectory(zipPath, extractRoot);
+                    progress.Report(new UpdateProgressInfo("Connecting to GitHub...", update.ReleaseTag, null));
 
-            var extractedLauncherPath = Path.Combine(extractRoot, LauncherExecutableName);
-            var extractedDesktopPath = Path.Combine(extractRoot, "app", DesktopExecutableName);
-            if (!File.Exists(extractedLauncherPath) || !File.Exists(extractedDesktopPath))
-            {
-                throw new InvalidOperationException("The downloaded portable package is missing the launcher or desktop executable.");
-            }
+                    using var response = await client.GetAsync(
+                        update.DownloadUrl,
+                        HttpCompletionOption.ResponseHeadersRead);
 
-            var currentProcessId = Environment.ProcessId;
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = extractedLauncherPath,
-                UseShellExecute = true,
-                WorkingDirectory = extractRoot,
-                Arguments =
-                    $"{ApplyUpdateArgument} " +
-                    $"{StagingRootArgument} \"{extractRoot}\" " +
-                    $"{TargetRootArgument} \"{packageRoot}\" " +
-                    $"{WaitForPidArgument} {currentProcessId}"
-            };
+                    response.EnsureSuccessStatusCode();
 
-            Process.Start(startInfo);
+                    var totalBytes = response.Content.Headers.ContentLength;
+                    await using var responseStream = await response.Content.ReadAsStreamAsync();
+                    await using var fileStream = File.Create(zipPath);
+
+                    await CopyDownloadToFileAsync(responseStream, fileStream, totalBytes, progress);
+
+                    progress.Report(new UpdateProgressInfo("Extracting the portable package...", PortableZipAssetName, null));
+                    ZipFile.ExtractToDirectory(zipPath, extractRoot);
+
+                    var extractedDesktopPath = Path.Combine(extractRoot, "app", DesktopExecutableName);
+                    if (!File.Exists(extractedDesktopPath))
+                    {
+                        throw new InvalidOperationException("The downloaded portable package is missing the desktop executable.");
+                    }
+
+                    progress.Report(new UpdateProgressInfo("Launching the installer...", "The updater will replace the portable files and restart the app.", 100));
+
+                    var currentProcessId = Environment.ProcessId;
+                    var helperExecutablePath = CreateUpdateHelperExecutable(stagingParent);
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = helperExecutablePath,
+                        UseShellExecute = true,
+                        WorkingDirectory = stagingParent,
+                        Arguments =
+                            $"{ApplyUpdateArgument} " +
+                            $"{StagingRootArgument} \"{extractRoot}\" " +
+                            $"{TargetRootArgument} \"{packageRoot}\" " +
+                            $"{WaitForPidArgument} {currentProcessId}"
+                    };
+
+                    Process.Start(startInfo);
+                });
         }
         catch
         {
             TryDeleteDirectory(stagingParent);
             throw;
         }
+    }
+
+    private static async Task CopyDownloadToFileAsync(
+        Stream responseStream,
+        Stream fileStream,
+        long? totalBytes,
+        IProgress<UpdateProgressInfo> progress)
+    {
+        var buffer = new byte[81920];
+        long totalRead = 0;
+        int read;
+
+        while ((read = await responseStream.ReadAsync(buffer)) > 0)
+        {
+            await fileStream.WriteAsync(buffer.AsMemory(0, read));
+            totalRead += read;
+
+            int? percent = totalBytes is > 0
+                ? (int)Math.Clamp((double)totalRead / totalBytes.Value * 100d, 0d, 100d)
+                : null;
+            var detail = totalBytes is > 0
+                ? $"{FormatBytes(totalRead)} of {FormatBytes(totalBytes.Value)}"
+                : $"{FormatBytes(totalRead)} downloaded";
+
+            progress.Report(new UpdateProgressInfo("Downloading update...", detail, percent));
+        }
+    }
+
+    private static string FormatBytes(long byteCount)
+    {
+        string[] suffixes = ["B", "KB", "MB", "GB"];
+        double size = byteCount;
+        var suffixIndex = 0;
+
+        while (size >= 1024d && suffixIndex < suffixes.Length - 1)
+        {
+            size /= 1024d;
+            suffixIndex++;
+        }
+
+        return suffixIndex == 0
+            ? FormattableString.Invariant($"{size:0} {suffixes[suffixIndex]}")
+            : FormattableString.Invariant($"{size:0.0} {suffixes[suffixIndex]}");
+    }
+
+    private static string CreateUpdateHelperExecutable(string stagingParent)
+    {
+        var currentExecutablePath = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Unable to determine the current launcher executable path.");
+
+        var helperExecutablePath = Path.Combine(stagingParent, HelperExecutableName);
+        File.Copy(currentExecutablePath, helperExecutablePath, overwrite: true);
+        return helperExecutablePath;
     }
 
     private async Task ApplyUpdateAsync(string[] args)
@@ -192,24 +266,33 @@ internal sealed class PortableLauncher
             throw new InvalidOperationException("The update helper did not receive a valid process id to wait for.");
         }
 
-        await WaitForProcessExitAsync(waitForPid);
-
         var preservedDataPath = Path.Combine(Path.GetTempPath(), "StarforgedAtlasUpdate", Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture), "data");
         Directory.CreateDirectory(Path.GetDirectoryName(preservedDataPath)!);
 
         try
         {
-            PortablePackageInstaller.InstallPackage(stagingRoot, targetRoot, preservedDataPath);
+            await LauncherProgressDialog.RunAsync(
+                "Installing Starforged Atlas update",
+                "Preparing the portable update...",
+                async progress =>
+                {
+                    progress.Report(new UpdateProgressInfo("Waiting for the launcher to close...", null, null));
+                    await WaitForProcessExitAsync(waitForPid);
 
-            var launcherPath = Path.Combine(targetRoot, LauncherExecutableName);
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = launcherPath,
-                WorkingDirectory = targetRoot,
-                UseShellExecute = true
-            };
+                    PortablePackageInstaller.InstallPackage(stagingRoot, targetRoot, preservedDataPath, progress);
 
-            Process.Start(startInfo);
+                    progress.Report(new UpdateProgressInfo("Restarting Starforged Atlas...", null, 100));
+
+                    var launcherPath = Path.Combine(targetRoot, LauncherExecutableName);
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = launcherPath,
+                        WorkingDirectory = targetRoot,
+                        UseShellExecute = true
+                    };
+
+                    Process.Start(startInfo);
+                });
         }
         catch (Exception ex)
         {
@@ -300,11 +383,19 @@ internal sealed class PortableLauncher
 
 internal static class PortablePackageInstaller
 {
-    public static void InstallPackage(string stagingRoot, string targetRoot, string preservedDataPath)
+    public static void InstallPackage(
+        string stagingRoot,
+        string targetRoot,
+        string preservedDataPath,
+        IProgress<UpdateProgressInfo>? progress = null)
     {
+        progress?.Report(new UpdateProgressInfo("Preserving your portable data...", null, 15));
         PreservePortableData(targetRoot, preservedDataPath);
+        progress?.Report(new UpdateProgressInfo("Replacing application files...", null, 55));
         ReplacePackageContents(stagingRoot, targetRoot);
+        progress?.Report(new UpdateProgressInfo("Restoring your portable data...", null, 85));
         RestorePortableData(targetRoot, preservedDataPath);
+        progress?.Report(new UpdateProgressInfo("Finishing the update...", null, 95));
     }
 
     private static void PreservePortableData(string targetRoot, string preservedDataPath)
@@ -351,6 +442,8 @@ internal sealed record PortableReleaseUpdate(
     string ReleaseTag,
     string? ReleaseName,
     string DownloadUrl);
+
+internal readonly record struct UpdateProgressInfo(string Message, string? Detail, int? Percent);
 
 internal readonly record struct StarforgedReleaseVersion(int Year, int Month, int Day, int Revision) : IComparable<StarforgedReleaseVersion>
 {
@@ -444,4 +537,47 @@ internal sealed class GitHubReleaseAsset
 
     [JsonPropertyName("browser_download_url")]
     public string? BrowserDownloadUrl { get; set; }
+}
+
+internal static class LauncherProgressDialog
+{
+    public static Task RunAsync(
+        string title,
+        string initialMessage,
+        Func<IProgress<UpdateProgressInfo>, Task> operation)
+    {
+        using var form = new UpdateProgressForm(title);
+        Exception? failure = null;
+
+        form.UpdateProgress(new UpdateProgressInfo(initialMessage, null, null));
+        form.Shown += async (_, _) =>
+        {
+            var progress = new Progress<UpdateProgressInfo>(form.UpdateProgress);
+
+            try
+            {
+                await operation(progress);
+            }
+            catch (Exception ex)
+            {
+                failure = ex;
+            }
+            finally
+            {
+                if (!form.IsDisposed)
+                {
+                    form.BeginInvoke(form.Close);
+                }
+            }
+        };
+
+        form.ShowDialog();
+
+        if (failure is not null)
+        {
+            ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+
+        return Task.CompletedTask;
+    }
 }

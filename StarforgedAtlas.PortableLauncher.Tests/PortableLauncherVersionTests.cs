@@ -54,4 +54,49 @@ public sealed class PortableLauncherVersionTests
             }
         }
     }
+
+    [Fact]
+    public void InstallPackage_reports_progress_for_each_install_stage()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"portable-launcher-progress-test-{Guid.NewGuid():N}");
+        var targetRoot = Path.Combine(root, "target");
+        var stagingRoot = Path.Combine(root, "staging");
+        var preservedDataRoot = Path.Combine(root, "preserved-data");
+        var reportedProgress = new List<UpdateProgressInfo>();
+
+        Directory.CreateDirectory(Path.Combine(targetRoot, "app", "data"));
+        Directory.CreateDirectory(Path.Combine(stagingRoot, "app"));
+
+        File.WriteAllText(Path.Combine(targetRoot, "app", "data", "settings.json"), "{ \"theme\": \"legacy\" }");
+        File.WriteAllText(Path.Combine(stagingRoot, "app", "new.txt"), "new");
+        File.WriteAllText(Path.Combine(stagingRoot, "Starforged Atlas.exe"), "launcher");
+
+        try
+        {
+            PortablePackageInstaller.InstallPackage(
+                stagingRoot,
+                targetRoot,
+                preservedDataRoot,
+                new CollectingProgress<UpdateProgressInfo>(reportedProgress));
+
+            Assert.Collection(
+                reportedProgress,
+                update => Assert.Equal("Preserving your portable data...", update.Message),
+                update => Assert.Equal("Replacing application files...", update.Message),
+                update => Assert.Equal("Restoring your portable data...", update.Message),
+                update => Assert.Equal("Finishing the update...", update.Message));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    private sealed class CollectingProgress<T>(List<T> values) : IProgress<T>
+    {
+        public void Report(T value) => values.Add(value);
+    }
 }
