@@ -6,7 +6,7 @@
          aria-live="polite"
          aria-label="@AriaLabel"
          hidden="@(!IsVisible)">
-        <section class="loading-modal">
+        <section class="loading-modal @PanelClass">
             @if (KickerContent is not null)
             {
                 @KickerContent
@@ -119,6 +119,9 @@
 
     [Parameter]
     public string MeterClass { get; set; } = "loading-meter";
+
+    [Parameter]
+    public string? PanelClass { get; set; }
 
     [Parameter]
     public RenderFragment? BeforeMeterContent { get; set; }

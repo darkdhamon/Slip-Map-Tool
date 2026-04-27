@@ -11,6 +11,7 @@ public sealed class LoadingModalTests : BunitContext
     {
         var cut = Render<LoadingModal>(parameters => parameters
             .Add(component => component.IsVisible, true)
+            .Add(component => component.PanelClass, "import-loading-modal")
             .Add(component => component.AriaLabel, "Loading Timeline")
             .Add(component => component.Kicker, "Loading Timeline")
             .Add(component => component.Title, "Preparing timeline events for the selected sector.")
@@ -26,6 +27,7 @@ public sealed class LoadingModalTests : BunitContext
         Assert.Contains("Loading Timeline", cut.Markup);
         Assert.Contains("Preparing timeline events for the selected sector.", cut.Markup);
         Assert.Contains("The page will stay visible until the first chronology batch is ready.", cut.Markup);
+        Assert.Contains("loading-modal import-loading-modal", cut.Markup);
         Assert.Contains("data-loading-timer=\"true\"", cut.Markup);
         Assert.Contains("data-started-at-unix-ms=\"123456789\"", cut.Markup);
         Assert.Equal(3, cut.FindAll("ol li").Count);

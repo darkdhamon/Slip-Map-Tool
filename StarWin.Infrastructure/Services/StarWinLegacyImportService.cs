@@ -1249,7 +1249,11 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
                 cancellationToken);
         }
 
-        await ReportImportProgressAsync(progress, percentComplete, "Saving star systems and worlds...", "Bulk database batch committed.");
+        await ReportImportProgressAsync(
+            progress,
+            percentComplete,
+            "Saving star systems and worlds...",
+            $"{detail} Bulk database batch committed.");
     }
 
     private async Task BulkInsertCivilizationBatchAsync(
