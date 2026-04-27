@@ -162,6 +162,7 @@ internal static class Program
     private static void RunWindowsFormsShell(string localUrl, string webViewDataPath, string iconPath, IDesktopStartupReporter startupReporter)
     {
         Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", WebView2Arguments);
+        var releaseUpdateService = new DesktopReleaseUpdateService();
 
         ApplicationConfiguration.Initialize();
 
@@ -184,6 +185,7 @@ internal static class Program
             Dock = DockStyle.Fill,
             DefaultBackgroundColor = Color.FromArgb(3, 7, 18)
         };
+        var checkedForUpdates = false;
 
         var splashClosed = false;
         void CloseSplash()
@@ -216,6 +218,11 @@ internal static class Program
                     if (navigationArgs.IsSuccess)
                     {
                         CloseSplash();
+                        if (!checkedForUpdates)
+                        {
+                            checkedForUpdates = true;
+                            _ = CheckForDesktopReleaseUpdateAsync(form, releaseUpdateService);
+                        }
                     }
                 };
                 webView.CoreWebView2.Navigate(localUrl);
@@ -236,6 +243,65 @@ internal static class Program
 
         form.FormClosed += (_, _) => CloseSplash();
         Application.Run(form);
+    }
+
+    private static async Task CheckForDesktopReleaseUpdateAsync(Form form, DesktopReleaseUpdateService releaseUpdateService)
+    {
+        var prompt = await releaseUpdateService.CheckForUpdateAsync(CancellationToken.None);
+        if (prompt is null || form.IsDisposed)
+        {
+            return;
+        }
+
+        if (form.InvokeRequired)
+        {
+            form.BeginInvoke(new Action(() => ShowDesktopReleaseUpdatePrompt(form, releaseUpdateService, prompt)));
+            return;
+        }
+
+        ShowDesktopReleaseUpdatePrompt(form, releaseUpdateService, prompt);
+    }
+
+    private static void ShowDesktopReleaseUpdatePrompt(
+        Form form,
+        DesktopReleaseUpdateService releaseUpdateService,
+        DesktopReleaseUpdatePrompt prompt)
+    {
+        if (form.IsDisposed)
+        {
+            return;
+        }
+
+        var releaseLabel = string.IsNullOrWhiteSpace(prompt.ReleaseName)
+            ? prompt.LatestReleaseTag
+            : $"{prompt.ReleaseName} ({prompt.LatestReleaseTag})";
+
+        var message = $"A newer version of Starforged Atlas is available.\r\n\r\nCurrent version: {prompt.CurrentReleaseTag}\r\nLatest version: {releaseLabel}\r\n\r\nOpen the latest GitHub release page so you can upgrade?";
+        var result = MessageBox.Show(
+            form,
+            message,
+            "Starforged Atlas update available",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Information);
+
+        if (result == DialogResult.Yes)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = prompt.ReleaseUrl,
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+            }
+
+            return;
+        }
+
+        releaseUpdateService.RememberSkippedRelease(prompt.LatestReleaseTag);
     }
 #else
     private static void RunDesktopShell(string localUrl, string webViewDataPath, string iconPath, IDesktopStartupReporter startupReporter)
@@ -1163,6 +1229,11 @@ internal static class StarWinDesktopPaths
     public static string GetBackendStatePath()
     {
         return Path.Combine(GetApplicationDataRoot(), "desktop-backend-state.json");
+    }
+
+    public static string GetUpdatePromptStatePath()
+    {
+        return Path.Combine(GetApplicationDataRoot(), "desktop-update-state.json");
     }
 
     private static string? FindWebContentRoot(string startDirectory)
