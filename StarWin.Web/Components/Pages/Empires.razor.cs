@@ -49,6 +49,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected bool empireHasMoreRecords;
     protected bool empireListLoading;
     protected bool empireDetailLoading;
+    protected bool empireFilterPending;
     protected ExplorerEmpireDetail? selectedEmpireDetail;
     protected ExplorerEmpireFilterOptions empireFilterOptions = new([]);
 
@@ -226,21 +227,21 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected async Task HandleEmpireFiltersChangedAsync()
     {
         ResetEmpireWindow();
-        await LoadEmpirePageAsync(resetList: true);
+        await ReloadEmpiresForFilterChangeAsync();
     }
 
     protected async Task ApplyEmpireRaceFilterAsync()
     {
         empireRaceId = ParseComboId(empireRaceText);
         ResetEmpireWindow();
-        await LoadEmpirePageAsync(resetList: true);
+        await ReloadEmpiresForFilterChangeAsync();
     }
 
     protected async Task ToggleFallenEmpireFilterAsync()
     {
         showOnlyFallenEmpires = !showOnlyFallenEmpires;
         ResetEmpireWindow();
-        await LoadEmpirePageAsync(resetList: true);
+        await ReloadEmpiresForFilterChangeAsync();
     }
 
     protected void ClearEmpireFilters()
@@ -255,7 +256,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected async Task HandleClearEmpireFiltersAsync()
     {
         ClearEmpireFilters();
-        await LoadEmpirePageAsync(resetList: true);
+        await ReloadEmpiresForFilterChangeAsync();
     }
 
     [JSInvokable]
@@ -386,18 +387,43 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             return;
         }
 
-        if (resetList || loadedEmpireSectorId != selectedSectorId)
+        var sectorChanged = loadedEmpireSectorId != selectedSectorId;
+        if (resetList || sectorChanged)
         {
             loadedEmpireSummaries.Clear();
             loadedEmpireSectorId = selectedSectorId;
             empireHasMoreRecords = false;
             empireObserverConfigured = false;
-            empireFilterOptions = await ExplorerQueryService.LoadEmpireFilterOptionsAsync(selectedSectorId, cancellationToken);
+            if (sectorChanged || empireFilterOptions.Races.Count == 0)
+            {
+                empireFilterOptions = await ExplorerQueryService.LoadEmpireFilterOptionsAsync(selectedSectorId, cancellationToken);
+            }
+
             await LoadMoreEmpireSummariesAsync(cancellationToken);
+            return;
         }
 
         await EnsureSelectedEmpireSummaryVisibleAsync(cancellationToken);
         await EnsureSelectedEmpireDetailAsync(cancellationToken);
+    }
+
+    private async Task ReloadEmpiresForFilterChangeAsync()
+    {
+        empireFilterPending = true;
+        loadedEmpireSummaries.Clear();
+        empireHasMoreRecords = false;
+        empireObserverConfigured = false;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            await LoadEmpirePageAsync(resetList: true);
+        }
+        finally
+        {
+            empireFilterPending = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task LoadMoreEmpireSummariesAsync(CancellationToken cancellationToken = default)

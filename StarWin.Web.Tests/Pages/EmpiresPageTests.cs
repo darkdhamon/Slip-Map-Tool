@@ -290,9 +290,7 @@ public sealed class EmpiresPageTests : BunitContext
 
         var cut = Render<Empires>();
 
-        cut.FindAll("button")
-            .Single(button => button.TextContent.Trim() == "Fallen empires only")
-            .Click();
+        cut.Find("[data-testid='fallen-empire-filter-toggle']").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -301,7 +299,64 @@ public sealed class EmpiresPageTests : BunitContext
             Assert.Contains("Ancient Watchers", visibleRows[0].TextContent);
             Assert.Contains("Showing 1 empire", cut.Markup);
             Assert.DoesNotContain("Orion Compact", visibleRows[0].TextContent);
+            Assert.Equal("On", cut.Find(".record-filter-chip-state").TextContent.Trim());
         });
+    }
+
+    [Fact]
+    public void ShowsSearchingStateWhileEmpireFiltersReloadResults()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var context = CreateContext(
+            primaryEmpireName: "Ancient Watchers",
+            primaryEmpireNativePopulationMillions: 950,
+            primaryEmpirePlanets: 1,
+            primaryWorld: CreateWorld(
+                101,
+                "Helios",
+                colonyId: 201,
+                colonyName: "Helios Prime",
+                controllingEmpireId: 3,
+                foundingEmpireId: 2),
+            additionalEmpires:
+            [
+                CreateEmpire(
+                    3,
+                    "Orion Compact",
+                    foundingWorldId: 102,
+                    primaryRaceId: 1,
+                    planets: 3,
+                    nativePopulationMillions: 1600)
+            ],
+            additionalWorlds:
+            [
+                CreateWorld(
+                    102,
+                    "Nova Helios",
+                    colonyId: 202,
+                    colonyName: "Nova Helios Prime",
+                    controllingEmpireId: 3,
+                    foundingEmpireId: 3)
+            ]);
+
+        ConfigureServices(context, queryService: new DelayedEmpireQueryService(context, TimeSpan.FromMilliseconds(250)));
+
+        var cut = Render<Empires>();
+
+        cut.Find("[data-testid='fallen-empire-filter-toggle']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Searching", cut.Markup);
+            Assert.Contains("Searching empires with the current filters...", cut.Markup);
+        });
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Ancient Watchers", cut.Markup);
+            Assert.DoesNotContain("Searching empires with the current filters...", cut.Markup);
+        }, TimeSpan.FromSeconds(5));
     }
 
     [Fact]
@@ -335,12 +390,13 @@ public sealed class EmpiresPageTests : BunitContext
 
     private void ConfigureServices(
         StarWinExplorerContext context,
-        IReadOnlyDictionary<(EntityNoteTargetKind TargetKind, int TargetId), EntityNote>? notes = null)
+        IReadOnlyDictionary<(EntityNoteTargetKind TargetKind, int TargetId), EntityNote>? notes = null,
+        IStarWinExplorerQueryService? queryService = null)
     {
         notes ??= new Dictionary<(EntityNoteTargetKind, int), EntityNote>();
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
-        Services.AddSingleton<IStarWinExplorerQueryService>(new FakeExplorerQueryService(context, notes));
+        Services.AddSingleton<IStarWinExplorerQueryService>(queryService ?? new FakeExplorerQueryService(context, notes));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinImageService>(new FakeImageService());
         Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());
@@ -493,7 +549,7 @@ public sealed class EmpiresPageTests : BunitContext
         }
     }
 
-    private sealed class FakeExplorerQueryService(
+    private class FakeExplorerQueryService(
         StarWinExplorerContext context,
         IReadOnlyDictionary<(EntityNoteTargetKind TargetKind, int TargetId), EntityNote> notes) : IStarWinExplorerQueryService
     {
@@ -522,7 +578,7 @@ public sealed class EmpiresPageTests : BunitContext
             throw new NotSupportedException();
         }
 
-        public Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        public virtual Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
         {
             var races = GetSectorRaces(sectorId)
                 .Select(race => new ExplorerLookupOption(race.Id, race.Name))
@@ -533,7 +589,7 @@ public sealed class EmpiresPageTests : BunitContext
             return Task.FromResult(new ExplorerEmpireFilterOptions(races));
         }
 
-        public Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)
+        public virtual Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)
         {
             var items = GetSectorEmpires(request.SectorId)
                 .Where(empire => MatchesEmpireFilters(request, empire))
@@ -552,7 +608,7 @@ public sealed class EmpiresPageTests : BunitContext
             return Task.FromResult(new ExplorerEmpireListPage(page.Take(request.Limit).ToList(), hasMore));
         }
 
-        public Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+        public virtual Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
         {
             var empire = GetSectorEmpires(sectorId).FirstOrDefault(item => item.Id == empireId);
             if (empire is null)
@@ -568,7 +624,7 @@ public sealed class EmpiresPageTests : BunitContext
                 IsFallenEmpire(empire, sectorId)));
         }
 
-        public Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+        public virtual Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
         {
             var sector = context.Sectors.FirstOrDefault(item => item.Id == sectorId);
             var empire = GetSectorEmpires(sectorId).FirstOrDefault(item => item.Id == empireId);
@@ -772,6 +828,20 @@ public sealed class EmpiresPageTests : BunitContext
                 || empire.SpaceHabitats > 0
                 || empire.NativePopulationMillions > 0
                 || empire.SubjectPopulationMillions > 0;
+        }
+    }
+
+    private sealed class DelayedEmpireQueryService(StarWinExplorerContext context, TimeSpan delay)
+        : FakeExplorerQueryService(context, new Dictionary<(EntityNoteTargetKind, int), EntityNote>())
+    {
+        public override async Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)
+        {
+            if (!string.IsNullOrWhiteSpace(request.Query) || request.RaceId.HasValue || request.FallenOnly)
+            {
+                await Task.Delay(delay, cancellationToken);
+            }
+
+            return await base.LoadEmpireListPageAsync(request, cancellationToken);
         }
     }
 

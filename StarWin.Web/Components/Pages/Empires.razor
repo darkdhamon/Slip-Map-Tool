@@ -58,18 +58,20 @@
                     <div class="record-filter-chip-row">
                         <button type="button"
                                 class="record-filter-chip @(showOnlyFallenEmpires ? "active" : null)"
+                                data-testid="fallen-empire-filter-toggle"
                                 aria-pressed="@showOnlyFallenEmpires"
                                 @onclick="ToggleFallenEmpireFilterAsync">
-                            Fallen empires only
+                            <span>Fallen empires</span>
+                            <span class="record-filter-chip-state">@(showOnlyFallenEmpires ? "On" : "Off")</span>
                         </button>
                     </div>
                 </details>
                 <div class="timeline-count">Showing @LoadedEmpireSummaries.Count empire@(LoadedEmpireSummaries.Count == 1 ? string.Empty : "s")@(empireHasMoreRecords ? "+" : string.Empty)</div>
-                @if (empireListLoading && LoadedEmpireSummaries.Count == 0)
+                @if ((empireListLoading || empireFilterPending) && LoadedEmpireSummaries.Count == 0)
                 {
                     <article class="timeline-event-card">
-                        <span class="timeline-century">Loading</span>
-                        <p>Loading empires for this sector.</p>
+                        <span class="timeline-century">@(empireFilterPending ? "Searching" : "Loading")</span>
+                        <p>@(empireFilterPending ? "Searching empires with the current filters..." : "Loading empires for this sector.")</p>
                     </article>
                 }
                 else if (LoadedEmpireSummaries.Count == 0)
