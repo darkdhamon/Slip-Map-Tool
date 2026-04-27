@@ -242,6 +242,13 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         await LoadEmpirePageAsync(resetList: true);
     }
 
+    protected async Task ToggleFallenEmpireFilterAsync()
+    {
+        showOnlyFallenEmpires = !showOnlyFallenEmpires;
+        ResetEmpireWindow();
+        await LoadEmpirePageAsync(resetList: true);
+    }
+
     protected void ClearEmpireFilters()
     {
         empireQuery = string.Empty;

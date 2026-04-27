@@ -1319,6 +1319,18 @@ dd {
     font-weight: 900;
 }
 
+.record-filter-actions,
+.record-filter-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.record-filter-actions .timeline-clear-button {
+    justify-self: auto;
+}
+
 .record-filter-panel input,
 .record-filter-panel select {
     width: 100%;
@@ -1336,6 +1348,31 @@ dd {
 .record-filter-panel select:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
+.record-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    border: 1px solid rgba(125, 211, 252, 0.28);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.72);
+    color: #dbeafe;
+    padding: 8px 14px;
+    font-size: 0.82rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, color 120ms ease;
+}
+
+.record-filter-chip:hover,
+.record-filter-chip.active {
+    border-color: var(--accent);
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.34), rgba(124, 58, 237, 0.24));
+    color: #f8fbff;
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.18);
 }
 
 .feature-panel,

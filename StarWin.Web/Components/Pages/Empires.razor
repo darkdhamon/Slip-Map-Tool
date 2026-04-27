@@ -38,9 +38,12 @@
                                @bind:event="oninput"
                                @bind:after="HandleEmpireFiltersChangedAsync" />
                     </label>
-                    <button type="button" class="timeline-clear-button" @onclick="ToggleEmpireFilters">
-                        @(showEmpireFilters ? "Hide filters" : "Show filters")
-                    </button>
+                    <div class="record-filter-actions">
+                        <button type="button" class="timeline-clear-button" @onclick="ToggleEmpireFilters">
+                            @(showEmpireFilters ? "Hide filters" : "Show filters")
+                        </button>
+                        <button type="button" class="timeline-clear-button" @onclick="HandleClearEmpireFiltersAsync">Clear filters</button>
+                    </div>
                     @if (showEmpireFilters)
                     {
                         <label>
@@ -57,14 +60,15 @@
                                 }
                             </datalist>
                         </label>
-                        <label class="checkbox-filter">
-                            <input type="checkbox"
-                                   @bind="showOnlyFallenEmpires"
-                                   @bind:after="HandleEmpireFiltersChangedAsync" />
-                            <span>Fallen empires only</span>
-                        </label>
+                        <div class="record-filter-chip-row">
+                            <button type="button"
+                                    class="record-filter-chip @(showOnlyFallenEmpires ? "active" : null)"
+                                    aria-pressed="@showOnlyFallenEmpires"
+                                    @onclick="ToggleFallenEmpireFilterAsync">
+                                Fallen empires only
+                            </button>
+                        </div>
                     }
-                    <button type="button" class="timeline-clear-button" @onclick="HandleClearEmpireFiltersAsync">Clear filters</button>
                 </details>
                 <div class="timeline-count">Showing @LoadedEmpireSummaries.Count empire@(LoadedEmpireSummaries.Count == 1 ? string.Empty : "s")@(empireHasMoreRecords ? "+" : string.Empty)</div>
                 @if (empireListLoading && LoadedEmpireSummaries.Count == 0)

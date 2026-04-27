@@ -287,7 +287,9 @@ public sealed class EmpiresPageTests : BunitContext
             .Single(button => button.TextContent.Trim() == "Show filters")
             .Click();
 
-        cut.Find("input[type='checkbox']").Change(true);
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Trim() == "Fallen empires only")
+            .Click();
 
         cut.WaitForAssertion(() =>
         {
