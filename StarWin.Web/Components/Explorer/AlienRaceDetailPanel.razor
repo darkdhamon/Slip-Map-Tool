@@ -1,0 +1,649 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Globalization
+@using StarWin.Domain.Model.Entity.Civilization
+@using StarWin.Domain.Model.Entity.Media
+@using StarWin.Domain.Model.Entity.Notes
+@using StarWin.Domain.Model.Entity.StarMap
+@using StarWin.Domain.Model.ViewModel
+@using StarWin.Domain.Services
+
+@if (Race is null)
+{
+    <article class="detail-panel alien-detail-panel">
+        <span class="panel-kicker">Alien biology</span>
+        <p class="alien-empty-state">Select a race to load its details.</p>
+    </article>
+}
+else
+{
+    var gurpsTemplate = BuildGurpsTemplate(Race, Empires, HomeWorld);
+    var raceMemberships = GetRaceEmpireMemberships(Race, Empires).ToList();
+    var primaryEmpire = GetPrimaryEmpire(Race, Empires);
+    var raceHighlights = GetRaceHighlights(Race).ToList();
+    var baselineTraits = GetBaselineCivilizationTraits(Race);
+    var empireTraitOverrides = GetEmpireCivilizationOverrides(Race, Empires);
+    <article class="detail-panel alien-detail-panel">
+        <span class="panel-kicker">Alien biology</span>
+        <EditableEntityName Name="@Race.Name"
+                            Label="Race"
+                            NameSaved="NameSaved" />
+        <div class="alien-overview-grid">
+            <section class="alien-summary-card alien-summary-card-primary">
+                <div class="parent-actions">
+                    @if (HomeWorld is not null)
+                    {
+                        <button type="button" @onclick="() => WorldSelected.InvokeAsync(HomeWorld.Id)">Homeworld: @HomeWorld.Name</button>
+                    }
+                </div>
+                <dl class="field-grid alien-field-grid alien-field-grid-primary">
+                    <div><dt>Appearance</dt><dd>@DisplayText(Race.AppearanceType)</dd></div>
+                    <div><dt>Environment</dt><dd>@DisplayText(Race.EnvironmentType)</dd></div>
+                    <div><dt>Biology</dt><dd>@DisplayText(Race.BodyChemistry)</dd></div>
+                    <div><dt>Body cover</dt><dd>@DisplayText(Race.BodyCoverType)</dd></div>
+                    <div><dt>Mass</dt><dd>@Race.MassKg kg</dd></div>
+                    <div><dt>Size</dt><dd>@Race.SizeCm cm</dd></div>
+                    <div><dt>Limb pairs</dt><dd>@Race.LimbPairCount</dd></div>
+                    <div><dt>Limb summary</dt><dd>@GetLimbSummary(Race)</dd></div>
+                    <div><dt>Lifespan</dt><dd>@DisplayLifespan(Race.BiologyProfile.Lifespan)</dd></div>
+                    <div><dt>Body</dt><dd>@Race.BiologyProfile.Body</dd></div>
+                    <div><dt>Mind</dt><dd>@Race.BiologyProfile.Mind</dd></div>
+                    <div><dt>Speed</dt><dd>@Race.BiologyProfile.Speed</dd></div>
+                    <div><dt>Psi</dt><dd>@Race.BiologyProfile.PsiRating</dd></div>
+                    <div><dt>Gravity pref.</dt><dd>@DisplayText(Race.GravityPreference)</dd></div>
+                    <div><dt>Temperature pref.</dt><dd>@DisplayText(Race.TemperaturePreference)</dd></div>
+                    <div><dt>Atmosphere breathed</dt><dd>@DisplayText(Race.AtmosphereBreathed)</dd></div>
+                </dl>
+                @if (raceHighlights.Count > 0)
+                {
+                    <div class="tag-group alien-tag-group">
+                        @foreach (var highlight in raceHighlights)
+                        {
+                            <span>@highlight</span>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="entity-image-panel alien-image-panel @(RaceImages.Count == 0 ? "compact-empty" : null)">
+                <div class="image-panel-header">
+                    <h4>Race images</h4>
+                    <span>Multiple allowed</span>
+                </div>
+                @if (RaceImages.Count > 0)
+                {
+                    <div class="entity-image-grid">
+                        @foreach (var image in RaceImages)
+                        {
+                            <figure>
+                                <img src="@image.RelativePath" alt="@image.FileName" />
+                                <figcaption>@(image.IsPrimary ? "Primary" : image.FileName)</figcaption>
+                            </figure>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p>No image uploaded.</p>
+                }
+                <label class="image-upload-control">
+                    <span>Add image</span>
+                    <InputFile OnChange="UploadRequested" accept="image/jpeg,image/png,image/gif,image/webp" />
+                </label>
+                @if (!string.IsNullOrWhiteSpace(ImageUploadStatus))
+                {
+                    <small>@ImageUploadStatus</small>
+                }
+            </section>
+        </div>
+
+        <div class="alien-secondary-grid">
+            <section class="alien-summary-card">
+                <h3>Society</h3>
+                <dl class="field-grid alien-field-grid">
+                    <div><dt>Primary empire</dt><dd>@DisplayText(primaryEmpire?.Name)</dd></div>
+                    <div><dt>Government</dt><dd>@DisplayText(primaryEmpire?.GovernmentType)</dd></div>
+                    <div><dt>Tech level</dt><dd>@(primaryEmpire?.CivilizationProfile.TechLevel.ToString() ?? "N/A")</dd></div>
+                    <div><dt>Spatial age</dt><dd>@(primaryEmpire?.CivilizationProfile.SpatialAge.ToString() ?? "N/A")</dd></div>
+                    <div><dt>Diet</dt><dd>@DisplayText(Race.Diet)</dd></div>
+                    <div><dt>Faith</dt><dd>@DisplayJoinedValues(primaryEmpire?.Religions.Select(religion => religion.ReligionName) ?? [])</dd></div>
+                    <div><dt>Devotion</dt><dd>@Race.DevotionLevel</dd></div>
+                    <div><dt>Reproduction</dt><dd>@DisplayText(Race.Reproduction)</dd></div>
+                    <div><dt>Method</dt><dd>@DisplayText(Race.ReproductionMethod)</dd></div>
+                </dl>
+            </section>
+
+            <section class="alien-summary-card">
+                <h3>Derived data</h3>
+                <dl class="field-grid alien-field-grid">
+                    <div><dt>Edition</dt><dd>@DisplayGurpsEdition(gurpsTemplate.Edition)</dd></div>
+                    <div><dt>Total cost</dt><dd>@DisplayPoints(gurpsTemplate.TotalPointCost)</dd></div>
+                    <div><dt>Trait entries</dt><dd>@CountGurpsTraits(gurpsTemplate)</dd></div>
+                    <div><dt>Memberships</dt><dd>@raceMemberships.Count</dd></div>
+                    <div><dt>Source</dt><dd>StarWin conversion</dd></div>
+                </dl>
+                @if (!string.IsNullOrWhiteSpace(gurpsTemplate.Notes))
+                {
+                    <p>@gurpsTemplate.Notes</p>
+                }
+            </section>
+        </div>
+
+        <details class="alien-disclosure-card">
+            <summary>Species baseline traits <span>@baselineTraits.Count</span></summary>
+            <div class="alien-gurps-body">
+                <dl class="field-grid alien-field-grid">
+                    @foreach (var trait in baselineTraits)
+                    {
+                        <div><dt>@trait.Name</dt><dd>@trait.Baseline</dd></div>
+                    }
+                </dl>
+            </div>
+        </details>
+
+        <details class="alien-disclosure-card">
+            <summary>Empire modifiers <span>@empireTraitOverrides.Count</span></summary>
+            @if (empireTraitOverrides.Count == 0)
+            {
+                <p class="alien-empty-state">No empire-specific civilization modifiers in this sector.</p>
+            }
+            else
+            {
+                <div class="relationship-list">
+                    @foreach (var entry in empireTraitOverrides)
+                    {
+                        <article class="timeline-event-card">
+                            <span class="timeline-century">@entry.Empire.Name</span>
+                            <dl class="field-grid alien-field-grid">
+                                @foreach (var trait in entry.Traits)
+                                {
+                                    <div><dt>@trait.Name</dt><dd>@trait.Computed (base @trait.Baseline, mod @DisplayModifier(trait.Modifier))</dd></div>
+                                }
+                            </dl>
+                        </article>
+                    }
+                </div>
+            }
+        </details>
+
+        <details class="alien-disclosure-card" @(raceMemberships.Count > 0 ? null : "open")>
+            <summary>Empire memberships <span>@raceMemberships.Count</span></summary>
+            @if (raceMemberships.Count == 0)
+            {
+                <p class="alien-empty-state">No empire memberships in this sector.</p>
+            }
+            else
+            {
+                <div class="relationship-list">
+                    @foreach (var membership in raceMemberships)
+                    {
+                        <button type="button" class="relationship-row" @onclick="() => EmpireSelected.InvokeAsync(membership.Empire.Id)">
+                            <strong>@membership.Empire.Name</strong>
+                            <span>@membership.Membership.Role; @membership.Membership.PopulationMillions million</span>
+                        </button>
+                    }
+                </div>
+            }
+        </details>
+
+        <details class="alien-disclosure-card">
+            <summary>Physical traits</summary>
+            <div class="alien-gurps-body">
+                <dl class="field-grid alien-field-grid">
+                    <div><dt>Limb details</dt><dd>@DisplayJoinedValues(Race.LimbTypes)</dd></div>
+                    <div><dt>Abilities</dt><dd>@DisplayJoinedValues(Race.Abilities)</dd></div>
+                    <div><dt>Body characteristics</dt><dd>@DisplayJoinedValues(Race.BodyCharacteristics)</dd></div>
+                    <div><dt>Body colors</dt><dd>@DisplayJoinedValues(Race.Colors)</dd></div>
+                    <div><dt>Color pattern</dt><dd>@DisplayText(Race.ColorPattern)</dd></div>
+                    <div><dt>Eye details</dt><dd>@DisplayJoinedValues(Race.EyeCharacteristics)</dd></div>
+                    <div><dt>Eye colors</dt><dd>@DisplayJoinedValues(Race.EyeColors)</dd></div>
+                    <div><dt>Hair type</dt><dd>@DisplayText(Race.HairType)</dd></div>
+                    <div><dt>Hair colors</dt><dd>@DisplayJoinedValues(Race.HairColors)</dd></div>
+                </dl>
+            </div>
+        </details>
+
+        <details class="alien-disclosure-card">
+            <summary>Visual profile</summary>
+            <p class="alien-empty-state">Copy this block into ChatGPT or another image model as a starting point for race concept art.</p>
+            <pre class="timeline-import-data">@BuildVisualDescriptionPrompt(Race)</pre>
+        </details>
+
+        <details class="alien-disclosure-card">
+            <summary>Notes</summary>
+            <EntityNotesPanel TargetKind="EntityNoteTargetKind.AlienRace"
+                              TargetId="Race.Id"
+                              Title="Alien notes" />
+        </details>
+
+        @if (!string.IsNullOrWhiteSpace(Race.ImportDataJson))
+        {
+            <details class="alien-disclosure-card">
+                <summary>Import data</summary>
+                <pre class="timeline-import-data">@Race.ImportDataJson</pre>
+            </details>
+        }
+
+        <details class="alien-disclosure-card">
+            <summary>GURPS template <span>@CountGurpsTraits(gurpsTemplate) entries</span></summary>
+            <div class="alien-gurps-body">
+                @if (!string.IsNullOrWhiteSpace(gurpsTemplate.Notes))
+                {
+                    <p>@gurpsTemplate.Notes</p>
+                }
+                <div class="gurps-grid">
+                    <article>
+                        <h4>Attributes</h4>
+                        @if (!gurpsTemplate.AttributeModifiers.Any())
+                        {
+                            <p>No entries.</p>
+                        }
+                        @foreach (var trait in gurpsTemplate.AttributeModifiers)
+                        {
+                            <div class="gurps-trait">
+                                <span>@DisplayTraitName(trait)</span>
+                                <strong>@DisplayPoints(trait.PointCost)</strong>
+                                @if (!string.IsNullOrWhiteSpace(trait.Notes))
+                                {
+                                    <small>@trait.Notes</small>
+                                }
+                            </div>
+                        }
+                    </article>
+                    <article>
+                        <h4>Secondary</h4>
+                        @if (!gurpsTemplate.SecondaryCharacteristicModifiers.Any())
+                        {
+                            <p>No entries.</p>
+                        }
+                        @foreach (var trait in gurpsTemplate.SecondaryCharacteristicModifiers)
+                        {
+                            <div class="gurps-trait">
+                                <span>@DisplayTraitName(trait)</span>
+                                <strong>@DisplayPoints(trait.PointCost)</strong>
+                                @if (!string.IsNullOrWhiteSpace(trait.Notes))
+                                {
+                                    <small>@trait.Notes</small>
+                                }
+                            </div>
+                        }
+                    </article>
+                    <article>
+                        <h4>Advantages</h4>
+                        @if (!gurpsTemplate.Advantages.Any())
+                        {
+                            <p>No entries.</p>
+                        }
+                        @foreach (var trait in gurpsTemplate.Advantages)
+                        {
+                            <div class="gurps-trait">
+                                <span>@DisplayTraitName(trait)</span>
+                                <strong>@DisplayPoints(trait.PointCost)</strong>
+                                @if (!string.IsNullOrWhiteSpace(trait.Notes))
+                                {
+                                    <small>@trait.Notes</small>
+                                }
+                            </div>
+                        }
+                    </article>
+                    <article>
+                        <h4>Disadvantages</h4>
+                        @if (!gurpsTemplate.Disadvantages.Any())
+                        {
+                            <p>No entries.</p>
+                        }
+                        @foreach (var trait in gurpsTemplate.Disadvantages)
+                        {
+                            <div class="gurps-trait">
+                                <span>@DisplayTraitName(trait)</span>
+                                <strong>@DisplayPoints(trait.PointCost)</strong>
+                                @if (!string.IsNullOrWhiteSpace(trait.Notes))
+                                {
+                                    <small>@trait.Notes</small>
+                                }
+                            </div>
+                        }
+                    </article>
+                    <article>
+                        <h4>Features</h4>
+                        @if (!gurpsTemplate.Features.Any())
+                        {
+                            <p>No entries.</p>
+                        }
+                        @foreach (var trait in gurpsTemplate.Features)
+                        {
+                            <div class="gurps-trait">
+                                <span>@DisplayTraitName(trait)</span>
+                                <strong>@DisplayPoints(trait.PointCost)</strong>
+                                @if (!string.IsNullOrWhiteSpace(trait.Notes))
+                                {
+                                    <small>@trait.Notes</small>
+                                }
+                            </div>
+                        }
+                    </article>
+                    <article>
+                        <h4>Skills</h4>
+                        @if (!gurpsTemplate.Skills.Any())
+                        {
+                            <p>No entries.</p>
+                        }
+                        @foreach (var trait in gurpsTemplate.Skills)
+                        {
+                            <div class="gurps-trait">
+                                <span>@DisplayTraitName(trait)</span>
+                                <strong>@DisplayPoints(trait.PointCost)</strong>
+                                @if (!string.IsNullOrWhiteSpace(trait.Notes))
+                                {
+                                    <small>@trait.Notes</small>
+                                }
+                            </div>
+                        }
+                    </article>
+                </div>
+            </div>
+        </details>
+    </article>
+}
+
+@code {
+    private const int StarWindTraitMinimum = 0;
+    private const int StarWindTraitMaximum = 10;
+
+    [Parameter]
+    public AlienRace? Race { get; set; }
+
+    [Parameter]
+    public World? HomeWorld { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<Empire> Empires { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<EntityImage> RaceImages { get; set; } = [];
+
+    [Parameter]
+    public string ImageUploadStatus { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> NameSaved { get; set; }
+
+    [Parameter]
+    public EventCallback<InputFileChangeEventArgs> UploadRequested { get; set; }
+
+    [Parameter]
+    public EventCallback<int> WorldSelected { get; set; }
+
+    [Parameter]
+    public EventCallback<int> EmpireSelected { get; set; }
+
+    private static IEnumerable<RaceEmpireMembership> GetRaceEmpireMemberships(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
+    {
+        return sectorEmpires
+            .SelectMany(empire => empire.RaceMemberships
+                .Where(membership => membership.RaceId == race.Id)
+                .Select(membership => new RaceEmpireMembership(empire, membership)))
+            .OrderByDescending(item => item.Membership.IsPrimary)
+            .ThenBy(item => item.Empire.Name);
+    }
+
+    private static Empire? GetPrimaryEmpire(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
+    {
+        var memberships = GetRaceEmpireMemberships(race, sectorEmpires).ToList();
+        return memberships.FirstOrDefault(item => item.Membership.IsPrimary)?.Empire
+            ?? memberships.FirstOrDefault()?.Empire;
+    }
+
+    private static IReadOnlyList<CivilizationTraitDisplay> GetBaselineCivilizationTraits(AlienRace race)
+    {
+        return
+        [
+            new("Militancy", race.CivilizationProfile.Militancy, 0, race.CivilizationProfile.Militancy),
+            new("Determination", race.CivilizationProfile.Determination, 0, race.CivilizationProfile.Determination),
+            new("Racial tolerance", race.CivilizationProfile.RacialTolerance, 0, race.CivilizationProfile.RacialTolerance),
+            new("Progressiveness", race.CivilizationProfile.Progressiveness, 0, race.CivilizationProfile.Progressiveness),
+            new("Loyalty", race.CivilizationProfile.Loyalty, 0, race.CivilizationProfile.Loyalty),
+            new("Social cohesion", race.CivilizationProfile.SocialCohesion, 0, race.CivilizationProfile.SocialCohesion),
+            new("Art", race.CivilizationProfile.Art, 0, race.CivilizationProfile.Art),
+            new("Individualism", race.CivilizationProfile.Individualism, 0, race.CivilizationProfile.Individualism)
+        ];
+    }
+
+    private static IReadOnlyList<EmpireCivilizationModifierDisplay> GetEmpireCivilizationOverrides(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
+    {
+        return sectorEmpires
+            .Where(empire => empire.RaceMemberships.Any(membership => membership.RaceId == race.Id))
+            .Select(empire => new EmpireCivilizationModifierDisplay(
+                empire,
+                [
+                    BuildTraitDisplay("Militancy", race.CivilizationProfile.Militancy, empire.CivilizationModifiers.Militancy),
+                    BuildTraitDisplay("Determination", race.CivilizationProfile.Determination, empire.CivilizationModifiers.Determination),
+                    BuildTraitDisplay("Racial tolerance", race.CivilizationProfile.RacialTolerance, empire.CivilizationModifiers.RacialTolerance),
+                    BuildTraitDisplay("Progressiveness", race.CivilizationProfile.Progressiveness, empire.CivilizationModifiers.Progressiveness),
+                    BuildTraitDisplay("Loyalty", race.CivilizationProfile.Loyalty, empire.CivilizationModifiers.Loyalty),
+                    BuildTraitDisplay("Social cohesion", race.CivilizationProfile.SocialCohesion, empire.CivilizationModifiers.SocialCohesion),
+                    BuildTraitDisplay("Art", race.CivilizationProfile.Art, empire.CivilizationModifiers.Art),
+                    BuildTraitDisplay("Individualism", race.CivilizationProfile.Individualism, empire.CivilizationModifiers.Individualism)
+                ]))
+            .OrderByDescending(item => item.Empire.RaceMemberships.Any(membership => membership.RaceId == race.Id && membership.IsPrimary))
+            .ThenBy(item => item.Empire.Name)
+            .ToList();
+    }
+
+    private static CivilizationTraitDisplay BuildTraitDisplay(string name, byte baseline, int modifier)
+    {
+        var computed = Math.Clamp(baseline + modifier, StarWindTraitMinimum, StarWindTraitMaximum);
+        return new CivilizationTraitDisplay(name, baseline, modifier, computed);
+    }
+
+    private static GurpsTemplate BuildGurpsTemplate(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires, World? homeWorld)
+    {
+        var memberships = GetRaceEmpireMemberships(race, sectorEmpires).ToList();
+        var primaryEmpire = memberships.FirstOrDefault(item => item.Membership.IsPrimary)?.Empire
+            ?? memberships.FirstOrDefault()?.Empire;
+
+        var profile = new AlienRaceExportProfile
+        {
+            Race = race,
+            Empire = primaryEmpire,
+            HomeWorld = homeWorld
+        };
+
+        var builder = new GurpsTemplateBuilder();
+        return builder.Build(profile, GurpsTemplateEdition.FourthEdition);
+    }
+
+    private static IEnumerable<string> GetRaceHighlights(AlienRace race)
+    {
+        if (!string.IsNullOrWhiteSpace(race.BodyCoverType))
+        {
+            yield return $"Body cover: {race.BodyCoverType}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(race.Reproduction))
+        {
+            yield return $"Reproduction: {race.Reproduction}";
+        }
+
+        if (race.DevotionLevel != AlienDevotionLevel.None)
+        {
+            yield return $"{race.DevotionLevel} devotion";
+        }
+
+        if (race.BiologyProfile.Lifespan > 0)
+        {
+            yield return $"Lifespan {DisplayLifespan(race.BiologyProfile.Lifespan)}";
+        }
+    }
+
+    private static string DisplayText(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? "N/A" : value;
+    }
+
+    private static string DisplayJoinedValues(IEnumerable<string> values)
+    {
+        var items = values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return items.Count == 0 ? "N/A" : string.Join(", ", items);
+    }
+
+    private static string DisplayLifespan(byte lifespan)
+    {
+        return lifespan switch
+        {
+            0 => "N/A",
+            >= 200 => "Immortal",
+            _ => $"{lifespan * 5} years"
+        };
+    }
+
+    private static string GetLimbSummary(AlienRace race)
+    {
+        var limbCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var limbType in race.LimbTypes)
+        {
+            var separatorIndex = limbType.IndexOf(':');
+            var role = separatorIndex >= 0
+                ? limbType[(separatorIndex + 1)..].Trim()
+                : limbType.Trim();
+
+            if (string.IsNullOrWhiteSpace(role) || string.Equals(role, "None", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            limbCounts[role] = limbCounts.TryGetValue(role, out var count)
+                ? count + 2
+                : 2;
+        }
+
+        if (limbCounts.Count == 0)
+        {
+            return race.LimbPairCount == 0 ? "No external limbs" : "N/A";
+        }
+
+        return string.Join(", ", limbCounts.Select(item => $"{item.Value.ToString(CultureInfo.InvariantCulture)} {item.Key.ToLowerInvariant()}"));
+    }
+
+    private static string DisplayModifier(int modifier)
+    {
+        return modifier > 0 ? $"+{modifier}" : modifier.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string BuildVisualDescriptionPrompt(AlienRace race)
+    {
+        var lines = new List<string>
+        {
+            $"Species: {race.Name}",
+            $"Overall appearance: {BuildSentence([race.AppearanceType, race.BodyChemistry, race.EnvironmentType])}.",
+            $"Body covering: {DisplayText(race.BodyCoverType)}.",
+            $"Body size: about {race.SizeCm} cm tall and {race.MassKg} kg.",
+            $"Limb structure: {GetLimbSummary(race)}."
+        };
+
+        if (HasAnyValues(race.Colors))
+        {
+            lines.Add($"Body colors: {DisplayJoinedValues(race.Colors)}.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(race.ColorPattern))
+        {
+            lines.Add($"Color pattern: {race.ColorPattern}.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(race.HairType) || HasAnyValues(race.HairColors))
+        {
+            lines.Add($"Hair or crest details: {BuildSentence([race.HairType, DisplayJoinedValuesOrEmpty(race.HairColors)])}.");
+        }
+
+        if (HasAnyValues(race.EyeColors) || HasAnyValues(race.EyeCharacteristics))
+        {
+            lines.Add($"Eyes: {BuildSentence([DisplayJoinedValuesOrEmpty(race.EyeColors), DisplayJoinedValuesOrEmpty(race.EyeCharacteristics)])}.");
+        }
+
+        if (HasAnyValues(race.BodyCharacteristics))
+        {
+            lines.Add($"Distinct body traits: {DisplayJoinedValues(race.BodyCharacteristics)}.");
+        }
+
+        if (HasAnyValues(race.Abilities))
+        {
+            lines.Add($"Visible or implied special traits: {DisplayJoinedValues(race.Abilities)}.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(race.GravityPreference)
+            || !string.IsNullOrWhiteSpace(race.TemperaturePreference)
+            || !string.IsNullOrWhiteSpace(race.AtmosphereBreathed))
+        {
+            lines.Add($"Native conditions: {BuildSentence([race.GravityPreference, race.TemperaturePreference, race.AtmosphereBreathed])}.");
+        }
+
+        lines.Add("Style target: detailed science-fiction species concept art, full-body reference, readable anatomy, neutral background.");
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static bool HasAnyValues(IEnumerable<string> values)
+    {
+        return values.Any(value => !string.IsNullOrWhiteSpace(value));
+    }
+
+    private static string DisplayJoinedValuesOrEmpty(IEnumerable<string> values)
+    {
+        var items = values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return items.Count == 0 ? string.Empty : string.Join(", ", items);
+    }
+
+    private static string BuildSentence(IEnumerable<string?> parts)
+    {
+        var items = parts
+            .Where(value => !string.IsNullOrWhiteSpace(value) && !string.Equals(value, "N/A", StringComparison.OrdinalIgnoreCase))
+            .Select(value => value!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return items.Count == 0 ? "N/A" : string.Join(", ", items);
+    }
+
+    private static int CountGurpsTraits(GurpsTemplate template)
+    {
+        return template.AttributeModifiers.Count
+            + template.SecondaryCharacteristicModifiers.Count
+            + template.Advantages.Count
+            + template.Disadvantages.Count
+            + template.Quirks.Count
+            + template.Features.Count
+            + template.Skills.Count;
+    }
+
+    private static string DisplayGurpsEdition(GurpsTemplateEdition edition)
+    {
+        return edition switch
+        {
+            GurpsTemplateEdition.FourthEdition => "GURPS Fourth Edition",
+            GurpsTemplateEdition.LegacyStarWin => "Legacy StarWin",
+            _ => edition.ToString()
+        };
+    }
+
+    private static string DisplayPoints(int points)
+    {
+        return points > 0 ? $"+{points} points" : $"{points} points";
+    }
+
+    private static string DisplayTraitName(GurpsTemplateTrait trait)
+    {
+        return trait.Level == 0 ? trait.Name : $"{trait.Name} {trait.Level:+#;-#;0}";
+    }
+
+    private sealed record RaceEmpireMembership(Empire Empire, EmpireRaceMembership Membership);
+
+    private sealed record CivilizationTraitDisplay(string Name, int Baseline, int Modifier, int Computed);
+
+    private sealed record EmpireCivilizationModifierDisplay(Empire Empire, IReadOnlyList<CivilizationTraitDisplay> Traits);
+}

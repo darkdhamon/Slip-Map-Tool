@@ -15,10 +15,8 @@ namespace StarWin.Web.Components.Pages;
 
 public partial class Aliens : ComponentBase, IAsyncDisposable
 {
-    private const int ExplorerListBatchSize = 120;
+    private const int ExplorerListBatchSize = 30;
     private const int ComboAllFilterId = -1;
-    private const int StarWindTraitMinimum = 0;
-    private const int StarWindTraitMaximum = 10;
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
     [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
@@ -261,181 +259,6 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         return LoadMoreRaceSummariesAsync();
     }
 
-    protected IEnumerable<RaceEmpireMembership> GetRaceEmpireMemberships(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
-    {
-        return sectorEmpires
-            .SelectMany(empire => empire.RaceMemberships
-                .Where(membership => membership.RaceId == race.Id)
-                .Select(membership => new RaceEmpireMembership(empire, membership)))
-            .OrderByDescending(item => item.Membership.IsPrimary)
-            .ThenBy(item => item.Empire.Name);
-    }
-
-    protected Empire? GetPrimaryEmpire(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
-    {
-        var memberships = GetRaceEmpireMemberships(race, sectorEmpires).ToList();
-        return memberships.FirstOrDefault(item => item.Membership.IsPrimary)?.Empire
-            ?? memberships.FirstOrDefault()?.Empire;
-    }
-
-    protected static string DisplayJoinedValues(IEnumerable<string> values)
-    {
-        var items = values
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        return items.Count == 0 ? "N/A" : string.Join(", ", items);
-    }
-
-    protected static string DisplayLifespan(byte lifespan)
-    {
-        return lifespan switch
-        {
-            0 => "N/A",
-            >= 200 => "Immortal",
-            _ => $"{lifespan * 5} years"
-        };
-    }
-
-    protected static string GetLimbSummary(AlienRace race)
-    {
-        var limbCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        foreach (var limbType in race.LimbTypes)
-        {
-            var separatorIndex = limbType.IndexOf(':');
-            var role = separatorIndex >= 0
-                ? limbType[(separatorIndex + 1)..].Trim()
-                : limbType.Trim();
-
-            if (string.IsNullOrWhiteSpace(role) || string.Equals(role, "None", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            limbCounts[role] = limbCounts.TryGetValue(role, out var count)
-                ? count + 2
-                : 2;
-        }
-
-        if (limbCounts.Count == 0)
-        {
-            return race.LimbPairCount == 0 ? "No external limbs" : "N/A";
-        }
-
-        return string.Join(", ", limbCounts.Select(item => $"{item.Value.ToString(CultureInfo.InvariantCulture)} {item.Key.ToLowerInvariant()}"));
-    }
-
-    protected static IReadOnlyList<CivilizationTraitDisplay> GetBaselineCivilizationTraits(AlienRace race)
-    {
-        return
-        [
-            new("Militancy", race.CivilizationProfile.Militancy, 0, race.CivilizationProfile.Militancy),
-            new("Determination", race.CivilizationProfile.Determination, 0, race.CivilizationProfile.Determination),
-            new("Racial tolerance", race.CivilizationProfile.RacialTolerance, 0, race.CivilizationProfile.RacialTolerance),
-            new("Progressiveness", race.CivilizationProfile.Progressiveness, 0, race.CivilizationProfile.Progressiveness),
-            new("Loyalty", race.CivilizationProfile.Loyalty, 0, race.CivilizationProfile.Loyalty),
-            new("Social cohesion", race.CivilizationProfile.SocialCohesion, 0, race.CivilizationProfile.SocialCohesion),
-            new("Art", race.CivilizationProfile.Art, 0, race.CivilizationProfile.Art),
-            new("Individualism", race.CivilizationProfile.Individualism, 0, race.CivilizationProfile.Individualism)
-        ];
-    }
-
-    protected static IReadOnlyList<EmpireCivilizationModifierDisplay> GetEmpireCivilizationOverrides(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
-    {
-        return sectorEmpires
-            .Where(empire => empire.RaceMemberships.Any(membership => membership.RaceId == race.Id))
-            .Select(empire => new EmpireCivilizationModifierDisplay(
-                empire,
-                [
-                    BuildTraitDisplay("Militancy", race.CivilizationProfile.Militancy, empire.CivilizationModifiers.Militancy),
-                    BuildTraitDisplay("Determination", race.CivilizationProfile.Determination, empire.CivilizationModifiers.Determination),
-                    BuildTraitDisplay("Racial tolerance", race.CivilizationProfile.RacialTolerance, empire.CivilizationModifiers.RacialTolerance),
-                    BuildTraitDisplay("Progressiveness", race.CivilizationProfile.Progressiveness, empire.CivilizationModifiers.Progressiveness),
-                    BuildTraitDisplay("Loyalty", race.CivilizationProfile.Loyalty, empire.CivilizationModifiers.Loyalty),
-                    BuildTraitDisplay("Social cohesion", race.CivilizationProfile.SocialCohesion, empire.CivilizationModifiers.SocialCohesion),
-                    BuildTraitDisplay("Art", race.CivilizationProfile.Art, empire.CivilizationModifiers.Art),
-                    BuildTraitDisplay("Individualism", race.CivilizationProfile.Individualism, empire.CivilizationModifiers.Individualism)
-                ]))
-            .OrderByDescending(item => item.Empire.RaceMemberships.Any(membership => membership.RaceId == race.Id && membership.IsPrimary))
-            .ThenBy(item => item.Empire.Name)
-            .ToList();
-    }
-
-    protected static string DisplayModifier(int modifier)
-    {
-        return modifier > 0 ? $"+{modifier}" : modifier.ToString(CultureInfo.InvariantCulture);
-    }
-
-    protected static string BuildVisualDescriptionPrompt(AlienRace race)
-    {
-        var lines = new List<string>
-        {
-            $"Species: {race.Name}",
-            $"Overall appearance: {BuildSentence([race.AppearanceType, race.BodyChemistry, race.EnvironmentType])}.",
-            $"Body covering: {DisplayText(race.BodyCoverType)}.",
-            $"Body size: about {race.SizeCm} cm tall and {race.MassKg} kg.",
-            $"Limb structure: {GetLimbSummary(race)}."
-        };
-
-        if (HasAnyValues(race.Colors))
-        {
-            lines.Add($"Body colors: {DisplayJoinedValues(race.Colors)}.");
-        }
-
-        if (!string.IsNullOrWhiteSpace(race.ColorPattern))
-        {
-            lines.Add($"Color pattern: {race.ColorPattern}.");
-        }
-
-        if (!string.IsNullOrWhiteSpace(race.HairType) || HasAnyValues(race.HairColors))
-        {
-            lines.Add($"Hair or crest details: {BuildSentence([race.HairType, DisplayJoinedValuesOrEmpty(race.HairColors)])}.");
-        }
-
-        if (HasAnyValues(race.EyeColors) || HasAnyValues(race.EyeCharacteristics))
-        {
-            lines.Add($"Eyes: {BuildSentence([DisplayJoinedValuesOrEmpty(race.EyeColors), DisplayJoinedValuesOrEmpty(race.EyeCharacteristics)])}.");
-        }
-
-        if (HasAnyValues(race.BodyCharacteristics))
-        {
-            lines.Add($"Distinct body traits: {DisplayJoinedValues(race.BodyCharacteristics)}.");
-        }
-
-        if (HasAnyValues(race.Abilities))
-        {
-            lines.Add($"Visible or implied special traits: {DisplayJoinedValues(race.Abilities)}.");
-        }
-
-        if (!string.IsNullOrWhiteSpace(race.GravityPreference)
-            || !string.IsNullOrWhiteSpace(race.TemperaturePreference)
-            || !string.IsNullOrWhiteSpace(race.AtmosphereBreathed))
-        {
-            lines.Add($"Native conditions: {BuildSentence([race.GravityPreference, race.TemperaturePreference, race.AtmosphereBreathed])}.");
-        }
-
-        lines.Add("Style target: detailed science-fiction species concept art, full-body reference, readable anatomy, neutral background.");
-
-        return string.Join(Environment.NewLine, lines);
-    }
-
-    protected GurpsTemplate BuildGurpsTemplate(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
-    {
-        var memberships = GetRaceEmpireMemberships(race, sectorEmpires).ToList();
-        var primaryEmpire = memberships.FirstOrDefault(item => item.Membership.IsPrimary)?.Empire
-            ?? memberships.FirstOrDefault()?.Empire;
-
-        var profile = new AlienRaceExportProfile
-        {
-            Race = race,
-            Empire = primaryEmpire,
-            HomeWorld = selectedRaceDetail?.HomeWorld
-        };
-
-        var builder = new GurpsTemplateBuilder();
-        return builder.Build(profile, GurpsTemplateEdition.FourthEdition);
-    }
-
     protected IReadOnlyList<EntityImage> GetEntityImages(EntityImageTargetKind targetKind, int targetId)
     {
         return entityImages
@@ -443,91 +266,6 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             .OrderByDescending(image => image.IsPrimary)
             .ThenBy(image => image.UploadedAt)
             .ToList();
-    }
-
-    protected static string DisplayText(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? "N/A" : value;
-    }
-
-    protected static IEnumerable<string> GetRaceHighlights(AlienRace race)
-    {
-        if (!string.IsNullOrWhiteSpace(race.BodyCoverType))
-        {
-            yield return $"Body cover: {race.BodyCoverType}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(race.Reproduction))
-        {
-            yield return $"Reproduction: {race.Reproduction}";
-        }
-
-        if (race.DevotionLevel != AlienDevotionLevel.None)
-        {
-            yield return $"{race.DevotionLevel} devotion";
-        }
-
-        if (race.BiologyProfile.Lifespan > 0)
-        {
-            yield return $"Lifespan {DisplayLifespan(race.BiologyProfile.Lifespan)}";
-        }
-    }
-
-    private static CivilizationTraitDisplay BuildTraitDisplay(string name, byte baseline, int modifier)
-    {
-        var computed = Math.Clamp(baseline + modifier, StarWindTraitMinimum, StarWindTraitMaximum);
-        return new CivilizationTraitDisplay(name, baseline, modifier, computed);
-    }
-
-    private static bool HasAnyValues(IEnumerable<string> values)
-    {
-        return values.Any(value => !string.IsNullOrWhiteSpace(value));
-    }
-
-    private static string DisplayJoinedValuesOrEmpty(IEnumerable<string> values)
-    {
-        var items = values
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        return items.Count == 0 ? string.Empty : string.Join(", ", items);
-    }
-
-    private static string BuildSentence(IEnumerable<string?> parts)
-    {
-        var items = parts
-            .Where(value => !string.IsNullOrWhiteSpace(value) && !string.Equals(value, "N/A", StringComparison.OrdinalIgnoreCase))
-            .Select(value => value!.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        return items.Count == 0 ? "N/A" : string.Join(", ", items);
-    }
-
-    protected static int CountGurpsTraits(GurpsTemplate template)
-    {
-        return template.AttributeModifiers.Count
-            + template.SecondaryCharacteristicModifiers.Count
-            + template.Advantages.Count
-            + template.Disadvantages.Count
-            + template.Quirks.Count
-            + template.Features.Count
-            + template.Skills.Count;
-    }
-
-    protected static string DisplayGurpsEdition(GurpsTemplateEdition edition)
-    {
-        return edition switch
-        {
-            GurpsTemplateEdition.FourthEdition => "GURPS Fourth Edition",
-            GurpsTemplateEdition.LegacyStarWin => "Legacy StarWin",
-            _ => edition.ToString()
-        };
-    }
-
-    protected static string DisplayPoints(int points)
-    {
-        return points > 0 ? $"+{points} points" : $"{points} points";
     }
 
     private bool RaceMatches(AlienRace race)
@@ -588,11 +326,6 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             || ContainsQuery(race.RaceId.ToString(CultureInfo.InvariantCulture), query)
             || ContainsQuery(race.AppearanceType, query)
             || ContainsQuery(race.EnvironmentType, query);
-    }
-
-    protected static string DisplayTraitName(GurpsTemplateTrait trait)
-    {
-        return trait.Level == 0 ? trait.Name : $"{trait.Name} {trait.Level:+#;-#;0}";
     }
 
     private async Task ConfigureRaceObserverAsync()
@@ -883,10 +616,4 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
 
         dotNetReference?.Dispose();
     }
-
-    protected sealed record RaceEmpireMembership(Empire Empire, EmpireRaceMembership Membership);
-
-    protected sealed record CivilizationTraitDisplay(string Name, int Baseline, int Modifier, int Computed);
-
-    protected sealed record EmpireCivilizationModifierDisplay(Empire Empire, IReadOnlyList<CivilizationTraitDisplay> Traits);
 }

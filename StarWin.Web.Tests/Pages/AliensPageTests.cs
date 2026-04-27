@@ -137,8 +137,8 @@ public sealed class AliensPageTests : BunitContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("Showing 120 races+", cut.Markup);
-            Assert.DoesNotContain("Race 120", cut.Markup);
+            Assert.Contains("Showing 30 races+", cut.Markup);
+            Assert.DoesNotContain("Race 030", cut.Markup);
         });
 
         cut.FindAll("button")
@@ -147,8 +147,8 @@ public sealed class AliensPageTests : BunitContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("Showing 122 races", cut.Markup);
-            Assert.Contains("Race 120", cut.Markup);
+            Assert.Contains("Showing 60 races+", cut.Markup);
+            Assert.Contains("Race 030", cut.Markup);
         });
     }
 
