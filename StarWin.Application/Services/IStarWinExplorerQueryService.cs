@@ -74,7 +74,8 @@ public sealed record ExplorerEmpireListPageRequest(
     int Offset,
     int Limit,
     string? Query = null,
-    int? RaceId = null);
+    int? RaceId = null,
+    bool FallenOnly = false);
 
 public sealed record ExplorerEmpireListPage(
     IReadOnlyList<ExplorerEmpireListItem> Items,

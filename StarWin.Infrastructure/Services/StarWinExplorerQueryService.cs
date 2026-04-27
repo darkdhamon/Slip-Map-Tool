@@ -845,6 +845,18 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                         && EF.Functions.Like(otherEmpire.Name, searchPattern))));
         }
 
+        if (request.FallenOnly)
+        {
+            empiresQuery = empiresQuery.Where(empire =>
+                !dbContext.Colonies.Any(colony => colony.ControllingEmpireId == empire.Id)
+                && (dbContext.Colonies.Any(colony => colony.ControllingEmpireId == empire.Id || colony.FoundingEmpireId == empire.Id)
+                    || empire.Planets > 0
+                    || empire.Moons > 0
+                    || empire.SpaceHabitats > 0
+                    || empire.NativePopulationMillions > 0
+                    || empire.SubjectPopulationMillions > 0));
+        }
+
         return empiresQuery;
     }
 

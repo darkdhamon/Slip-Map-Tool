@@ -57,6 +57,12 @@
                                 }
                             </datalist>
                         </label>
+                        <label class="checkbox-filter">
+                            <input type="checkbox"
+                                   @bind="showOnlyFallenEmpires"
+                                   @bind:after="HandleEmpireFiltersChangedAsync" />
+                            <span>Fallen empires only</span>
+                        </label>
                     }
                     <button type="button" class="timeline-clear-button" @onclick="HandleClearEmpireFiltersAsync">Clear filters</button>
                 </details>

@@ -245,6 +245,61 @@ public sealed class EmpiresPageTests : BunitContext
     }
 
     [Fact]
+    public void FiltersEmpiresByFallenStatusWhenFilterIsApplied()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(
+            primaryEmpireName: "Ancient Watchers",
+            primaryEmpireNativePopulationMillions: 950,
+            primaryEmpirePlanets: 1,
+            primaryWorld: CreateWorld(
+                101,
+                "Helios",
+                colonyId: 201,
+                colonyName: "Helios Prime",
+                controllingEmpireId: 3,
+                foundingEmpireId: 2),
+            additionalEmpires:
+            [
+                CreateEmpire(
+                    3,
+                    "Orion Compact",
+                    foundingWorldId: 102,
+                    primaryRaceId: 1,
+                    planets: 3,
+                    nativePopulationMillions: 1600)
+            ],
+            additionalWorlds:
+            [
+                CreateWorld(
+                    102,
+                    "Nova Helios",
+                    colonyId: 202,
+                    colonyName: "Nova Helios Prime",
+                    controllingEmpireId: 3,
+                    foundingEmpireId: 3)
+            ]));
+
+        var cut = Render<Empires>();
+
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Trim() == "Show filters")
+            .Click();
+
+        cut.Find("input[type='checkbox']").Change(true);
+
+        cut.WaitForAssertion(() =>
+        {
+            var visibleRows = cut.FindAll(".record-row");
+            Assert.Single(visibleRows);
+            Assert.Contains("Ancient Watchers", visibleRows[0].TextContent);
+            Assert.Contains("Showing 1 empire", cut.Markup);
+            Assert.DoesNotContain("Orion Compact", visibleRows[0].TextContent);
+        });
+    }
+
+    [Fact]
     public void RoundsPopulationDisplayToNearestIllionAndKeepsFullValueInTooltip()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -656,6 +711,11 @@ public sealed class EmpiresPageTests : BunitContext
         private bool MatchesEmpireFilters(ExplorerEmpireListPageRequest request, Empire empire)
         {
             if (request.RaceId is int raceId && !empire.RaceMemberships.Any(membership => membership.RaceId == raceId))
+            {
+                return false;
+            }
+
+            if (request.FallenOnly && !IsFallenEmpire(empire, request.SectorId))
             {
                 return false;
             }

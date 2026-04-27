@@ -140,6 +140,11 @@ public sealed class StarWinExplorerQueryServiceTests
             var fallenSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, Query: "Watcher"));
             Assert.Single(fallenSearch.Items);
             Assert.True(fallenSearch.Items[0].IsFallen);
+
+            var fallenOnlySearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, FallenOnly: true));
+            Assert.Single(fallenOnlySearch.Items);
+            Assert.Equal("Watcher Remnant", fallenOnlySearch.Items[0].Name);
+            Assert.True(fallenOnlySearch.Items[0].IsFallen);
         }
         finally
         {

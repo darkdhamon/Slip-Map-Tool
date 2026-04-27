@@ -45,6 +45,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected string empireQuery = string.Empty;
     protected string empireRaceText = string.Empty;
     protected int empireRaceId = ComboAllFilterId;
+    protected bool showOnlyFallenEmpires;
     protected bool empireHasMoreRecords;
     protected bool showEmpireFilters;
     protected bool empireListLoading;
@@ -246,6 +247,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         empireQuery = string.Empty;
         empireRaceText = string.Empty;
         empireRaceId = ComboAllFilterId;
+        showOnlyFallenEmpires = false;
         showEmpireFilters = false;
         ResetEmpireWindow();
     }
@@ -414,7 +416,8 @@ public partial class Empires : ComponentBase, IAsyncDisposable
                     loadedEmpireSummaries.Count,
                     ExplorerListBatchSize,
                     string.IsNullOrWhiteSpace(empireQuery) ? null : empireQuery.Trim(),
-                    empireRaceId == ComboAllFilterId ? null : empireRaceId),
+                    empireRaceId == ComboAllFilterId ? null : empireRaceId,
+                    showOnlyFallenEmpires),
                 cancellationToken);
 
             foreach (var item in page.Items)
@@ -527,7 +530,8 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     private bool HasActiveEmpireFilters()
     {
         return !string.IsNullOrWhiteSpace(empireQuery)
-            || empireRaceId != ComboAllFilterId;
+            || empireRaceId != ComboAllFilterId
+            || showOnlyFallenEmpires;
     }
 
     protected IReadOnlyList<EntityImage> GetEntityImages(EntityImageTargetKind targetKind, int targetId)
