@@ -225,39 +225,42 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         empireObserverConfigured = false;
     }
 
-    protected async Task HandleEmpireFiltersChangedAsync()
+    protected Task HandleEmpireFiltersChangedAsync()
     {
         if (IsEmpireFilterBusy)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         ResetEmpireWindow();
-        await ReloadEmpiresForFilterChangeAsync();
+        BeginEmpireFilterReload();
+        return Task.CompletedTask;
     }
 
-    protected async Task ApplyEmpireRaceFilterAsync()
+    protected Task ApplyEmpireRaceFilterAsync()
     {
         if (IsEmpireFilterBusy)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         empireRaceId = ParseComboId(empireRaceText);
         ResetEmpireWindow();
-        await ReloadEmpiresForFilterChangeAsync();
+        BeginEmpireFilterReload();
+        return Task.CompletedTask;
     }
 
-    protected async Task ToggleFallenEmpireFilterAsync()
+    protected Task ToggleFallenEmpireFilterAsync()
     {
         if (IsEmpireFilterBusy)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         showOnlyFallenEmpires = !showOnlyFallenEmpires;
         ResetEmpireWindow();
-        await ReloadEmpiresForFilterChangeAsync();
+        BeginEmpireFilterReload();
+        return Task.CompletedTask;
     }
 
     protected void ClearEmpireFilters()
@@ -269,15 +272,16 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         ResetEmpireWindow();
     }
 
-    protected async Task HandleClearEmpireFiltersAsync()
+    protected Task HandleClearEmpireFiltersAsync()
     {
         if (IsEmpireFilterBusy)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         ClearEmpireFilters();
-        await ReloadEmpiresForFilterChangeAsync();
+        BeginEmpireFilterReload();
+        return Task.CompletedTask;
     }
 
     [JSInvokable]
@@ -428,18 +432,25 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         await EnsureSelectedEmpireDetailAsync(cancellationToken);
     }
 
-    private async Task ReloadEmpiresForFilterChangeAsync()
+    private void BeginEmpireFilterReload()
     {
         empireFilterPending = true;
         loadedEmpireSummaries.Clear();
         empireHasMoreRecords = false;
         empireObserverConfigured = false;
-        await InvokeAsync(StateHasChanged);
-        await Task.Yield();
+        _ = RunEmpireFilterReloadAsync();
+    }
 
+    private async Task RunEmpireFilterReloadAsync()
+    {
         try
         {
-            await LoadEmpirePageAsync(resetList: true);
+            await InvokeAsync(StateHasChanged);
+            await InvokeAsync(() => LoadEmpirePageAsync(resetList: true));
+        }
+        catch (Exception exception)
+        {
+            explorerRenderError = exception.Message;
         }
         finally
         {
