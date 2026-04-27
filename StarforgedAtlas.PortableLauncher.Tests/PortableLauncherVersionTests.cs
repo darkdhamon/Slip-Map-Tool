@@ -290,6 +290,75 @@ public sealed class PortableLauncherVersionTests
     }
 
     [Fact]
+    public void LocalUpdateSource_round_trips_through_override_store()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"portable-launcher-override-test-{Guid.NewGuid():N}");
+        var packagePath = Path.Combine(root, "updates", "Starforged-Atlas-Portable.zip");
+        Directory.CreateDirectory(Path.Combine(root, "app", "data"));
+        Directory.CreateDirectory(Path.GetDirectoryName(packagePath)!);
+        File.WriteAllText(packagePath, "zip");
+
+        try
+        {
+            PortableUpdateSourceOverrideStore.Save(
+                root,
+                new PortableUpdateSourceOverride(
+                    "2026-04-27.0-developer-preview",
+                    "Developer Preview",
+                    packagePath,
+                    "- Broken test package"));
+
+            var updateOverride = PortableUpdateSourceOverrideStore.Load(root);
+
+            Assert.NotNull(updateOverride);
+            Assert.Equal("2026-04-27.0-developer-preview", updateOverride!.ReleaseTag);
+            Assert.Equal(packagePath, updateOverride.PackagePath);
+            Assert.Equal("- Broken test package", updateOverride.ReleaseNotes);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void TryCreateLocalOverrideUpdate_returns_local_package_when_newer_release_exists()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"portable-launcher-local-update-test-{Guid.NewGuid():N}");
+        var packagePath = Path.Combine(root, "Starforged-Atlas-Portable.zip");
+        Directory.CreateDirectory(root);
+        File.WriteAllText(packagePath, "zip");
+
+        try
+        {
+            var update = global::PortableLauncher.TryCreateLocalOverrideUpdate(
+                new PortableUpdateSourceOverride(
+                    "2026-04-27.0-developer-preview",
+                    "Developer Preview",
+                    packagePath,
+                    "- Broken test package"),
+                "2026-04-26.2-developer-preview",
+                new StarforgedReleaseVersion(2026, 4, 26, 2),
+                new PortableUpdateState([], null));
+
+            Assert.NotNull(update);
+            Assert.True(update!.IsLocalPackage);
+            Assert.Equal(packagePath, update.DownloadUrl);
+            Assert.Equal("2026-04-27.0-developer-preview", update.ReleaseTag);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void BuildIssueDraftUri_contains_release_context()
     {
         var body = PortableUpdateFailureReporter.BuildIssueBody(

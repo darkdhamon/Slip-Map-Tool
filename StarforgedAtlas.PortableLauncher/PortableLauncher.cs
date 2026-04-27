@@ -144,6 +144,13 @@ internal sealed class PortableLauncher
             return null;
         }
 
+        var updateState = PortableUpdateStateStore.Load(packageRoot);
+        var updateOverride = PortableUpdateSourceOverrideStore.Load(packageRoot);
+        if (updateOverride is not null)
+        {
+            return TryCreateLocalOverrideUpdate(updateOverride, currentTag ?? "0.0.0", currentVersion, updateState);
+        }
+
         using var client = new HttpClient
         {
             Timeout = TimeSpan.FromSeconds(15)
@@ -175,7 +182,6 @@ internal sealed class PortableLauncher
             return null;
         }
 
-        var updateState = PortableUpdateStateStore.Load(packageRoot);
         if (updateState.ShouldIgnore(release.TagName))
         {
             return null;
@@ -186,7 +192,33 @@ internal sealed class PortableLauncher
             release.TagName,
             release.Name,
             asset.BrowserDownloadUrl,
-            release.Body);
+            release.Body,
+            IsLocalPackage: false);
+    }
+
+    internal static PortableReleaseUpdate? TryCreateLocalOverrideUpdate(
+        PortableUpdateSourceOverride updateOverride,
+        string currentTag,
+        StarforgedReleaseVersion currentVersion,
+        PortableUpdateState updateState)
+    {
+        if (string.IsNullOrWhiteSpace(updateOverride.ReleaseTag)
+            || string.IsNullOrWhiteSpace(updateOverride.PackagePath)
+            || !File.Exists(updateOverride.PackagePath)
+            || !StarforgedReleaseVersion.TryParse(updateOverride.ReleaseTag, out var overrideVersion)
+            || overrideVersion.CompareTo(currentVersion) <= 0
+            || updateState.ShouldIgnore(updateOverride.ReleaseTag))
+        {
+            return null;
+        }
+
+        return new PortableReleaseUpdate(
+            currentTag,
+            updateOverride.ReleaseTag,
+            updateOverride.ReleaseName,
+            updateOverride.PackagePath,
+            updateOverride.ReleaseNotes,
+            IsLocalPackage: true);
     }
 
     private async Task DownloadAndApplyUpdateAsync(string packageRoot, PortableReleaseUpdate update)
@@ -206,26 +238,33 @@ internal sealed class PortableLauncher
                 "Downloading the latest portable release...",
                 async progress =>
                 {
-                    using var client = new HttpClient
+                    if (update.IsLocalPackage)
                     {
-                        Timeout = TimeSpan.FromMinutes(5)
-                    };
-
-                    client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("StarforgedAtlasPortableLauncher", "1.0"));
-
-                    progress.Report(new UpdateProgressInfo("Connecting to GitHub...", update.ReleaseTag, null));
-
-                    using var response = await client.GetAsync(
-                        update.DownloadUrl,
-                        HttpCompletionOption.ResponseHeadersRead);
-
-                    response.EnsureSuccessStatusCode();
-
-                    var totalBytes = response.Content.Headers.ContentLength;
-                    await using (var responseStream = await response.Content.ReadAsStreamAsync())
-                    await using (var fileStream = File.Create(zipPath))
+                        await CopyLocalPackageToFileAsync(update.DownloadUrl, zipPath, progress);
+                    }
+                    else
                     {
-                        await CopyDownloadToFileAsync(responseStream, fileStream, totalBytes, progress);
+                        using var client = new HttpClient
+                        {
+                            Timeout = TimeSpan.FromMinutes(5)
+                        };
+
+                        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("StarforgedAtlasPortableLauncher", "1.0"));
+
+                        progress.Report(new UpdateProgressInfo("Connecting to GitHub...", update.ReleaseTag, null));
+
+                        using var response = await client.GetAsync(
+                            update.DownloadUrl,
+                            HttpCompletionOption.ResponseHeadersRead);
+
+                        response.EnsureSuccessStatusCode();
+
+                        var totalBytes = response.Content.Headers.ContentLength;
+                        await using (var responseStream = await response.Content.ReadAsStreamAsync())
+                        await using (var fileStream = File.Create(zipPath))
+                        {
+                            await CopyDownloadToFileAsync(responseStream, fileStream, totalBytes, progress);
+                        }
                     }
 
                     progress.Report(new UpdateProgressInfo("Extracting the portable package...", PortableZipAssetName, null));
@@ -262,19 +301,59 @@ internal sealed class PortableLauncher
         }
     }
 
-    private static async Task CopyDownloadToFileAsync(
+    private static Task CopyDownloadToFileAsync(
         Stream responseStream,
         Stream fileStream,
         long? totalBytes,
         IProgress<UpdateProgressInfo> progress)
     {
+        return CopyStreamToFileAsync(
+            responseStream,
+            fileStream,
+            totalBytes,
+            progress,
+            "Downloading update...",
+            "downloaded");
+    }
+
+    private static async Task CopyLocalPackageToFileAsync(
+        string sourcePath,
+        string destinationPath,
+        IProgress<UpdateProgressInfo> progress)
+    {
+        if (!File.Exists(sourcePath))
+        {
+            throw new FileNotFoundException("The configured local update package could not be found.", sourcePath);
+        }
+
+        progress.Report(new UpdateProgressInfo("Copying local update package...", sourcePath, null));
+
+        await using var sourceStream = File.OpenRead(sourcePath);
+        await using var destinationStream = File.Create(destinationPath);
+        await CopyStreamToFileAsync(
+            sourceStream,
+            destinationStream,
+            sourceStream.Length,
+            progress,
+            "Copying update package...",
+            "copied");
+    }
+
+    private static async Task CopyStreamToFileAsync(
+        Stream sourceStream,
+        Stream destinationStream,
+        long? totalBytes,
+        IProgress<UpdateProgressInfo> progress,
+        string message,
+        string fallbackVerb)
+    {
         var buffer = new byte[81920];
         long totalRead = 0;
         int read;
 
-        while ((read = await responseStream.ReadAsync(buffer)) > 0)
+        while ((read = await sourceStream.ReadAsync(buffer)) > 0)
         {
-            await fileStream.WriteAsync(buffer.AsMemory(0, read));
+            await destinationStream.WriteAsync(buffer.AsMemory(0, read));
             totalRead += read;
 
             int? percent = totalBytes is > 0
@@ -282,9 +361,9 @@ internal sealed class PortableLauncher
                 : null;
             var detail = totalBytes is > 0
                 ? $"{FormatBytes(totalRead)} of {FormatBytes(totalBytes.Value)}"
-                : $"{FormatBytes(totalRead)} downloaded";
+                : $"{FormatBytes(totalRead)} {fallbackVerb}";
 
-            progress.Report(new UpdateProgressInfo("Downloading update...", detail, percent));
+            progress.Report(new UpdateProgressInfo(message, detail, percent));
         }
     }
 
@@ -769,6 +848,13 @@ internal sealed record PortableReleaseUpdate(
     string ReleaseTag,
     string? ReleaseName,
     string DownloadUrl,
+    string? ReleaseNotes,
+    bool IsLocalPackage = false);
+
+internal sealed record PortableUpdateSourceOverride(
+    string? ReleaseTag,
+    string? ReleaseName,
+    string? PackagePath,
     string? ReleaseNotes);
 
 internal sealed record PortableUpdateValidationContext(
@@ -1007,6 +1093,69 @@ internal static class PortableUpdateStateStore
     }
 }
 
+internal static class PortableUpdateSourceOverrideStore
+{
+    private const string OverrideFileName = "portable-update-source.json";
+
+    public static PortableUpdateSourceOverride? Load(string packageRoot)
+    {
+        var path = GetOverridePath(packageRoot);
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            var updateOverride = JsonSerializer.Deserialize(
+                File.ReadAllText(path),
+                PortableJsonContext.Default.PortableUpdateSourceOverride);
+            if (updateOverride is null
+                || string.IsNullOrWhiteSpace(updateOverride.ReleaseTag)
+                || string.IsNullOrWhiteSpace(updateOverride.PackagePath))
+            {
+                return null;
+            }
+
+            return updateOverride with
+            {
+                PackagePath = ResolvePackagePath(path, updateOverride.PackagePath)
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static void Save(string packageRoot, PortableUpdateSourceOverride updateOverride)
+    {
+        var path = GetOverridePath(packageRoot);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(
+            path,
+            JsonSerializer.Serialize(updateOverride, PortableJsonContext.Default.PortableUpdateSourceOverride));
+    }
+
+    private static string GetOverridePath(string packageRoot)
+    {
+        return Path.Combine(packageRoot, "app", "data", OverrideFileName);
+    }
+
+    private static string ResolvePackagePath(string overridePath, string configuredPackagePath)
+    {
+        var expandedPath = Environment.ExpandEnvironmentVariables(configuredPackagePath.Trim());
+        if (Path.IsPathFullyQualified(expandedPath))
+        {
+            return expandedPath;
+        }
+
+        var configDirectory = Path.GetDirectoryName(overridePath)
+            ?? throw new InvalidOperationException("Unable to determine the portable update override directory.");
+        return Path.GetFullPath(Path.Combine(configDirectory, expandedPath));
+    }
+}
+
 internal sealed record PortableUpdateState(
     string[] IgnoredReleases,
     PortablePendingUpdateValidation? PendingValidation)
@@ -1186,6 +1335,7 @@ internal static class PortableUpdateFailureReporter
 
 [JsonSerializable(typeof(PortableUpdateState))]
 [JsonSerializable(typeof(PortablePendingUpdateValidation))]
+[JsonSerializable(typeof(PortableUpdateSourceOverride))]
 [JsonSerializable(typeof(GitHubProjectSummary[]))]
 internal partial class PortableJsonContext : JsonSerializerContext
 {
