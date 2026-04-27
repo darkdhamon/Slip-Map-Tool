@@ -48,6 +48,7 @@ public static class DependencyInjection
         services.AddDbContextFactory<StarWinDbContext>(ConfigureDatabase);
 
         services.AddSingleton<IStarWinWorkspace, StarWinDatabaseWorkspace>();
+        services.AddScoped<IStarWinAppConfigurationService, StarWinAppConfigurationService>();
         services.AddScoped<IStarWinExplorerContextService, StarWinExplorerContextService>();
         services.AddScoped<IStarWinExplorerQueryService, StarWinExplorerQueryService>();
         services.AddScoped<IStarWinSearchService, StarWinSearchService>();

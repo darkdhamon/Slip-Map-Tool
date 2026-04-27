@@ -11,8 +11,9 @@
 @using StarWin.Domain.Services
 
 @{
+    var explorerSelectionReady = selectedSectorId > 0;
     var sector = GetSelectedSector();
-    var overviewData = GetSectorOverviewData(sector.Id);
+    var overviewData = explorerSelectionReady ? GetSectorOverviewData(sector.Id) : null;
     RenderFragment heroContent = @<ExplorerHero />;
     var layoutState = new SectorExplorerLayoutState(
         heroContent,
@@ -40,14 +41,45 @@
 <PageTitle>Sector Explorer | Starforged Atlas</PageTitle>
 <SectorExplorerLayoutSync State="layoutState" />
 
-<ExplorerMetricsBand SystemCount="@(overviewData?.SystemCount ?? 0)"
-                     WorldCount="@(overviewData?.WorldCount ?? 0)"
-                     ColonyCount="@(overviewData?.ColonyCount ?? 0)"
-                     EmpireCount="@(overviewData?.EmpireCount ?? 0)"
-                     RaceCount="@(overviewData?.RaceCount ?? 0)" />
+@if (overviewData is not null)
+{
+    <ExplorerMetricsBand SystemCount="@overviewData.SystemCount"
+                         WorldCount="@overviewData.WorldCount"
+                         ColonyCount="@overviewData.ColonyCount"
+                         EmpireCount="@overviewData.EmpireCount"
+                         RaceCount="@overviewData.RaceCount" />
+}
+else
+{
+    <section class="metrics-band" aria-label="sector summary">
+        <article><span>Systems</span><strong>Loading...</strong></article>
+        <article><span>Worlds</span><strong>Loading...</strong></article>
+        <article><span>Colonies</span><strong>Loading...</strong></article>
+        <article><span>Empires</span><strong>Loading...</strong></article>
+        <article><span>Races</span><strong>Loading...</strong></article>
+    </section>
+}
 
 <section class="overview-layout">
-    @if (!overviewMapWorkspaceReady)
+    @if (!explorerSelectionReady)
+    {
+        <div class="sector-map-three" aria-label="sector map workspace">
+            <article class="map-request-panel">
+                <span class="panel-kicker">Map workspace</span>
+                <h2>Preparing explorer workspace</h2>
+                <p>Selecting the active sector and loading the initial overview data before the map and route planner initialize.</p>
+            </article>
+        </div>
+
+        <div class="stacked-panels">
+            <article class="feature-panel route-planner-panel">
+                <span class="panel-kicker">Route planner</span>
+                <h2>Preparing route-planning workspace</h2>
+                <p>The route planner unlocks after the active sector has been selected and the overview data is ready.</p>
+            </article>
+        </div>
+    }
+    else if (!overviewMapWorkspaceReady)
     {
         <div class="sector-map-three" aria-label="sector map workspace">
             <article class="map-request-panel">
@@ -116,16 +148,9 @@
     protected override async Task OnInitializedAsync()
     {
         await RefreshExplorerDataAsync();
-
-        var initialSector = RequestedSectorId is int requestedSectorId
-            ? ExplorerSectors.FirstOrDefault(sector => sector.Id == requestedSectorId) ?? explorerContext.CurrentSector
-            : explorerContext.CurrentSector;
-
-        selectedSectorId = initialSector.Id;
-        await LoadSectorOverviewDataAsync(initialSector.Id);
-        selectedSystemId = initialSector.Systems.FirstOrDefault()?.Id ?? 0;
-        selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
+        var initialSector = GetSelectedSector();
         ApplyRequestedSelection(initialSector);
+        await EnsureSectorSelectionAsync(selectedSectorId, selectedSystemId);
         lastAppliedRequest = GetCurrentRequest();
     }
 
@@ -166,13 +191,10 @@
             return;
         }
 
-        var selectedSector = ExplorerSectors.FirstOrDefault(sector => sector.Id == previousSectorId) ?? explorerContext.CurrentSector;
-        selectedSectorId = selectedSector.Id;
-        await LoadSectorOverviewDataAsync(selectedSector.Id, cancellationToken);
-        selectedSystemId = selectedSector.Systems.Any(system => system.Id == previousSystemId)
-            ? previousSystemId
-            : selectedSector.Systems.FirstOrDefault()?.Id ?? 0;
-        selectedSystemText = FormatSelectedSystem(selectedSector, selectedSystemId);
+        await EnsureSectorSelectionAsync(
+            previousSectorId > 0 ? previousSectorId : RequestedSectorId,
+            previousSystemId > 0 ? previousSystemId : RequestedSystemId,
+            cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(searchQuery))
         {
@@ -280,6 +302,7 @@
         browserSessionRestored = true;
         if (RequestedSectorId is not null)
         {
+            await EnsureSectorSelectionAsync(RequestedSectorId, RequestedSystemId);
             await PersistExplorerSessionAsync(force: true);
             return;
         }
@@ -296,6 +319,8 @@
 
         if (string.IsNullOrWhiteSpace(storedValue))
         {
+            await EnsureSectorSelectionAsync(updateRoute: true);
+            await PersistExplorerSessionAsync(force: true);
             return;
         }
 
@@ -311,22 +336,21 @@
 
         if (storedSelection is null)
         {
+            await EnsureSectorSelectionAsync(updateRoute: true);
+            await PersistExplorerSessionAsync(force: true);
             return;
         }
 
         var sector = ExplorerSectors.FirstOrDefault(item => item.Id == storedSelection.SectorId);
         if (sector is null)
         {
+            await EnsureSectorSelectionAsync(updateRoute: true);
+            await PersistExplorerSessionAsync(force: true);
             return;
         }
 
-        selectedSectorId = sector.Id;
-        await LoadSectorOverviewDataAsync(sector.Id);
-        selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
-            ? storedSelection.SystemId
-            : sector.Systems.FirstOrDefault()?.Id ?? 0;
-        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        SyncCurrentExplorerRoute(replaceHistory: true);
+        await EnsureSectorSelectionAsync(sector.Id, storedSelection.SystemId, updateRoute: true);
+        await PersistExplorerSessionAsync(force: true);
     }
 
     private async Task PersistExplorerSessionAsync(bool force = false)
@@ -503,6 +527,42 @@
     private StarWinSector GetSelectedSector()
     {
         return ExplorerSectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? explorerContext.CurrentSector;
+    }
+
+    private async Task EnsureSectorSelectionAsync(
+        int? preferredSectorId = null,
+        int? preferredSystemId = null,
+        CancellationToken cancellationToken = default,
+        bool updateRoute = false)
+    {
+        if (ExplorerSectors.Count == 0)
+        {
+            selectedSectorId = 0;
+            selectedSystemId = 0;
+            selectedSystemText = string.Empty;
+            return;
+        }
+
+        var sector = preferredSectorId is int sectorId && sectorId > 0
+            ? ExplorerSectors.FirstOrDefault(item => item.Id == sectorId)
+            : null;
+        sector ??= ExplorerSectors.FirstOrDefault(item => item.Id == selectedSectorId);
+        sector ??= explorerContext.CurrentSector;
+        sector ??= ExplorerSectors.First();
+
+        selectedSectorId = sector.Id;
+        await LoadSectorOverviewDataAsync(sector.Id, cancellationToken);
+
+        var systemId = preferredSystemId ?? selectedSystemId;
+        selectedSystemId = sector.Systems.Any(system => system.Id == systemId)
+            ? systemId
+            : sector.Systems.FirstOrDefault()?.Id ?? 0;
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+
+        if (updateRoute)
+        {
+            SyncCurrentExplorerRoute(replaceHistory: true);
+        }
     }
 
     private int ResolveSystemIdFromSearchResult(StarWinSearchResult result, int sectorId)

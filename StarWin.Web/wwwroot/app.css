@@ -439,6 +439,14 @@ dd {
     line-height: 1.45;
 }
 
+.loading-modal.import-loading-modal {
+    width: min(580px, 100%);
+}
+
+.loading-modal.import-loading-modal .loading-progress-detail {
+    min-height: calc(1.45em * 4);
+}
+
 .loading-elapsed {
     margin: -4px 0 0;
     color: #91caff;

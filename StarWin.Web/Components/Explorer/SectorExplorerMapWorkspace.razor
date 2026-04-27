@@ -401,6 +401,18 @@ else
 
     protected override void OnParametersSet()
     {
+        if (SectorId <= 0)
+        {
+            workspaceReady = false;
+            workspaceLoading = false;
+            workspaceLoadError = string.Empty;
+            selectedSystemId = 0;
+            lastSelectedSectorId = SectorId;
+            lastSelectedSystemId = 0;
+            lastRequestedSystemId = SystemId;
+            return;
+        }
+
         workspaceReady = Workspace.IsLoaded && TryGetKnownSector() is not null;
 
         var previousSectorId = lastSelectedSectorId;
@@ -447,6 +459,11 @@ else
         if (firstRender)
         {
             await RestoreAutoLoadPreferenceAsync();
+
+            if (SectorId <= 0)
+            {
+                return;
+            }
 
             if (!workspaceReady)
             {
@@ -550,6 +567,14 @@ else
 
     private async Task EnsureWorkspaceReadyAsync(bool forceReload = false)
     {
+        if (SectorId <= 0)
+        {
+            workspaceReady = false;
+            workspaceLoading = false;
+            workspaceLoadError = string.Empty;
+            return;
+        }
+
         if (workspaceLoading && !forceReload)
         {
             return;

@@ -1,5 +1,6 @@
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 using StarWin.Application.Services;
 using StarWin.Application.Services.LegacyImport;
 using StarWin.Domain.Model.Entity.Civilization;
@@ -49,6 +50,17 @@ public sealed class ImportPageTests : BunitContext
         Assert.Contains("class=\"import-source-badge\"", cut.Markup);
         Assert.Contains("<span class=\"import-source-label\">StarWin 2 files</span>", cut.Markup);
         Assert.Contains("accept=\".zip,application/zip,application/x-zip-compressed\"", cut.Markup);
+    }
+
+    [Fact]
+    public void ImportSuccessDestinationTargetsSectorExplorerOverview()
+    {
+        var destinationBuilder = typeof(Import).GetMethod("BuildExplorerImportDestination", BindingFlags.Static | BindingFlags.NonPublic);
+
+        Assert.NotNull(destinationBuilder);
+        Assert.Equal(
+            "/sector-explorer?sectorId=42",
+            destinationBuilder!.Invoke(null, [42]));
     }
 
     private void ConfigureServices()
