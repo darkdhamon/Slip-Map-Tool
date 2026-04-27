@@ -17,6 +17,31 @@ public sealed class StarWinDatabaseMigrationCompatibilityTests
     private const string CurrentMigrationId = "20260427064246_AddAlienEmpireImportParity";
 
     [Fact]
+    public async Task Sqlite_can_apply_every_migration_step_in_sequence_from_initial_to_latest()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var dbContext = CreateSqliteDbContext(databasePath);
+            var migrator = dbContext.GetService<IMigrator>();
+            var allMigrations = dbContext.Database.GetMigrations().ToArray();
+
+            foreach (var migration in allMigrations)
+            {
+                await migrator.MigrateAsync(migration);
+            }
+
+            var appliedMigrations = await dbContext.Database.GetAppliedMigrationsAsync();
+            Assert.Equal(allMigrations, appliedMigrations);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task Versioned_sqlite_database_migrates_to_issue28_schema_without_losing_legacy_alien_empire_data()
     {
         var databasePath = CreateTempFilePath(".db");
@@ -90,6 +115,22 @@ public sealed class StarWinDatabaseMigrationCompatibilityTests
         finally
         {
             DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public void SqlServer_can_generate_every_migration_step_script_from_initial_to_latest()
+    {
+        using var dbContext = CreateSqlServerDbContext("Server=(localdb)\\mssqllocaldb;Database=StarWinMigrationScript;Trusted_Connection=True;MultipleActiveResultSets=true");
+        var migrator = dbContext.GetService<IMigrator>();
+        var allMigrations = dbContext.Database.GetMigrations().ToArray();
+        string? previousMigration = null;
+
+        foreach (var migration in allMigrations)
+        {
+            var script = migrator.GenerateScript(previousMigration, migration);
+            Assert.Contains(migration, script);
+            previousMigration = migration;
         }
     }
 
