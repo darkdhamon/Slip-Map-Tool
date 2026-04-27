@@ -32,9 +32,10 @@ public sealed class AliensPageTests : BunitContext
             Assert.Contains("Summary", cut.Markup);
             Assert.Contains("No summary yet.", cut.Markup);
             Assert.Contains("Homeworld: Helios", cut.Markup);
-            Assert.Contains("Empire memberships", cut.Markup);
             Assert.Contains("Species baseline traits", cut.Markup);
             Assert.Contains("Empire modifiers", cut.Markup);
+            Assert.Contains("Membership role", cut.Markup);
+            Assert.Contains("Population", cut.Markup);
             Assert.Contains("Base 6, mod +2", cut.Markup);
             Assert.Contains("Hair type", cut.Markup);
             Assert.Contains("Striped/Banded", cut.Markup);
@@ -181,6 +182,10 @@ public sealed class AliensPageTests : BunitContext
                 && button.TextContent.Contains("3200 million", StringComparison.Ordinal))
             .Click();
 
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Trim() == "Open empire")
+            .Click();
+
         Assert.EndsWith("/sector-explorer/empires?sectorId=7&systemId=11&raceId=1&empireId=2", navigationManager.Uri, StringComparison.Ordinal);
     }
 
@@ -220,25 +225,33 @@ public sealed class AliensPageTests : BunitContext
     }
 
     [Fact]
-    public void ShowsEmptyMembershipStateWhenRaceHasNoEmpireMemberships()
+    public void ShowOnlyChangedFilterRetainsControlsWhenResultsAreEmpty()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
-        ConfigureServices(CreateContext(
-            additionalRaces:
-            [
-                CreateRace(2, "Nomads", "Avian", "Vacuum", addMembership: false)
-            ]));
+        var context = CreateContext();
+        var empire = Assert.Single(context.Empires);
+        empire.CivilizationModifiers.Militancy = 0;
+        empire.CivilizationModifiers.Art = 0;
+        empire.CivilizationProfile.Militancy = context.AlienRaces.Single(race => race.Id == 1).CivilizationProfile.Militancy;
+        empire.CivilizationProfile.Art = context.AlienRaces.Single(race => race.Id == 1).CivilizationProfile.Art;
+
+        ConfigureServices(context);
 
         var navigationManager = Services.GetRequiredService<NavigationManager>();
-        navigationManager.NavigateTo("http://localhost/sector-explorer/aliens?sectorId=7&raceId=2");
+        navigationManager.NavigateTo("http://localhost/sector-explorer/aliens?sectorId=7&raceId=1");
 
         var cut = Render<Aliens>();
 
+        cut.WaitForAssertion(() => Assert.Contains("Only changed empires", cut.Markup));
+
+        cut.Find("input[type='checkbox']").Change(true);
+
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("No empire memberships in this sector.", cut.Markup);
-            Assert.Contains("GURPS template", cut.Markup);
+            Assert.Contains("No empire-specific civilization modifiers match the current filters.", cut.Markup);
+            Assert.Contains("Only changed empires", cut.Markup);
+            Assert.Contains("Search empires", cut.Markup);
         });
     }
 
