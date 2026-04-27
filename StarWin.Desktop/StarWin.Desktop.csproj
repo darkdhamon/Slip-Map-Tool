@@ -31,6 +31,11 @@
     <AssemblyTitle>Starforged Atlas Desktop</AssemblyTitle>
     <Product>Starforged Atlas</Product>
     <ApplicationIcon>Assets\StarforgedAtlasLogo.ico</ApplicationIcon>
+    <AssemblyVersion>2026.4.26.2</AssemblyVersion>
+    <FileVersion>2026.4.26.2</FileVersion>
+    <Version>2026.4.26.2</Version>
+    <InformationalVersion>2026-04-26.2-developer-preview</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">

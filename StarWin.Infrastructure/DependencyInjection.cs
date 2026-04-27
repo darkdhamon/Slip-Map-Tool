@@ -78,14 +78,50 @@ public static class DependencyInjection
 
         if (dbContext.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
         {
+            if (!await HasRequiredSqliteApplicationSchemaAsync(dbContext))
+            {
+                await dbContext.Database.EnsureDeletedAsync();
+                await dbContext.Database.EnsureCreatedAsync();
+                await StarSystemNameUniqueness.EnsureUniquePersistedNamesAsync(dbContext);
+                return;
+            }
+
             await UpgradeSqliteDatabaseAsync(dbContext);
-            await StarSystemNameUniqueness.EnsureUniquePersistedNamesAsync(dbContext);
             await dbContext.Database.MigrateAsync();
+            await StarSystemNameUniqueness.EnsureUniquePersistedNamesAsync(dbContext);
             return;
         }
 
-        await StarSystemNameUniqueness.EnsureUniquePersistedNamesAsync(dbContext);
         await dbContext.Database.MigrateAsync();
+        await StarSystemNameUniqueness.EnsureUniquePersistedNamesAsync(dbContext);
+    }
+
+    private static async Task<bool> HasRequiredSqliteApplicationSchemaAsync(StarWinDbContext dbContext)
+    {
+        var connectionString = dbContext.Database.GetConnectionString();
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return false;
+        }
+
+        var builder = new SqliteConnectionStringBuilder(connectionString);
+        var databasePath = builder.DataSource;
+        if (string.IsNullOrWhiteSpace(databasePath) || databasePath.Equals(":memory:", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        databasePath = Path.GetFullPath(databasePath);
+        if (!File.Exists(databasePath))
+        {
+            return false;
+        }
+
+        await using var connection = new SqliteConnection(builder.ConnectionString);
+        await connection.OpenAsync();
+
+        return await TableExistsAsync(connection, "Sectors")
+            && await TableExistsAsync(connection, "StarSystems");
     }
 
     private static async Task UpgradeSqliteDatabaseAsync(StarWinDbContext dbContext)

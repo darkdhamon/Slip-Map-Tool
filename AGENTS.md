@@ -31,6 +31,12 @@ GitHub release workflow:
    - `Commit summary`
    - `Notes`
 8. In the `Included assets` section, list the portable desktop package zip and note that `Delcora.Sector.zip` should be downloaded from the previous release when it is not re-uploaded for the current release.
+9. When promoting `dev` to `master`, update the desktop application version before the pull request is merged so the version change is included in the `dev` -> `master` pull request.
+10. The desktop application version format is `{year}-{two-digit-month}-{two-digit-day}.{release-index}-developer-preview` for the informational release tag, where the first release of a day uses release index `0`, the second uses `1`, and so on.
+11. For the corresponding assembly/file/package numeric version, use `{year}.{month}.{day}.{release-index}`.
+12. Until explicitly changed, the release name suffix is `Developer Preview`.
+13. Include the release name in the `dev` -> `master` pull request title/body when preparing the promotion.
+14. After the `dev` -> `master` pull request is fully merged, create the GitHub release from `master` using that version.
 
 When an assigned issue is in `Backlog`, move it to `Ready` after research is complete.
 
