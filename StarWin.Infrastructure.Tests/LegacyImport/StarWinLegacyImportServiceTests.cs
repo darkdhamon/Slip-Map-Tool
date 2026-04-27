@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Reflection;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -91,6 +92,20 @@ public sealed class StarWinLegacyImportServiceTests
             Assert.Equal("Veloran Tradition", empire.Religions[0].ReligionName);
             Assert.False(string.IsNullOrWhiteSpace(empire.ImportDataJson));
             Assert.Equal(1, await verificationContext.Religions.CountAsync());
+
+            using var raceImportData = JsonDocument.Parse(race.ImportDataJson!);
+            Assert.Equal("Land-dwelling", raceImportData.RootElement.GetProperty("EnvironmentType").GetString());
+            Assert.Equal("Carbon", raceImportData.RootElement.GetProperty("BodyType").GetString());
+            Assert.Equal("Animism", raceImportData.RootElement.GetProperty("ReligionType").GetString());
+            Assert.Equal("Rare", raceImportData.RootElement.GetProperty("HairType").GetString());
+            Assert.Equal("Acute hearing", raceImportData.RootElement.GetProperty("Abilities")[0].GetString());
+            Assert.Equal(8, raceImportData.RootElement.GetProperty("Attributes").GetProperty("TechLevel").GetByte());
+
+            using var empireImportData = JsonDocument.Parse(empire.ImportDataJson!);
+            Assert.Equal("Veloran State", empireImportData.RootElement.GetProperty("GeneratedEmpireName").GetString());
+            Assert.Equal("Anarchy", empireImportData.RootElement.GetProperty("GovernmentType").GetString());
+            Assert.Equal("Animism", empireImportData.RootElement.GetProperty("ReligionType").GetString());
+            Assert.Equal(120, empireImportData.RootElement.GetProperty("EmpireAttributes").GetProperty("EconomicPowerMcr").GetInt64());
             Assert.Equal(empire.Id, membership.EmpireId);
             Assert.Equal(race.Id, membership.RaceId);
             Assert.Equal(empire.Id, contact.EmpireId);

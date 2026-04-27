@@ -2861,34 +2861,7 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
             ColorPattern = GetColorPattern(record.BodyCharacteristicFlags),
             LegacyAttributes = record.Attributes,
             RequiresUserRename = generatedName.RequiresUserRename,
-            ImportDataJson = SerializeImportData(new
-            {
-                record.LegacyId,
-                record.HomePlanetId,
-                record.EnvironmentType,
-                record.BodyType,
-                record.LimbPairCount,
-                record.DietType,
-                record.ReproductionType,
-                record.ReproductionMethodType,
-                record.GovernmentType,
-                record.BodyCoverType,
-                record.AppearanceType,
-                record.MassKg,
-                record.SizeCm,
-                record.LimbTypes,
-                record.Attributes,
-                record.AbilityFlags,
-                record.ColorFlags,
-                record.HairColorFlags,
-                record.BodyCharacteristicFlags,
-                record.EyeColorFlags,
-                record.EyeCharacteristicFlags,
-                record.HairType,
-                record.ReligionType,
-                record.Devotion,
-                record.Name
-            })
+            ImportDataJson = SerializeImportData(BuildLegacyAlienImportData(record))
         };
     }
 
@@ -2903,6 +2876,7 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         legacyAliensById.TryGetValue(record.LegacyId, out var legacyAlien);
         alienRacesById.TryGetValue(record.LegacyId, out var alien);
         var governmentType = Lookup(GovernmentTypes, legacyAlien?.GovernmentType ?? 0, "Government");
+        var religionType = Lookup(ReligionTypes, legacyAlien?.ReligionType ?? 0, "Religion");
         var empireName = GenerateEmpireName(alien?.Name ?? $"Empire {record.LegacyId}", governmentType, null, usedEmpireNames);
         var empire = new Empire
         {
@@ -2941,11 +2915,7 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
                 FoundingRaceId = record.LegacyId,
                 FoundingWorldId = alien?.HomePlanetId
             },
-            ImportDataJson = SerializeImportData(new
-            {
-                record.LegacyId,
-                record.Attributes
-            })
+            ImportDataJson = SerializeImportData(BuildLegacyEmpireImportData(record, legacyAlien, alien, empireName, governmentType, religionType))
         };
 
         empire.RaceMemberships.Add(new EmpireRaceMembership
@@ -2969,7 +2939,6 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
             });
         }
 
-        var religionType = Lookup(ReligionTypes, legacyAlien?.ReligionType ?? 0, "Religion");
         empire.Religions.Add(new EmpireReligion
         {
             EmpireId = empire.Id,
@@ -3586,6 +3555,103 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         }
 
         return results;
+    }
+
+    private static object BuildLegacyAlienImportData(LegacyAlienImport record)
+    {
+        return new
+        {
+            record.LegacyId,
+            record.HomePlanetId,
+            Name = record.Name,
+            EnvironmentType = Lookup(EnvironmentTypes, record.EnvironmentType, "Environment"),
+            BodyType = Lookup(BodyChemistries, record.BodyType, "Body"),
+            LimbPairCount = record.LimbPairCount,
+            LimbTypes = DecodeLimbTypes(record.LimbTypes, record.LimbPairCount),
+            DietType = Lookup(DietTypes, record.DietType, "Diet"),
+            ReproductionType = Lookup(ReproductionTypes, record.ReproductionType, "Reproduction"),
+            ReproductionMethodType = Lookup(ReproductionMethodTypes, record.ReproductionMethodType, "Reproduction method"),
+            GovernmentType = Lookup(GovernmentTypes, record.GovernmentType, "Government"),
+            BodyCoverType = Lookup(BodyCoverTypes, record.BodyCoverType, "Body cover"),
+            AppearanceType = Lookup(AppearanceTypes, record.AppearanceType, "Appearance"),
+            record.MassKg,
+            record.SizeCm,
+            Attributes = BuildLegacyAlienAttributeData(record.Attributes),
+            Abilities = DecodeFlags(record.AbilityFlags, SpecialAbilityTypes),
+            BodyColors = DecodeFlags(record.ColorFlags, ColorTypes),
+            HairColors = DecodeFlags(record.HairColorFlags, HairColorTypes),
+            BodyCharacteristics = DecodeBodyCharacteristics(record.BodyCharacteristicFlags),
+            ColorPattern = GetColorPattern(record.BodyCharacteristicFlags),
+            EyeColors = DecodeFlags(record.EyeColorFlags, EyeColorTypes),
+            EyeCharacteristics = DecodeFlags(record.EyeCharacteristicFlags, EyeDetailTypes),
+            HairType = LookupZeroBased(HairTypes, record.HairType, "Hair type"),
+            ReligionType = Lookup(ReligionTypes, record.ReligionType, "Religion"),
+            record.Devotion
+        };
+    }
+
+    private static object BuildLegacyEmpireImportData(
+        LegacyEmpireImport record,
+        LegacyAlienImport? legacyAlien,
+        AlienRace? alien,
+        string empireName,
+        string governmentType,
+        string religionType)
+    {
+        return new
+        {
+            record.LegacyId,
+            GeneratedEmpireName = empireName,
+            GovernmentType = governmentType,
+            ReligionType = religionType,
+            EmpireAttributes = new
+            {
+                EconomicPowerMcr = GetEmpireAttribute(record.Attributes, 1),
+                MilitaryPower = GetEmpireAttribute(record.Attributes, 2),
+                NativePopulationMillions = GetEmpireAttribute(record.Attributes, 3),
+                TradeBonusMcr = GetEmpireAttribute(record.Attributes, 4),
+                CaptivePopulationMillions = GetEmpireAttribute(record.Attributes, 5),
+                IndependentPopulationMillions = GetEmpireAttribute(record.Attributes, 6),
+                SubjectPopulationMillions = GetEmpireAttribute(record.Attributes, 7),
+                Planets = GetEmpireAttributeAsInt(record.Attributes, 8),
+                CaptivePlanets = GetEmpireAttributeAsInt(record.Attributes, 9),
+                SubjugatedPlanets = GetEmpireAttributeAsInt(record.Attributes, 10),
+                Moons = GetEmpireAttributeAsInt(record.Attributes, 11),
+                SubjugatedMoons = GetEmpireAttributeAsInt(record.Attributes, 12),
+                IndependentColonies = GetEmpireAttributeAsInt(record.Attributes, 13)
+            },
+            SourceRace = legacyAlien is null
+                ? null
+                : new
+                {
+                    legacyAlien.LegacyId,
+                    RaceName = alien?.Name ?? legacyAlien.Name,
+                    TechLevel = GetAttribute(legacyAlien.Attributes, 8),
+                    SpatialAge = GetAttribute(legacyAlien.Attributes, 15)
+                }
+        };
+    }
+
+    private static object BuildLegacyAlienAttributeData(IReadOnlyList<byte> attributes)
+    {
+        return new
+        {
+            Militancy = GetAttribute(attributes, 1),
+            Determination = GetAttribute(attributes, 2),
+            RacialTolerance = GetAttribute(attributes, 3),
+            Progressiveness = GetAttribute(attributes, 4),
+            Loyalty = GetAttribute(attributes, 5),
+            SocialCohesion = GetAttribute(attributes, 6),
+            PsiPower = GetAttribute(attributes, 7),
+            TechLevel = GetAttribute(attributes, 8),
+            Body = GetAttribute(attributes, 9),
+            Mind = GetAttribute(attributes, 10),
+            Speed = GetAttribute(attributes, 11),
+            Lifespan = GetAttribute(attributes, 12),
+            Art = GetAttribute(attributes, 13),
+            Individualism = GetAttribute(attributes, 14),
+            SpatialAge = GetAttribute(attributes, 15)
+        };
     }
 
     private static bool HasFlag(IReadOnlyList<byte> flags, int oneBasedByteIndex, int oneBasedBitIndex)
