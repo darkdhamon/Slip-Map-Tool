@@ -181,17 +181,12 @@ internal sealed class PortableLauncher
 
                     var currentProcessId = Environment.ProcessId;
                     var helperExecutablePath = CreateUpdateHelperExecutable(stagingParent);
-                    var startInfo = new ProcessStartInfo
-                    {
-                        FileName = helperExecutablePath,
-                        UseShellExecute = true,
-                        WorkingDirectory = stagingParent,
-                        Arguments =
-                            $"{ApplyUpdateArgument} " +
-                            $"{StagingRootArgument} \"{extractRoot}\" " +
-                            $"{TargetRootArgument} \"{packageRoot}\" " +
-                            $"{WaitForPidArgument} {currentProcessId}"
-                    };
+                    var startInfo = CreateUpdateHelperStartInfo(
+                        helperExecutablePath,
+                        stagingParent,
+                        extractRoot,
+                        packageRoot,
+                        currentProcessId);
 
                     Process.Start(startInfo);
                 });
@@ -254,6 +249,31 @@ internal sealed class PortableLauncher
         var helperExecutablePath = Path.Combine(stagingParent, HelperExecutableName);
         File.Copy(currentExecutablePath, helperExecutablePath, overwrite: true);
         return helperExecutablePath;
+    }
+
+    internal static ProcessStartInfo CreateUpdateHelperStartInfo(
+        string helperExecutablePath,
+        string workingDirectory,
+        string stagingRoot,
+        string targetRoot,
+        int waitForPid)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = helperExecutablePath,
+            UseShellExecute = true,
+            WorkingDirectory = workingDirectory
+        };
+
+        startInfo.ArgumentList.Add(ApplyUpdateArgument);
+        startInfo.ArgumentList.Add(StagingRootArgument);
+        startInfo.ArgumentList.Add(stagingRoot);
+        startInfo.ArgumentList.Add(TargetRootArgument);
+        startInfo.ArgumentList.Add(targetRoot);
+        startInfo.ArgumentList.Add(WaitForPidArgument);
+        startInfo.ArgumentList.Add(waitForPid.ToString(CultureInfo.InvariantCulture));
+
+        return startInfo;
     }
 
     private async Task ApplyUpdateAsync(string[] args)

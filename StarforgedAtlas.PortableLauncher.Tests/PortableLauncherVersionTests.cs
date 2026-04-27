@@ -95,6 +95,26 @@ public sealed class PortableLauncherVersionTests
         }
     }
 
+    [Fact]
+    public void CreateUpdateHelperStartInfo_preserves_trailing_backslash_arguments()
+    {
+        var startInfo = global::PortableLauncher.CreateUpdateHelperStartInfo(
+            @"C:\temp\StarforgedAtlas.UpdateHelper.exe",
+            @"C:\temp",
+            @"C:\temp\package",
+            @"C:\portable\Starforged-Atlas-Portable\",
+            4321);
+
+        Assert.Equal(7, startInfo.ArgumentList.Count);
+        Assert.Equal("--apply-update", startInfo.ArgumentList[0]);
+        Assert.Equal("--staging-root", startInfo.ArgumentList[1]);
+        Assert.Equal(@"C:\temp\package", startInfo.ArgumentList[2]);
+        Assert.Equal("--target-root", startInfo.ArgumentList[3]);
+        Assert.Equal(@"C:\portable\Starforged-Atlas-Portable\", startInfo.ArgumentList[4]);
+        Assert.Equal("--wait-for-pid", startInfo.ArgumentList[5]);
+        Assert.Equal("4321", startInfo.ArgumentList[6]);
+    }
+
     private sealed class CollectingProgress<T>(List<T> values) : IProgress<T>
     {
         public void Report(T value) => values.Add(value);
