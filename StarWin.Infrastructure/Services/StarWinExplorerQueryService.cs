@@ -829,20 +829,11 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             var searchPattern = $"%{request.Query.Trim()}%";
             empiresQuery = empiresQuery.Where(empire =>
                 EF.Functions.Like(empire.Name, searchPattern)
-                || EF.Functions.Like(empire.ExpansionPolicy.ToString(), searchPattern)
-                || (empire.Founding.FoundingWorldId.HasValue && dbContext.Worlds.Any(world =>
-                    world.Id == empire.Founding.FoundingWorldId.Value
-                    && EF.Functions.Like(world.Name, searchPattern)))
-                || empire.RaceMemberships.Any(membership =>
-                    EF.Functions.Like(membership.Role.ToString(), searchPattern)
-                    || dbContext.AlienRaces.Any(race =>
-                        race.Id == membership.RaceId
-                        && EF.Functions.Like(race.Name, searchPattern)))
-                || empire.Contacts.Any(contact =>
-                    EF.Functions.Like(contact.Relation, searchPattern)
-                    || dbContext.Empires.Any(otherEmpire =>
-                        otherEmpire.Id == contact.OtherEmpireId
-                        && EF.Functions.Like(otherEmpire.Name, searchPattern))));
+                || dbContext.EntityNotes.Any(note =>
+                    note.TargetId == empire.Id
+                    && (note.TargetKind == EntityNoteTargetKind.Empire
+                        || note.TargetKind == EntityNoteTargetKind.EmpireSummary)
+                    && EF.Functions.Like(note.Markdown, searchPattern)));
         }
 
         if (request.FallenOnly)

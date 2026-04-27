@@ -133,6 +133,14 @@ public sealed class StarWinExplorerQueryServiceTests
             Assert.Single(querySearch.Items);
             Assert.Equal("Aurelian Concord", querySearch.Items[0].Name);
 
+            var summarySearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, Query: "trade coalition"));
+            Assert.Single(summarySearch.Items);
+            Assert.Equal("Aurelian Concord", summarySearch.Items[0].Name);
+
+            var notesSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, Query: "archivists"));
+            Assert.Single(notesSearch.Items);
+            Assert.Equal("Watcher Remnant", notesSearch.Items[0].Name);
+
             var raceSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, RaceId: 2));
             Assert.Single(raceSearch.Items);
             Assert.Equal("Krell Reach", raceSearch.Items[0].Name);
@@ -477,6 +485,19 @@ public sealed class StarWinExplorerQueryServiceTests
             TargetId = 1,
             Markdown = "Ancient diplomats with a strong expansion record."
         });
+        dbContext.EntityNotes.AddRange(
+            new EntityNote
+            {
+                TargetKind = EntityNoteTargetKind.EmpireSummary,
+                TargetId = 201,
+                Markdown = "A frontier trade coalition with a diplomatic charter."
+            },
+            new EntityNote
+            {
+                TargetKind = EntityNoteTargetKind.Empire,
+                TargetId = 203,
+                Markdown = "Reclusive archivists preserving pre-collapse records."
+            });
 
         await dbContext.SaveChangesAsync();
     }

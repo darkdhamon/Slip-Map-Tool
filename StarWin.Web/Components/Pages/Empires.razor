@@ -33,7 +33,7 @@
                     <summary class="record-filter-summary">Search</summary>
                     <label>
                         Search
-                        <input placeholder="Name, policy, homeworld..."
+                        <input placeholder="Name, summary, or notes..."
                                @bind="empireQuery"
                                @bind:event="oninput"
                                @bind:after="HandleEmpireFiltersChangedAsync" />
@@ -114,6 +114,16 @@
                     <EditableEntityName Name="@selectedEmpire.Name"
                                         Label="Empire"
                                         NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.Empire, selectedEmpire.Id, name)" />
+                    <section class="alien-summary-card alien-summary-editor-card">
+                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.EmpireSummary"
+                                          TargetId="selectedEmpire.Id"
+                                          Title="Empire summary"
+                                          Heading="Summary"
+                                          EditButtonText="Edit summary"
+                                          EmptyText="No summary yet."
+                                          EditorPlaceholder="Write a short summary for this empire..."
+                                          EditorRows="4" />
+                    </section>
                     @{
                         var empireImages = GetEntityImages(EntityImageTargetKind.Empire, selectedEmpire.Id);
                     }

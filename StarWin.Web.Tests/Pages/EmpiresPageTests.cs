@@ -29,12 +29,14 @@ public sealed class EmpiresPageTests : BunitContext
         {
             Assert.Contains("Empire profile", cut.Markup);
             Assert.Contains("Orion Compact", cut.Markup);
+            Assert.Contains("Summary", cut.Markup);
+            Assert.Contains("No summary yet.", cut.Markup);
             Assert.Contains("Homeworld: Helios", cut.Markup);
         });
     }
 
     [Fact]
-    public void FiltersEmpiresBySearchQueryAndClearsFilters()
+    public void FiltersEmpiresBySummarySearchAndClearsFilters()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -59,11 +61,20 @@ public sealed class EmpiresPageTests : BunitContext
                     colonyName: "Zephyria Prime",
                     controllingEmpireId: 3,
                     foundingEmpireId: 3)
-            ]));
+            ]),
+            new Dictionary<(EntityNoteTargetKind, int), EntityNote>
+            {
+                [(EntityNoteTargetKind.EmpireSummary, 3)] = new()
+                {
+                    TargetKind = EntityNoteTargetKind.EmpireSummary,
+                    TargetId = 3,
+                    Markdown = "Frontier trade coalition"
+                }
+            });
 
         var cut = Render<Empires>();
 
-        cut.Find("input[placeholder='Name, policy, homeworld...']").Input("Zephyr");
+        cut.Find("input[placeholder='Name, summary, or notes...']").Input("Frontier");
 
         cut.WaitForAssertion(() =>
         {
@@ -330,15 +341,18 @@ public sealed class EmpiresPageTests : BunitContext
         });
     }
 
-    private void ConfigureServices(StarWinExplorerContext context)
+    private void ConfigureServices(
+        StarWinExplorerContext context,
+        IReadOnlyDictionary<(EntityNoteTargetKind TargetKind, int TargetId), EntityNote>? notes = null)
     {
+        notes ??= new Dictionary<(EntityNoteTargetKind, int), EntityNote>();
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
-        Services.AddSingleton<IStarWinExplorerQueryService>(new FakeExplorerQueryService(context));
+        Services.AddSingleton<IStarWinExplorerQueryService>(new FakeExplorerQueryService(context, notes));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinImageService>(new FakeImageService());
         Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());
-        Services.AddSingleton<IStarWinEntityNoteService>(new FakeEntityNoteService());
+        Services.AddSingleton<IStarWinEntityNoteService>(new FakeEntityNoteService(notes));
     }
 
     private static StarWinExplorerContext CreateContext(
@@ -487,7 +501,9 @@ public sealed class EmpiresPageTests : BunitContext
         }
     }
 
-    private sealed class FakeExplorerQueryService(StarWinExplorerContext context) : IStarWinExplorerQueryService
+    private sealed class FakeExplorerQueryService(
+        StarWinExplorerContext context,
+        IReadOnlyDictionary<(EntityNoteTargetKind TargetKind, int TargetId), EntityNote> notes) : IStarWinExplorerQueryService
     {
         public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
         {
@@ -728,25 +744,21 @@ public sealed class EmpiresPageTests : BunitContext
             }
 
             var query = request.Query.Trim();
-            var homeWorld = context.Sectors
-                .SelectMany(sector => sector.Systems)
-                .SelectMany(system => system.Worlds)
-                .FirstOrDefault(world => world.Id == empire.Founding.FoundingWorldId);
-
             return ContainsQuery(empire.Name, query)
-                || ContainsQuery(empire.ExpansionPolicy.ToString(), query)
-                || ContainsQuery(homeWorld?.Name, query)
-                || empire.RaceMemberships.Any(membership =>
-                    ContainsQuery(context.AlienRaces.FirstOrDefault(race => race.Id == membership.RaceId)?.Name, query)
-                    || ContainsQuery(membership.Role.ToString(), query))
-                || empire.Contacts.Any(contact =>
-                    ContainsQuery(contact.Relation, query)
-                    || ContainsQuery(context.Empires.FirstOrDefault(otherEmpire => otherEmpire.Id == contact.OtherEmpireId)?.Name, query));
+                || ContainsQuery(GetNoteMarkdown(EntityNoteTargetKind.EmpireSummary, empire.Id), query)
+                || ContainsQuery(GetNoteMarkdown(EntityNoteTargetKind.Empire, empire.Id), query);
         }
 
         private static bool ContainsQuery(string? value, string query)
         {
             return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
+        }
+
+        private string? GetNoteMarkdown(EntityNoteTargetKind targetKind, int targetId)
+        {
+            return notes.TryGetValue((targetKind, targetId), out var note)
+                ? note.Markdown
+                : null;
         }
 
         private bool IsFallenEmpire(Empire empire, int sectorId)
@@ -805,11 +817,15 @@ public sealed class EmpiresPageTests : BunitContext
         }
     }
 
-    private sealed class FakeEntityNoteService : IStarWinEntityNoteService
+    private sealed class FakeEntityNoteService(
+        IReadOnlyDictionary<(EntityNoteTargetKind TargetKind, int TargetId), EntityNote> notes) : IStarWinEntityNoteService
     {
         public Task<EntityNote?> GetNoteAsync(EntityNoteTargetKind targetKind, int targetId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<EntityNote?>(null);
+            return Task.FromResult(
+                notes.TryGetValue((targetKind, targetId), out var note)
+                    ? note
+                    : null);
         }
 
         public Task<EntityNote?> SaveNoteAsync(EntityNoteTargetKind targetKind, int targetId, string markdown, CancellationToken cancellationToken = default)
