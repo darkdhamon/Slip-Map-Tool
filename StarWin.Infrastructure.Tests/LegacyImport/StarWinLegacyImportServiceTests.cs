@@ -69,12 +69,28 @@ public sealed class StarWinLegacyImportServiceTests
             Assert.Equal(1, await verificationContext.Set<EmpireContact>().CountAsync());
 
             var race = await verificationContext.AlienRaces.SingleAsync();
-            var empire = await verificationContext.Empires.SingleAsync();
+            var empire = await verificationContext.Empires
+                .Include(item => item.Religions)
+                .SingleAsync();
             var membership = await verificationContext.Set<EmpireRaceMembership>().SingleAsync();
             var contact = await verificationContext.Set<EmpireContact>().SingleAsync();
 
             Assert.Equal("Veloran", race.Name);
-            Assert.Equal("Veloran", empire.Name);
+            Assert.Equal("Veloran State", empire.Name);
+            Assert.Equal("Rare", race.HairType);
+            Assert.Contains("Pair 1: Arms", race.LimbTypes);
+            Assert.Contains("Pair 2: Legs", race.LimbTypes);
+            Assert.Contains("Acute hearing", race.Abilities);
+            Assert.Contains("Tail", race.BodyCharacteristics);
+            Assert.Contains("Green", race.Colors);
+            Assert.Contains("Blue", race.EyeColors);
+            Assert.Contains("Black", race.HairColors);
+            Assert.False(string.IsNullOrWhiteSpace(race.ImportDataJson));
+            Assert.Equal("Anarchy", empire.GovernmentType);
+            Assert.Single(empire.Religions);
+            Assert.Equal("Veloran Tradition", empire.Religions[0].ReligionName);
+            Assert.False(string.IsNullOrWhiteSpace(empire.ImportDataJson));
+            Assert.Equal(1, await verificationContext.Religions.CountAsync());
             Assert.Equal(empire.Id, membership.EmpireId);
             Assert.Equal(race.Id, membership.RaceId);
             Assert.Equal(empire.Id, contact.EmpireId);
@@ -290,6 +306,8 @@ public sealed class StarWinLegacyImportServiceTests
         buffer[10] = 1;
         buffer[11] = 1;
         buffer[12] = 1;
+        buffer[18] = 5;
+        buffer[19] = 3;
         WriteInt16(buffer, 14, 180);
         WriteInt16(buffer, 16, 220);
         for (var index = 0; index < 15; index++)
@@ -297,6 +315,12 @@ public sealed class StarWinLegacyImportServiceTests
             buffer[30 + index] = (byte)(index + 1);
         }
 
+        buffer[45] = 1;
+        buffer[57] = 64;
+        buffer[59] = 2;
+        buffer[61] = 1;
+        buffer[63] = 32;
+        buffer[65] = 2;
         buffer[67] = 1;
         buffer[68] = 1;
         buffer[69] = 7;

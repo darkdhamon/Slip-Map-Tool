@@ -8,7 +8,11 @@ public sealed class Empire
 
     public int? LegacyRaceId { get; set; }
 
+    public string GovernmentType { get; set; } = string.Empty;
+
     public CivilizationProfile CivilizationProfile { get; set; } = new();
+
+    public CivilizationModifierProfile CivilizationModifiers { get; set; } = new();
 
     public EmpireFounding Founding { get; set; } = new();
 
@@ -42,9 +46,13 @@ public sealed class Empire
 
     public long IndependentPopulationMillions { get; set; }
 
+    public string? ImportDataJson { get; set; }
+
     public MilitaryForceProfile MilitaryForces { get; set; } = new();
 
     public IList<EmpireRaceMembership> RaceMemberships { get; } = new List<EmpireRaceMembership>();
 
     public IList<EmpireContact> Contacts { get; } = new List<EmpireContact>();
+
+    public IList<EmpireReligion> Religions { get; } = new List<EmpireReligion>();
 }

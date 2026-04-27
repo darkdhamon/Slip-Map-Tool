@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.JSInterop;
+using System.Globalization;
 using StarWin.Application.Services;
 using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.Media;
@@ -16,6 +17,8 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
 {
     private const int ExplorerListBatchSize = 120;
     private const int ComboAllFilterId = -1;
+    private const int StarWindTraitMinimum = 0;
+    private const int StarWindTraitMaximum = 10;
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
     [Inject] protected IStarWinImageService ImageService { get; set; } = default!;
@@ -277,6 +280,101 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             .ThenBy(item => item.Empire.Name);
     }
 
+    protected Empire? GetPrimaryEmpire(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
+    {
+        var memberships = GetRaceEmpireMemberships(race, sectorEmpires).ToList();
+        return memberships.FirstOrDefault(item => item.Membership.IsPrimary)?.Empire
+            ?? memberships.FirstOrDefault()?.Empire;
+    }
+
+    protected static string DisplayJoinedValues(IEnumerable<string> values)
+    {
+        var items = values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return items.Count == 0 ? "N/A" : string.Join(", ", items);
+    }
+
+    protected static string DisplayLifespan(byte lifespan)
+    {
+        return lifespan switch
+        {
+            0 => "N/A",
+            >= 200 => "Immortal",
+            _ => $"{lifespan * 5} years"
+        };
+    }
+
+    protected static string GetLimbSummary(AlienRace race)
+    {
+        var limbCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var limbType in race.LimbTypes)
+        {
+            var separatorIndex = limbType.IndexOf(':');
+            var role = separatorIndex >= 0
+                ? limbType[(separatorIndex + 1)..].Trim()
+                : limbType.Trim();
+
+            if (string.IsNullOrWhiteSpace(role) || string.Equals(role, "None", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            limbCounts[role] = limbCounts.TryGetValue(role, out var count)
+                ? count + 2
+                : 2;
+        }
+
+        if (limbCounts.Count == 0)
+        {
+            return race.LimbPairCount == 0 ? "No external limbs" : "N/A";
+        }
+
+        return string.Join(", ", limbCounts.Select(item => $"{item.Value.ToString(CultureInfo.InvariantCulture)} {item.Key.ToLowerInvariant()}"));
+    }
+
+    protected static IReadOnlyList<CivilizationTraitDisplay> GetBaselineCivilizationTraits(AlienRace race)
+    {
+        return
+        [
+            new("Militancy", race.CivilizationProfile.Militancy, 0, race.CivilizationProfile.Militancy),
+            new("Determination", race.CivilizationProfile.Determination, 0, race.CivilizationProfile.Determination),
+            new("Racial tolerance", race.CivilizationProfile.RacialTolerance, 0, race.CivilizationProfile.RacialTolerance),
+            new("Progressiveness", race.CivilizationProfile.Progressiveness, 0, race.CivilizationProfile.Progressiveness),
+            new("Loyalty", race.CivilizationProfile.Loyalty, 0, race.CivilizationProfile.Loyalty),
+            new("Social cohesion", race.CivilizationProfile.SocialCohesion, 0, race.CivilizationProfile.SocialCohesion),
+            new("Art", race.CivilizationProfile.Art, 0, race.CivilizationProfile.Art),
+            new("Individualism", race.CivilizationProfile.Individualism, 0, race.CivilizationProfile.Individualism)
+        ];
+    }
+
+    protected static IReadOnlyList<EmpireCivilizationModifierDisplay> GetEmpireCivilizationOverrides(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
+    {
+        return sectorEmpires
+            .Where(empire => empire.RaceMemberships.Any(membership => membership.RaceId == race.Id))
+            .Select(empire => new EmpireCivilizationModifierDisplay(
+                empire,
+                [
+                    BuildTraitDisplay("Militancy", race.CivilizationProfile.Militancy, empire.CivilizationModifiers.Militancy),
+                    BuildTraitDisplay("Determination", race.CivilizationProfile.Determination, empire.CivilizationModifiers.Determination),
+                    BuildTraitDisplay("Racial tolerance", race.CivilizationProfile.RacialTolerance, empire.CivilizationModifiers.RacialTolerance),
+                    BuildTraitDisplay("Progressiveness", race.CivilizationProfile.Progressiveness, empire.CivilizationModifiers.Progressiveness),
+                    BuildTraitDisplay("Loyalty", race.CivilizationProfile.Loyalty, empire.CivilizationModifiers.Loyalty),
+                    BuildTraitDisplay("Social cohesion", race.CivilizationProfile.SocialCohesion, empire.CivilizationModifiers.SocialCohesion),
+                    BuildTraitDisplay("Art", race.CivilizationProfile.Art, empire.CivilizationModifiers.Art),
+                    BuildTraitDisplay("Individualism", race.CivilizationProfile.Individualism, empire.CivilizationModifiers.Individualism)
+                ]))
+            .OrderByDescending(item => item.Empire.RaceMemberships.Any(membership => membership.RaceId == race.Id && membership.IsPrimary))
+            .ThenBy(item => item.Empire.Name)
+            .ToList();
+    }
+
+    protected static string DisplayModifier(int modifier)
+    {
+        return modifier > 0 ? $"+{modifier}" : modifier.ToString(CultureInfo.InvariantCulture);
+    }
+
     protected GurpsTemplate BuildGurpsTemplate(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
     {
         var sector = GetSelectedSector();
@@ -354,8 +452,14 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
 
         if (race.BiologyProfile.Lifespan > 0)
         {
-            yield return $"Lifespan {race.BiologyProfile.Lifespan}";
+            yield return $"Lifespan {DisplayLifespan(race.BiologyProfile.Lifespan)}";
         }
+    }
+
+    private static CivilizationTraitDisplay BuildTraitDisplay(string name, byte baseline, int modifier)
+    {
+        var computed = Math.Clamp(baseline + modifier, StarWindTraitMinimum, StarWindTraitMaximum);
+        return new CivilizationTraitDisplay(name, baseline, modifier, computed);
     }
 
     protected static int CountGurpsTraits(GurpsTemplate template)
@@ -410,10 +514,8 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             || ContainsQuery(race.AppearanceType, query)
             || ContainsQuery(race.BodyChemistry, query)
             || ContainsQuery(race.EnvironmentType, query)
-            || ContainsQuery(race.GovernmentType, query)
             || ContainsQuery(race.ReproductionMethod, query)
             || ContainsQuery(race.Diet, query)
-            || ContainsQuery(race.Religion, query)
             || ContainsQuery(race.BiologyProfile.Body.ToString(), query)
             || ContainsQuery(race.BiologyProfile.Mind.ToString(), query)
             || ContainsQuery(race.BiologyProfile.Speed.ToString(), query)
@@ -669,4 +771,8 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     }
 
     protected sealed record RaceEmpireMembership(Empire Empire, EmpireRaceMembership Membership);
+
+    protected sealed record CivilizationTraitDisplay(string Name, int Baseline, int Modifier, int Computed);
+
+    protected sealed record EmpireCivilizationModifierDisplay(Empire Empire, IReadOnlyList<CivilizationTraitDisplay> Traits);
 }

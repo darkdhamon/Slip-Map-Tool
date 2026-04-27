@@ -31,6 +31,11 @@ public sealed class AliensPageTests : BunitContext
             Assert.Contains("Aurelian", cut.Markup);
             Assert.Contains("Homeworld: Helios", cut.Markup);
             Assert.Contains("Empire memberships", cut.Markup);
+            Assert.Contains("Species baseline traits", cut.Markup);
+            Assert.Contains("Empire modifiers", cut.Markup);
+            Assert.Contains("Hair type", cut.Markup);
+            Assert.Contains("Striped/Banded", cut.Markup);
+            Assert.Contains("Aurelian import", cut.Markup);
         });
     }
 
@@ -243,10 +248,21 @@ public sealed class AliensPageTests : BunitContext
         {
             Id = 2,
             Name = "Orion Compact",
+            GovernmentType = "Council",
             Planets = 4,
             NativePopulationMillions = 3200
         };
         empire.CivilizationProfile.TechLevel = 9;
+        empire.CivilizationProfile.SpatialAge = 6;
+        empire.CivilizationModifiers.Militancy = 2;
+        empire.CivilizationModifiers.Art = -1;
+        empire.Religions.Add(new EmpireReligion
+        {
+            EmpireId = empire.Id,
+            ReligionId = 1,
+            ReligionName = "Aurelian Faith",
+            PopulationPercent = 100m
+        });
         empire.Founding.FoundingWorldId = world.Id;
         empire.RaceMemberships.Add(new EmpireRaceMembership
         {
@@ -296,22 +312,38 @@ public sealed class AliensPageTests : BunitContext
             EnvironmentType = environmentType,
             BodyChemistry = "Carbon",
             BodyCoverType = "Feathered",
-            GovernmentType = "Council",
             Diet = "Omnivore",
-            Religion = "Animism",
             Reproduction = "Sexual",
             ReproductionMethod = "Live birth",
             DevotionLevel = AlienDevotionLevel.High,
             MassKg = 85,
             SizeCm = 180,
-            LimbPairCount = 2
+            LimbPairCount = 2,
+            HairType = "Rare",
+            ColorPattern = "Striped/Banded",
+            ImportDataJson = "{ \"legacy\": \"Aurelian import\" }"
         };
+        race.CivilizationProfile.Militancy = 6;
+        race.CivilizationProfile.Determination = 4;
+        race.CivilizationProfile.RacialTolerance = 5;
+        race.CivilizationProfile.Progressiveness = 7;
+        race.CivilizationProfile.Loyalty = 8;
+        race.CivilizationProfile.SocialCohesion = 6;
+        race.CivilizationProfile.Art = 3;
+        race.CivilizationProfile.Individualism = 5;
         race.BiologyProfile.Lifespan = 120;
         race.BiologyProfile.Body = 1;
         race.BiologyProfile.Mind = 2;
         race.BiologyProfile.Speed = 1;
         race.BiologyProfile.PsiRating = 0;
         race.HomePlanetId = 101;
+        race.LimbTypes = ["Pair 1: Arms", "Pair 2: Legs"];
+        race.Colors = ["Gold", "Blue"];
+        race.HairColors = ["Black"];
+        race.EyeColors = ["Green"];
+        race.EyeCharacteristics = ["Single"];
+        race.Abilities = ["Acute hearing"];
+        race.BodyCharacteristics = ["Tail"];
 
         if (!addMembership)
         {
