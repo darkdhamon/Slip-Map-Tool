@@ -132,10 +132,6 @@ public sealed class EmpiresPageTests : BunitContext
 
         var cut = Render<Empires>();
 
-        cut.FindAll("button")
-            .Single(button => button.TextContent.Trim() == "Show filters")
-            .Click();
-
         cut.Find("input[placeholder='All races']").Input("2 - Krell");
 
         cut.WaitForAssertion(() =>
@@ -293,10 +289,6 @@ public sealed class EmpiresPageTests : BunitContext
             ]));
 
         var cut = Render<Empires>();
-
-        cut.FindAll("button")
-            .Single(button => button.TextContent.Trim() == "Show filters")
-            .Click();
 
         cut.FindAll("button")
             .Single(button => button.TextContent.Trim() == "Fallen empires only")

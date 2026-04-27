@@ -29,7 +29,7 @@
 
 <section class="content-grid">
             <div class="record-list">
-                <details class="record-filter-panel" open="@showEmpireFilters">
+                <details class="record-filter-panel" open>
                     <summary class="record-filter-summary">Search</summary>
                     <label>
                         Search
@@ -39,36 +39,30 @@
                                @bind:after="HandleEmpireFiltersChangedAsync" />
                     </label>
                     <div class="record-filter-actions">
-                        <button type="button" class="timeline-clear-button" @onclick="ToggleEmpireFilters">
-                            @(showEmpireFilters ? "Hide filters" : "Show filters")
-                        </button>
                         <button type="button" class="timeline-clear-button" @onclick="HandleClearEmpireFiltersAsync">Clear filters</button>
                     </div>
-                    @if (showEmpireFilters)
-                    {
-                        <label>
-                            Race
-                            <input list="empire-race-options"
-                                   placeholder="All races"
-                                   @bind="empireRaceText"
-                                   @bind:event="oninput"
-                                   @bind:after="ApplyEmpireRaceFilterAsync" />
-                            <datalist id="empire-race-options">
-                                @foreach (var race in empireFilterOptions.Races)
-                                {
-                                    <option value="@($"{race.Id} - {race.Name}")" />
-                                }
-                            </datalist>
-                        </label>
-                        <div class="record-filter-chip-row">
-                            <button type="button"
-                                    class="record-filter-chip @(showOnlyFallenEmpires ? "active" : null)"
-                                    aria-pressed="@showOnlyFallenEmpires"
-                                    @onclick="ToggleFallenEmpireFilterAsync">
-                                Fallen empires only
-                            </button>
-                        </div>
-                    }
+                    <label>
+                        Race
+                        <input list="empire-race-options"
+                               placeholder="All races"
+                               @bind="empireRaceText"
+                               @bind:event="oninput"
+                               @bind:after="ApplyEmpireRaceFilterAsync" />
+                        <datalist id="empire-race-options">
+                            @foreach (var race in empireFilterOptions.Races)
+                            {
+                                <option value="@($"{race.Id} - {race.Name}")" />
+                            }
+                        </datalist>
+                    </label>
+                    <div class="record-filter-chip-row">
+                        <button type="button"
+                                class="record-filter-chip @(showOnlyFallenEmpires ? "active" : null)"
+                                aria-pressed="@showOnlyFallenEmpires"
+                                @onclick="ToggleFallenEmpireFilterAsync">
+                            Fallen empires only
+                        </button>
+                    </div>
                 </details>
                 <div class="timeline-count">Showing @LoadedEmpireSummaries.Count empire@(LoadedEmpireSummaries.Count == 1 ? string.Empty : "s")@(empireHasMoreRecords ? "+" : string.Empty)</div>
                 @if (empireListLoading && LoadedEmpireSummaries.Count == 0)

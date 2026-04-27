@@ -47,7 +47,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected int empireRaceId = ComboAllFilterId;
     protected bool showOnlyFallenEmpires;
     protected bool empireHasMoreRecords;
-    protected bool showEmpireFilters;
     protected bool empireListLoading;
     protected bool empireDetailLoading;
     protected ExplorerEmpireDetail? selectedEmpireDetail;
@@ -230,11 +229,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         await LoadEmpirePageAsync(resetList: true);
     }
 
-    protected void ToggleEmpireFilters()
-    {
-        showEmpireFilters = !showEmpireFilters;
-    }
-
     protected async Task ApplyEmpireRaceFilterAsync()
     {
         empireRaceId = ParseComboId(empireRaceText);
@@ -255,7 +249,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         empireRaceText = string.Empty;
         empireRaceId = ComboAllFilterId;
         showOnlyFallenEmpires = false;
-        showEmpireFilters = false;
         ResetEmpireWindow();
     }
 
