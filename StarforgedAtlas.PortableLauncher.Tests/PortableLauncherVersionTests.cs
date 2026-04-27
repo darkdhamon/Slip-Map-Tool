@@ -221,6 +221,75 @@ public sealed class PortableLauncherVersionTests
     }
 
     [Fact]
+    public void PendingValidation_round_trips_through_portable_state_store()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"portable-launcher-validation-state-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(root, "app", "data"));
+
+        try
+        {
+            PortableUpdateStateStore.SavePendingValidation(
+                root,
+                new PortableUpdateValidationContext(
+                    root,
+                    "2026-04-27.0-developer-preview",
+                    "2026-04-26.2-developer-preview",
+                    @"C:\temp\backup"));
+
+            var pending = PortableUpdateStateStore.LoadPendingValidation(root);
+
+            Assert.NotNull(pending);
+            Assert.Equal("2026-04-27.0-developer-preview", pending!.ReleaseTag);
+            Assert.Equal("2026-04-26.2-developer-preview", pending.PreviousVersion);
+            Assert.Equal(@"C:\temp\backup", pending.BackupRoot);
+
+            PortableUpdateStateStore.ClearPendingValidation(root);
+
+            Assert.Null(PortableUpdateStateStore.LoadPendingValidation(root));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void IgnoreRelease_preserves_pending_validation_state()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"portable-launcher-combined-state-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(root, "app", "data"));
+
+        try
+        {
+            PortableUpdateStateStore.SavePendingValidation(
+                root,
+                new PortableUpdateValidationContext(
+                    root,
+                    "2026-04-27.0-developer-preview",
+                    "2026-04-26.2-developer-preview",
+                    @"C:\temp\backup"));
+
+            PortableUpdateStateStore.IgnoreRelease(root, "2026-04-27.0-developer-preview");
+
+            var state = PortableUpdateStateStore.Load(root);
+
+            Assert.True(state.ShouldIgnore("2026-04-27.0-developer-preview"));
+            Assert.NotNull(state.PendingValidation);
+            Assert.Equal("2026-04-27.0-developer-preview", state.PendingValidation!.ReleaseTag);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public void BuildIssueDraftUri_contains_release_context()
     {
         var body = PortableUpdateFailureReporter.BuildIssueBody(

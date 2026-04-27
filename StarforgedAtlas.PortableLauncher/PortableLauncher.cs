@@ -50,7 +50,12 @@ internal sealed class PortableLauncher
             return;
         }
 
-        var postUpdateValidation = TryGetPostUpdateValidation(args, packageRoot);
+        var postUpdateValidation = PortableUpdateStateStore.LoadPendingValidation(packageRoot)
+            ?? TryGetPostUpdateValidation(args, packageRoot);
+        if (postUpdateValidation is not null)
+        {
+            PortableUpdateStateStore.SavePendingValidation(packageRoot, postUpdateValidation);
+        }
 
         try
         {
@@ -111,6 +116,7 @@ internal sealed class PortableLauncher
     {
         if (!Directory.Exists(validationContext.BackupRoot))
         {
+            PortableUpdateStateStore.ClearPendingValidation(packageRoot);
             return;
         }
 
@@ -122,6 +128,7 @@ internal sealed class PortableLauncher
 
         if (result == DialogResult.Yes)
         {
+            PortableUpdateStateStore.ClearPendingValidation(packageRoot);
             TryDeleteDirectory(Path.GetDirectoryName(validationContext.BackupRoot)!);
             return;
         }
@@ -425,6 +432,10 @@ internal sealed class PortableLauncher
 
                     progress.Report(new UpdateProgressInfo("Restarting Starforged Atlas...", "The launcher will check whether the update worked when the app exits.", 100));
 
+                    PortableUpdateStateStore.SavePendingValidation(
+                        targetRoot,
+                        new PortableUpdateValidationContext(targetRoot, releaseTag, previousVersion, backupRoot));
+
                     var launcherPath = Path.Combine(targetRoot, LauncherExecutableName);
                     var startInfo = new ProcessStartInfo
                     {
@@ -538,6 +549,7 @@ internal sealed class PortableLauncher
 
                     PortablePackageInstaller.RestoreBackup(backupRoot, targetRoot, progress);
                     PortableUpdateStateStore.IgnoreRelease(targetRoot, releaseTag);
+                    PortableUpdateStateStore.ClearPendingValidation(targetRoot);
                     PortableUpdateFailureReporter.ReportFailedUpdate(releaseTag, previousVersion);
 
                     progress.Report(new UpdateProgressInfo("Restarting the previous version...", null, 100));
@@ -916,17 +928,17 @@ internal static class PortableUpdateStateStore
         var path = GetStatePath(packageRoot);
         if (!File.Exists(path))
         {
-            return new PortableUpdateState([]);
+            return new PortableUpdateState([], null);
         }
 
         try
         {
             var state = JsonSerializer.Deserialize<PortableUpdateState>(File.ReadAllText(path));
-            return state ?? new PortableUpdateState([]);
+            return state ?? new PortableUpdateState([], null);
         }
         catch
         {
-            return new PortableUpdateState([]);
+            return new PortableUpdateState([], null);
         }
     }
 
@@ -942,7 +954,7 @@ internal static class PortableUpdateStateStore
             .Concat([releaseTag])
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        Save(packageRoot, new PortableUpdateState(ignoredReleases));
+        Save(packageRoot, state with { IgnoredReleases = ignoredReleases });
     }
 
     public static void Save(string packageRoot, PortableUpdateState state)
@@ -956,13 +968,57 @@ internal static class PortableUpdateStateStore
     {
         return Path.Combine(packageRoot, "app", "data", StateFileName);
     }
+
+    public static PortableUpdateValidationContext? LoadPendingValidation(string packageRoot)
+    {
+        var pendingValidation = Load(packageRoot).PendingValidation;
+        return pendingValidation is null
+            ? null
+            : new PortableUpdateValidationContext(
+                packageRoot,
+                pendingValidation.ReleaseTag,
+                pendingValidation.PreviousVersion,
+                pendingValidation.BackupRoot);
+    }
+
+    public static void SavePendingValidation(string packageRoot, PortableUpdateValidationContext validationContext)
+    {
+        var state = Load(packageRoot);
+        Save(
+            packageRoot,
+            state with
+            {
+                PendingValidation = new PortablePendingUpdateValidation(
+                    validationContext.ReleaseTag,
+                    validationContext.PreviousVersion,
+                    validationContext.BackupRoot)
+            });
+    }
+
+    public static void ClearPendingValidation(string packageRoot)
+    {
+        var state = Load(packageRoot);
+        if (state.PendingValidation is null)
+        {
+            return;
+        }
+
+        Save(packageRoot, state with { PendingValidation = null });
+    }
 }
 
-internal sealed record PortableUpdateState(string[] IgnoredReleases)
+internal sealed record PortableUpdateState(
+    string[] IgnoredReleases,
+    PortablePendingUpdateValidation? PendingValidation)
 {
     public bool ShouldIgnore(string releaseTag)
         => IgnoredReleases.Any(candidate => string.Equals(candidate, releaseTag, StringComparison.OrdinalIgnoreCase));
 }
+
+internal sealed record PortablePendingUpdateValidation(
+    string ReleaseTag,
+    string PreviousVersion,
+    string BackupRoot);
 
 internal static class PortableUpdateFailureReporter
 {
@@ -1129,6 +1185,7 @@ internal static class PortableUpdateFailureReporter
 }
 
 [JsonSerializable(typeof(PortableUpdateState))]
+[JsonSerializable(typeof(PortablePendingUpdateValidation))]
 [JsonSerializable(typeof(GitHubProjectSummary[]))]
 internal partial class PortableJsonContext : JsonSerializerContext
 {
