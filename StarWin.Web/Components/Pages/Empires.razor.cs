@@ -68,6 +68,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
     protected IReadOnlyList<ExplorerEmpireListItem> LoadedEmpireSummaries => loadedEmpireSummaries;
+    protected bool IsEmpireFilterBusy => empireFilterPending || empireListLoading;
 
     protected override async Task OnInitializedAsync()
     {
@@ -226,12 +227,22 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     protected async Task HandleEmpireFiltersChangedAsync()
     {
+        if (IsEmpireFilterBusy)
+        {
+            return;
+        }
+
         ResetEmpireWindow();
         await ReloadEmpiresForFilterChangeAsync();
     }
 
     protected async Task ApplyEmpireRaceFilterAsync()
     {
+        if (IsEmpireFilterBusy)
+        {
+            return;
+        }
+
         empireRaceId = ParseComboId(empireRaceText);
         ResetEmpireWindow();
         await ReloadEmpiresForFilterChangeAsync();
@@ -239,6 +250,11 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     protected async Task ToggleFallenEmpireFilterAsync()
     {
+        if (IsEmpireFilterBusy)
+        {
+            return;
+        }
+
         showOnlyFallenEmpires = !showOnlyFallenEmpires;
         ResetEmpireWindow();
         await ReloadEmpiresForFilterChangeAsync();
@@ -255,6 +271,11 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     protected async Task HandleClearEmpireFiltersAsync()
     {
+        if (IsEmpireFilterBusy)
+        {
+            return;
+        }
+
         ClearEmpireFilters();
         await ReloadEmpiresForFilterChangeAsync();
     }
@@ -558,6 +579,16 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         return !string.IsNullOrWhiteSpace(empireQuery)
             || empireRaceId != ComboAllFilterId
             || showOnlyFallenEmpires;
+    }
+
+    protected string GetFallenEmpireFilterStateText()
+    {
+        if (empireFilterPending)
+        {
+            return "Busy";
+        }
+
+        return showOnlyFallenEmpires ? "On" : "Off";
     }
 
     protected IReadOnlyList<EntityImage> GetEntityImages(EntityImageTargetKind targetKind, int targetId)

@@ -1399,6 +1399,11 @@ dd {
     color: #f8fbff;
 }
 
+.record-filter-chip:disabled {
+    opacity: 0.78;
+    cursor: wait;
+}
+
 .feature-panel,
 .detail-panel {
     padding: 18px;

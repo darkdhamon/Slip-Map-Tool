@@ -34,17 +34,19 @@
                     <label>
                         Search
                         <input placeholder="Name, summary, or notes..."
+                               disabled="@IsEmpireFilterBusy"
                                @bind="empireQuery"
                                @bind:event="oninput"
                                @bind:after="HandleEmpireFiltersChangedAsync" />
                     </label>
                     <div class="record-filter-actions">
-                        <button type="button" class="timeline-clear-button" @onclick="HandleClearEmpireFiltersAsync">Clear filters</button>
+                        <button type="button" class="timeline-clear-button" disabled="@IsEmpireFilterBusy" @onclick="HandleClearEmpireFiltersAsync">Clear filters</button>
                     </div>
                     <label>
                         Race
                         <input list="empire-race-options"
                                placeholder="All races"
+                               disabled="@IsEmpireFilterBusy"
                                @bind="empireRaceText"
                                @bind:event="oninput"
                                @bind:after="ApplyEmpireRaceFilterAsync" />
@@ -59,10 +61,11 @@
                         <button type="button"
                                 class="record-filter-chip @(showOnlyFallenEmpires ? "active" : null)"
                                 data-testid="fallen-empire-filter-toggle"
+                                disabled="@IsEmpireFilterBusy"
                                 aria-pressed="@showOnlyFallenEmpires"
                                 @onclick="ToggleFallenEmpireFilterAsync">
                             <span>Fallen empires</span>
-                            <span class="record-filter-chip-state">@(showOnlyFallenEmpires ? "On" : "Off")</span>
+                            <span class="record-filter-chip-state">@GetFallenEmpireFilterStateText()</span>
                         </button>
                     </div>
                 </details>

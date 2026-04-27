@@ -350,6 +350,8 @@ public sealed class EmpiresPageTests : BunitContext
         {
             Assert.Contains("Searching", cut.Markup);
             Assert.Contains("Searching empires with the current filters...", cut.Markup);
+            Assert.Equal("Busy", cut.Find(".record-filter-chip-state").TextContent.Trim());
+            Assert.NotNull(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("disabled"));
         });
 
         cut.WaitForAssertion(() =>
