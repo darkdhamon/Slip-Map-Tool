@@ -162,10 +162,11 @@ internal sealed class PortableLauncher
                     response.EnsureSuccessStatusCode();
 
                     var totalBytes = response.Content.Headers.ContentLength;
-                    await using var responseStream = await response.Content.ReadAsStreamAsync();
-                    await using var fileStream = File.Create(zipPath);
-
-                    await CopyDownloadToFileAsync(responseStream, fileStream, totalBytes, progress);
+                    await using (var responseStream = await response.Content.ReadAsStreamAsync())
+                    await using (var fileStream = File.Create(zipPath))
+                    {
+                        await CopyDownloadToFileAsync(responseStream, fileStream, totalBytes, progress);
+                    }
 
                     progress.Report(new UpdateProgressInfo("Extracting the portable package...", PortableZipAssetName, null));
                     ZipFile.ExtractToDirectory(zipPath, extractRoot);
