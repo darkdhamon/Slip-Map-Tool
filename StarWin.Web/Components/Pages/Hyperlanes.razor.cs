@@ -253,8 +253,30 @@ public partial class Hyperlanes : ComponentBase
 
         var days = totalHours / hoursPerDay;
         var hours = totalHours % hoursPerDay;
+        var components = new List<string>();
+        if (years > 0)
+        {
+            components.Add($"{years} Years");
+        }
 
-        return $"{years} Years, {months} Months, {days} Days, {hours} Hours";
+        if (months > 0)
+        {
+            components.Add($"{months} Months");
+        }
+
+        if (days > 0)
+        {
+            components.Add($"{days} Days");
+        }
+
+        if (hours > 0)
+        {
+            components.Add($"{hours} Hours");
+        }
+
+        return components.Count == 0
+            ? "0 Hours"
+            : string.Join(", ", components);
     }
 
     protected Task LoadMoreHyperlanes()
