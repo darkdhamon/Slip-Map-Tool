@@ -144,7 +144,7 @@ public sealed class EmpiresPageTests : BunitContext
         var additionalEmpires = new List<Empire>();
         var additionalWorlds = new List<World>();
 
-        for (var index = 0; index < 121; index++)
+        for (var index = 0; index < 30; index++)
         {
             var empireId = index + 10;
             var worldId = 200 + index;
@@ -172,8 +172,8 @@ public sealed class EmpiresPageTests : BunitContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("Showing 120 empires+", cut.Markup);
-            Assert.DoesNotContain("Empire 120", cut.Markup);
+            Assert.Contains("Showing 30 empires+", cut.Markup);
+            Assert.DoesNotContain("Orion Compact", cut.Markup);
         });
 
         cut.FindAll("button")
@@ -182,8 +182,8 @@ public sealed class EmpiresPageTests : BunitContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("Showing 122 empires", cut.Markup);
-            Assert.Contains("Empire 120", cut.Markup);
+            Assert.Contains("Showing 31 empires", cut.Markup);
+            Assert.Contains("Orion Compact", cut.Markup);
         });
     }
 
@@ -277,6 +277,7 @@ public sealed class EmpiresPageTests : BunitContext
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
+        Services.AddSingleton<IStarWinExplorerQueryService>(new FakeExplorerQueryService(context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinImageService>(new FakeImageService());
         Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());
@@ -426,6 +427,265 @@ public sealed class EmpiresPageTests : BunitContext
         public Task<StarWinSector?> LoadSectorAsync(int sectorId, ExplorerSectorLoadSections loadSections, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<StarWinSector?>(context.Sectors.FirstOrDefault(sector => sector.Id == sectorId));
+        }
+    }
+
+    private sealed class FakeExplorerQueryService(StarWinExplorerContext context) : IStarWinExplorerQueryService
+    {
+        public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ExplorerAlienRaceListItem?> LoadAlienRaceListItemAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ExplorerAlienRaceDetail?> LoadAlienRaceDetailAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            var races = GetSectorRaces(sectorId)
+                .Select(race => new ExplorerLookupOption(race.Id, race.Name))
+                .OrderBy(option => option.Name)
+                .ThenBy(option => option.Id)
+                .ToList();
+
+            return Task.FromResult(new ExplorerEmpireFilterOptions(races));
+        }
+
+        public Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)
+        {
+            var items = GetSectorEmpires(request.SectorId)
+                .Where(empire => MatchesEmpireFilters(request, empire))
+                .OrderBy(empire => empire.Name)
+                .ThenBy(empire => empire.Id)
+                .Select(empire => new ExplorerEmpireListItem(
+                    empire.Id,
+                    empire.Name,
+                    empire.Planets,
+                    empire.CivilizationProfile.TechLevel + 2,
+                    IsFallenEmpire(empire, request.SectorId)))
+                .ToList();
+
+            var page = items.Skip(request.Offset).Take(request.Limit + 1).ToList();
+            var hasMore = page.Count > request.Limit;
+            return Task.FromResult(new ExplorerEmpireListPage(page.Take(request.Limit).ToList(), hasMore));
+        }
+
+        public Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+        {
+            var empire = GetSectorEmpires(sectorId).FirstOrDefault(item => item.Id == empireId);
+            if (empire is null)
+            {
+                return Task.FromResult<ExplorerEmpireListItem?>(null);
+            }
+
+            return Task.FromResult<ExplorerEmpireListItem?>(new ExplorerEmpireListItem(
+                empire.Id,
+                empire.Name,
+                empire.Planets,
+                empire.CivilizationProfile.TechLevel + 2,
+                IsFallenEmpire(empire, sectorId)));
+        }
+
+        public Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+        {
+            var sector = context.Sectors.FirstOrDefault(item => item.Id == sectorId);
+            var empire = GetSectorEmpires(sectorId).FirstOrDefault(item => item.Id == empireId);
+            if (sector is null || empire is null)
+            {
+                return Task.FromResult<ExplorerEmpireDetail?>(null);
+            }
+
+            var homeWorld = sector.Systems
+                .SelectMany(system => system.Worlds)
+                .FirstOrDefault(world => world.Id == empire.Founding.FoundingWorldId);
+
+            var memberRaces = empire.RaceMemberships
+                .Join(
+                    context.AlienRaces,
+                    membership => membership.RaceId,
+                    race => race.Id,
+                    (membership, race) => new ExplorerEmpireRaceMembershipDetail(
+                        race.Id,
+                        race.Name,
+                        membership.Role,
+                        membership.PopulationMillions,
+                        membership.IsPrimary))
+                .OrderByDescending(item => item.IsPrimary)
+                .ThenBy(item => item.RaceName)
+                .ThenBy(item => item.RaceId)
+                .ToList();
+
+            var colonies = sector.Systems
+                .SelectMany(system => system.Worlds
+                    .Where(world => world.Colony is not null
+                        && (world.Colony!.ControllingEmpireId == empireId || world.Colony.FoundingEmpireId == empireId))
+                    .Select(world => new ExplorerEmpireColonyListing(
+                        world.Colony!.Id,
+                        string.IsNullOrWhiteSpace(world.Colony.Name) ? world.Colony.ColonyClass : world.Colony.Name,
+                        world.Colony.EstimatedPopulation,
+                        world.Colony.ControllingEmpireId == empireId,
+                        world.Id,
+                        world.Name,
+                        system.Id,
+                        system.Name)))
+                .OrderByDescending(item => item.EstimatedPopulation)
+                .ThenBy(item => item.WorldName)
+                .ThenBy(item => item.ColonyId)
+                .ToList();
+
+            return Task.FromResult<ExplorerEmpireDetail?>(new ExplorerEmpireDetail(
+                sectorId,
+                empire,
+                homeWorld,
+                memberRaces,
+                colonies,
+                colonies.Count(item => item.IsControlled),
+                IsFallenEmpire(empire, sectorId)));
+        }
+
+        public Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<string>>([]);
+        }
+
+        public Task<ExplorerTimelinePage> LoadTimelinePageAsync(ExplorerTimelinePageRequest request, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerTimelinePage([], false));
+        }
+
+        public Task<ExplorerTimelineEventDetail?> LoadTimelineEventDetailAsync(int eventId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<ExplorerTimelineEventDetail?>(null);
+        }
+
+        private IReadOnlyList<AlienRace> GetSectorRaces(int sectorId)
+        {
+            var sector = context.Sectors.FirstOrDefault(item => item.Id == sectorId);
+            if (sector is null)
+            {
+                return [];
+            }
+
+            var raceIds = new HashSet<int>();
+            foreach (var empire in GetSectorEmpires(sectorId))
+            {
+                foreach (var membership in empire.RaceMemberships)
+                {
+                    raceIds.Add(membership.RaceId);
+                }
+            }
+
+            foreach (var world in sector.Systems.SelectMany(system => system.Worlds))
+            {
+                if (world.AlienRaceId is int raceId)
+                {
+                    raceIds.Add(raceId);
+                }
+
+                if (world.Colony?.RaceId is ushort colonyRaceId)
+                {
+                    raceIds.Add(colonyRaceId);
+                }
+            }
+
+            return context.AlienRaces.Where(race => raceIds.Contains(race.Id)).ToList();
+        }
+
+        private IReadOnlyList<Empire> GetSectorEmpires(int sectorId)
+        {
+            var sector = context.Sectors.FirstOrDefault(item => item.Id == sectorId);
+            if (sector is null)
+            {
+                return [];
+            }
+
+            var empireIds = new HashSet<int>();
+            foreach (var world in sector.Systems.SelectMany(system => system.Worlds))
+            {
+                if (world.Colony?.ControllingEmpireId is int controllingEmpireId)
+                {
+                    empireIds.Add(controllingEmpireId);
+                }
+
+                if (world.Colony?.FoundingEmpireId is int foundingEmpireId)
+                {
+                    empireIds.Add(foundingEmpireId);
+                }
+            }
+
+            return context.Empires.Where(empire => empireIds.Contains(empire.Id)).ToList();
+        }
+
+        private bool MatchesEmpireFilters(ExplorerEmpireListPageRequest request, Empire empire)
+        {
+            if (request.RaceId is int raceId && !empire.RaceMemberships.Any(membership => membership.RaceId == raceId))
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Query))
+            {
+                return true;
+            }
+
+            var query = request.Query.Trim();
+            var homeWorld = context.Sectors
+                .SelectMany(sector => sector.Systems)
+                .SelectMany(system => system.Worlds)
+                .FirstOrDefault(world => world.Id == empire.Founding.FoundingWorldId);
+
+            return ContainsQuery(empire.Name, query)
+                || ContainsQuery(empire.ExpansionPolicy.ToString(), query)
+                || ContainsQuery(homeWorld?.Name, query)
+                || empire.RaceMemberships.Any(membership =>
+                    ContainsQuery(context.AlienRaces.FirstOrDefault(race => race.Id == membership.RaceId)?.Name, query)
+                    || ContainsQuery(membership.Role.ToString(), query))
+                || empire.Contacts.Any(contact =>
+                    ContainsQuery(contact.Relation, query)
+                    || ContainsQuery(context.Empires.FirstOrDefault(otherEmpire => otherEmpire.Id == contact.OtherEmpireId)?.Name, query));
+        }
+
+        private static bool ContainsQuery(string? value, string query)
+        {
+            return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
+        }
+
+        private bool IsFallenEmpire(Empire empire, int sectorId)
+        {
+            var sector = context.Sectors.First(item => item.Id == sectorId);
+            var hasControlledColony = sector.Systems
+                .SelectMany(system => system.Worlds)
+                .Any(world => world.Colony?.ControllingEmpireId == empire.Id);
+            if (hasControlledColony)
+            {
+                return false;
+            }
+
+            return sector.Systems
+                       .SelectMany(system => system.Worlds)
+                       .Any(world => world.Colony?.FoundingEmpireId == empire.Id)
+                || empire.Planets > 0
+                || empire.Moons > 0
+                || empire.SpaceHabitats > 0
+                || empire.NativePopulationMillions > 0
+                || empire.SubjectPopulationMillions > 0;
         }
     }
 

@@ -82,6 +82,102 @@ public sealed class StarWinExplorerQueryServiceTests
         }
     }
 
+    [Fact]
+    public async Task LoadEmpireFilterOptionsAsync_returns_distinct_race_options_for_sector_empires()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var options = await service.LoadEmpireFilterOptionsAsync(1);
+
+            Assert.Collection(
+                options.Races.OrderBy(item => item.Id),
+                item =>
+                {
+                    Assert.Equal(1, item.Id);
+                    Assert.Equal("Aurelian", item.Name);
+                },
+                item =>
+                {
+                    Assert.Equal(2, item.Id);
+                    Assert.Equal("Krell", item.Name);
+                });
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task LoadEmpireListPageAsync_applies_query_and_race_filters_and_marks_fallen_empires()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var querySearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, Query: "Concord"));
+            Assert.Single(querySearch.Items);
+            Assert.Equal("Aurelian Concord", querySearch.Items[0].Name);
+
+            var raceSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, RaceId: 2));
+            Assert.Single(raceSearch.Items);
+            Assert.Equal("Krell Reach", raceSearch.Items[0].Name);
+
+            var fallenSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, Query: "Watcher"));
+            Assert.Single(fallenSearch.Items);
+            Assert.True(fallenSearch.Items[0].IsFallen);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task LoadEmpireDetailAsync_returns_targeted_homeworld_memberships_and_colonies()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var detail = await service.LoadEmpireDetailAsync(1, 201);
+
+            Assert.NotNull(detail);
+            Assert.Equal("Aurelian Concord", detail!.Empire.Name);
+            Assert.Equal("Aurel Prime", detail.HomeWorld?.Name);
+            Assert.Single(detail.MemberRaces);
+            Assert.Equal("Aurelian", detail.MemberRaces[0].RaceName);
+            Assert.Single(detail.Colonies);
+            Assert.Equal("Far Aurel", detail.Colonies[0].WorldName);
+            Assert.Equal(1, detail.ControlledColonyCount);
+            Assert.False(detail.IsFallen);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
     private static async Task SeedExplorerDataAsync(StarWinDbContext dbContext)
     {
         var sector = new StarWinSector { Id = 1, Name = "Delcora" };
@@ -135,9 +231,29 @@ public sealed class StarWinExplorerQueryServiceTests
             AllegianceId = 202
         };
 
+        var fallenWorld = new World
+        {
+            Id = 104,
+            Name = "Watcher Rest",
+            StarSystemId = 20,
+            WorldType = "Terran"
+        };
+        fallenWorld.Colony = new Colony
+        {
+            Id = 1003,
+            WorldId = 104,
+            RaceId = 1,
+            ColonyClass = "Archive",
+            EstimatedPopulation = 25_000_000,
+            ControllingEmpireId = 202,
+            FoundingEmpireId = 203,
+            AllegianceId = 202
+        };
+
         homeSystem.Worlds.Add(aurelianHome);
         homeSystem.Worlds.Add(krellHome);
         remoteSystem.Worlds.Add(aurelianColonyWorld);
+        remoteSystem.Worlds.Add(fallenWorld);
         sector.Systems.Add(homeSystem);
         sector.Systems.Add(remoteSystem);
 
@@ -192,6 +308,7 @@ public sealed class StarWinExplorerQueryServiceTests
             GovernmentType = "Council"
         };
         aurelianEmpire.CivilizationProfile.TechLevel = 6;
+        aurelianEmpire.Founding.FoundingWorldId = 101;
         aurelianEmpire.RaceMemberships.Add(new EmpireRaceMembership
         {
             RaceId = 1,
@@ -215,9 +332,27 @@ public sealed class StarWinExplorerQueryServiceTests
             PopulationMillions = 450
         });
 
+        var fallenEmpire = new Empire
+        {
+            Id = 203,
+            Name = "Watcher Remnant",
+            GovernmentType = "Council",
+            Planets = 1,
+            NativePopulationMillions = 30
+        };
+        fallenEmpire.CivilizationProfile.TechLevel = 7;
+        fallenEmpire.Founding.FoundingWorldId = 104;
+        fallenEmpire.RaceMemberships.Add(new EmpireRaceMembership
+        {
+            RaceId = 1,
+            IsPrimary = false,
+            Role = EmpireRaceRole.Member,
+            PopulationMillions = 30
+        });
+
         dbContext.Sectors.Add(sector);
         dbContext.AlienRaces.AddRange(aurelian, krell);
-        dbContext.Empires.AddRange(aurelianEmpire, krellEmpire);
+        dbContext.Empires.AddRange(aurelianEmpire, krellEmpire, fallenEmpire);
         dbContext.EntityNotes.Add(new EntityNote
         {
             TargetKind = EntityNoteTargetKind.AlienRace,

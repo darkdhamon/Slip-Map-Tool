@@ -287,6 +287,182 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         return new ExplorerAlienRaceDetail(sectorId, race, homeWorld, empires);
     }
 
+    public async Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var sectorEmpireIds = await LoadSectorEmpireIdsAsync(dbContext, sectorId, cancellationToken);
+        if (sectorEmpireIds.Count == 0)
+        {
+            return new ExplorerEmpireFilterOptions([]);
+        }
+
+        var raceOptions = await (
+            from empire in dbContext.Empires.AsNoTracking()
+            from membership in empire.RaceMemberships
+            join race in dbContext.AlienRaces.AsNoTracking() on membership.RaceId equals race.Id
+            where sectorEmpireIds.Contains(empire.Id)
+            orderby race.Name, race.Id
+            select new ExplorerLookupOption(race.Id, race.Name))
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return new ExplorerEmpireFilterOptions(raceOptions);
+    }
+
+    public async Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var sectorEmpireIds = await LoadSectorEmpireIdsAsync(dbContext, request.SectorId, cancellationToken);
+        if (sectorEmpireIds.Count == 0)
+        {
+            return new ExplorerEmpireListPage([], false);
+        }
+
+        var empiresQuery = dbContext.Empires
+            .AsNoTracking()
+            .Where(empire => sectorEmpireIds.Contains(empire.Id));
+
+        empiresQuery = ApplyEmpireFilters(dbContext, empiresQuery, request);
+
+        var items = await empiresQuery
+            .OrderBy(empire => empire.Name)
+            .ThenBy(empire => empire.Id)
+            .Select(empire => new ExplorerEmpireListItem(
+                empire.Id,
+                empire.Name,
+                empire.Planets,
+                empire.CivilizationProfile.TechLevel + 2,
+                !dbContext.Colonies.Any(colony => colony.ControllingEmpireId == empire.Id)
+                    && (dbContext.Colonies.Any(colony => colony.ControllingEmpireId == empire.Id || colony.FoundingEmpireId == empire.Id)
+                        || empire.Planets > 0
+                        || empire.Moons > 0
+                        || empire.SpaceHabitats > 0
+                        || empire.NativePopulationMillions > 0
+                        || empire.SubjectPopulationMillions > 0)))
+            .Skip(request.Offset)
+            .Take(request.Limit + 1)
+            .ToListAsync(cancellationToken);
+
+        var hasMore = items.Count > request.Limit;
+        return new ExplorerEmpireListPage(items.Take(request.Limit).ToList(), hasMore);
+    }
+
+    public async Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var sectorEmpireIds = await LoadSectorEmpireIdsAsync(dbContext, sectorId, cancellationToken);
+        if (!sectorEmpireIds.Contains(empireId))
+        {
+            return null;
+        }
+
+        return await dbContext.Empires
+            .AsNoTracking()
+            .Where(empire => empire.Id == empireId)
+            .Select(empire => new ExplorerEmpireListItem(
+                empire.Id,
+                empire.Name,
+                empire.Planets,
+                empire.CivilizationProfile.TechLevel + 2,
+                !dbContext.Colonies.Any(colony => colony.ControllingEmpireId == empire.Id)
+                    && (dbContext.Colonies.Any(colony => colony.ControllingEmpireId == empire.Id || colony.FoundingEmpireId == empire.Id)
+                        || empire.Planets > 0
+                        || empire.Moons > 0
+                        || empire.SpaceHabitats > 0
+                        || empire.NativePopulationMillions > 0
+                        || empire.SubjectPopulationMillions > 0)))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var sectorEmpireIds = await LoadSectorEmpireIdsAsync(dbContext, sectorId, cancellationToken);
+        if (!sectorEmpireIds.Contains(empireId))
+        {
+            return null;
+        }
+
+        var empire = await dbContext.Empires
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(item => item.RaceMemberships)
+            .Include(item => item.Contacts)
+            .Include(item => item.Religions)
+            .FirstOrDefaultAsync(item => item.Id == empireId, cancellationToken);
+        if (empire is null)
+        {
+            return null;
+        }
+
+        var homeWorld = empire.Founding.FoundingWorldId is int worldId
+            ? await dbContext.Worlds
+                .AsNoTracking()
+                .Where(world => world.Id == worldId)
+                .Select(world => new StarWin.Domain.Model.Entity.StarMap.World
+                {
+                    Id = world.Id,
+                    Name = world.Name,
+                    WorldType = world.WorldType,
+                    StarSystemId = world.StarSystemId
+                })
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+
+        var memberRaces = await (
+            from membership in dbContext.Set<EmpireRaceMembership>().AsNoTracking()
+            join race in dbContext.AlienRaces.AsNoTracking() on membership.RaceId equals race.Id
+            where membership.EmpireId == empireId
+            orderby membership.IsPrimary descending, race.Name, race.Id
+            select new ExplorerEmpireRaceMembershipDetail(
+                membership.RaceId,
+                race.Name,
+                membership.Role,
+                membership.PopulationMillions,
+                membership.IsPrimary))
+            .ToListAsync(cancellationToken);
+
+        var colonies = await (
+            from colony in dbContext.Colonies.AsNoTracking()
+            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
+            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
+            where system.SectorId == sectorId
+                && (colony.ControllingEmpireId == empireId || colony.FoundingEmpireId == empireId)
+            orderby colony.EstimatedPopulation descending, world.Name, colony.Id
+            select new ExplorerEmpireColonyListing(
+                colony.Id,
+                string.IsNullOrWhiteSpace(colony.Name) ? colony.ColonyClass : colony.Name,
+                colony.EstimatedPopulation,
+                colony.ControllingEmpireId == empireId,
+                world.Id,
+                world.Name,
+                system.Id,
+                system.Name))
+            .ToListAsync(cancellationToken);
+
+        var controlledColonyCount = colonies.Count(colony => colony.IsControlled);
+        var isFallen = controlledColonyCount == 0
+            && (colonies.Count > 0
+                || empire.Planets > 0
+                || empire.Moons > 0
+                || empire.SpaceHabitats > 0
+                || empire.NativePopulationMillions > 0
+                || empire.SubjectPopulationMillions > 0);
+
+        return new ExplorerEmpireDetail(
+            sectorId,
+            empire,
+            homeWorld,
+            memberRaces,
+            colonies,
+            controlledColonyCount,
+            isFallen);
+    }
+
     public async Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -488,6 +664,40 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
     private static string BuildTimelineTimeLabel(int century)
     {
         return $"Century {century}";
+    }
+
+    private static IQueryable<Empire> ApplyEmpireFilters(
+        StarWinDbContext dbContext,
+        IQueryable<Empire> empiresQuery,
+        ExplorerEmpireListPageRequest request)
+    {
+        if (request.RaceId is int raceId)
+        {
+            empiresQuery = empiresQuery.Where(empire => empire.RaceMemberships.Any(membership => membership.RaceId == raceId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Query))
+        {
+            var searchPattern = $"%{request.Query.Trim()}%";
+            empiresQuery = empiresQuery.Where(empire =>
+                EF.Functions.Like(empire.Name, searchPattern)
+                || EF.Functions.Like(empire.ExpansionPolicy.ToString(), searchPattern)
+                || (empire.Founding.FoundingWorldId.HasValue && dbContext.Worlds.Any(world =>
+                    world.Id == empire.Founding.FoundingWorldId.Value
+                    && EF.Functions.Like(world.Name, searchPattern)))
+                || empire.RaceMemberships.Any(membership =>
+                    EF.Functions.Like(membership.Role.ToString(), searchPattern)
+                    || dbContext.AlienRaces.Any(race =>
+                        race.Id == membership.RaceId
+                        && EF.Functions.Like(race.Name, searchPattern)))
+                || empire.Contacts.Any(contact =>
+                    EF.Functions.Like(contact.Relation, searchPattern)
+                    || dbContext.Empires.Any(otherEmpire =>
+                        otherEmpire.Id == contact.OtherEmpireId
+                        && EF.Functions.Like(otherEmpire.Name, searchPattern))));
+        }
+
+        return empiresQuery;
     }
 
     private static IQueryable<AlienRace> ApplyAlienRaceFilters(

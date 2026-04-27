@@ -7,6 +7,10 @@ public interface IStarWinExplorerQueryService
     Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default);
     Task<ExplorerAlienRaceListItem?> LoadAlienRaceListItemAsync(int sectorId, int raceId, CancellationToken cancellationToken = default);
     Task<ExplorerAlienRaceDetail?> LoadAlienRaceDetailAsync(int sectorId, int raceId, CancellationToken cancellationToken = default);
+    Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default);
+    Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default);
+    Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default);
+    Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default);
     Task<ExplorerTimelinePage> LoadTimelinePageAsync(ExplorerTimelinePageRequest request, CancellationToken cancellationToken = default);
     Task<ExplorerTimelineEventDetail?> LoadTimelineEventDetailAsync(int eventId, CancellationToken cancellationToken = default);
@@ -57,6 +61,53 @@ public sealed record ExplorerAlienRaceDetail(
     StarWin.Domain.Model.Entity.Civilization.AlienRace Race,
     StarWin.Domain.Model.Entity.StarMap.World? HomeWorld,
     IReadOnlyList<StarWin.Domain.Model.Entity.Civilization.Empire> Empires);
+
+public sealed record ExplorerEmpireFilterOptions(
+    IReadOnlyList<ExplorerLookupOption> Races);
+
+public sealed record ExplorerEmpireListPageRequest(
+    int SectorId,
+    int Offset,
+    int Limit,
+    string? Query = null,
+    int? RaceId = null);
+
+public sealed record ExplorerEmpireListPage(
+    IReadOnlyList<ExplorerEmpireListItem> Items,
+    bool HasMore);
+
+public sealed record ExplorerEmpireListItem(
+    int EmpireId,
+    string Name,
+    int Planets,
+    int GurpsTechLevel,
+    bool IsFallen);
+
+public sealed record ExplorerEmpireDetail(
+    int SectorId,
+    StarWin.Domain.Model.Entity.Civilization.Empire Empire,
+    StarWin.Domain.Model.Entity.StarMap.World? HomeWorld,
+    IReadOnlyList<ExplorerEmpireRaceMembershipDetail> MemberRaces,
+    IReadOnlyList<ExplorerEmpireColonyListing> Colonies,
+    int ControlledColonyCount,
+    bool IsFallen);
+
+public sealed record ExplorerEmpireRaceMembershipDetail(
+    int RaceId,
+    string RaceName,
+    StarWin.Domain.Model.Entity.Civilization.EmpireRaceRole Role,
+    long PopulationMillions,
+    bool IsPrimary);
+
+public sealed record ExplorerEmpireColonyListing(
+    int ColonyId,
+    string ColonyName,
+    long EstimatedPopulation,
+    bool IsControlled,
+    int WorldId,
+    string WorldName,
+    int SystemId,
+    string SystemName);
 
 public sealed record ExplorerTimelinePageRequest(
     int SectorId,

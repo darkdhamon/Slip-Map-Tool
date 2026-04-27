@@ -14,9 +14,10 @@ namespace StarWin.Web.Components.Pages;
 
 public partial class Empires : ComponentBase, IAsyncDisposable
 {
-    private const int ExplorerListBatchSize = 120;
+    private const int ExplorerListBatchSize = 30;
     private const int ComboAllFilterId = -1;
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
+    [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
     [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
     [Inject] protected IStarWinImageService ImageService { get; set; } = default!;
     [Inject] protected IStarWinEntityNameService EntityNameService { get; set; } = default!;
@@ -33,12 +34,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     public int? RequestedEmpireId { get; set; }
 
     protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
-    protected readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
-    private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
-    private readonly Dictionary<int, World> worldsById = [];
-    private readonly Dictionary<int, AlienRace> alienRacesById = [];
-    private readonly Dictionary<int, Empire> empiresById = [];
-
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     protected string explorerRenderError = string.Empty;
     protected int selectedSectorId;
@@ -50,9 +45,12 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected string empireQuery = string.Empty;
     protected string empireRaceText = string.Empty;
     protected int empireRaceId = ComboAllFilterId;
-    protected int empireVisibleCount = ExplorerListBatchSize;
     protected bool empireHasMoreRecords;
     protected bool showEmpireFilters;
+    protected bool empireListLoading;
+    protected bool empireDetailLoading;
+    protected ExplorerEmpireDetail? selectedEmpireDetail;
+    protected ExplorerEmpireFilterOptions empireFilterOptions = new([]);
 
     private IReadOnlyList<EntityImage> entityImages = [];
     private bool entityImagesLoaded;
@@ -64,10 +62,11 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     private bool empireObserverConfigured;
     private bool browserSessionReady;
     private bool browserSessionRestored;
+    private int loadedEmpireSectorId;
+    private readonly List<ExplorerEmpireListItem> loadedEmpireSummaries = [];
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
-    protected IReadOnlyList<AlienRace> ExplorerAlienRaces => explorerContext.AlienRaces;
-    protected IReadOnlyList<Empire> ExplorerEmpires => explorerContext.Empires;
+    protected IReadOnlyList<ExplorerEmpireListItem> LoadedEmpireSummaries => loadedEmpireSummaries;
 
     protected override async Task OnInitializedAsync()
     {
@@ -77,11 +76,9 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             : explorerContext.CurrentSector;
 
         selectedSectorId = initialSector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        initialSector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
-        selectedEmpireId = ResolveSelectedEmpireId(initialSector);
+        await LoadEmpirePageAsync(resetList: true);
     }
 
     protected override async Task OnParametersSetAsync()
@@ -95,13 +92,13 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
-            await EnsureSectorDataLoadedAsync(selectedSectorId);
+            await LoadEmpirePageAsync(resetList: true);
         }
 
         var sector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedEmpireId = ResolveSelectedEmpireId(sector);
+        await EnsureSelectedEmpireDetailAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -116,16 +113,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
         await ConfigureEmpireObserverAsync();
         _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
-    }
-
-    protected ExplorerSectorCache GetSectorCache(StarWinSector sector)
-    {
-        return sectorCacheBuilder.Get(sector);
-    }
-
-    protected ExplorerSectorSummary GetSectorSummary(StarWinSector sector)
-    {
-        return sectorCacheBuilder.GetSummary(sector);
     }
 
     protected StarWinSector GetSelectedSector()
@@ -156,12 +143,11 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedEmpireId = ResolveSelectedEmpireId(sector);
         ClearEmpireFilters();
+        await LoadEmpirePageAsync(resetList: true);
         await PersistExplorerSessionAsync();
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Empires", selectedSectorId, selectedSystemId, empireId: selectedEmpireId));
     }
@@ -228,52 +214,19 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     {
         await EntityNameService.SaveNameAsync(targetKind, targetId, name);
         await RefreshExplorerDataAsync();
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
         selectedSystemText = FormatSelectedSystem(GetSelectedSector(), selectedSystemId);
-    }
-
-    protected IEnumerable<Empire> GetFilteredEmpires(IReadOnlyList<Empire> empires)
-    {
-        return empires
-            .Where(EmpireMatches)
-            .OrderBy(empire => empire.Name)
-            .ThenBy(empire => empire.Id);
-    }
-
-    private bool EmpireMatches(Empire empire)
-    {
-        if (empireRaceId != ComboAllFilterId
-            && !empire.RaceMemberships.Any(membership => membership.RaceId == empireRaceId))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(empireQuery))
-        {
-            return true;
-        }
-
-        var query = empireQuery.Trim();
-        var homeWorld = FindWorld(empire.Founding.FoundingWorldId);
-        var sector = GetSelectedSector();
-        return ContainsQuery(empire.Name, query)
-            || ContainsQuery(empire.Id.ToString(), query)
-            || ContainsQuery(empire.LegacyRaceId?.ToString(), query)
-            || ContainsQuery(empire.ExpansionPolicy.ToString(), query)
-            || (IsFallenEmpire(empire, sector) && ContainsQuery("Fallen empire", query))
-            || ContainsQuery(homeWorld?.Name, query)
-            || empire.RaceMemberships.Any(membership =>
-                ContainsQuery(DisplayRace(membership.RaceId), query)
-                || ContainsQuery(membership.Role.ToString(), query))
-            || empire.Contacts.Any(contact =>
-                ContainsQuery(contact.Relation, query)
-                || ContainsQuery(DisplayEmpire(contact.OtherEmpireId), query));
+        await LoadEmpirePageAsync(resetList: true);
     }
 
     protected void ResetEmpireWindow()
     {
-        empireVisibleCount = ExplorerListBatchSize;
         empireObserverConfigured = false;
+    }
+
+    protected async Task HandleEmpireFiltersChangedAsync()
+    {
+        ResetEmpireWindow();
+        await LoadEmpirePageAsync(resetList: true);
     }
 
     protected void ToggleEmpireFilters()
@@ -281,10 +234,11 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         showEmpireFilters = !showEmpireFilters;
     }
 
-    protected void ApplyEmpireRaceFilter()
+    protected async Task ApplyEmpireRaceFilterAsync()
     {
         empireRaceId = ParseComboId(empireRaceText);
         ResetEmpireWindow();
+        await LoadEmpirePageAsync(resetList: true);
     }
 
     protected void ClearEmpireFilters()
@@ -296,13 +250,17 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         ResetEmpireWindow();
     }
 
+    protected async Task HandleClearEmpireFiltersAsync()
+    {
+        ClearEmpireFilters();
+        await LoadEmpirePageAsync(resetList: true);
+    }
+
     [JSInvokable]
     public Task LoadMoreEmpires()
     {
-        empireVisibleCount += ExplorerListBatchSize;
         empireObserverConfigured = false;
-        StateHasChanged();
-        return Task.CompletedTask;
+        return LoadMoreEmpireSummariesAsync();
     }
 
     private async Task ConfigureEmpireObserverAsync()
@@ -361,88 +319,14 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
             includeSavedRoutes: false,
-            includeReferenceData: true,
+            includeReferenceData: false,
             cancellationToken: cancellationToken);
-
-        loadedSectorSectionsById.Clear();
-        foreach (var sectorId in ExplorerSectors.Select(sector => sector.Id))
-        {
-            sectorCacheBuilder.Invalidate(sectorId);
-        }
-        worldsById.Clear();
-        alienRacesById.Clear();
-        empiresById.Clear();
-    }
-
-    private async Task EnsureSectorDataLoadedAsync(int sectorId, CancellationToken cancellationToken = default)
-    {
-        if (sectorId <= 0)
-        {
-            return;
-        }
-
-        const ExplorerSectorLoadSections requiredSections = ExplorerSectorLoadSections.Worlds
-            | ExplorerSectorLoadSections.Colonies
-            | ExplorerSectorLoadSections.ColonyDemographics;
-
-        loadedSectorSectionsById.TryGetValue(sectorId, out var loadedSections);
-        if ((loadedSections & requiredSections) == requiredSections)
-        {
-            return;
-        }
-
-        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiredSections, cancellationToken);
-        if (detailedSector is null)
-        {
-            return;
-        }
-
-        var sectors = ExplorerSectors.ToList();
-        var sectorIndex = sectors.FindIndex(item => item.Id == detailedSector.Id);
-        if (sectorIndex >= 0)
-        {
-            sectors[sectorIndex] = detailedSector;
-        }
-
-        explorerContext = explorerContext with
-        {
-            Sectors = sectors,
-            CurrentSector = explorerContext.CurrentSector.Id == detailedSector.Id ? detailedSector : explorerContext.CurrentSector
-        };
-
-        loadedSectorSectionsById[sectorId] = loadedSections | requiredSections;
-        sectorCacheBuilder.Invalidate(sectorId);
-        worldsById.Clear();
-    }
-
-    private int ResolveSelectedEmpireId(StarWinSector sector)
-    {
-        var sectorSummary = GetSectorSummary(sector);
-        if (RequestedEmpireId is int requestedEmpireId && sectorSummary.EmpireIds.Contains(requestedEmpireId))
-        {
-            return requestedEmpireId;
-        }
-
-        if (selectedEmpireId > 0 && sectorSummary.EmpireIds.Contains(selectedEmpireId))
-        {
-            return selectedEmpireId;
-        }
-
-        return ExplorerEmpires.FirstOrDefault(empire => sectorSummary.EmpireIds.Contains(empire.Id))?.Id ?? 0;
     }
 
     private void RunSearch()
     {
-        var sector = GetSelectedSector();
-        var sectorSummary = GetSectorSummary(sector);
-
         searchResults = SearchService.Search(searchQuery)
-            .Where(result => result.Type switch
-            {
-                StarWinSearchResultType.AlienRace => result.RaceId is int raceId && sectorSummary.RaceIds.Contains(raceId),
-                StarWinSearchResultType.Empire => result.EmpireId is int empireId && sectorSummary.EmpireIds.Contains(empireId),
-                _ => result.SectorId is null || result.SectorId == sector.Id
-            })
+            .Where(result => result.SectorId is null || result.SectorId == selectedSectorId)
             .ToList();
     }
 
@@ -467,13 +351,11 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         }
 
         selectedSectorId = sector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        sector = GetSelectedSector();
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedEmpireId = ResolveSelectedEmpireId(sector);
+        await LoadEmpirePageAsync(resetList: true);
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Empires", selectedSectorId, selectedSystemId, empireId: selectedEmpireId), replace: true);
     }
 
@@ -490,104 +372,162 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Empires")));
     }
 
-    protected string DisplayRace(int raceId)
+    private async Task LoadEmpirePageAsync(bool resetList, CancellationToken cancellationToken = default)
     {
-        if (alienRacesById.Count == 0)
+        if (selectedSectorId <= 0)
         {
-            foreach (var race in ExplorerAlienRaces)
+            loadedEmpireSummaries.Clear();
+            empireHasMoreRecords = false;
+            selectedEmpireId = 0;
+            selectedEmpireDetail = null;
+            empireFilterOptions = new([]);
+            return;
+        }
+
+        if (resetList || loadedEmpireSectorId != selectedSectorId)
+        {
+            loadedEmpireSummaries.Clear();
+            loadedEmpireSectorId = selectedSectorId;
+            empireHasMoreRecords = false;
+            empireObserverConfigured = false;
+            empireFilterOptions = await ExplorerQueryService.LoadEmpireFilterOptionsAsync(selectedSectorId, cancellationToken);
+            await LoadMoreEmpireSummariesAsync(cancellationToken);
+        }
+
+        await EnsureSelectedEmpireSummaryVisibleAsync(cancellationToken);
+        await EnsureSelectedEmpireDetailAsync(cancellationToken);
+    }
+
+    private async Task LoadMoreEmpireSummariesAsync(CancellationToken cancellationToken = default)
+    {
+        if (empireListLoading || selectedSectorId <= 0)
+        {
+            return;
+        }
+
+        empireListLoading = true;
+        try
+        {
+            var page = await ExplorerQueryService.LoadEmpireListPageAsync(
+                new ExplorerEmpireListPageRequest(
+                    selectedSectorId,
+                    loadedEmpireSummaries.Count,
+                    ExplorerListBatchSize,
+                    string.IsNullOrWhiteSpace(empireQuery) ? null : empireQuery.Trim(),
+                    empireRaceId == ComboAllFilterId ? null : empireRaceId),
+                cancellationToken);
+
+            foreach (var item in page.Items)
             {
-                alienRacesById[race.Id] = race;
+                if (loadedEmpireSummaries.All(existing => existing.EmpireId != item.EmpireId))
+                {
+                    loadedEmpireSummaries.Add(item);
+                }
             }
-        }
 
-        return alienRacesById.TryGetValue(raceId, out var matchedRace) ? matchedRace.Name : raceId.ToString();
-    }
-
-    protected string DisplayEmpire(int? empireId)
-    {
-        if (empireId is null)
-        {
-            return "Unassigned";
-        }
-
-        if (empiresById.Count == 0)
-        {
-            foreach (var empire in ExplorerEmpires)
+            empireHasMoreRecords = page.HasMore;
+            if (selectedEmpireId == 0 && loadedEmpireSummaries.Count > 0)
             {
-                empiresById[empire.Id] = empire;
+                selectedEmpireId = loadedEmpireSummaries[0].EmpireId;
             }
-        }
-
-        return empiresById.TryGetValue(empireId.Value, out var matchedEmpire) ? matchedEmpire.Name : empireId.Value.ToString();
-    }
-
-    protected World? FindWorld(int? worldId)
-    {
-        if (worldId is null or 0)
-        {
-            return null;
-        }
-
-        if (worldsById.Count == 0)
-        {
-            foreach (var world in ExplorerSectors.SelectMany(sector => sector.Systems).SelectMany(system => system.Worlds))
+            else if (selectedEmpireId > 0 && loadedEmpireSummaries.All(item => item.EmpireId != selectedEmpireId))
             {
-                worldsById[world.Id] = world;
+                selectedEmpireId = loadedEmpireSummaries.FirstOrDefault()?.EmpireId ?? 0;
             }
+
+            await EnsureSelectedEmpireSummaryVisibleAsync(cancellationToken);
+            await EnsureSelectedEmpireDetailAsync(cancellationToken);
+            await InvokeAsync(StateHasChanged);
         }
-
-        return worldsById.TryGetValue(worldId.Value, out var matchedWorld) ? matchedWorld : null;
-    }
-
-    protected IEnumerable<ColonyListing> GetEmpireColonies(Empire empire, StarWinSector sector)
-    {
-        return sector.Systems.Select(system => new { sector, system })
-            .SelectMany(item => item.system.Worlds
-                .Where(world => world.Colony is not null)
-                .Select(world => new ColonyListing(item.sector, item.system, world, world.Colony!)))
-            .Where(listing => listing.Colony.IsControlledBy(empire.Id) || listing.Colony.FoundingEmpireId == empire.Id)
-            .OrderByDescending(listing => listing.Colony.EstimatedPopulation)
-            .ThenBy(listing => listing.World.Name);
-    }
-
-    protected IEnumerable<ColonyListing> GetControlledEmpireColonies(Empire empire, StarWinSector sector)
-    {
-        return GetEmpireColonies(empire, sector)
-            .Where(listing => listing.Colony.IsControlledBy(empire.Id));
-    }
-
-    protected bool IsFallenEmpire(Empire empire, StarWinSector sector)
-    {
-        var colonies = GetEmpireColonies(empire, sector).ToList();
-        if (colonies.Any(listing => listing.Colony.IsControlledBy(empire.Id)))
+        finally
         {
-            return false;
+            empireListLoading = false;
         }
-
-        return colonies.Count > 0
-            || empire.Planets > 0
-            || empire.Moons > 0
-            || empire.SpaceHabitats > 0
-            || empire.NativePopulationMillions > 0
-            || empire.SubjectPopulationMillions > 0;
     }
 
-    protected ColonyListing? GetCapitalColony(Empire empire)
+    private async Task EnsureSelectedEmpireSummaryVisibleAsync(CancellationToken cancellationToken = default)
     {
-        var sector = GetSelectedSector();
-        var colonies = GetEmpireColonies(empire, sector).ToList();
-        var homeworldColony = colonies.FirstOrDefault(listing => listing.World.Id == empire.Founding.FoundingWorldId);
-        if (homeworldColony is not null && homeworldColony.Colony.IsControlledBy(empire.Id))
+        if (HasActiveEmpireFilters())
+        {
+            return;
+        }
+
+        var targetEmpireId = RequestedEmpireId ?? selectedEmpireId;
+        if (targetEmpireId <= 0 || loadedEmpireSummaries.Any(item => item.EmpireId == targetEmpireId))
+        {
+            return;
+        }
+
+        var requestedItem = await ExplorerQueryService.LoadEmpireListItemAsync(selectedSectorId, targetEmpireId, cancellationToken);
+        if (requestedItem is null)
+        {
+            return;
+        }
+
+        loadedEmpireSummaries.Add(requestedItem);
+        loadedEmpireSummaries.Sort((left, right) =>
+        {
+            var nameComparison = string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
+            return nameComparison != 0 ? nameComparison : left.EmpireId.CompareTo(right.EmpireId);
+        });
+    }
+
+    private async Task EnsureSelectedEmpireDetailAsync(CancellationToken cancellationToken = default)
+    {
+        var targetEmpireId = HasActiveEmpireFilters()
+            ? selectedEmpireId
+            : RequestedEmpireId ?? selectedEmpireId;
+        if (targetEmpireId <= 0)
+        {
+            targetEmpireId = loadedEmpireSummaries.FirstOrDefault()?.EmpireId ?? 0;
+        }
+
+        if (targetEmpireId <= 0)
+        {
+            selectedEmpireId = 0;
+            selectedEmpireDetail = null;
+            return;
+        }
+
+        if (empireDetailLoading)
+        {
+            return;
+        }
+
+        empireDetailLoading = true;
+        try
+        {
+            var detail = await ExplorerQueryService.LoadEmpireDetailAsync(selectedSectorId, targetEmpireId, cancellationToken);
+            if (detail is null && loadedEmpireSummaries.Count > 0)
+            {
+                targetEmpireId = loadedEmpireSummaries[0].EmpireId;
+                detail = await ExplorerQueryService.LoadEmpireDetailAsync(selectedSectorId, targetEmpireId, cancellationToken);
+            }
+
+            selectedEmpireDetail = detail;
+            selectedEmpireId = detail?.Empire.Id ?? 0;
+        }
+        finally
+        {
+            empireDetailLoading = false;
+        }
+    }
+
+    protected ExplorerEmpireColonyListing? GetCapitalColony(ExplorerEmpireDetail detail)
+    {
+        var homeworldColony = detail.Colonies.FirstOrDefault(listing => listing.WorldId == detail.Empire.Founding.FoundingWorldId && listing.IsControlled);
+        if (homeworldColony is not null)
         {
             return homeworldColony;
         }
 
-        return colonies.FirstOrDefault(listing => listing.Colony.IsControlledBy(empire.Id)) ?? colonies.FirstOrDefault();
+        return detail.Colonies.FirstOrDefault(listing => listing.IsControlled) ?? detail.Colonies.FirstOrDefault();
     }
 
-    protected static string DisplayColonyName(Colony colony)
+    private bool HasActiveEmpireFilters()
     {
-        return string.IsNullOrWhiteSpace(colony.Name) ? colony.ColonyClass : colony.Name;
+        return !string.IsNullOrWhiteSpace(empireQuery)
+            || empireRaceId != ComboAllFilterId;
     }
 
     protected IReadOnlyList<EntityImage> GetEntityImages(EntityImageTargetKind targetKind, int targetId)
@@ -637,11 +577,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         var separatorIndex = value.IndexOf(" - ", StringComparison.Ordinal);
         var idText = separatorIndex < 0 ? value : value[..separatorIndex];
         return int.TryParse(idText, out var id) ? id : ComboAllFilterId;
-    }
-
-    protected static bool ContainsQuery(string? value, string query)
-    {
-        return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     protected static string DisplayPopulation(long population)
@@ -698,6 +633,4 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
         dotNetReference?.Dispose();
     }
-
-    protected sealed record ColonyListing(StarWinSector Sector, StarSystem System, World World, Colony Colony);
 }

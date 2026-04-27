@@ -254,6 +254,26 @@ public sealed class TimelinePageTests : BunitContext
             throw new NotSupportedException();
         }
 
+        public Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerEmpireFilterOptions([]));
+        }
+
+        public Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerEmpireListPage([], false));
+        }
+
+        public Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<ExplorerEmpireListItem?>(null);
+        }
+
+        public Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<ExplorerEmpireDetail?>(null);
+        }
+
         public Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default)
         {
             LoadTimelineEventTypesCallCount++;
