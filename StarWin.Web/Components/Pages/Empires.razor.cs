@@ -446,6 +446,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         try
         {
             await InvokeAsync(StateHasChanged);
+            await Task.Delay(50);
             await InvokeAsync(() => LoadEmpirePageAsync(resetList: true));
         }
         catch (Exception exception)
@@ -591,16 +592,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         return !string.IsNullOrWhiteSpace(empireQuery)
             || empireRaceId != ComboAllFilterId
             || showOnlyFallenEmpires;
-    }
-
-    protected string GetFallenEmpireFilterStateText()
-    {
-        if (empireFilterPending)
-        {
-            return "Busy";
-        }
-
-        return showOnlyFallenEmpires ? "On" : "Off";
     }
 
     protected IReadOnlyList<EntityImage> GetEntityImages(EntityImageTargetKind targetKind, int targetId)

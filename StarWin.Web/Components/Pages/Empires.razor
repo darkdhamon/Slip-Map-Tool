@@ -57,16 +57,24 @@
                             }
                         </datalist>
                     </label>
-                    <div class="record-filter-chip-row">
-                        <button type="button"
-                                class="record-filter-chip @(showOnlyFallenEmpires ? "active" : null)"
-                                data-testid="fallen-empire-filter-toggle"
-                                disabled="@IsEmpireFilterBusy"
-                                aria-pressed="@showOnlyFallenEmpires"
-                                @onclick="ToggleFallenEmpireFilterAsync">
-                            <span>Fallen empires</span>
-                            <span class="record-filter-chip-state">@GetFallenEmpireFilterStateText()</span>
-                        </button>
+                    <div class="record-filter-toggle-row">
+                        <label class="record-filter-toggle">
+                            <span class="record-filter-toggle-copy">
+                                <span class="record-filter-toggle-label">Fallen empires only</span>
+                                <span class="record-filter-toggle-hint">Limit the list to inactive former empires</span>
+                            </span>
+                            <span class="record-filter-toggle-control">
+                                <input type="checkbox"
+                                       class="record-filter-toggle-input"
+                                       data-testid="fallen-empire-filter-toggle"
+                                       checked="@showOnlyFallenEmpires"
+                                       disabled="@IsEmpireFilterBusy"
+                                       @onchange="ToggleFallenEmpireFilterAsync" />
+                                <span class="record-filter-toggle-track" aria-hidden="true">
+                                    <span class="record-filter-toggle-thumb"></span>
+                                </span>
+                            </span>
+                        </label>
                     </div>
                 </details>
                 <div class="timeline-count">Showing @LoadedEmpireSummaries.Count empire@(LoadedEmpireSummaries.Count == 1 ? string.Empty : "s")@(empireHasMoreRecords ? "+" : string.Empty)</div>

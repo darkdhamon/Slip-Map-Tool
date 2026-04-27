@@ -290,7 +290,7 @@ public sealed class EmpiresPageTests : BunitContext
 
         var cut = Render<Empires>();
 
-        cut.Find("[data-testid='fallen-empire-filter-toggle']").Click();
+        cut.Find("[data-testid='fallen-empire-filter-toggle']").Change(true);
 
         cut.WaitForAssertion(() =>
         {
@@ -299,7 +299,7 @@ public sealed class EmpiresPageTests : BunitContext
             Assert.Contains("Ancient Watchers", visibleRows[0].TextContent);
             Assert.Contains("Showing 1 empire", cut.Markup);
             Assert.DoesNotContain("Orion Compact", visibleRows[0].TextContent);
-            Assert.Equal("On", cut.Find(".record-filter-chip-state").TextContent.Trim());
+            Assert.NotNull(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("checked"));
         });
     }
 
@@ -344,14 +344,14 @@ public sealed class EmpiresPageTests : BunitContext
 
         var cut = Render<Empires>();
 
-        cut.Find("[data-testid='fallen-empire-filter-toggle']").Click();
+        cut.Find("[data-testid='fallen-empire-filter-toggle']").Change(true);
 
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Searching", cut.Markup);
             Assert.Contains("Searching empires with the current filters...", cut.Markup);
-            Assert.Equal("Busy", cut.Find(".record-filter-chip-state").TextContent.Trim());
             Assert.NotNull(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("disabled"));
+            Assert.NotNull(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("checked"));
         });
 
         cut.WaitForAssertion(() =>

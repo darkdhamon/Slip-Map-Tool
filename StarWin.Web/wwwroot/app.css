@@ -1320,11 +1320,9 @@ dd {
 }
 
 .record-filter-actions,
-.record-filter-chip-row {
+.record-filter-toggle-row {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
+    align-items: stretch;
 }
 
 .record-filter-actions .timeline-clear-button {
@@ -1350,58 +1348,102 @@ dd {
     box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
 }
 
-.record-filter-chip {
-    display: inline-flex;
+.record-filter-toggle {
+    width: 100%;
+    display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 38px;
-    border: 1px solid rgba(125, 211, 252, 0.28);
-    border-radius: 999px;
-    background: rgba(15, 23, 42, 0.72);
-    color: #dbeafe;
-    padding: 8px 14px;
-    gap: 12px;
-    font-size: 0.82rem;
-    font-weight: 900;
-    letter-spacing: 0.02em;
+    gap: 16px;
+    border: 1px solid rgba(125, 211, 252, 0.24);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(7, 16, 33, 0.94), rgba(4, 10, 24, 0.9));
+    padding: 12px 14px;
     cursor: pointer;
-    transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, color 120ms ease;
 }
 
-.record-filter-chip-state {
+.record-filter-toggle-copy {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.record-filter-toggle-label {
+    color: #eef6ff;
+    font-size: 0.9rem;
+    font-weight: 900;
+    letter-spacing: 0.01em;
+}
+
+.record-filter-toggle-hint {
+    color: #96abc1;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.record-filter-toggle-control {
+    position: relative;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    min-width: 42px;
-    min-height: 24px;
+    flex: 0 0 auto;
+}
+
+.record-filter-toggle-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.record-filter-toggle-track {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: 62px;
+    height: 34px;
     border-radius: 999px;
-    background: rgba(15, 23, 42, 0.9);
+    background: #0b1220;
     border: 1px solid rgba(125, 211, 252, 0.24);
-    color: #b6cbe3;
-    padding: 2px 10px;
-    font-size: 0.75rem;
-    font-weight: 900;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.45);
+    transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 
-.record-filter-chip:hover,
-.record-filter-chip.active {
-    border-color: var(--accent);
-    background: linear-gradient(135deg, rgba(14, 165, 233, 0.34), rgba(124, 58, 237, 0.24));
-    color: #f8fbff;
-    box-shadow: 0 0 18px rgba(56, 189, 248, 0.18);
+.record-filter-toggle-thumb {
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #f7fbff, #c2d8ef);
+    box-shadow: 0 4px 12px rgba(2, 6, 23, 0.45);
+    transition: transform 150ms ease, background 150ms ease;
 }
 
-.record-filter-chip.active .record-filter-chip-state {
-    background: rgba(2, 132, 199, 0.28);
-    border-color: rgba(125, 211, 252, 0.46);
-    color: #f8fbff;
+.record-filter-toggle-input:checked + .record-filter-toggle-track {
+    background: linear-gradient(135deg, #0ea5e9, #22d3ee);
+    border-color: rgba(125, 211, 252, 0.7);
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.22);
 }
 
-.record-filter-chip:disabled {
-    opacity: 0.78;
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-thumb {
+    transform: translateX(28px);
+    background: linear-gradient(180deg, #ffffff, #effbff);
+}
+
+.record-filter-toggle-input:focus-visible + .record-filter-toggle-track {
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.22), 0 0 20px rgba(34, 211, 238, 0.18);
+}
+
+.record-filter-toggle-input:disabled {
     cursor: wait;
+}
+
+.record-filter-toggle-input:disabled + .record-filter-toggle-track {
+    opacity: 0.78;
 }
 
 .feature-panel,
