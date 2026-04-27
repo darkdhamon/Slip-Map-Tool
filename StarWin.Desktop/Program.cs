@@ -28,6 +28,7 @@ internal static class Program
     private const string BackendServerArgument = "--backend-server";
     private const string BackendPortArgument = "--backend-port";
     private const string SmokeTestArgument = "--smoke-test";
+    private const string SkipUpdateCheckArgument = "--skip-update-check";
 
     [STAThread]
     public static async Task Main(string[] args)
@@ -56,7 +57,13 @@ internal static class Program
             }
 
             startupReporter.Report("Opening main window", "Starting the embedded browser shell.");
-            RunDesktopShell(backendLease.LocalUrl, StarWinDesktopPaths.GetWebViewDataPath(), StarWinDesktopPaths.GetIconPath(), startupReporter);
+            var skipUpdateCheck = args.Contains(SkipUpdateCheckArgument, StringComparer.OrdinalIgnoreCase);
+            RunDesktopShell(
+                backendLease.LocalUrl,
+                StarWinDesktopPaths.GetWebViewDataPath(),
+                StarWinDesktopPaths.GetIconPath(),
+                startupReporter,
+                skipUpdateCheck);
         }
         catch (Exception ex)
         {
@@ -134,14 +141,14 @@ internal static class Program
 #endif
 
 #if WINDOWS
-    private static void RunDesktopShell(string localUrl, string webViewDataPath, string iconPath, IDesktopStartupReporter startupReporter)
+    private static void RunDesktopShell(string localUrl, string webViewDataPath, string iconPath, IDesktopStartupReporter startupReporter, bool skipUpdateCheck)
     {
         Exception? shellException = null;
         var shellThread = new Thread(() =>
         {
             try
             {
-                RunWindowsFormsShell(localUrl, webViewDataPath, iconPath, startupReporter);
+                RunWindowsFormsShell(localUrl, webViewDataPath, iconPath, startupReporter, skipUpdateCheck);
             }
             catch (Exception ex)
             {
@@ -159,7 +166,7 @@ internal static class Program
         }
     }
 
-    private static void RunWindowsFormsShell(string localUrl, string webViewDataPath, string iconPath, IDesktopStartupReporter startupReporter)
+    private static void RunWindowsFormsShell(string localUrl, string webViewDataPath, string iconPath, IDesktopStartupReporter startupReporter, bool skipUpdateCheck)
     {
         Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", WebView2Arguments);
         var releaseUpdateService = new DesktopReleaseUpdateService();
@@ -218,7 +225,7 @@ internal static class Program
                     if (navigationArgs.IsSuccess)
                     {
                         CloseSplash();
-                        if (!checkedForUpdates)
+                        if (!skipUpdateCheck && !checkedForUpdates)
                         {
                             checkedForUpdates = true;
                             _ = CheckForDesktopReleaseUpdateAsync(form, releaseUpdateService);
@@ -304,7 +311,7 @@ internal static class Program
         releaseUpdateService.RememberSkippedRelease(prompt.LatestReleaseTag);
     }
 #else
-    private static void RunDesktopShell(string localUrl, string webViewDataPath, string iconPath, IDesktopStartupReporter startupReporter)
+    private static void RunDesktopShell(string localUrl, string webViewDataPath, string iconPath, IDesktopStartupReporter startupReporter, bool skipUpdateCheck)
     {
         var window = new PhotinoWindow()
             .SetTitle("Starforged Atlas")
