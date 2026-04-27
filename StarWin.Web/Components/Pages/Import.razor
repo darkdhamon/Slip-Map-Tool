@@ -3,6 +3,7 @@
 @inject IStarWinLegacyImportService LegacyImportService
 @inject IStarWinWorkspace Workspace
 @inject NavigationManager Navigation
+@using StarWin.Web.Components.Explorer
 
 <PageTitle>Import - Starforged Atlas</PageTitle>
 
@@ -161,6 +162,7 @@
     </section>
 
     <LoadingModal IsVisible="@importLoadingVisible"
+                  PanelClass="import-loading-modal"
                   AriaLabel="@importLoadingLabel"
                   Kicker="@importLoadingLabel"
                   Title="@importLoadingStatus"
@@ -329,7 +331,7 @@
                 StateHasChanged();
                 await Task.Yield();
                 await Workspace.ReloadAsync();
-                Navigation.NavigateTo($"/?sectorId={sectorId}", forceLoad: true);
+                Navigation.NavigateTo(BuildExplorerImportDestination(sectorId), forceLoad: true);
             }
         }
         catch (Exception exception)
@@ -397,6 +399,11 @@
     private static string DisplayAllegiance(ushort allegianceId)
     {
         return allegianceId == ushort.MaxValue ? "Independent" : allegianceId.ToString();
+    }
+
+    private static string BuildExplorerImportDestination(int sectorId)
+    {
+        return SectorExplorerRoutes.BuildSectionUri("Overview", sectorId);
     }
 
     private sealed record ImportSource(string Key, string Label, bool IsAvailable);

@@ -1,0 +1,125 @@
+@page "/app-configuration"
+@rendermode InteractiveServer
+@inject IStarWinAppConfigurationService AppConfigurationService
+@inject IStarWinWorkspace Workspace
+
+<PageTitle>App Configuration - Starforged Atlas</PageTitle>
+
+<section class="app-configuration-page explorer-page">
+    <header class="explorer-hero compact-hero">
+        <div class="hero-copy">
+            <p class="eyebrow">App Configuration</p>
+            <h1>Manage instance-level tools for the shared atlas workspace.</h1>
+            <p class="hero-summary">These controls affect the entire application database and should only be used when you intentionally need a clean environment.</p>
+        </div>
+    </header>
+
+    <section class="app-configuration-grid">
+        <article class="detail-panel">
+            <span class="panel-kicker">Database</span>
+            <h2>Reset atlas database</h2>
+            <p>
+                Drop the current database, rebuild it from the current application schema, and leave it empty for a fresh import or verification pass.
+            </p>
+            <p class="danger-copy">
+                This permanently removes all imported sectors, systems, worlds, colonies, empires, notes, and generated explorer data.
+            </p>
+
+            <div class="parent-actions">
+                <button type="button"
+                        class="danger-action"
+                        @onclick="ShowResetConfirmation"
+                        disabled="@resetInProgress">
+                    Reset database
+                </button>
+            </div>
+        </article>
+
+        <article class="detail-panel">
+            <span class="panel-kicker">Status</span>
+            <h2>@statusTitle</h2>
+            <p>@statusMessage</p>
+        </article>
+    </section>
+
+    @if (confirmationVisible)
+    {
+        <section class="confirmation-backdrop" role="presentation">
+            <div class="confirmation-dialog detail-panel" role="alertdialog" aria-modal="true" aria-labelledby="reset-database-title">
+                <span class="panel-kicker">Confirm reset</span>
+                <h2 id="reset-database-title">Reset the Starforged Atlas database?</h2>
+                <p>This will drop the database, recreate the schema, and remove all current data.</p>
+                <p class="danger-copy">This action cannot be undone.</p>
+
+                <div class="confirmation-actions">
+                    <button type="button" class="secondary-action" @onclick="HideResetConfirmation" disabled="@resetInProgress">Cancel</button>
+                    <button type="button" class="danger-action" @onclick="ResetDatabaseAsync" disabled="@resetInProgress">Confirm reset</button>
+                </div>
+            </div>
+        </section>
+    }
+
+    <LoadingModal IsVisible="@resetInProgress"
+                  AriaLabel="Reset database"
+                  Kicker="Database reset"
+                  Title="Rebuilding atlas database"
+                  Detail="Dropping the current database, applying migrations, and refreshing the shared workspace."
+                  MeterClass="loading-meter import-progress-meter"
+                  ProgressPercent="100"
+                  Steps="@resetSteps" />
+</section>
+
+@code {
+    private static readonly IReadOnlyList<string> resetSteps =
+    [
+        "Drop the existing atlas database.",
+        "Recreate the schema from the current migrations.",
+        "Refresh the shared workspace so the app sees the empty database."
+    ];
+
+    private bool confirmationVisible;
+    private bool resetInProgress;
+    private string statusTitle = "Ready";
+    private string statusMessage = "Use this page when you intentionally need a fresh, empty Starforged Atlas database.";
+
+    private void ShowResetConfirmation()
+    {
+        confirmationVisible = true;
+        statusTitle = "Awaiting confirmation";
+        statusMessage = "Confirm the reset to drop and recreate the database.";
+    }
+
+    private void HideResetConfirmation()
+    {
+        confirmationVisible = false;
+        statusTitle = "Reset canceled";
+        statusMessage = "The atlas database was left unchanged.";
+    }
+
+    private async Task ResetDatabaseAsync()
+    {
+        resetInProgress = true;
+        statusTitle = "Resetting database";
+        statusMessage = "Dropping the current database and recreating the schema.";
+        StateHasChanged();
+
+        try
+        {
+            await AppConfigurationService.ResetDatabaseAsync();
+            await Workspace.ReloadAsync();
+
+            confirmationVisible = false;
+            statusTitle = "Database reset complete";
+            statusMessage = "The atlas database was recreated successfully and is now empty.";
+        }
+        catch (Exception exception)
+        {
+            statusTitle = "Database reset failed";
+            statusMessage = exception.Message;
+        }
+        finally
+        {
+            resetInProgress = false;
+        }
+    }
+}

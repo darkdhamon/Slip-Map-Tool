@@ -14,7 +14,7 @@ using StarWin.Infrastructure.Data;
 
 namespace StarWin.Infrastructure.Services;
 
-public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : IStarWinLegacyImportService
+public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContext> dbContextFactory) : IStarWinLegacyImportService
 {
     private const int StarRecordSize = 196;
     private const int PlanetRecordSize = 84;
@@ -283,6 +283,101 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         "StarSystemId",
         "Description",
         "ImportDataJson"
+    ];
+
+    private static readonly string[] AlienRaceColumns =
+    [
+        "Id",
+        "HomePlanetId",
+        "Name",
+        "EnvironmentType",
+        "BodyChemistry",
+        "GovernmentType",
+        "BodyCoverType",
+        "AppearanceType",
+        "Diet",
+        "Reproduction",
+        "ReproductionMethod",
+        "Religion",
+        "Devotion",
+        "DevotionLevel",
+        "BiologyProfile_PsiPower",
+        "BiologyProfile_PsiRating",
+        "BiologyProfile_Body",
+        "BiologyProfile_Mind",
+        "BiologyProfile_Speed",
+        "BiologyProfile_Lifespan",
+        "MassKg",
+        "SizeCm",
+        "LimbPairCount",
+        "LegacyAttributes"
+    ];
+
+    private static readonly string[] EmpireColumns =
+    [
+        "Id",
+        "Name",
+        "LegacyRaceId",
+        "CivilizationProfile_Militancy",
+        "CivilizationProfile_Determination",
+        "CivilizationProfile_RacialTolerance",
+        "CivilizationProfile_Progressiveness",
+        "CivilizationProfile_Loyalty",
+        "CivilizationProfile_SocialCohesion",
+        "CivilizationProfile_TechLevel",
+        "CivilizationProfile_Art",
+        "CivilizationProfile_Individualism",
+        "CivilizationProfile_SpatialAge",
+        "Founding_Origin",
+        "Founding_FoundingWorldId",
+        "Founding_FoundingColonyId",
+        "Founding_ParentEmpireId",
+        "Founding_FoundingRaceId",
+        "Founding_FoundedCentury",
+        "ExpansionPolicy",
+        "EconomicPowerMcr",
+        "MilitaryPower",
+        "TradeBonusMcr",
+        "Planets",
+        "CaptivePlanets",
+        "Moons",
+        "SubjugatedPlanets",
+        "SubjugatedMoons",
+        "IndependentColonies",
+        "SpaceHabitats",
+        "NativePopulationMillions",
+        "CaptivePopulationMillions",
+        "SubjectPopulationMillions",
+        "IndependentPopulationMillions",
+        "MilitaryForces_Personnel_CrewRating",
+        "MilitaryForces_Personnel_CrewQuality",
+        "MilitaryForces_Personnel_TroopRating",
+        "MilitaryForces_Personnel_TroopQuality",
+        "MilitaryForces_Personnel_ConscriptionPolicy",
+        "MilitaryForces_NavyDoctrine_FighterEmphasisPercent",
+        "MilitaryForces_NavyDoctrine_MissileEmphasisPercent",
+        "MilitaryForces_NavyDoctrine_BeamWeaponEmphasisPercent",
+        "MilitaryForces_NavyDoctrine_AssaultEmphasisPercent",
+        "MilitaryForces_NavyDoctrine_DefenseEmphasisPercent",
+        "MilitaryForces_Notes"
+    ];
+
+    private static readonly string[] EmpireRaceMembershipColumns =
+    [
+        "EmpireId",
+        "RaceId",
+        "Role",
+        "PopulationMillions",
+        "IsPrimary"
+    ];
+
+    private static readonly string[] EmpireContactColumns =
+    [
+        "EmpireId",
+        "OtherEmpireId",
+        "Relation",
+        "RelationCode",
+        "Age"
     ];
 
     private static readonly string[] EnvironmentTypes =
@@ -596,6 +691,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(zipPackage);
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
         await ReportImportProgressAsync(progress, 3, "Buffering package...", "Copying the uploaded archive into an import workspace.");
         await using var bufferedPackage = new MemoryStream();
@@ -680,7 +776,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         {
             sector = new StarWinSector
             {
-                Id = await GetNextSectorIdAsync(cancellationToken),
+                Id = await GetNextSectorIdAsync(dbContext, cancellationToken),
                 Name = requestedSectorName
             };
             sector.Configuration.SectorId = sector.Id;
@@ -789,6 +885,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             {
                 dbContext.Sectors.Add(sector);
                 await FlushImportChangesAsync(
+                    dbContext,
                     progress,
                     41,
                     "Saving sector shell...",
@@ -884,6 +981,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 {
                     var savePercent = CalculatePhasePercent(43, 59, processedSystemCount, importedSystems.Count);
                     await BulkInsertStarMapBatchAsync(
+                        dbContext,
                         progress,
                         savePercent,
                         $"Committing batch {processedSystemCount:N0} of {importedSystems.Count:N0}: {batch.StarSystems.Count:N0} star system(s), {batch.AstralBodies.Count:N0} astral bodies, {batch.Worlds.Count:N0} world(s), and {batch.UnusualCharacteristics.Count:N0} unusual characteristic(s).",
@@ -896,6 +994,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             if (batch.HasChanges)
             {
                 await BulkInsertStarMapBatchAsync(
+                    dbContext,
                     progress,
                     59,
                     $"Committing final batch: {batch.StarSystems.Count:N0} star system(s), {batch.AstralBodies.Count:N0} astral bodies, {batch.Worlds.Count:N0} world(s), and {batch.UnusualCharacteristics.Count:N0} unusual characteristic(s).",
@@ -907,6 +1006,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 await ReportImportProgressAsync(progress, 59, "Saving star systems and worlds...", $"Committed {addedSystemCount:N0} star system(s), {addedAstralBodyCount:N0} astral bodies, and {addedWorldCount:N0} world(s).");
             }
 
+            var importedAlienRaces = new List<AlienRace>();
             await ReportImportProgressAsync(progress, 60, "Writing alien races...", $"Preparing {aliens.Count:N0} alien race record(s).");
             foreach (var alienRecord in aliens)
             {
@@ -923,11 +1023,13 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 }
 
                 existingRaceIds.Add(alienRecord.LegacyId);
-                dbContext.AlienRaces.Add(alienRace);
+                importedAlienRaces.Add(alienRace);
                 knownAlienRaces[alienRace.Id] = alienRace;
                 addedAlienCount++;
             }
 
+            var importedEmpires = new List<Empire>();
+            var addedRaceMembershipCount = 0;
             await ReportImportProgressAsync(progress, 66, "Writing empires and contacts...", $"Preparing {empires.Count:N0} empire record(s) and {contacts.Count:N0} contact record(s).");
             foreach (var empireRecord in empires)
             {
@@ -944,17 +1046,28 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
                 }
 
                 existingEmpireIds.Add(empireRecord.LegacyId);
-                dbContext.Empires.Add(empire);
+                importedEmpires.Add(empire);
                 knownEmpires[empire.Id] = empire;
                 addedEmpireCount++;
+                addedRaceMembershipCount += empire.RaceMemberships.Count;
                 addedContactCount += empire.Contacts.Count;
             }
 
+            await BulkInsertCivilizationReferenceBatchAsync(
+                dbContext,
+                progress,
+                70,
+                $"Committing {addedAlienCount:N0} alien race(s), {addedEmpireCount:N0} empire(s), {addedRaceMembershipCount:N0} race membership row(s), and {addedContactCount:N0} contact(s).",
+                importedAlienRaces,
+                importedEmpires,
+                cancellationToken);
+
             await FlushImportChangesAsync(
+                dbContext,
                 progress,
                 71,
                 "Saving races, empires, and contacts...",
-                $"Committing {addedAlienCount:N0} alien race(s), {addedEmpireCount:N0} empire(s), and {addedContactCount:N0} contact(s).",
+                $"Finalizing merged updates for existing races and empires after bulk insert.",
                 cancellationToken,
                 clearChangeTracker: false);
 
@@ -1025,6 +1138,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             }
 
             await BulkInsertCivilizationBatchAsync(
+                dbContext,
                 progress,
                 83,
                 $"Committing {addedColonyCount:N0} colonie(s), {importedColonies.Sum(colony => colony.Demographics.Count):N0} demographic row(s), and {addedHistoryCount:N0} history event(s).",
@@ -1133,6 +1247,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
             }
 
             await FlushImportChangesAsync(
+                dbContext,
                 progress,
                 100,
                 "Saving derived records...",
@@ -1175,6 +1290,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     }
 
     private async Task FlushImportChangesAsync(
+        StarWinDbContext dbContext,
         IProgress<StarWinLegacyImportProgress>? progress,
         int percentComplete,
         string status,
@@ -1203,6 +1319,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     }
 
     private async Task BulkInsertStarMapBatchAsync(
+        StarWinDbContext dbContext,
         IProgress<StarWinLegacyImportProgress>? progress,
         int percentComplete,
         string detail,
@@ -1217,32 +1334,38 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
 
         if (batch.StarSystems.Count > 0)
         {
-            await BulkInsertAsync("StarSystems", StarSystemColumns, batch.StarSystems.Select(BuildStarSystemValues), cancellationToken);
+            await BulkInsertAsync(dbContext, "StarSystems", StarSystemColumns, batch.StarSystems.Select(BuildStarSystemValues), cancellationToken);
         }
 
         if (batch.AstralBodies.Count > 0)
         {
-            await BulkInsertAsync("AstralBodies", AstralBodyColumns, batch.AstralBodies.Select(BuildAstralBodyValues), cancellationToken);
+            await BulkInsertAsync(dbContext, "AstralBodies", AstralBodyColumns, batch.AstralBodies.Select(BuildAstralBodyValues), cancellationToken);
         }
 
         if (batch.Worlds.Count > 0)
         {
-            await BulkInsertAsync("Worlds", WorldColumns, batch.Worlds.Select(BuildWorldValues), cancellationToken);
+            await BulkInsertAsync(dbContext, "Worlds", WorldColumns, batch.Worlds.Select(BuildWorldValues), cancellationToken);
         }
 
         if (batch.UnusualCharacteristics.Count > 0)
         {
             await BulkInsertAsync(
+                dbContext,
                 "UnusualCharacteristics",
                 UnusualCharacteristicColumns,
                 batch.UnusualCharacteristics.Select(BuildUnusualCharacteristicValues),
                 cancellationToken);
         }
 
-        await ReportImportProgressAsync(progress, percentComplete, "Saving star systems and worlds...", "Bulk database batch committed.");
+        await ReportImportProgressAsync(
+            progress,
+            percentComplete,
+            "Saving star systems and worlds...",
+            $"{detail} Bulk database batch committed.");
     }
 
     private async Task BulkInsertCivilizationBatchAsync(
+        StarWinDbContext dbContext,
         IProgress<StarWinLegacyImportProgress>? progress,
         int percentComplete,
         string detail,
@@ -1259,7 +1382,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         if (colonies.Count > 0)
         {
             await ReportImportProgressAsync(progress, 82, "Saving colonies and history...", $"Bulk inserting {colonies.Count:N0} colony row(s).");
-            await BulkInsertAsync("Colonies", ColonyColumns, colonies.Select(BuildColonyValues), cancellationToken);
+            await BulkInsertAsync(dbContext, "Colonies", ColonyColumns, colonies.Select(BuildColonyValues), cancellationToken);
         }
 
         var demographics = colonies
@@ -1268,19 +1391,68 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         if (demographics.Count > 0)
         {
             await ReportImportProgressAsync(progress, 82, "Saving colonies and history...", $"Bulk inserting {demographics.Count:N0} colony demographic row(s).");
-            await BulkInsertAsync("ColonyDemographics", ColonyDemographicColumns, demographics.Select(BuildColonyDemographicValues), cancellationToken);
+            await BulkInsertAsync(dbContext, "ColonyDemographics", ColonyDemographicColumns, demographics.Select(BuildColonyDemographicValues), cancellationToken);
         }
 
         if (historyEvents.Count > 0)
         {
             await ReportImportProgressAsync(progress, 82, "Saving colonies and history...", $"Bulk inserting {historyEvents.Count:N0} history event row(s).");
-            await BulkInsertAsync("HistoryEvents", HistoryEventColumns, historyEvents.Select(BuildHistoryEventValues), cancellationToken);
+            await BulkInsertAsync(dbContext, "HistoryEvents", HistoryEventColumns, historyEvents.Select(BuildHistoryEventValues), cancellationToken);
         }
 
         await ReportImportProgressAsync(progress, percentComplete, "Saving colonies and history...", "Bulk database batch committed.");
     }
 
+    private async Task BulkInsertCivilizationReferenceBatchAsync(
+        StarWinDbContext dbContext,
+        IProgress<StarWinLegacyImportProgress>? progress,
+        int percentComplete,
+        string detail,
+        IReadOnlyList<AlienRace> alienRaces,
+        IReadOnlyList<Empire> empires,
+        CancellationToken cancellationToken)
+    {
+        await ReportImportProgressAsync(
+            progress,
+            Math.Clamp(percentComplete - 1, 0, 100),
+            "Saving races, empires, and contacts...",
+            $"{detail} Using bulk database inserts.");
+
+        if (alienRaces.Count > 0)
+        {
+            await ReportImportProgressAsync(progress, 68, "Saving races, empires, and contacts...", $"Bulk inserting {alienRaces.Count:N0} alien race row(s).");
+            await BulkInsertAsync(dbContext, "AlienRaces", AlienRaceColumns, alienRaces.Select(BuildAlienRaceValues), cancellationToken);
+        }
+
+        if (empires.Count > 0)
+        {
+            await ReportImportProgressAsync(progress, 69, "Saving races, empires, and contacts...", $"Bulk inserting {empires.Count:N0} empire row(s).");
+            await BulkInsertAsync(dbContext, "Empires", EmpireColumns, empires.Select(BuildEmpireValues), cancellationToken);
+        }
+
+        var raceMemberships = empires
+            .SelectMany(empire => empire.RaceMemberships)
+            .ToList();
+        if (raceMemberships.Count > 0)
+        {
+            await ReportImportProgressAsync(progress, 69, "Saving races, empires, and contacts...", $"Bulk inserting {raceMemberships.Count:N0} empire race membership row(s).");
+            await BulkInsertAsync(dbContext, "EmpireRaceMemberships", EmpireRaceMembershipColumns, raceMemberships.Select(BuildEmpireRaceMembershipValues), cancellationToken);
+        }
+
+        var empireContacts = empires
+            .SelectMany(empire => empire.Contacts)
+            .ToList();
+        if (empireContacts.Count > 0)
+        {
+            await ReportImportProgressAsync(progress, 69, "Saving races, empires, and contacts...", $"Bulk inserting {empireContacts.Count:N0} empire contact row(s).");
+            await BulkInsertAsync(dbContext, "EmpireContacts", EmpireContactColumns, empireContacts.Select(BuildEmpireContactValues), cancellationToken);
+        }
+
+        await ReportImportProgressAsync(progress, percentComplete, "Saving races, empires, and contacts...", "Bulk database batch committed.");
+    }
+
     private async Task BulkInsertAsync(
+        StarWinDbContext dbContext,
         string tableName,
         IReadOnlyList<string> columns,
         IEnumerable<object?[]> rows,
@@ -1288,14 +1460,15 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     {
         if (dbContext.Database.ProviderName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) == true)
         {
-            await BulkInsertSqlServerAsync(tableName, columns, rows, cancellationToken);
+            await BulkInsertSqlServerAsync(dbContext, tableName, columns, rows, cancellationToken);
             return;
         }
 
-        await BulkInsertPreparedStatementsAsync(tableName, columns, rows, cancellationToken);
+        await BulkInsertPreparedStatementsAsync(dbContext, tableName, columns, rows, cancellationToken);
     }
 
     private async Task BulkInsertSqlServerAsync(
+        StarWinDbContext dbContext,
         string tableName,
         IReadOnlyList<string> columns,
         IEnumerable<object?[]> rows,
@@ -1326,6 +1499,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
     }
 
     private async Task BulkInsertPreparedStatementsAsync(
+        StarWinDbContext dbContext,
         string tableName,
         IReadOnlyList<string> columns,
         IEnumerable<object?[]> rows,
@@ -1361,15 +1535,23 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
 
     private static DataTable CreateDataTable(IReadOnlyList<string> columns, IEnumerable<object?[]> rows)
     {
+        var materializedRows = rows
+            .Select(row => row.Select(value => value ?? DBNull.Value).ToArray())
+            .ToList();
         var table = new DataTable();
-        foreach (var column in columns)
+        for (var columnIndex = 0; columnIndex < columns.Count; columnIndex++)
         {
-            table.Columns.Add(column);
+            var dataType = materializedRows
+                .Select(row => row[columnIndex])
+                .FirstOrDefault(value => value is not DBNull)
+                ?.GetType()
+                ?? typeof(object);
+            table.Columns.Add(columns[columnIndex], dataType);
         }
 
-        foreach (var row in rows)
+        foreach (var row in materializedRows)
         {
-            table.Rows.Add(row.Select(value => value ?? DBNull.Value).ToArray());
+            table.Rows.Add(row);
         }
 
         return table;
@@ -1528,6 +1710,101 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         historyEvent.StarSystemId,
         historyEvent.Description,
         historyEvent.ImportDataJson
+    ];
+
+    private static object?[] BuildAlienRaceValues(AlienRace alienRace) =>
+    [
+        alienRace.Id,
+        alienRace.HomePlanetId,
+        alienRace.Name,
+        alienRace.EnvironmentType,
+        alienRace.BodyChemistry,
+        alienRace.GovernmentType,
+        alienRace.BodyCoverType,
+        alienRace.AppearanceType,
+        alienRace.Diet,
+        alienRace.Reproduction,
+        alienRace.ReproductionMethod,
+        alienRace.Religion,
+        alienRace.Devotion,
+        alienRace.DevotionLevel.ToString(),
+        alienRace.BiologyProfile.PsiPower,
+        alienRace.BiologyProfile.PsiRating.ToString(),
+        alienRace.BiologyProfile.Body,
+        alienRace.BiologyProfile.Mind,
+        alienRace.BiologyProfile.Speed,
+        alienRace.BiologyProfile.Lifespan,
+        alienRace.MassKg,
+        alienRace.SizeCm,
+        alienRace.LimbPairCount,
+        alienRace.LegacyAttributes
+    ];
+
+    private static object?[] BuildEmpireValues(Empire empire) =>
+    [
+        empire.Id,
+        empire.Name,
+        empire.LegacyRaceId,
+        empire.CivilizationProfile.Militancy,
+        empire.CivilizationProfile.Determination,
+        empire.CivilizationProfile.RacialTolerance,
+        empire.CivilizationProfile.Progressiveness,
+        empire.CivilizationProfile.Loyalty,
+        empire.CivilizationProfile.SocialCohesion,
+        empire.CivilizationProfile.TechLevel,
+        empire.CivilizationProfile.Art,
+        empire.CivilizationProfile.Individualism,
+        empire.CivilizationProfile.SpatialAge,
+        empire.Founding.Origin.ToString(),
+        empire.Founding.FoundingWorldId,
+        empire.Founding.FoundingColonyId,
+        empire.Founding.ParentEmpireId,
+        empire.Founding.FoundingRaceId,
+        empire.Founding.FoundedCentury,
+        empire.ExpansionPolicy.ToString(),
+        empire.EconomicPowerMcr,
+        empire.MilitaryPower,
+        empire.TradeBonusMcr,
+        empire.Planets,
+        empire.CaptivePlanets,
+        empire.Moons,
+        empire.SubjugatedPlanets,
+        empire.SubjugatedMoons,
+        empire.IndependentColonies,
+        empire.SpaceHabitats,
+        empire.NativePopulationMillions,
+        empire.CaptivePopulationMillions,
+        empire.SubjectPopulationMillions,
+        empire.IndependentPopulationMillions,
+        empire.MilitaryForces.Personnel.CrewRating,
+        empire.MilitaryForces.Personnel.CrewQuality,
+        empire.MilitaryForces.Personnel.TroopRating,
+        empire.MilitaryForces.Personnel.TroopQuality,
+        empire.MilitaryForces.Personnel.ConscriptionPolicy.ToString(),
+        empire.MilitaryForces.NavyDoctrine.FighterEmphasisPercent,
+        empire.MilitaryForces.NavyDoctrine.MissileEmphasisPercent,
+        empire.MilitaryForces.NavyDoctrine.BeamWeaponEmphasisPercent,
+        empire.MilitaryForces.NavyDoctrine.AssaultEmphasisPercent,
+        empire.MilitaryForces.NavyDoctrine.DefenseEmphasisPercent,
+        empire.MilitaryForces.Notes
+    ];
+
+    private static object?[] BuildEmpireRaceMembershipValues(EmpireRaceMembership membership) =>
+    [
+        membership.EmpireId,
+        membership.RaceId,
+        membership.Role.ToString(),
+        membership.PopulationMillions,
+        membership.IsPrimary
+    ];
+
+    private static object?[] BuildEmpireContactValues(EmpireContact contact) =>
+    [
+        contact.EmpireId,
+        contact.OtherEmpireId,
+        contact.Relation,
+        contact.RelationCode,
+        contact.Age
     ];
 
     private static string SerializeImportData<T>(T importData) => JsonSerializer.Serialize(importData);
@@ -2374,7 +2651,7 @@ public sealed class StarWinLegacyImportService(StarWinDbContext dbContext) : ISt
         return world;
     }
 
-    private async Task<int> GetNextSectorIdAsync(CancellationToken cancellationToken)
+    private async Task<int> GetNextSectorIdAsync(StarWinDbContext dbContext, CancellationToken cancellationToken)
     {
         var maxSectorId = await dbContext.Sectors
             .Select(sector => (int?)sector.Id)
