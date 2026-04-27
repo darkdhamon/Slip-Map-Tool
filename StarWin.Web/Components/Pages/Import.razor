@@ -3,6 +3,7 @@
 @inject IStarWinLegacyImportService LegacyImportService
 @inject IStarWinWorkspace Workspace
 @inject NavigationManager Navigation
+@using StarWin.Web.Components.Explorer
 
 <PageTitle>Import - Starforged Atlas</PageTitle>
 
@@ -11,7 +12,7 @@
         <div class="hero-copy">
             <p class="eyebrow">Import</p>
             <h1>Bring legacy sectors and slip maps into the new archive.</h1>
-            <p class="hero-summary">Load StarWin 2 sector data, legacy export packages, and Slip Map JSON into the shared Starforged Atlas workspace.</p>
+            <p class="hero-summary">Load StarWin 2 sector data and Slip Map JSON into the shared Starforged Atlas workspace.</p>
         </div>
     </header>
 
@@ -22,7 +23,16 @@
             <div class="segmented-control" role="group" aria-label="Import source">
                 @foreach (var source in importSources)
                 {
-                    <button type="button" class="@(selectedSource == source.Key ? "active" : null)" @onclick="() => selectedSource = source.Key" disabled="@importLoadingVisible">@source.Label</button>
+                    <button type="button"
+                            class="import-source-button @(selectedSource == source.Key ? "active" : null)"
+                            @onclick="() => selectedSource = source.Key"
+                            disabled="@(importLoadingVisible || !source.IsAvailable)">
+                        <span class="import-source-label">@source.Label</span>
+                        @if (!source.IsAvailable)
+                        {
+                            <span class="import-source-badge">Coming soon</span>
+                        }
+                    </button>
                 }
             </div>
 
@@ -34,6 +44,19 @@
                     <strong>@selectedFileName</strong>
                 }
             </div>
+
+            <section class="import-instructions">
+                <h3>StarWin 2 zip instructions</h3>
+                <p>Collect all files for the single StarWin 2 sector you want to import, place them together in one `.zip` archive, and upload that zip here.</p>
+                <p>All files for the sector should use the same base file name and only differ by file extension. For example: `SectorName.sun`, `SectorName.pln`, `SectorName.mon`, and so on.</p>
+                <p>The current sector import expects these required file extensions:</p>
+                <div class="tag-group import-extension-tags">
+                    @foreach (var extension in requiredStarWinExtensions)
+                    {
+                        <span>@extension</span>
+                    }
+                </div>
+            </section>
 
             <div class="form-grid">
                 <label>Import name <input @bind="importName" /></label>
@@ -139,6 +162,7 @@
     </section>
 
     <LoadingModal IsVisible="@importLoadingVisible"
+                  PanelClass="import-loading-modal"
                   AriaLabel="@importLoadingLabel"
                   Kicker="@importLoadingLabel"
                   Title="@importLoadingStatus"
@@ -155,9 +179,21 @@
 @code {
     private readonly ImportSource[] importSources =
     [
-        new("starwin-files", "StarWin 2 files"),
-        new("starwin-json", "StarWin JSON"),
-        new("slipmap-json", "Slip Map JSON")
+        new("starwin-files", "StarWin 2 files", true),
+        new("slipmap-json", "Slip Map JSON", false)
+    ];
+
+    private readonly string[] requiredStarWinExtensions =
+    [
+        ".sun",
+        ".pln",
+        ".mon",
+        ".aln",
+        ".col",
+        ".con",
+        ".emp",
+        ".his",
+        ".nam"
     ];
 
     private string selectedSource = "starwin-files";
@@ -184,7 +220,7 @@
     private string AcceptedFileTypes => selectedSource switch
     {
         "starwin-files" => ".zip,application/zip,application/x-zip-compressed",
-        "starwin-json" or "slipmap-json" => ".json,application/json",
+        "slipmap-json" => ".json,application/json",
         _ => string.Empty
     };
 
@@ -295,7 +331,7 @@
                 StateHasChanged();
                 await Task.Yield();
                 await Workspace.ReloadAsync();
-                Navigation.NavigateTo($"/?sectorId={sectorId}", forceLoad: true);
+                Navigation.NavigateTo(BuildExplorerImportDestination(sectorId), forceLoad: true);
             }
         }
         catch (Exception exception)
@@ -365,5 +401,10 @@
         return allegianceId == ushort.MaxValue ? "Independent" : allegianceId.ToString();
     }
 
-    private sealed record ImportSource(string Key, string Label);
+    private static string BuildExplorerImportDestination(int sectorId)
+    {
+        return SectorExplorerRoutes.BuildSectionUri("Overview", sectorId);
+    }
+
+    private sealed record ImportSource(string Key, string Label, bool IsAvailable);
 }

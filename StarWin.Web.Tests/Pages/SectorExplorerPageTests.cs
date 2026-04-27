@@ -47,6 +47,35 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
+    public void OverviewSelectsFirstSectorAndLoadsMetricsWhenNoQueryOrStoredSessionExists()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector)
+        {
+            DelayReload = true
+        };
+
+        ConfigureServices(sector, workspace);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer");
+
+        var cut = Render<SectorExplorer>();
+
+        workspace.ReleaseReload();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.EndsWith("/sector-explorer?sectorId=7&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
+            Assert.Contains("<strong>2</strong>", cut.Markup);
+            Assert.Contains("<strong>1</strong>", cut.Markup);
+            Assert.DoesNotContain("Sector 0 is not available in the workspace.", cut.Markup);
+        });
+    }
+
+    [Fact]
     public void MapWorkspaceShowsSingleSharedLoadingModalWhileDeferredWorkspaceLoads()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
