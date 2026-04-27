@@ -59,6 +59,7 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     private bool entityImagesLoading;
     private bool raceListLoading;
     private bool raceDetailLoading;
+    private bool raceSearchInProgress;
     private string imageUploadStatus = string.Empty;
     private ElementReference raceLoadMoreElement;
     private DotNetObjectReference<Aliens>? dotNetReference;
@@ -66,6 +67,7 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     private bool raceObserverConfigured;
     private bool browserSessionReady;
     private bool browserSessionRestored;
+    private int raceSearchVersion;
     private int loadedRaceSectorId;
     private readonly List<ExplorerAlienRaceListItem> loadedRaceSummaries = [];
 
@@ -238,6 +240,20 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         raceObserverConfigured = false;
     }
 
+    protected Task ResetRaceWindowAsync()
+    {
+        ResetRaceWindow();
+        raceSearchVersion++;
+        raceSearchInProgress = false;
+
+        if (HasActiveRaceFilters())
+        {
+            _ = SearchRemainingRacePagesAsync(raceSearchVersion);
+        }
+
+        return Task.CompletedTask;
+    }
+
     protected void ToggleRaceFilters()
     {
         showRaceFilters = !showRaceFilters;
@@ -249,6 +265,8 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         raceEnvironment = string.Empty;
         raceAppearance = string.Empty;
         showRaceFilters = false;
+        raceSearchVersion++;
+        raceSearchInProgress = false;
         ResetRaceWindow();
     }
 
@@ -426,6 +444,9 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
 
     private async Task LoadRacePageAsync(bool resetList, CancellationToken cancellationToken = default)
     {
+        raceSearchVersion++;
+        raceSearchInProgress = false;
+
         if (selectedSectorId <= 0)
         {
             loadedRaceSummaries.Clear();
@@ -483,6 +504,41 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         finally
         {
             raceListLoading = false;
+        }
+    }
+
+    private async Task SearchRemainingRacePagesAsync(int searchVersion, CancellationToken cancellationToken = default)
+    {
+        if (selectedSectorId <= 0 || !HasActiveRaceFilters())
+        {
+            return;
+        }
+
+        if (GetFilteredRaces(LoadedRaceSummaries).Any() || !raceHasMoreRecords)
+        {
+            return;
+        }
+
+        raceSearchInProgress = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            while (searchVersion == raceSearchVersion
+                && HasActiveRaceFilters()
+                && raceHasMoreRecords
+                && !GetFilteredRaces(LoadedRaceSummaries).Any())
+            {
+                await LoadMoreRaceSummariesAsync(cancellationToken);
+            }
+        }
+        finally
+        {
+            if (searchVersion == raceSearchVersion)
+            {
+                raceSearchInProgress = false;
+                await InvokeAsync(StateHasChanged);
+            }
         }
     }
 
@@ -598,6 +654,13 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     private static bool ContainsQuery(string? value, string query)
     {
         return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
+    }
+
+    private bool HasActiveRaceFilters()
+    {
+        return !string.IsNullOrWhiteSpace(raceQuery)
+            || !string.IsNullOrWhiteSpace(raceEnvironment)
+            || !string.IsNullOrWhiteSpace(raceAppearance);
     }
 
     public async ValueTask DisposeAsync()

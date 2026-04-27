@@ -38,7 +38,7 @@
                         <input placeholder="Name, appearance, environment..."
                                @bind="raceQuery"
                                @bind:event="oninput"
-                               @bind:after="ResetRaceWindow" />
+                               @bind:after="ResetRaceWindowAsync" />
                     </label>
                     <button type="button" class="timeline-clear-button" @onclick="ToggleRaceFilters">
                         @(showRaceFilters ? "Hide filters" : "Show filters")
@@ -51,7 +51,7 @@
                                    placeholder="All environments"
                                    @bind="raceEnvironment"
                                    @bind:event="oninput"
-                                   @bind:after="ResetRaceWindow" />
+                                   @bind:after="ResetRaceWindowAsync" />
                             <datalist id="race-environment-options">
                                 @foreach (var environment in sectorRaces.Select(race => race.EnvironmentType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value))
                                 {
@@ -65,7 +65,7 @@
                                    placeholder="All appearances"
                                    @bind="raceAppearance"
                                    @bind:event="oninput"
-                                   @bind:after="ResetRaceWindow" />
+                                   @bind:after="ResetRaceWindowAsync" />
                             <datalist id="race-appearance-options">
                                 @foreach (var appearance in sectorRaces.Select(race => race.AppearanceType).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct().OrderBy(value => value))
                                 {
@@ -80,8 +80,16 @@
                 @if (sectorRaces.Count == 0)
                 {
                     <article class="timeline-event-card">
-                        <span class="timeline-century">No matches</span>
-                        <p>Adjust the filters to widen the race list.</p>
+                        @if (raceSearchInProgress)
+                        {
+                            <span class="timeline-century">Searching races</span>
+                            <p>Looking through additional race records for matches...</p>
+                        }
+                        else
+                        {
+                            <span class="timeline-century">No matches</span>
+                            <p>Adjust the filters to widen the race list.</p>
+                        }
                     </article>
                 }
                 @foreach (var race in sectorRaces)

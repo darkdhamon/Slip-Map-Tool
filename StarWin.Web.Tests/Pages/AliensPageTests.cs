@@ -158,6 +158,39 @@ public sealed class AliensPageTests : BunitContext
     }
 
     [Fact]
+    public void ShowsSearchingStateWhileFilteredRaceLookupLoadsAdditionalPages()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var additionalRaces = new List<AlienRace>();
+        for (var index = 0; index < 30; index++)
+        {
+            additionalRaces.Add(CreateRace(index + 10, $"Race {index:D3}", "Humanoid", "Temperate"));
+        }
+
+        additionalRaces.Add(CreateRace(999, "Zeta Melolonian", "Insectoid", "Temperate"));
+
+        var context = CreateContext(additionalRaces: additionalRaces);
+        ConfigureServices(context, queryService: new DelayedAlienRaceQueryService(context, TimeSpan.FromMilliseconds(250)));
+
+        var cut = Render<Aliens>();
+
+        cut.Find("input[placeholder='Name, appearance, environment...']").Input("Melolonian");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Searching races", cut.Markup);
+            Assert.Contains("Looking through additional race records for matches", cut.Markup);
+        });
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Zeta Melolonian", cut.Markup);
+            Assert.DoesNotContain("Searching races", cut.Markup);
+        }, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void NavigatesToRelatedExplorerPagesFromAlienActions()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -255,11 +288,14 @@ public sealed class AliensPageTests : BunitContext
         });
     }
 
-    private void ConfigureServices(StarWinExplorerContext context, IReadOnlyList<EntityImage>? images = null)
+    private void ConfigureServices(
+        StarWinExplorerContext context,
+        IReadOnlyList<EntityImage>? images = null,
+        IStarWinExplorerQueryService? queryService = null)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
-        Services.AddSingleton<IStarWinExplorerQueryService>(new FakeExplorerQueryService(context));
+        Services.AddSingleton(queryService ?? new FakeExplorerQueryService(context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinImageService>(new FakeImageService(images ?? []));
         Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());
@@ -439,14 +475,14 @@ public sealed class AliensPageTests : BunitContext
         }
     }
 
-    private sealed class FakeExplorerQueryService(StarWinExplorerContext context) : IStarWinExplorerQueryService
+    private class FakeExplorerQueryService(StarWinExplorerContext context) : IStarWinExplorerQueryService
     {
         public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
-        public Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default)
+        public virtual Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default)
         {
             var items = GetSectorRaces(request.SectorId)
                 .OrderBy(race => race.Name)
@@ -459,7 +495,7 @@ public sealed class AliensPageTests : BunitContext
             return Task.FromResult(new ExplorerAlienRaceListPage(page.Take(request.Limit).ToList(), hasMore));
         }
 
-        public Task<ExplorerAlienRaceListItem?> LoadAlienRaceListItemAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
+        public virtual Task<ExplorerAlienRaceListItem?> LoadAlienRaceListItemAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
         {
             var race = GetSectorRaces(sectorId).FirstOrDefault(item => item.Id == raceId);
             return Task.FromResult(race is null
@@ -467,7 +503,7 @@ public sealed class AliensPageTests : BunitContext
                 : new ExplorerAlienRaceListItem(race.Id, race.Name, race.AppearanceType, race.EnvironmentType));
         }
 
-        public Task<ExplorerAlienRaceDetail?> LoadAlienRaceDetailAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
+        public virtual Task<ExplorerAlienRaceDetail?> LoadAlienRaceDetailAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
         {
             var sector = context.Sectors.FirstOrDefault(item => item.Id == sectorId);
             var race = GetSectorRaces(sectorId).FirstOrDefault(item => item.Id == raceId);
@@ -528,6 +564,19 @@ public sealed class AliensPageTests : BunitContext
             }
 
             return context.AlienRaces.Where(race => raceIds.Contains(race.Id)).ToList();
+        }
+    }
+
+    private sealed class DelayedAlienRaceQueryService(StarWinExplorerContext context, TimeSpan delay) : FakeExplorerQueryService(context)
+    {
+        public override async Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default)
+        {
+            if (request.Offset > 0)
+            {
+                await Task.Delay(delay, cancellationToken);
+            }
+
+            return await base.LoadAlienRaceListPageAsync(request, cancellationToken);
         }
     }
 
