@@ -244,6 +244,34 @@ public sealed class EmpiresPageTests : BunitContext
         });
     }
 
+    [Fact]
+    public void RoundsPopulationDisplayToNearestIllionAndKeepsFullValueInTooltip()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(
+            primaryEmpireName: "Maloyian Church",
+            primaryEmpireNativePopulationMillions: 41_954_779));
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/empires?sectorId=7&empireId=2");
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var nativePopulationValue = cut.FindAll("dt")
+                .Single(item => item.TextContent.Trim() == "Native population")
+                .ParentElement!
+                .QuerySelector("dd");
+
+            Assert.NotNull(nativePopulationValue);
+            Assert.Equal("42 trillion", nativePopulationValue!.TextContent.Trim());
+            Assert.Equal("41,954,779,000,000", nativePopulationValue.GetAttribute("title"));
+            Assert.Contains("Member; 42 trillion", cut.Markup);
+        });
+    }
+
     private void ConfigureServices(StarWinExplorerContext context)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();

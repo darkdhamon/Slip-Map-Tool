@@ -179,8 +179,8 @@
                         <div><dt>Moons</dt><dd>@selectedEmpire.Moons</dd></div>
                         <div><dt>Captive planets</dt><dd>@selectedEmpire.CaptivePlanets</dd></div>
                         <div><dt>Space habitats</dt><dd>@selectedEmpire.SpaceHabitats</dd></div>
-                        <div><dt>Native population</dt><dd>@selectedEmpire.NativePopulationMillions million</dd></div>
-                        <div><dt>Captive population</dt><dd>@selectedEmpire.CaptivePopulationMillions million</dd></div>
+                        <div><dt>Native population</dt><dd title="@GetPopulationTooltip(selectedEmpire.NativePopulationMillions)">@FormatPopulationMillions(selectedEmpire.NativePopulationMillions)</dd></div>
+                        <div><dt>Captive population</dt><dd title="@GetPopulationTooltip(selectedEmpire.CaptivePopulationMillions)">@FormatPopulationMillions(selectedEmpire.CaptivePopulationMillions)</dd></div>
                         <div><dt>Expansion</dt><dd>@selectedEmpire.ExpansionPolicy</dd></div>
                     </dl>
 
@@ -215,7 +215,7 @@
                             {
                                 <button type="button" class="relationship-row" @onclick="() => NavigateToRace(membership.RaceId)">
                                     <strong>@DisplayRace(membership.RaceId)</strong>
-                                    <span>@membership.Role; @membership.PopulationMillions million</span>
+                                    <span title="@GetPopulationTooltip(membership.PopulationMillions)">@membership.Role; @FormatPopulationMillions(membership.PopulationMillions)</span>
                                 </button>
                             }
                         </div>

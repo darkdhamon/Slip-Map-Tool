@@ -651,6 +651,32 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             : $"{population / 1_000_000m:0.#} million";
     }
 
+    protected static string FormatPopulationMillions(long populationMillions)
+    {
+        const decimal oneMillion = 1_000_000m;
+        const decimal oneBillion = 1_000_000_000m;
+        const decimal oneTrillion = 1_000_000_000_000m;
+
+        var absolutePopulation = populationMillions * oneMillion;
+        if (absolutePopulation >= oneTrillion)
+        {
+            return $"{Math.Round(absolutePopulation / oneTrillion, MidpointRounding.AwayFromZero):N0} trillion";
+        }
+
+        if (absolutePopulation >= oneBillion)
+        {
+            return $"{Math.Round(absolutePopulation / oneBillion, MidpointRounding.AwayFromZero):N0} billion";
+        }
+
+        return $"{Math.Round(absolutePopulation / oneMillion, MidpointRounding.AwayFromZero):N0} million";
+    }
+
+    protected static string GetPopulationTooltip(long populationMillions)
+    {
+        var absolutePopulation = populationMillions * 1_000_000m;
+        return $"{absolutePopulation:N0}";
+    }
+
     protected static int GetGurpsTechLevel(Empire empire)
     {
         return GurpsTechnologyLevelMapper.GetBaseTechLevel(empire.CivilizationProfile.TechLevel);
