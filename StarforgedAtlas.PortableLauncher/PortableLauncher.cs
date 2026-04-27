@@ -59,13 +59,8 @@ internal sealed class PortableLauncher
                 var update = await TryGetAvailableUpdateAsync(packageRoot, targetPath);
                 if (update is not null)
                 {
-                    var releaseLabel = string.IsNullOrWhiteSpace(update.ReleaseName)
-                        ? update.ReleaseTag
-                        : $"{update.ReleaseName} ({update.ReleaseTag})";
-
-                    var prompt = $"A newer version of Starforged Atlas is available.{Environment.NewLine}{Environment.NewLine}Current version: {update.CurrentTag}{Environment.NewLine}Latest version: {releaseLabel}{Environment.NewLine}{Environment.NewLine}Download and install the update now?";
                     var result = MessageBox.Show(
-                        prompt,
+                        BuildAvailableUpdatePromptMessage(update),
                         "Starforged Atlas update available",
                         MessageBoxButtons.YesNo,
                         MessageBoxIcon.Information);
@@ -183,7 +178,8 @@ internal sealed class PortableLauncher
             currentTag ?? "0.0.0",
             release.TagName,
             release.Name,
-            asset.BrowserDownloadUrl);
+            asset.BrowserDownloadUrl,
+            release.Body);
     }
 
     private async Task DownloadAndApplyUpdateAsync(string packageRoot, PortableReleaseUpdate update)
@@ -300,6 +296,58 @@ internal sealed class PortableLauncher
         return suffixIndex == 0
             ? FormattableString.Invariant($"{size:0} {suffixes[suffixIndex]}")
             : FormattableString.Invariant($"{size:0.0} {suffixes[suffixIndex]}");
+    }
+
+    internal static string BuildAvailableUpdatePromptMessage(PortableReleaseUpdate update)
+    {
+        var releaseLabel = string.IsNullOrWhiteSpace(update.ReleaseName)
+            ? update.ReleaseTag
+            : $"{update.ReleaseName} ({update.ReleaseTag})";
+        var releaseNotes = FormatReleaseNotesForPrompt(update.ReleaseNotes);
+
+        return
+            $"A newer version of Starforged Atlas is available.{Environment.NewLine}{Environment.NewLine}" +
+            $"Current version: {update.CurrentTag}{Environment.NewLine}" +
+            $"Latest version: {releaseLabel}{Environment.NewLine}{Environment.NewLine}" +
+            $"Release notes:{Environment.NewLine}{releaseNotes}{Environment.NewLine}{Environment.NewLine}" +
+            "Download and install the update now?";
+    }
+
+    internal static string FormatReleaseNotesForPrompt(string? releaseNotes)
+    {
+        const int maxLines = 12;
+        const int maxCharacters = 1200;
+
+        if (string.IsNullOrWhiteSpace(releaseNotes))
+        {
+            return "No release notes were provided for this release.";
+        }
+
+        var normalized = releaseNotes.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Trim();
+        var lines = normalized.Split('\n');
+        for (var index = 0; index < lines.Length; index++)
+        {
+            lines[index] = lines[index].TrimEnd();
+        }
+
+        var includedLineCount = Math.Min(lines.Length, maxLines);
+        var limited = string.Join(Environment.NewLine, lines, 0, includedLineCount);
+        var truncated = lines.Length > maxLines;
+
+        if (limited.Length > maxCharacters)
+        {
+            limited = limited[..maxCharacters].TrimEnd();
+            truncated = true;
+        }
+
+        if (truncated)
+        {
+            limited = $"{limited}{Environment.NewLine}...{Environment.NewLine}See GitHub for the full release notes.";
+        }
+
+        return limited;
     }
 
     private static string CreateUpdateHelperExecutable(string stagingParent)
@@ -708,7 +756,8 @@ internal sealed record PortableReleaseUpdate(
     string CurrentTag,
     string ReleaseTag,
     string? ReleaseName,
-    string DownloadUrl);
+    string DownloadUrl,
+    string? ReleaseNotes);
 
 internal sealed record PortableUpdateValidationContext(
     string PackageRoot,
@@ -798,6 +847,9 @@ internal sealed class GitHubLatestReleaseResponse
 
     [JsonPropertyName("name")]
     public string? Name { get; set; }
+
+    [JsonPropertyName("body")]
+    public string? Body { get; set; }
 
     [JsonPropertyName("assets")]
     public List<GitHubReleaseAsset> Assets { get; set; } = [];

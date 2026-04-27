@@ -62,7 +62,8 @@ internal sealed class DesktopReleaseUpdateService
             return new GitHubReleaseInfo(
                 payload.TagName,
                 string.IsNullOrWhiteSpace(payload.HtmlUrl) ? LatestReleasePageUri.AbsoluteUri : payload.HtmlUrl,
-                payload.Name);
+                payload.Name,
+                payload.Body);
         }
         catch
         {
@@ -84,13 +85,14 @@ internal static class DesktopAppVersion
     }
 }
 
-internal sealed record GitHubReleaseInfo(string TagName, string HtmlUrl, string? Name);
+internal sealed record GitHubReleaseInfo(string TagName, string HtmlUrl, string? Name, string? Body);
 
 internal sealed record DesktopReleaseUpdatePrompt(
     string CurrentReleaseTag,
     string LatestReleaseTag,
     string ReleaseUrl,
-    string? ReleaseName);
+    string? ReleaseName,
+    string? ReleaseNotes);
 
 internal static class DesktopReleaseUpdateEvaluator
 {
@@ -119,7 +121,63 @@ internal static class DesktopReleaseUpdateEvaluator
             currentReleaseTag,
             latestRelease.TagName,
             latestRelease.HtmlUrl,
-            latestRelease.Name);
+            latestRelease.Name,
+            latestRelease.Body);
+    }
+}
+
+internal static class DesktopReleaseUpdatePromptFormatter
+{
+    private const int MaxReleaseNotesLines = 12;
+    private const int MaxReleaseNotesCharacters = 1200;
+
+    public static string BuildMessage(DesktopReleaseUpdatePrompt prompt)
+    {
+        var releaseLabel = string.IsNullOrWhiteSpace(prompt.ReleaseName)
+            ? prompt.LatestReleaseTag
+            : $"{prompt.ReleaseName} ({prompt.LatestReleaseTag})";
+        var releaseNotes = FormatReleaseNotes(prompt.ReleaseNotes);
+
+        return
+            $"A newer version of Starforged Atlas is available.{Environment.NewLine}{Environment.NewLine}" +
+            $"Current version: {prompt.CurrentReleaseTag}{Environment.NewLine}" +
+            $"Latest version: {releaseLabel}{Environment.NewLine}{Environment.NewLine}" +
+            $"Release notes:{Environment.NewLine}{releaseNotes}{Environment.NewLine}{Environment.NewLine}" +
+            "Open the latest GitHub release page so you can upgrade?";
+    }
+
+    public static string FormatReleaseNotes(string? releaseNotes)
+    {
+        if (string.IsNullOrWhiteSpace(releaseNotes))
+        {
+            return "No release notes were provided for this release.";
+        }
+
+        var normalized = releaseNotes.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Trim();
+        var lines = normalized.Split('\n');
+        for (var index = 0; index < lines.Length; index++)
+        {
+            lines[index] = lines[index].TrimEnd();
+        }
+
+        var includedLineCount = Math.Min(lines.Length, MaxReleaseNotesLines);
+        var limited = string.Join(Environment.NewLine, lines, 0, includedLineCount);
+        var truncated = lines.Length > MaxReleaseNotesLines;
+
+        if (limited.Length > MaxReleaseNotesCharacters)
+        {
+            limited = limited[..MaxReleaseNotesCharacters].TrimEnd();
+            truncated = true;
+        }
+
+        if (truncated)
+        {
+            limited = $"{limited}{Environment.NewLine}...{Environment.NewLine}See GitHub for the full release notes.";
+        }
+
+        return limited;
     }
 }
 
@@ -243,4 +301,7 @@ internal sealed class GitHubLatestReleaseResponse
 
     [JsonPropertyName("name")]
     public string? Name { get; set; }
+
+    [JsonPropertyName("body")]
+    public string? Body { get; set; }
 }

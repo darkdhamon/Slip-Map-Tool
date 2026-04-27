@@ -30,10 +30,12 @@ public sealed class DesktopReleaseUpdateEvaluatorTests
             new GitHubReleaseInfo(
                 "2026-04-26.2-developer-preview",
                 "https://github.com/darkdhamon/Slip-Map-Tool/releases/tag/2026-04-26.2-developer-preview",
-                "Developer Preview"));
+                "Developer Preview",
+                "- Fixed updater flow"));
 
         Assert.NotNull(prompt);
         Assert.Equal("2026-04-26.2-developer-preview", prompt!.LatestReleaseTag);
+        Assert.Equal("- Fixed updater flow", prompt.ReleaseNotes);
     }
 
     [Fact]
@@ -46,7 +48,8 @@ public sealed class DesktopReleaseUpdateEvaluatorTests
             new GitHubReleaseInfo(
                 "2026-04-26.2-developer-preview",
                 "https://github.com/darkdhamon/Slip-Map-Tool/releases/tag/2026-04-26.2-developer-preview",
-                "Developer Preview"));
+                "Developer Preview",
+                "- Fixed updater flow"));
 
         Assert.Null(prompt);
     }
@@ -61,8 +64,24 @@ public sealed class DesktopReleaseUpdateEvaluatorTests
             new GitHubReleaseInfo(
                 "2026-04-26.2-developer-preview",
                 "https://github.com/darkdhamon/Slip-Map-Tool/releases/tag/2026-04-26.2-developer-preview",
-                "Developer Preview"));
+                "Developer Preview",
+                "- Fixed updater flow"));
 
         Assert.Null(prompt);
+    }
+
+    [Fact]
+    public void BuildMessage_includes_release_notes()
+    {
+        var message = DesktopReleaseUpdatePromptFormatter.BuildMessage(
+            new DesktopReleaseUpdatePrompt(
+                "2026-04-26.2-developer-preview",
+                "2026-04-27.0-developer-preview",
+                "https://github.com/darkdhamon/Slip-Map-Tool/releases/tag/2026-04-27.0-developer-preview",
+                "Developer Preview",
+                "- Added portable updater progress"));
+
+        Assert.Contains("Release notes:", message, StringComparison.Ordinal);
+        Assert.Contains("- Added portable updater progress", message, StringComparison.Ordinal);
     }
 }

@@ -279,11 +279,7 @@ internal static class Program
             return;
         }
 
-        var releaseLabel = string.IsNullOrWhiteSpace(prompt.ReleaseName)
-            ? prompt.LatestReleaseTag
-            : $"{prompt.ReleaseName} ({prompt.LatestReleaseTag})";
-
-        var message = $"A newer version of Starforged Atlas is available.\r\n\r\nCurrent version: {prompt.CurrentReleaseTag}\r\nLatest version: {releaseLabel}\r\n\r\nOpen the latest GitHub release page so you can upgrade?";
+        var message = DesktopReleaseUpdatePromptFormatter.BuildMessage(prompt);
         var result = MessageBox.Show(
             form,
             message,

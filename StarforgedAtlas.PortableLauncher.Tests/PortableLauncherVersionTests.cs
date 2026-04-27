@@ -234,6 +234,29 @@ public sealed class PortableLauncherVersionTests
         Assert.Contains("2026-04-27.0-developer-preview", Uri.UnescapeDataString(issueUri.Query), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void BuildAvailableUpdatePromptMessage_includes_release_notes()
+    {
+        var message = global::PortableLauncher.BuildAvailableUpdatePromptMessage(
+            new PortableReleaseUpdate(
+                "2026-04-26.2-developer-preview",
+                "2026-04-27.0-developer-preview",
+                "Developer Preview",
+                "https://github.com/darkdhamon/Slip-Map-Tool/releases/download/2026-04-27.0-developer-preview/Starforged-Atlas-Portable.zip",
+                "- Added desktop update notes"));
+
+        Assert.Contains("Release notes:", message, StringComparison.Ordinal);
+        Assert.Contains("- Added desktop update notes", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FormatReleaseNotesForPrompt_returns_fallback_when_notes_missing()
+    {
+        var notes = global::PortableLauncher.FormatReleaseNotesForPrompt(null);
+
+        Assert.Equal("No release notes were provided for this release.", notes);
+    }
+
     private sealed class CollectingProgress<T>(List<T> values) : IProgress<T>
     {
         public void Report(T value) => values.Add(value);
