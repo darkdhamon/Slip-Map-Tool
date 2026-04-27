@@ -14,7 +14,7 @@ Do not start coding for an issue-driven conversation until I explicitly ask you 
 
 GitHub project workflow uses the `Starforged Atlas Task Board`.
 
-When an assigned issue is in `Backlog`, move it to `Ready` after research is complete.
+When an issue is in `Backlog`, move it to `Ready` after research is complete.
 
 When I explicitly tell you to implement the changes, move the issue from `Ready` to `In progress`.
 
