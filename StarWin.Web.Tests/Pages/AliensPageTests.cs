@@ -35,6 +35,9 @@ public sealed class AliensPageTests : BunitContext
             Assert.Contains("Empire modifiers", cut.Markup);
             Assert.Contains("Hair type", cut.Markup);
             Assert.Contains("Striped/Banded", cut.Markup);
+            Assert.Contains("Visual profile", cut.Markup);
+            Assert.Contains("Species: Aurelian", cut.Markup);
+            Assert.Contains("Style target: detailed science-fiction species concept art", cut.Markup);
             Assert.Contains("Aurelian import", cut.Markup);
         });
     }

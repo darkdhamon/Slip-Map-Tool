@@ -375,6 +375,59 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         return modifier > 0 ? $"+{modifier}" : modifier.ToString(CultureInfo.InvariantCulture);
     }
 
+    protected static string BuildVisualDescriptionPrompt(AlienRace race)
+    {
+        var lines = new List<string>
+        {
+            $"Species: {race.Name}",
+            $"Overall appearance: {BuildSentence([race.AppearanceType, race.BodyChemistry, race.EnvironmentType])}.",
+            $"Body covering: {DisplayText(race.BodyCoverType)}.",
+            $"Body size: about {race.SizeCm} cm tall and {race.MassKg} kg.",
+            $"Limb structure: {GetLimbSummary(race)}."
+        };
+
+        if (HasAnyValues(race.Colors))
+        {
+            lines.Add($"Body colors: {DisplayJoinedValues(race.Colors)}.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(race.ColorPattern))
+        {
+            lines.Add($"Color pattern: {race.ColorPattern}.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(race.HairType) || HasAnyValues(race.HairColors))
+        {
+            lines.Add($"Hair or crest details: {BuildSentence([race.HairType, DisplayJoinedValuesOrEmpty(race.HairColors)])}.");
+        }
+
+        if (HasAnyValues(race.EyeColors) || HasAnyValues(race.EyeCharacteristics))
+        {
+            lines.Add($"Eyes: {BuildSentence([DisplayJoinedValuesOrEmpty(race.EyeColors), DisplayJoinedValuesOrEmpty(race.EyeCharacteristics)])}.");
+        }
+
+        if (HasAnyValues(race.BodyCharacteristics))
+        {
+            lines.Add($"Distinct body traits: {DisplayJoinedValues(race.BodyCharacteristics)}.");
+        }
+
+        if (HasAnyValues(race.Abilities))
+        {
+            lines.Add($"Visible or implied special traits: {DisplayJoinedValues(race.Abilities)}.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(race.GravityPreference)
+            || !string.IsNullOrWhiteSpace(race.TemperaturePreference)
+            || !string.IsNullOrWhiteSpace(race.AtmosphereBreathed))
+        {
+            lines.Add($"Native conditions: {BuildSentence([race.GravityPreference, race.TemperaturePreference, race.AtmosphereBreathed])}.");
+        }
+
+        lines.Add("Style target: detailed science-fiction species concept art, full-body reference, readable anatomy, neutral background.");
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
     protected GurpsTemplate BuildGurpsTemplate(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
     {
         var sector = GetSelectedSector();
@@ -460,6 +513,31 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     {
         var computed = Math.Clamp(baseline + modifier, StarWindTraitMinimum, StarWindTraitMaximum);
         return new CivilizationTraitDisplay(name, baseline, modifier, computed);
+    }
+
+    private static bool HasAnyValues(IEnumerable<string> values)
+    {
+        return values.Any(value => !string.IsNullOrWhiteSpace(value));
+    }
+
+    private static string DisplayJoinedValuesOrEmpty(IEnumerable<string> values)
+    {
+        var items = values
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return items.Count == 0 ? string.Empty : string.Join(", ", items);
+    }
+
+    private static string BuildSentence(IEnumerable<string?> parts)
+    {
+        var items = parts
+            .Where(value => !string.IsNullOrWhiteSpace(value) && !string.Equals(value, "N/A", StringComparison.OrdinalIgnoreCase))
+            .Select(value => value!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return items.Count == 0 ? "N/A" : string.Join(", ", items);
     }
 
     protected static int CountGurpsTraits(GurpsTemplate template)
