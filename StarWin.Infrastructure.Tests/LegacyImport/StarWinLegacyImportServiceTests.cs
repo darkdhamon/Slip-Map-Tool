@@ -2,6 +2,7 @@ using System.IO.Compression;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Infrastructure.Data;
 using StarWin.Infrastructure.Services;
 using Xunit;
@@ -34,6 +35,49 @@ public sealed class StarWinLegacyImportServiceTests
             Assert.True(await verificationContext.StarSystems.AnyAsync());
             Assert.True(await verificationContext.Worlds.AnyAsync());
             Assert.True(await verificationContext.HistoryEvents.AnyAsync(history => history.EventType == "Legacy Import"));
+        }
+        finally
+        {
+            DeleteIfExists(zipPath);
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task ImportStarWinZipAsync_bulk_inserts_alien_races_empires_and_contacts_into_sqlite()
+    {
+        var databasePath = CreateTempFilePath(".db");
+        var zipPath = await BuildCivilizationLegacyZipAsync();
+
+        try
+        {
+            await using var migrationContext = CreateDbContext(databasePath);
+            await migrationContext.Database.EnsureCreatedAsync();
+
+            var service = new StarWinLegacyImportService(CreateFactory(databasePath));
+
+            await using var stream = File.OpenRead(zipPath);
+            var result = await service.ImportStarWinZipAsync(stream, Path.GetFileName(zipPath), "Civilization Import Sector");
+
+            Assert.True(result.Success);
+
+            await using var verificationContext = CreateDbContext(databasePath);
+            Assert.Equal(1, await verificationContext.AlienRaces.CountAsync());
+            Assert.Equal(1, await verificationContext.Empires.CountAsync());
+            Assert.Equal(1, await verificationContext.Set<EmpireRaceMembership>().CountAsync());
+            Assert.Equal(1, await verificationContext.Set<EmpireContact>().CountAsync());
+
+            var race = await verificationContext.AlienRaces.SingleAsync();
+            var empire = await verificationContext.Empires.SingleAsync();
+            var membership = await verificationContext.Set<EmpireRaceMembership>().SingleAsync();
+            var contact = await verificationContext.Set<EmpireContact>().SingleAsync();
+
+            Assert.Equal("Veloran", race.Name);
+            Assert.Equal("Veloran", empire.Name);
+            Assert.Equal(empire.Id, membership.EmpireId);
+            Assert.Equal(race.Id, membership.RaceId);
+            Assert.Equal(empire.Id, contact.EmpireId);
+            Assert.Equal(77, contact.OtherEmpireId);
         }
         finally
         {
@@ -100,20 +144,26 @@ public sealed class StarWinLegacyImportServiceTests
     private static async Task<string> BuildSmallLegacyZipAsync()
     {
         var zipPath = CreateTempFilePath(".zip");
-        var sourceDirectory = Path.Combine(
-            GetRepositoryRoot(),
-            "Legacy",
-            "starwin v2 compiled app",
-            "data",
-            "Test");
-
         using var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
-        foreach (var extension in new[] { ".sun", ".pln", ".mon", ".aln", ".col", ".con", ".emp" })
-        {
-            var sourcePath = Path.Combine(sourceDirectory, $"Test{extension}");
-            archive.CreateEntryFromFile(sourcePath, $"Test{extension}");
-        }
+        CopyBaselineStarMapEntries(archive);
+        await WriteZipEntryFromBytesAsync(archive, "Test.aln", []);
+        await WriteZipEntryFromBytesAsync(archive, "Test.col", []);
+        await WriteZipEntryFromBytesAsync(archive, "Test.con", []);
+        await WriteZipEntryFromBytesAsync(archive, "Test.emp", []);
+        await WriteZipEntryAsync(archive, "Test.his", string.Empty);
+        await WriteZipEntryAsync(archive, "Test.nam", string.Empty);
+        return zipPath;
+    }
 
+    private static async Task<string> BuildCivilizationLegacyZipAsync()
+    {
+        var zipPath = CreateTempFilePath(".zip");
+        using var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create);
+        CopyBaselineStarMapEntries(archive);
+        await WriteZipEntryFromBytesAsync(archive, "Test.aln", CreateAlienRecordBytes());
+        await WriteZipEntryFromBytesAsync(archive, "Test.col", []);
+        await WriteZipEntryFromBytesAsync(archive, "Test.con", CreateContactRecordBytes());
+        await WriteZipEntryFromBytesAsync(archive, "Test.emp", CreateEmpireRecordBytes());
         await WriteZipEntryAsync(archive, "Test.his", string.Empty);
         await WriteZipEntryAsync(archive, "Test.nam", string.Empty);
         return zipPath;
@@ -125,6 +175,101 @@ public sealed class StarWinLegacyImportServiceTests
         await using var stream = entry.Open();
         await using var writer = new StreamWriter(stream);
         await writer.WriteAsync(contents);
+    }
+
+    private static async Task WriteZipEntryFromBytesAsync(ZipArchive archive, string entryName, byte[] contents)
+    {
+        var entry = archive.CreateEntry(entryName);
+        await using var stream = entry.Open();
+        await stream.WriteAsync(contents);
+    }
+
+    private static void CopyBaselineStarMapEntries(ZipArchive archive)
+    {
+        var sourceDirectory = Path.Combine(
+            GetRepositoryRoot(),
+            "Legacy",
+            "starwin v2 compiled app",
+            "data",
+            "Test");
+
+        foreach (var extension in new[] { ".sun", ".pln", ".mon" })
+        {
+            var sourcePath = Path.Combine(sourceDirectory, $"Test{extension}");
+            archive.CreateEntryFromFile(sourcePath, $"Test{extension}");
+        }
+    }
+
+    private static byte[] CreateAlienRecordBytes()
+    {
+        var buffer = new byte[92];
+        WriteInt32(buffer, 0, 0);
+        buffer[4] = 1;
+        buffer[5] = 1;
+        buffer[6] = 2;
+        buffer[7] = 1;
+        buffer[8] = 1;
+        buffer[9] = 1;
+        buffer[10] = 1;
+        buffer[11] = 1;
+        buffer[12] = 1;
+        WriteInt16(buffer, 14, 180);
+        WriteInt16(buffer, 16, 220);
+        for (var index = 0; index < 15; index++)
+        {
+            buffer[30 + index] = (byte)(index + 1);
+        }
+
+        buffer[67] = 1;
+        buffer[68] = 1;
+        buffer[69] = 7;
+        WriteDelphiShortString(buffer, 70, 20, "Veloran");
+        return buffer;
+    }
+
+    private static byte[] CreateEmpireRecordBytes()
+    {
+        var buffer = new byte[52];
+        var values = new[] { 120, 85, 430, 15, 12, 34, 56, 7, 2, 1, 3, 4, 5 };
+        for (var index = 0; index < values.Length; index++)
+        {
+            WriteInt32(buffer, index * 4, values[index]);
+        }
+
+        return buffer;
+    }
+
+    private static byte[] CreateContactRecordBytes()
+    {
+        var buffer = new byte[6];
+        WriteUInt16(buffer, 0, 0);
+        WriteUInt16(buffer, 2, 77);
+        buffer[4] = 1;
+        buffer[5] = 9;
+        return buffer;
+    }
+
+    private static void WriteInt32(byte[] buffer, int offset, int value)
+    {
+        BitConverter.GetBytes(value).CopyTo(buffer, offset);
+    }
+
+    private static void WriteInt16(byte[] buffer, int offset, short value)
+    {
+        BitConverter.GetBytes(value).CopyTo(buffer, offset);
+    }
+
+    private static void WriteUInt16(byte[] buffer, int offset, ushort value)
+    {
+        BitConverter.GetBytes(value).CopyTo(buffer, offset);
+    }
+
+    private static void WriteDelphiShortString(byte[] buffer, int offset, int maxLength, string value)
+    {
+        var bytes = System.Text.Encoding.Latin1.GetBytes(value);
+        var length = Math.Min(maxLength, bytes.Length);
+        buffer[offset] = (byte)length;
+        Array.Copy(bytes, 0, buffer, offset + 1, length);
     }
 
     private static string GetRepositoryRoot()

@@ -285,6 +285,101 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         "ImportDataJson"
     ];
 
+    private static readonly string[] AlienRaceColumns =
+    [
+        "Id",
+        "HomePlanetId",
+        "Name",
+        "EnvironmentType",
+        "BodyChemistry",
+        "GovernmentType",
+        "BodyCoverType",
+        "AppearanceType",
+        "Diet",
+        "Reproduction",
+        "ReproductionMethod",
+        "Religion",
+        "Devotion",
+        "DevotionLevel",
+        "BiologyProfile_PsiPower",
+        "BiologyProfile_PsiRating",
+        "BiologyProfile_Body",
+        "BiologyProfile_Mind",
+        "BiologyProfile_Speed",
+        "BiologyProfile_Lifespan",
+        "MassKg",
+        "SizeCm",
+        "LimbPairCount",
+        "LegacyAttributes"
+    ];
+
+    private static readonly string[] EmpireColumns =
+    [
+        "Id",
+        "Name",
+        "LegacyRaceId",
+        "CivilizationProfile_Militancy",
+        "CivilizationProfile_Determination",
+        "CivilizationProfile_RacialTolerance",
+        "CivilizationProfile_Progressiveness",
+        "CivilizationProfile_Loyalty",
+        "CivilizationProfile_SocialCohesion",
+        "CivilizationProfile_TechLevel",
+        "CivilizationProfile_Art",
+        "CivilizationProfile_Individualism",
+        "CivilizationProfile_SpatialAge",
+        "Founding_Origin",
+        "Founding_FoundingWorldId",
+        "Founding_FoundingColonyId",
+        "Founding_ParentEmpireId",
+        "Founding_FoundingRaceId",
+        "Founding_FoundedCentury",
+        "ExpansionPolicy",
+        "EconomicPowerMcr",
+        "MilitaryPower",
+        "TradeBonusMcr",
+        "Planets",
+        "CaptivePlanets",
+        "Moons",
+        "SubjugatedPlanets",
+        "SubjugatedMoons",
+        "IndependentColonies",
+        "SpaceHabitats",
+        "NativePopulationMillions",
+        "CaptivePopulationMillions",
+        "SubjectPopulationMillions",
+        "IndependentPopulationMillions",
+        "MilitaryForces_Personnel_CrewRating",
+        "MilitaryForces_Personnel_CrewQuality",
+        "MilitaryForces_Personnel_TroopRating",
+        "MilitaryForces_Personnel_TroopQuality",
+        "MilitaryForces_Personnel_ConscriptionPolicy",
+        "MilitaryForces_NavyDoctrine_FighterEmphasisPercent",
+        "MilitaryForces_NavyDoctrine_MissileEmphasisPercent",
+        "MilitaryForces_NavyDoctrine_BeamWeaponEmphasisPercent",
+        "MilitaryForces_NavyDoctrine_AssaultEmphasisPercent",
+        "MilitaryForces_NavyDoctrine_DefenseEmphasisPercent",
+        "MilitaryForces_Notes"
+    ];
+
+    private static readonly string[] EmpireRaceMembershipColumns =
+    [
+        "EmpireId",
+        "RaceId",
+        "Role",
+        "PopulationMillions",
+        "IsPrimary"
+    ];
+
+    private static readonly string[] EmpireContactColumns =
+    [
+        "EmpireId",
+        "OtherEmpireId",
+        "Relation",
+        "RelationCode",
+        "Age"
+    ];
+
     private static readonly string[] EnvironmentTypes =
     [
         "Land-dwelling",
@@ -911,6 +1006,7 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
                 await ReportImportProgressAsync(progress, 59, "Saving star systems and worlds...", $"Committed {addedSystemCount:N0} star system(s), {addedAstralBodyCount:N0} astral bodies, and {addedWorldCount:N0} world(s).");
             }
 
+            var importedAlienRaces = new List<AlienRace>();
             await ReportImportProgressAsync(progress, 60, "Writing alien races...", $"Preparing {aliens.Count:N0} alien race record(s).");
             foreach (var alienRecord in aliens)
             {
@@ -927,11 +1023,13 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
                 }
 
                 existingRaceIds.Add(alienRecord.LegacyId);
-                dbContext.AlienRaces.Add(alienRace);
+                importedAlienRaces.Add(alienRace);
                 knownAlienRaces[alienRace.Id] = alienRace;
                 addedAlienCount++;
             }
 
+            var importedEmpires = new List<Empire>();
+            var addedRaceMembershipCount = 0;
             await ReportImportProgressAsync(progress, 66, "Writing empires and contacts...", $"Preparing {empires.Count:N0} empire record(s) and {contacts.Count:N0} contact record(s).");
             foreach (var empireRecord in empires)
             {
@@ -948,18 +1046,28 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
                 }
 
                 existingEmpireIds.Add(empireRecord.LegacyId);
-                dbContext.Empires.Add(empire);
+                importedEmpires.Add(empire);
                 knownEmpires[empire.Id] = empire;
                 addedEmpireCount++;
+                addedRaceMembershipCount += empire.RaceMemberships.Count;
                 addedContactCount += empire.Contacts.Count;
             }
+
+            await BulkInsertCivilizationReferenceBatchAsync(
+                dbContext,
+                progress,
+                70,
+                $"Committing {addedAlienCount:N0} alien race(s), {addedEmpireCount:N0} empire(s), {addedRaceMembershipCount:N0} race membership row(s), and {addedContactCount:N0} contact(s).",
+                importedAlienRaces,
+                importedEmpires,
+                cancellationToken);
 
             await FlushImportChangesAsync(
                 dbContext,
                 progress,
                 71,
                 "Saving races, empires, and contacts...",
-                $"Committing {addedAlienCount:N0} alien race(s), {addedEmpireCount:N0} empire(s), and {addedContactCount:N0} contact(s).",
+                $"Finalizing merged updates for existing races and empires after bulk insert.",
                 cancellationToken,
                 clearChangeTracker: false);
 
@@ -1295,6 +1403,54 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         await ReportImportProgressAsync(progress, percentComplete, "Saving colonies and history...", "Bulk database batch committed.");
     }
 
+    private async Task BulkInsertCivilizationReferenceBatchAsync(
+        StarWinDbContext dbContext,
+        IProgress<StarWinLegacyImportProgress>? progress,
+        int percentComplete,
+        string detail,
+        IReadOnlyList<AlienRace> alienRaces,
+        IReadOnlyList<Empire> empires,
+        CancellationToken cancellationToken)
+    {
+        await ReportImportProgressAsync(
+            progress,
+            Math.Clamp(percentComplete - 1, 0, 100),
+            "Saving races, empires, and contacts...",
+            $"{detail} Using bulk database inserts.");
+
+        if (alienRaces.Count > 0)
+        {
+            await ReportImportProgressAsync(progress, 68, "Saving races, empires, and contacts...", $"Bulk inserting {alienRaces.Count:N0} alien race row(s).");
+            await BulkInsertAsync(dbContext, "AlienRaces", AlienRaceColumns, alienRaces.Select(BuildAlienRaceValues), cancellationToken);
+        }
+
+        if (empires.Count > 0)
+        {
+            await ReportImportProgressAsync(progress, 69, "Saving races, empires, and contacts...", $"Bulk inserting {empires.Count:N0} empire row(s).");
+            await BulkInsertAsync(dbContext, "Empires", EmpireColumns, empires.Select(BuildEmpireValues), cancellationToken);
+        }
+
+        var raceMemberships = empires
+            .SelectMany(empire => empire.RaceMemberships)
+            .ToList();
+        if (raceMemberships.Count > 0)
+        {
+            await ReportImportProgressAsync(progress, 69, "Saving races, empires, and contacts...", $"Bulk inserting {raceMemberships.Count:N0} empire race membership row(s).");
+            await BulkInsertAsync(dbContext, "EmpireRaceMemberships", EmpireRaceMembershipColumns, raceMemberships.Select(BuildEmpireRaceMembershipValues), cancellationToken);
+        }
+
+        var empireContacts = empires
+            .SelectMany(empire => empire.Contacts)
+            .ToList();
+        if (empireContacts.Count > 0)
+        {
+            await ReportImportProgressAsync(progress, 69, "Saving races, empires, and contacts...", $"Bulk inserting {empireContacts.Count:N0} empire contact row(s).");
+            await BulkInsertAsync(dbContext, "EmpireContacts", EmpireContactColumns, empireContacts.Select(BuildEmpireContactValues), cancellationToken);
+        }
+
+        await ReportImportProgressAsync(progress, percentComplete, "Saving races, empires, and contacts...", "Bulk database batch committed.");
+    }
+
     private async Task BulkInsertAsync(
         StarWinDbContext dbContext,
         string tableName,
@@ -1546,6 +1702,101 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         historyEvent.StarSystemId,
         historyEvent.Description,
         historyEvent.ImportDataJson
+    ];
+
+    private static object?[] BuildAlienRaceValues(AlienRace alienRace) =>
+    [
+        alienRace.Id,
+        alienRace.HomePlanetId,
+        alienRace.Name,
+        alienRace.EnvironmentType,
+        alienRace.BodyChemistry,
+        alienRace.GovernmentType,
+        alienRace.BodyCoverType,
+        alienRace.AppearanceType,
+        alienRace.Diet,
+        alienRace.Reproduction,
+        alienRace.ReproductionMethod,
+        alienRace.Religion,
+        alienRace.Devotion,
+        alienRace.DevotionLevel.ToString(),
+        alienRace.BiologyProfile.PsiPower,
+        alienRace.BiologyProfile.PsiRating.ToString(),
+        alienRace.BiologyProfile.Body,
+        alienRace.BiologyProfile.Mind,
+        alienRace.BiologyProfile.Speed,
+        alienRace.BiologyProfile.Lifespan,
+        alienRace.MassKg,
+        alienRace.SizeCm,
+        alienRace.LimbPairCount,
+        alienRace.LegacyAttributes
+    ];
+
+    private static object?[] BuildEmpireValues(Empire empire) =>
+    [
+        empire.Id,
+        empire.Name,
+        empire.LegacyRaceId,
+        empire.CivilizationProfile.Militancy,
+        empire.CivilizationProfile.Determination,
+        empire.CivilizationProfile.RacialTolerance,
+        empire.CivilizationProfile.Progressiveness,
+        empire.CivilizationProfile.Loyalty,
+        empire.CivilizationProfile.SocialCohesion,
+        empire.CivilizationProfile.TechLevel,
+        empire.CivilizationProfile.Art,
+        empire.CivilizationProfile.Individualism,
+        empire.CivilizationProfile.SpatialAge,
+        empire.Founding.Origin.ToString(),
+        empire.Founding.FoundingWorldId,
+        empire.Founding.FoundingColonyId,
+        empire.Founding.ParentEmpireId,
+        empire.Founding.FoundingRaceId,
+        empire.Founding.FoundedCentury,
+        empire.ExpansionPolicy.ToString(),
+        empire.EconomicPowerMcr,
+        empire.MilitaryPower,
+        empire.TradeBonusMcr,
+        empire.Planets,
+        empire.CaptivePlanets,
+        empire.Moons,
+        empire.SubjugatedPlanets,
+        empire.SubjugatedMoons,
+        empire.IndependentColonies,
+        empire.SpaceHabitats,
+        empire.NativePopulationMillions,
+        empire.CaptivePopulationMillions,
+        empire.SubjectPopulationMillions,
+        empire.IndependentPopulationMillions,
+        empire.MilitaryForces.Personnel.CrewRating,
+        empire.MilitaryForces.Personnel.CrewQuality,
+        empire.MilitaryForces.Personnel.TroopRating,
+        empire.MilitaryForces.Personnel.TroopQuality,
+        empire.MilitaryForces.Personnel.ConscriptionPolicy.ToString(),
+        empire.MilitaryForces.NavyDoctrine.FighterEmphasisPercent,
+        empire.MilitaryForces.NavyDoctrine.MissileEmphasisPercent,
+        empire.MilitaryForces.NavyDoctrine.BeamWeaponEmphasisPercent,
+        empire.MilitaryForces.NavyDoctrine.AssaultEmphasisPercent,
+        empire.MilitaryForces.NavyDoctrine.DefenseEmphasisPercent,
+        empire.MilitaryForces.Notes
+    ];
+
+    private static object?[] BuildEmpireRaceMembershipValues(EmpireRaceMembership membership) =>
+    [
+        membership.EmpireId,
+        membership.RaceId,
+        membership.Role.ToString(),
+        membership.PopulationMillions,
+        membership.IsPrimary
+    ];
+
+    private static object?[] BuildEmpireContactValues(EmpireContact contact) =>
+    [
+        contact.EmpireId,
+        contact.OtherEmpireId,
+        contact.Relation,
+        contact.RelationCode,
+        contact.Age
     ];
 
     private static string SerializeImportData<T>(T importData) => JsonSerializer.Serialize(importData);
