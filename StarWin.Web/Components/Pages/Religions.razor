@@ -1,0 +1,148 @@
+@layout SectorExplorerLayout
+@page "/sector-explorer/religions"
+@rendermode InteractiveServer
+
+@{
+    var sector = GetSelectedSector();
+    var selectedReligion = selectedReligionDetail?.Religion;
+    var layoutState = new SectorExplorerLayoutState(
+        null,
+        ExplorerSectors,
+        sector.Systems.ToList(),
+        selectedSectorId,
+        EventCallback.Factory.Create<int>(this, HandleSectorChangedAsync),
+        selectedSystemText,
+        EventCallback.Factory.Create<string>(this, HandleSelectedSystemTextChangedAsync),
+        searchQuery,
+        EventCallback.Factory.Create<string>(this, HandleSearchQueryChangedAsync),
+        searchResults,
+        EventCallback.Factory.Create<StarWinSearchResult>(this, NavigateToSearchResult),
+        sections,
+        "Religions",
+        explorerRenderError,
+        DisplayResultType,
+        BuildSectionRoute);
+}
+
+<PageTitle>Religions | Starforged Atlas</PageTitle>
+<SectorExplorerLayoutSync State="layoutState" />
+
+<section class="content-grid">
+    <div class="record-list">
+        <details class="record-filter-panel" open="@showReligionFilters">
+            <summary class="record-filter-summary">Search</summary>
+            <label>
+                Search
+                <input placeholder="Name or type..."
+                       @bind="religionQuery"
+                       @bind:event="oninput"
+                       @bind:after="HandleReligionFiltersChangedAsync" />
+            </label>
+            <button type="button" class="timeline-clear-button" @onclick="ToggleReligionFilters">
+                @(showReligionFilters ? "Hide filters" : "Show filters")
+            </button>
+            @if (showReligionFilters)
+            {
+                <label>
+                    Type
+                    <input list="religion-type-options"
+                           placeholder="All types"
+                           @bind="religionTypeText"
+                           @bind:event="oninput"
+                           @bind:after="ApplyReligionTypeFilterAsync" />
+                    <datalist id="religion-type-options">
+                        @foreach (var type in religionFilterOptions.Types)
+                        {
+                            <option value="@type" />
+                        }
+                    </datalist>
+                </label>
+            }
+            <button type="button" class="timeline-clear-button" @onclick="HandleClearReligionFiltersAsync">Clear filters</button>
+        </details>
+        <div class="timeline-count">Showing @LoadedReligionSummaries.Count religion@(LoadedReligionSummaries.Count == 1 ? string.Empty : "s")@(religionHasMoreRecords ? "+" : string.Empty)</div>
+        @if (religionListLoading && LoadedReligionSummaries.Count == 0)
+        {
+            <article class="timeline-event-card">
+                <span class="timeline-century">Loading</span>
+                <p>Loading religions for this sector.</p>
+            </article>
+        }
+        else if (LoadedReligionSummaries.Count == 0)
+        {
+            <article class="timeline-event-card">
+                <span class="timeline-century">No matches</span>
+                <p>Adjust the filters to widen the religion list.</p>
+            </article>
+        }
+        @foreach (var religion in LoadedReligionSummaries)
+        {
+            <button type="button" class="record-row @(selectedReligion?.Id == religion.ReligionId ? "active" : null)" @onclick="() => SelectReligion(religion.ReligionId)">
+                <strong class="record-row-title">@religion.Name</strong>
+                <span>@religion.Type; @religion.EmpireCount empire@(religion.EmpireCount == 1 ? string.Empty : "s")</span>
+            </button>
+        }
+        @if (religionHasMoreRecords)
+        {
+            <div @ref="religionLoadMoreElement" class="timeline-load-more">
+                <button type="button" @onclick="LoadMoreReligions">Load more</button>
+            </div>
+        }
+    </div>
+
+    @if (selectedReligion is not null)
+    {
+        <article class="detail-panel">
+            <span class="panel-kicker">Religion profile</span>
+            <h2>@selectedReligion.Name</h2>
+            <p class="detail-summary">@GetReligionSummary(selectedReligionDetail!)</p>
+
+            <dl class="field-grid">
+                <div><dt>Type</dt><dd>@selectedReligion.Type</dd></div>
+                <div><dt>Origin</dt><dd>@(selectedReligion.IsUserDefined ? "User-defined" : "Imported")</dd></div>
+                <div><dt>Following empires</dt><dd>@selectedReligionDetail!.Empires.Count</dd></div>
+                <div><dt>Associated species</dt><dd>@selectedReligionDetail.Races.Count</dd></div>
+            </dl>
+
+            <section class="relationship-section">
+                <h3>Following empires</h3>
+                @if (selectedReligionDetail.Empires.Count == 0)
+                {
+                    <p>No empire memberships were found for this religion in the active sector.</p>
+                }
+                else
+                {
+                    <div class="relationship-list">
+                        @foreach (var empire in selectedReligionDetail.Empires)
+                        {
+                            <button type="button" class="relationship-row" @onclick="() => NavigateToEmpire(empire.EmpireId)">
+                                <strong>@empire.EmpireName</strong>
+                                <span>@($"{empire.PopulationPercent:0.##}% declared; ")<abbr class="population-abbr" title="@GetPopulationTooltip(empire.TotalPopulationMillions)">@FormatPopulationMillions(empire.TotalPopulationMillions)</abbr>; GURPS TL @GetGurpsTechLevel(empire.StarWinTechLevel)</span>
+                            </button>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="relationship-section">
+                <h3>Associated species</h3>
+                @if (selectedReligionDetail.Races.Count == 0)
+                {
+                    <p>No species memberships were found for this religion in the active sector.</p>
+                }
+                else
+                {
+                    <div class="relationship-list">
+                        @foreach (var race in selectedReligionDetail.Races)
+                        {
+                            <button type="button" class="relationship-row" @onclick="() => NavigateToRace(race.RaceId)">
+                                <strong>@race.RaceName</strong>
+                                <span>@race.EmpireCount empire@(race.EmpireCount == 1 ? string.Empty : "s"); <abbr class="population-abbr" title="@GetPopulationTooltip(race.TotalPopulationMillions)">@FormatPopulationMillions(race.TotalPopulationMillions)</abbr></span>
+                            </button>
+                        }
+                    </div>
+                }
+            </section>
+        </article>
+    }
+</section>

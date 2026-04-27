@@ -21,6 +21,7 @@ public static class SectorExplorerRoutes
             "worlds" => "Worlds",
             "colonies" => "Colonies",
             "aliens" => "Aliens",
+            "religions" => "Religions",
             "empires" => "Empires",
             _ => "Overview"
         };
@@ -37,6 +38,7 @@ public static class SectorExplorerRoutes
             "Worlds" => "worlds",
             "Colonies" => "colonies",
             "Aliens" => "aliens",
+            "Religions" => "religions",
             "Empires" => "empires",
             _ => "overview"
         };
@@ -50,7 +52,8 @@ public static class SectorExplorerRoutes
         int colonyId = 0,
         int habitatId = 0,
         int raceId = 0,
-        int empireId = 0)
+        int empireId = 0,
+        int religionId = 0)
     {
         var slug = GetSectionSlug(sectionName);
         var path = slug == "overview"
@@ -65,6 +68,7 @@ public static class SectorExplorerRoutes
         AddIfPositive(query, "habitatId", habitatId);
         AddIfPositive(query, "raceId", raceId);
         AddIfPositive(query, "empireId", empireId);
+        AddIfPositive(query, "religionId", religionId);
 
         return query.Count == 0 ? path : QueryHelpers.AddQueryString(path, query);
     }

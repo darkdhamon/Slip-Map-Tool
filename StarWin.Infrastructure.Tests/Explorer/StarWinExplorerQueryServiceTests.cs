@@ -178,6 +178,80 @@ public sealed class StarWinExplorerQueryServiceTests
         }
     }
 
+    [Fact]
+    public async Task LoadReligionFilterOptionsAsync_returns_distinct_types_for_sector_religions()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var options = await service.LoadReligionFilterOptionsAsync(1);
+
+            Assert.Equal(["Animism", "Church"], options.Types);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task LoadReligionListPageAsync_and_detail_return_sector_scoped_religion_data()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var filteredPage = await service.LoadReligionListPageAsync(new ExplorerReligionListPageRequest(1, 0, 30, Query: "Solar"));
+            Assert.Single(filteredPage.Items);
+            Assert.Equal("Solar Doctrine", filteredPage.Items[0].Name);
+            Assert.Equal("Church", filteredPage.Items[0].Type);
+            Assert.Equal(2, filteredPage.Items[0].EmpireCount);
+
+            var detail = await service.LoadReligionDetailAsync(1, 301);
+
+            Assert.NotNull(detail);
+            Assert.Equal("Solar Doctrine", detail!.Religion.Name);
+            Assert.Collection(
+                detail.Empires,
+                item =>
+                {
+                    Assert.Equal("Aurelian Concord", item.EmpireName);
+                    Assert.Equal(100m, item.PopulationPercent);
+                    Assert.Equal(1200, item.TotalPopulationMillions);
+                    Assert.Equal((byte)6, item.StarWinTechLevel);
+                },
+                item =>
+                {
+                    Assert.Equal("Watcher Remnant", item.EmpireName);
+                    Assert.Equal(40m, item.PopulationPercent);
+                    Assert.Equal(30, item.TotalPopulationMillions);
+                    Assert.Equal((byte)7, item.StarWinTechLevel);
+                });
+
+            Assert.Single(detail.Races);
+            Assert.Equal("Aurelian", detail.Races[0].RaceName);
+            Assert.Equal(2, detail.Races[0].EmpireCount);
+            Assert.Equal(1230, detail.Races[0].TotalPopulationMillions);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
     private static async Task SeedExplorerDataAsync(StarWinDbContext dbContext)
     {
         var sector = new StarWinSector { Id = 1, Name = "Delcora" };
@@ -305,7 +379,8 @@ public sealed class StarWinExplorerQueryServiceTests
         {
             Id = 201,
             Name = "Aurelian Concord",
-            GovernmentType = "Council"
+            GovernmentType = "Council",
+            NativePopulationMillions = 1200
         };
         aurelianEmpire.CivilizationProfile.TechLevel = 6;
         aurelianEmpire.Founding.FoundingWorldId = 101;
@@ -321,7 +396,8 @@ public sealed class StarWinExplorerQueryServiceTests
         {
             Id = 202,
             Name = "Krell Reach",
-            GovernmentType = "Council"
+            GovernmentType = "Council",
+            NativePopulationMillions = 450
         };
         krellEmpire.CivilizationProfile.TechLevel = 8;
         krellEmpire.RaceMemberships.Add(new EmpireRaceMembership
@@ -350,9 +426,46 @@ public sealed class StarWinExplorerQueryServiceTests
             PopulationMillions = 30
         });
 
+        var solarDoctrine = new Religion
+        {
+            Id = 301,
+            Name = "Solar Doctrine",
+            Type = "Church"
+        };
+
+        var dunePath = new Religion
+        {
+            Id = 302,
+            Name = "Dune Path",
+            Type = "Animism"
+        };
+
         dbContext.Sectors.Add(sector);
         dbContext.AlienRaces.AddRange(aurelian, krell);
         dbContext.Empires.AddRange(aurelianEmpire, krellEmpire, fallenEmpire);
+        dbContext.Religions.AddRange(solarDoctrine, dunePath);
+        dbContext.Set<EmpireReligion>().AddRange(
+            new EmpireReligion
+            {
+                EmpireId = 201,
+                ReligionId = 301,
+                ReligionName = solarDoctrine.Name,
+                PopulationPercent = 100m
+            },
+            new EmpireReligion
+            {
+                EmpireId = 203,
+                ReligionId = 301,
+                ReligionName = solarDoctrine.Name,
+                PopulationPercent = 40m
+            },
+            new EmpireReligion
+            {
+                EmpireId = 202,
+                ReligionId = 302,
+                ReligionName = dunePath.Name,
+                PopulationPercent = 75m
+            });
         dbContext.EntityNotes.Add(new EntityNote
         {
             TargetKind = EntityNoteTargetKind.AlienRace,

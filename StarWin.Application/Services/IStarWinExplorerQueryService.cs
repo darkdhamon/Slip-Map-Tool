@@ -11,6 +11,10 @@ public interface IStarWinExplorerQueryService
     Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default);
     Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default);
     Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default);
+    Task<ExplorerReligionFilterOptions> LoadReligionFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default);
+    Task<ExplorerReligionListPage> LoadReligionListPageAsync(ExplorerReligionListPageRequest request, CancellationToken cancellationToken = default);
+    Task<ExplorerReligionListItem?> LoadReligionListItemAsync(int sectorId, int religionId, CancellationToken cancellationToken = default);
+    Task<ExplorerReligionDetail?> LoadReligionDetailAsync(int sectorId, int religionId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default);
     Task<ExplorerTimelinePage> LoadTimelinePageAsync(ExplorerTimelinePageRequest request, CancellationToken cancellationToken = default);
     Task<ExplorerTimelineEventDetail?> LoadTimelineEventDetailAsync(int eventId, CancellationToken cancellationToken = default);
@@ -91,6 +95,45 @@ public sealed record ExplorerEmpireDetail(
     IReadOnlyList<ExplorerEmpireColonyListing> Colonies,
     int ControlledColonyCount,
     bool IsFallen);
+
+public sealed record ExplorerReligionFilterOptions(
+    IReadOnlyList<string> Types);
+
+public sealed record ExplorerReligionListPageRequest(
+    int SectorId,
+    int Offset,
+    int Limit,
+    string? Query = null,
+    string? Type = null);
+
+public sealed record ExplorerReligionListPage(
+    IReadOnlyList<ExplorerReligionListItem> Items,
+    bool HasMore);
+
+public sealed record ExplorerReligionListItem(
+    int ReligionId,
+    string Name,
+    string Type,
+    int EmpireCount);
+
+public sealed record ExplorerReligionDetail(
+    int SectorId,
+    StarWin.Domain.Model.Entity.Civilization.Religion Religion,
+    IReadOnlyList<ExplorerReligionEmpireListing> Empires,
+    IReadOnlyList<ExplorerReligionRaceListing> Races);
+
+public sealed record ExplorerReligionEmpireListing(
+    int EmpireId,
+    string EmpireName,
+    decimal PopulationPercent,
+    long TotalPopulationMillions,
+    byte StarWinTechLevel);
+
+public sealed record ExplorerReligionRaceListing(
+    int RaceId,
+    string RaceName,
+    int EmpireCount,
+    long TotalPopulationMillions);
 
 public sealed record ExplorerEmpireRaceMembershipDetail(
     int RaceId,

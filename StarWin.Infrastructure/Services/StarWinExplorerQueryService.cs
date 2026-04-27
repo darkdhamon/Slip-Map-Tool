@@ -463,6 +463,154 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             isFallen);
     }
 
+    public async Task<ExplorerReligionFilterOptions> LoadReligionFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var sectorEmpireIds = await LoadSectorEmpireIdsAsync(dbContext, sectorId, cancellationToken);
+        if (sectorEmpireIds.Count == 0)
+        {
+            return new ExplorerReligionFilterOptions([]);
+        }
+
+        var types = await (
+            from religion in dbContext.Religions.AsNoTracking()
+            join empireReligion in dbContext.Set<EmpireReligion>().AsNoTracking() on religion.Id equals empireReligion.ReligionId
+            where sectorEmpireIds.Contains(empireReligion.EmpireId)
+                && !string.IsNullOrWhiteSpace(religion.Type)
+            select religion.Type)
+            .Distinct()
+            .OrderBy(value => value)
+            .ToListAsync(cancellationToken);
+
+        return new ExplorerReligionFilterOptions(types);
+    }
+
+    public async Task<ExplorerReligionListPage> LoadReligionListPageAsync(ExplorerReligionListPageRequest request, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var sectorEmpireIds = await LoadSectorEmpireIdsAsync(dbContext, request.SectorId, cancellationToken);
+        var religionIds = await LoadSectorReligionIdsAsync(dbContext, sectorEmpireIds, cancellationToken);
+        if (religionIds.Count == 0)
+        {
+            return new ExplorerReligionListPage([], false);
+        }
+
+        var religionsQuery = dbContext.Religions
+            .AsNoTracking()
+            .Where(religion => religionIds.Contains(religion.Id));
+
+        if (!string.IsNullOrWhiteSpace(request.Query))
+        {
+            var searchPattern = $"%{request.Query.Trim()}%";
+            religionsQuery = religionsQuery.Where(religion =>
+                EF.Functions.Like(religion.Name, searchPattern)
+                || EF.Functions.Like(religion.Type, searchPattern));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Type))
+        {
+            var religionType = request.Type.Trim();
+            religionsQuery = religionsQuery.Where(religion => religion.Type == religionType);
+        }
+
+        var items = await religionsQuery
+            .OrderBy(religion => religion.Name)
+            .ThenBy(religion => religion.Id)
+            .Select(religion => new ExplorerReligionListItem(
+                religion.Id,
+                religion.Name,
+                religion.Type,
+                dbContext.Set<EmpireReligion>().Count(empireReligion =>
+                    empireReligion.ReligionId == religion.Id
+                    && sectorEmpireIds.Contains(empireReligion.EmpireId))))
+            .Skip(request.Offset)
+            .Take(request.Limit + 1)
+            .ToListAsync(cancellationToken);
+
+        var hasMore = items.Count > request.Limit;
+        return new ExplorerReligionListPage(items.Take(request.Limit).ToList(), hasMore);
+    }
+
+    public async Task<ExplorerReligionListItem?> LoadReligionListItemAsync(int sectorId, int religionId, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var sectorEmpireIds = await LoadSectorEmpireIdsAsync(dbContext, sectorId, cancellationToken);
+        var religionIds = await LoadSectorReligionIdsAsync(dbContext, sectorEmpireIds, cancellationToken);
+        if (!religionIds.Contains(religionId))
+        {
+            return null;
+        }
+
+        return await dbContext.Religions
+            .AsNoTracking()
+            .Where(religion => religion.Id == religionId)
+            .Select(religion => new ExplorerReligionListItem(
+                religion.Id,
+                religion.Name,
+                religion.Type,
+                dbContext.Set<EmpireReligion>().Count(empireReligion =>
+                    empireReligion.ReligionId == religion.Id
+                    && sectorEmpireIds.Contains(empireReligion.EmpireId))))
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<ExplorerReligionDetail?> LoadReligionDetailAsync(int sectorId, int religionId, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var sectorEmpireIds = await LoadSectorEmpireIdsAsync(dbContext, sectorId, cancellationToken);
+        var religionIds = await LoadSectorReligionIdsAsync(dbContext, sectorEmpireIds, cancellationToken);
+        if (!religionIds.Contains(religionId))
+        {
+            return null;
+        }
+
+        var religion = await dbContext.Religions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.Id == religionId, cancellationToken);
+        if (religion is null)
+        {
+            return null;
+        }
+
+        var empires = await (
+            from empireReligion in dbContext.Set<EmpireReligion>().AsNoTracking()
+            join empire in dbContext.Empires.AsNoTracking() on empireReligion.EmpireId equals empire.Id
+            where empireReligion.ReligionId == religionId
+                && sectorEmpireIds.Contains(empire.Id)
+            orderby empireReligion.PopulationPercent descending, empire.Name, empire.Id
+            select new ExplorerReligionEmpireListing(
+                empire.Id,
+                empire.Name,
+                empireReligion.PopulationPercent,
+                empire.NativePopulationMillions
+                    + empire.CaptivePopulationMillions
+                    + empire.SubjectPopulationMillions
+                    + empire.IndependentPopulationMillions,
+                empire.CivilizationProfile.TechLevel))
+            .ToListAsync(cancellationToken);
+
+        var races = await (
+            from empireReligion in dbContext.Set<EmpireReligion>().AsNoTracking()
+            join membership in dbContext.Set<EmpireRaceMembership>().AsNoTracking() on empireReligion.EmpireId equals membership.EmpireId
+            join race in dbContext.AlienRaces.AsNoTracking() on membership.RaceId equals race.Id
+            where empireReligion.ReligionId == religionId
+                && sectorEmpireIds.Contains(empireReligion.EmpireId)
+            group membership by new { race.Id, race.Name } into grouped
+            orderby grouped.Sum(item => item.PopulationMillions) descending, grouped.Key.Name, grouped.Key.Id
+            select new ExplorerReligionRaceListing(
+                grouped.Key.Id,
+                grouped.Key.Name,
+                grouped.Select(item => item.EmpireId).Distinct().Count(),
+                grouped.Sum(item => item.PopulationMillions)))
+            .ToListAsync(cancellationToken);
+
+        return new ExplorerReligionDetail(sectorId, religion, empires, races);
+    }
+
     public async Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -851,6 +999,23 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             .ToListAsync(cancellationToken);
 
         return superscienceRaceIds.ToHashSet();
+    }
+
+    private static async Task<HashSet<int>> LoadSectorReligionIdsAsync(StarWinDbContext dbContext, HashSet<int> sectorEmpireIds, CancellationToken cancellationToken)
+    {
+        if (sectorEmpireIds.Count == 0)
+        {
+            return [];
+        }
+
+        var religionIds = await dbContext.Set<EmpireReligion>()
+            .AsNoTracking()
+            .Where(religion => sectorEmpireIds.Contains(religion.EmpireId))
+            .Select(religion => religion.ReligionId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return religionIds.ToHashSet();
     }
 
     private static async Task<HashSet<int>> LoadSectorEmpireIdsAsync(StarWinDbContext dbContext, int sectorId, CancellationToken cancellationToken)

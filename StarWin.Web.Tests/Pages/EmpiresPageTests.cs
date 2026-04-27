@@ -560,6 +560,26 @@ public sealed class EmpiresPageTests : BunitContext
                 IsFallenEmpire(empire, sectorId)));
         }
 
+        public Task<ExplorerReligionFilterOptions> LoadReligionFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerReligionFilterOptions([]));
+        }
+
+        public Task<ExplorerReligionListPage> LoadReligionListPageAsync(ExplorerReligionListPageRequest request, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerReligionListPage([], false));
+        }
+
+        public Task<ExplorerReligionListItem?> LoadReligionListItemAsync(int sectorId, int religionId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<ExplorerReligionListItem?>(null);
+        }
+
+        public Task<ExplorerReligionDetail?> LoadReligionDetailAsync(int sectorId, int religionId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<ExplorerReligionDetail?>(null);
+        }
+
         public Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<string>>([]);
