@@ -67,7 +67,7 @@
                                     class="hyperlane-record @(route.Id == selectedHyperlaneId ? "active" : null)"
                                     @onclick="() => SelectHyperlane(sector, route.Id)">
                                 <strong>@(sourceSystem?.Name ?? $"System {route.SourceSystemId}") <span aria-hidden="true">&#8596;</span> @(targetSystem?.Name ?? $"System {route.TargetSystemId}")</strong>
-                                <small>@($"TL{route.TechnologyLevel} {route.TierName} - {route.DistanceParsecs:0.###} pc - {route.TravelTimeYears:0.######} years")</small>
+                                <small>@($"TL{route.TechnologyLevel} {route.TierName} - {route.DistanceParsecs:0.###} pc - {FormatTravelTimeBreakdown(route.TravelTimeYears)}")</small>
                                 <small>@FormatHyperlaneOwnerSummary(route)</small>
                                 @if (route.IsUserPersisted)
                                 {
