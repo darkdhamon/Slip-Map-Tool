@@ -1535,15 +1535,23 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
 
     private static DataTable CreateDataTable(IReadOnlyList<string> columns, IEnumerable<object?[]> rows)
     {
+        var materializedRows = rows
+            .Select(row => row.Select(value => value ?? DBNull.Value).ToArray())
+            .ToList();
         var table = new DataTable();
-        foreach (var column in columns)
+        for (var columnIndex = 0; columnIndex < columns.Count; columnIndex++)
         {
-            table.Columns.Add(column);
+            var dataType = materializedRows
+                .Select(row => row[columnIndex])
+                .FirstOrDefault(value => value is not DBNull)
+                ?.GetType()
+                ?? typeof(object);
+            table.Columns.Add(columns[columnIndex], dataType);
         }
 
-        foreach (var row in rows)
+        foreach (var row in materializedRows)
         {
-            table.Rows.Add(row.Select(value => value ?? DBNull.Value).ToArray());
+            table.Rows.Add(row);
         }
 
         return table;

@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Reflection;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -121,6 +122,62 @@ public sealed class StarWinLegacyImportServiceTests
         }
     }
 
+    [Fact]
+    public void CreateDataTable_preserves_binary_column_types_for_bulk_copy()
+    {
+        var createDataTable = typeof(StarWinLegacyImportService)
+            .GetMethod("CreateDataTable", BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(createDataTable);
+
+        var rows = new List<object?[]>
+        {
+            new object?[] { 1, new byte[] { 1, 2, 3 } }
+        };
+
+        var table = Assert.IsType<System.Data.DataTable>(
+            createDataTable!.Invoke(null, new object?[] { new[] { "Id", "LegacyAttributes" }, rows }));
+
+        Assert.Equal(typeof(int), table.Columns["Id"]!.DataType);
+        Assert.Equal(typeof(byte[]), table.Columns["LegacyAttributes"]!.DataType);
+        Assert.Equal(new byte[] { 1, 2, 3 }, Assert.IsType<byte[]>(table.Rows[0]["LegacyAttributes"]));
+    }
+
+    [Fact]
+    public async Task ImportStarWinZipAsync_imports_delcora_fixture_into_sqlserver()
+    {
+        var databaseName = $"StarWinImportTest_{Guid.NewGuid():N}";
+        var zipPath = GetDelcoraZipPath();
+
+        try
+        {
+            await using var migrationContext = CreateSqlServerDbContext(databaseName);
+            await migrationContext.Database.EnsureDeletedAsync();
+            await migrationContext.Database.MigrateAsync();
+
+            var service = new StarWinLegacyImportService(CreateSqlServerFactory(databaseName));
+
+            await using var stream = File.OpenRead(zipPath);
+            var result = await service.ImportStarWinZipAsync(stream, Path.GetFileName(zipPath), "Delcora SQL Server Test");
+
+            Assert.True(result.Success);
+
+            await using var verificationContext = CreateSqlServerDbContext(databaseName);
+            Assert.Equal("Delcora SQL Server Test", await verificationContext.Sectors.Select(sector => sector.Name).SingleAsync());
+            Assert.True(await verificationContext.StarSystems.AnyAsync());
+            Assert.True(await verificationContext.Worlds.AnyAsync());
+            Assert.True(await verificationContext.AlienRaces.AnyAsync());
+            Assert.True(await verificationContext.Empires.AnyAsync());
+            Assert.True(await verificationContext.Set<EmpireRaceMembership>().AnyAsync());
+            Assert.True(await verificationContext.Set<EmpireContact>().AnyAsync());
+        }
+        finally
+        {
+            await using var cleanupContext = CreateSqlServerDbContext(databaseName);
+            await cleanupContext.Database.EnsureDeletedAsync();
+        }
+    }
+
     private static IDbContextFactory<StarWinDbContext> CreateFactory(string databasePath)
     {
         var options = new DbContextOptionsBuilder<StarWinDbContext>()
@@ -131,11 +188,31 @@ public sealed class StarWinLegacyImportServiceTests
         return new OptionsDbContextFactory(options);
     }
 
+    private static IDbContextFactory<StarWinDbContext> CreateSqlServerFactory(string databaseName)
+    {
+        var options = new DbContextOptionsBuilder<StarWinDbContext>()
+            .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
+            .UseSqlServer(BuildSqlServerConnectionString(databaseName))
+            .Options;
+
+        return new OptionsDbContextFactory(options);
+    }
+
     private static StarWinDbContext CreateDbContext(string databasePath)
     {
         var options = new DbContextOptionsBuilder<StarWinDbContext>()
             .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
             .UseSqlite($"Data Source={databasePath}")
+            .Options;
+
+        return new StarWinDbContext(options);
+    }
+
+    private static StarWinDbContext CreateSqlServerDbContext(string databaseName)
+    {
+        var options = new DbContextOptionsBuilder<StarWinDbContext>()
+            .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
+            .UseSqlServer(BuildSqlServerConnectionString(databaseName))
             .Options;
 
         return new StarWinDbContext(options);
@@ -286,6 +363,21 @@ public sealed class StarWinLegacyImportServiceTests
         }
 
         throw new DirectoryNotFoundException("Unable to locate the repository root.");
+    }
+
+    private static string GetDelcoraZipPath()
+    {
+        return Path.Combine(
+            GetRepositoryRoot(),
+            "Legacy",
+            "starwin v2 compiled app",
+            "data",
+            "Delcora Sector.zip");
+    }
+
+    private static string BuildSqlServerConnectionString(string databaseName)
+    {
+        return $"Server=(localdb)\\mssqllocaldb;Database={databaseName};Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true";
     }
 
     private static string CreateTempFilePath(string extension)
