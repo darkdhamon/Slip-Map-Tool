@@ -3080,3 +3080,12 @@ dd {
         margin: 0 auto 18px;
     }
 }
+.population-abbr {
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(148, 163, 184, 0.65);
+  cursor: help;
+}
+
+.population-abbr:hover {
+  border-bottom-color: rgba(56, 189, 248, 0.95);
+}

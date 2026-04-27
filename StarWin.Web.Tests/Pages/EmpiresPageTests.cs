@@ -263,12 +263,13 @@ public sealed class EmpiresPageTests : BunitContext
             var nativePopulationValue = cut.FindAll("dt")
                 .Single(item => item.TextContent.Trim() == "Native population")
                 .ParentElement!
-                .QuerySelector("dd");
+                .QuerySelector("dd abbr");
 
             Assert.NotNull(nativePopulationValue);
             Assert.Equal("42 trillion", nativePopulationValue!.TextContent.Trim());
             Assert.Equal("41,954,779,000,000", nativePopulationValue.GetAttribute("title"));
-            Assert.Contains("Member; 42 trillion", cut.Markup);
+            Assert.Contains("Member;", cut.Markup);
+            Assert.Contains("42 trillion", cut.Markup);
         });
     }
 
