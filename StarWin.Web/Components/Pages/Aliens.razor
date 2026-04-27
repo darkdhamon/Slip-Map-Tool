@@ -109,6 +109,7 @@
                                   Empires="sectorEmpires"
                                   RaceImages="raceImages"
                                   ImageUploadStatus="imageUploadStatus"
+                                  SelectedEmpireId="RequestedEmpireId ?? 0"
                                   NameSaved="@(name => SaveEntityNameAsync(EntityNoteTargetKind.AlienRace, selectedRace?.Id ?? 0, name))"
                                   UploadRequested="@(args => selectedRace is null ? Task.CompletedTask : UploadEntityImage(EntityImageTargetKind.AlienRace, selectedRace.Id, args))"
                                   WorldSelected="NavigateToWorld"

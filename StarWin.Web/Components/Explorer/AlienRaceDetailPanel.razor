@@ -16,17 +16,27 @@
 }
 else
 {
+    var modifierEntries = GetFilteredEmpireModifierEntries(Race, Empires, modifierSearch, showOnlyChangedModifiers).ToList();
+    var selectedModifierEntry = GetSelectedEmpireModifierEntry(modifierEntries);
     var gurpsTemplate = BuildGurpsTemplate(Race, Empires, HomeWorld);
     var raceMemberships = GetRaceEmpireMemberships(Race, Empires).ToList();
     var primaryEmpire = GetPrimaryEmpire(Race, Empires);
-    var raceHighlights = GetRaceHighlights(Race).ToList();
     var baselineTraits = GetBaselineCivilizationTraits(Race);
-    var empireTraitOverrides = GetEmpireCivilizationOverrides(Race, Empires);
     <article class="detail-panel alien-detail-panel">
         <span class="panel-kicker">Alien biology</span>
         <EditableEntityName Name="@Race.Name"
                             Label="Race"
                             NameSaved="NameSaved" />
+        <section class="alien-summary-card alien-summary-editor-card">
+            <EntityNotesPanel TargetKind="EntityNoteTargetKind.AlienRace"
+                              TargetId="Race.Id"
+                              Title="Race summary"
+                              Heading="Summary"
+                              EditButtonText="Edit summary"
+                              EmptyText="No summary yet."
+                              EditorPlaceholder="Write a short summary for this species..."
+                              EditorRows="4" />
+        </section>
         <div class="alien-overview-grid">
             <section class="alien-summary-card alien-summary-card-primary">
                 <div class="parent-actions">
@@ -39,11 +49,8 @@ else
                     <div><dt>Appearance</dt><dd>@DisplayText(Race.AppearanceType)</dd></div>
                     <div><dt>Environment</dt><dd>@DisplayText(Race.EnvironmentType)</dd></div>
                     <div><dt>Biology</dt><dd>@DisplayText(Race.BodyChemistry)</dd></div>
-                    <div><dt>Body cover</dt><dd>@DisplayText(Race.BodyCoverType)</dd></div>
                     <div><dt>Mass</dt><dd>@Race.MassKg kg</dd></div>
                     <div><dt>Size</dt><dd>@Race.SizeCm cm</dd></div>
-                    <div><dt>Limb pairs</dt><dd>@Race.LimbPairCount</dd></div>
-                    <div><dt>Limb summary</dt><dd>@GetLimbSummary(Race)</dd></div>
                     <div><dt>Lifespan</dt><dd>@DisplayLifespan(Race.BiologyProfile.Lifespan)</dd></div>
                     <div><dt>Body</dt><dd>@Race.BiologyProfile.Body</dd></div>
                     <div><dt>Mind</dt><dd>@Race.BiologyProfile.Mind</dd></div>
@@ -53,15 +60,6 @@ else
                     <div><dt>Temperature pref.</dt><dd>@DisplayText(Race.TemperaturePreference)</dd></div>
                     <div><dt>Atmosphere breathed</dt><dd>@DisplayText(Race.AtmosphereBreathed)</dd></div>
                 </dl>
-                @if (raceHighlights.Count > 0)
-                {
-                    <div class="tag-group alien-tag-group">
-                        @foreach (var highlight in raceHighlights)
-                        {
-                            <span>@highlight</span>
-                        }
-                    </div>
-                }
             </section>
 
             <section class="entity-image-panel alien-image-panel @(RaceImages.Count == 0 ? "compact-empty" : null)">
@@ -141,31 +139,68 @@ else
         </details>
 
         <details class="alien-disclosure-card">
-            <summary>Empire modifiers <span>@empireTraitOverrides.Count</span></summary>
-            @if (empireTraitOverrides.Count == 0)
+            <summary>Empire modifiers <span>@modifierEntries.Count</span></summary>
+            @if (modifierEntries.Count == 0)
             {
                 <p class="alien-empty-state">No empire-specific civilization modifiers in this sector.</p>
             }
             else
             {
-                <div class="relationship-list">
-                    @foreach (var entry in empireTraitOverrides)
-                    {
-                        <article class="timeline-event-card">
-                            <span class="timeline-century">@entry.Empire.Name</span>
+                <div class="alien-modifier-toolbar">
+                    <label>
+                        Search empires
+                        <input placeholder="Empire name..."
+                               @bind="modifierSearch"
+                               @bind:event="oninput" />
+                    </label>
+                    <label class="alien-toggle-label">
+                        <input type="checkbox" @bind="showOnlyChangedModifiers" />
+                        <span>Only changed empires</span>
+                    </label>
+                </div>
+                <div class="alien-modifier-layout">
+                    <div class="relationship-list alien-modifier-list">
+                        @foreach (var entry in modifierEntries)
+                        {
+                            <button type="button"
+                                    class="relationship-row @(entry.Empire.Id == selectedModifierEmpireId ? "active" : null)"
+                                    @onclick="() => SelectModifierEmpire(entry.Empire.Id)">
+                                <strong>@entry.Empire.Name</strong>
+                                <span>@BuildModifierSummary(entry)</span>
+                            </button>
+                        }
+                    </div>
+                    <section class="alien-summary-card alien-modifier-detail-card">
+                        @if (selectedModifierEntry is null)
+                        {
+                            <p class="alien-empty-state">Select an empire to inspect its civilization modifiers.</p>
+                        }
+                        else
+                        {
+                            <div class="alien-modifier-detail-header">
+                                <div>
+                                    <span class="timeline-century">@selectedModifierEntry.Empire.Name</span>
+                                    <h3>Civilization modifiers</h3>
+                                </div>
+                                <button type="button" class="timeline-secondary-button" @onclick="() => EmpireSelected.InvokeAsync(selectedModifierEntry.Empire.Id)">Open empire</button>
+                            </div>
                             <dl class="field-grid alien-field-grid">
-                                @foreach (var trait in entry.Traits)
+                                @foreach (var trait in selectedModifierEntry.Traits)
                                 {
-                                    <div><dt>@trait.Name</dt><dd>@trait.Computed (base @trait.Baseline, mod @DisplayModifier(trait.Modifier))</dd></div>
+                                    <div>
+                                        <dt>@trait.Name</dt>
+                                        <dd>@trait.Computed</dd>
+                                        <small>Base @trait.Baseline, mod @DisplayModifier(trait.Modifier)</small>
+                                    </div>
                                 }
                             </dl>
-                        </article>
-                    }
+                        }
+                    </section>
                 </div>
             }
         </details>
 
-        <details class="alien-disclosure-card" @(raceMemberships.Count > 0 ? null : "open")>
+        <details class="alien-disclosure-card" open="@(raceMemberships.Count == 0)">
             <summary>Empire memberships <span>@raceMemberships.Count</span></summary>
             @if (raceMemberships.Count == 0)
             {
@@ -189,6 +224,9 @@ else
             <summary>Physical traits</summary>
             <div class="alien-gurps-body">
                 <dl class="field-grid alien-field-grid">
+                    <div><dt>Body cover</dt><dd>@DisplayText(Race.BodyCoverType)</dd></div>
+                    <div><dt>Limb pairs</dt><dd>@Race.LimbPairCount</dd></div>
+                    <div><dt>Limb summary</dt><dd>@GetLimbSummary(Race)</dd></div>
                     <div><dt>Limb details</dt><dd>@DisplayJoinedValues(Race.LimbTypes)</dd></div>
                     <div><dt>Abilities</dt><dd>@DisplayJoinedValues(Race.Abilities)</dd></div>
                     <div><dt>Body characteristics</dt><dd>@DisplayJoinedValues(Race.BodyCharacteristics)</dd></div>
@@ -206,13 +244,6 @@ else
             <summary>Visual profile</summary>
             <p class="alien-empty-state">Copy this block into ChatGPT or another image model as a starting point for race concept art.</p>
             <pre class="timeline-import-data">@BuildVisualDescriptionPrompt(Race)</pre>
-        </details>
-
-        <details class="alien-disclosure-card">
-            <summary>Notes</summary>
-            <EntityNotesPanel TargetKind="EntityNoteTargetKind.AlienRace"
-                              TargetId="Race.Id"
-                              Title="Alien notes" />
         </details>
 
         @if (!string.IsNullOrWhiteSpace(Race.ImportDataJson))
@@ -376,6 +407,29 @@ else
     [Parameter]
     public EventCallback<int> EmpireSelected { get; set; }
 
+    [Parameter]
+    public int SelectedEmpireId { get; set; }
+
+    private string modifierSearch = string.Empty;
+    private bool showOnlyChangedModifiers;
+    private int selectedModifierEmpireId;
+
+    protected override void OnParametersSet()
+    {
+        if (SelectedEmpireId > 0 && Empires.Any(empire => empire.Id == SelectedEmpireId))
+        {
+            selectedModifierEmpireId = SelectedEmpireId;
+            return;
+        }
+
+        if (selectedModifierEmpireId > 0 && Empires.Any(empire => empire.Id == selectedModifierEmpireId))
+        {
+            return;
+        }
+
+        selectedModifierEmpireId = Empires.FirstOrDefault()?.Id ?? 0;
+    }
+
     private static IEnumerable<RaceEmpireMembership> GetRaceEmpireMemberships(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
     {
         return sectorEmpires
@@ -397,42 +451,50 @@ else
     {
         return
         [
-            new("Militancy", race.CivilizationProfile.Militancy, 0, race.CivilizationProfile.Militancy),
-            new("Determination", race.CivilizationProfile.Determination, 0, race.CivilizationProfile.Determination),
-            new("Racial tolerance", race.CivilizationProfile.RacialTolerance, 0, race.CivilizationProfile.RacialTolerance),
-            new("Progressiveness", race.CivilizationProfile.Progressiveness, 0, race.CivilizationProfile.Progressiveness),
-            new("Loyalty", race.CivilizationProfile.Loyalty, 0, race.CivilizationProfile.Loyalty),
-            new("Social cohesion", race.CivilizationProfile.SocialCohesion, 0, race.CivilizationProfile.SocialCohesion),
-            new("Art", race.CivilizationProfile.Art, 0, race.CivilizationProfile.Art),
-            new("Individualism", race.CivilizationProfile.Individualism, 0, race.CivilizationProfile.Individualism)
+            new("Militancy", race.CivilizationProfile.Militancy, race.CivilizationProfile.Militancy, 0, race.CivilizationProfile.Militancy),
+            new("Determination", race.CivilizationProfile.Determination, race.CivilizationProfile.Determination, 0, race.CivilizationProfile.Determination),
+            new("Racial tolerance", race.CivilizationProfile.RacialTolerance, race.CivilizationProfile.RacialTolerance, 0, race.CivilizationProfile.RacialTolerance),
+            new("Progressiveness", race.CivilizationProfile.Progressiveness, race.CivilizationProfile.Progressiveness, 0, race.CivilizationProfile.Progressiveness),
+            new("Loyalty", race.CivilizationProfile.Loyalty, race.CivilizationProfile.Loyalty, 0, race.CivilizationProfile.Loyalty),
+            new("Social cohesion", race.CivilizationProfile.SocialCohesion, race.CivilizationProfile.SocialCohesion, 0, race.CivilizationProfile.SocialCohesion),
+            new("Art", race.CivilizationProfile.Art, race.CivilizationProfile.Art, 0, race.CivilizationProfile.Art),
+            new("Individualism", race.CivilizationProfile.Individualism, race.CivilizationProfile.Individualism, 0, race.CivilizationProfile.Individualism)
         ];
     }
 
-    private static IReadOnlyList<EmpireCivilizationModifierDisplay> GetEmpireCivilizationOverrides(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
+    private static IEnumerable<EmpireCivilizationModifierDisplay> GetFilteredEmpireModifierEntries(
+        AlienRace race,
+        IReadOnlyCollection<Empire> sectorEmpires,
+        string searchText,
+        bool showOnlyChanged)
     {
         return sectorEmpires
             .Where(empire => empire.RaceMemberships.Any(membership => membership.RaceId == race.Id))
             .Select(empire => new EmpireCivilizationModifierDisplay(
                 empire,
                 [
-                    BuildTraitDisplay("Militancy", race.CivilizationProfile.Militancy, empire.CivilizationModifiers.Militancy),
-                    BuildTraitDisplay("Determination", race.CivilizationProfile.Determination, empire.CivilizationModifiers.Determination),
-                    BuildTraitDisplay("Racial tolerance", race.CivilizationProfile.RacialTolerance, empire.CivilizationModifiers.RacialTolerance),
-                    BuildTraitDisplay("Progressiveness", race.CivilizationProfile.Progressiveness, empire.CivilizationModifiers.Progressiveness),
-                    BuildTraitDisplay("Loyalty", race.CivilizationProfile.Loyalty, empire.CivilizationModifiers.Loyalty),
-                    BuildTraitDisplay("Social cohesion", race.CivilizationProfile.SocialCohesion, empire.CivilizationModifiers.SocialCohesion),
-                    BuildTraitDisplay("Art", race.CivilizationProfile.Art, empire.CivilizationModifiers.Art),
-                    BuildTraitDisplay("Individualism", race.CivilizationProfile.Individualism, empire.CivilizationModifiers.Individualism)
+                    BuildTraitDisplay("Militancy", race.CivilizationProfile.Militancy, empire.CivilizationProfile.Militancy, empire.CivilizationModifiers.Militancy),
+                    BuildTraitDisplay("Determination", race.CivilizationProfile.Determination, empire.CivilizationProfile.Determination, empire.CivilizationModifiers.Determination),
+                    BuildTraitDisplay("Racial tolerance", race.CivilizationProfile.RacialTolerance, empire.CivilizationProfile.RacialTolerance, empire.CivilizationModifiers.RacialTolerance),
+                    BuildTraitDisplay("Progressiveness", race.CivilizationProfile.Progressiveness, empire.CivilizationProfile.Progressiveness, empire.CivilizationModifiers.Progressiveness),
+                    BuildTraitDisplay("Loyalty", race.CivilizationProfile.Loyalty, empire.CivilizationProfile.Loyalty, empire.CivilizationModifiers.Loyalty),
+                    BuildTraitDisplay("Social cohesion", race.CivilizationProfile.SocialCohesion, empire.CivilizationProfile.SocialCohesion, empire.CivilizationModifiers.SocialCohesion),
+                    BuildTraitDisplay("Art", race.CivilizationProfile.Art, empire.CivilizationProfile.Art, empire.CivilizationModifiers.Art),
+                    BuildTraitDisplay("Individualism", race.CivilizationProfile.Individualism, empire.CivilizationProfile.Individualism, empire.CivilizationModifiers.Individualism)
                 ]))
+            .Where(entry => string.IsNullOrWhiteSpace(searchText)
+                || entry.Empire.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase))
+            .Where(entry => !showOnlyChanged || entry.Traits.Any(trait => trait.Modifier != 0))
             .OrderByDescending(item => item.Empire.RaceMemberships.Any(membership => membership.RaceId == race.Id && membership.IsPrimary))
             .ThenBy(item => item.Empire.Name)
-            .ToList();
+            .ThenBy(item => item.Empire.Id);
     }
 
-    private static CivilizationTraitDisplay BuildTraitDisplay(string name, byte baseline, int modifier)
+    private static CivilizationTraitDisplay BuildTraitDisplay(string name, byte baseline, byte currentValue, int explicitModifier)
     {
+        var modifier = ResolveModifier(baseline, currentValue, explicitModifier);
         var computed = Math.Clamp(baseline + modifier, StarWindTraitMinimum, StarWindTraitMaximum);
-        return new CivilizationTraitDisplay(name, baseline, modifier, computed);
+        return new CivilizationTraitDisplay(name, baseline, currentValue, modifier, computed);
     }
 
     private static GurpsTemplate BuildGurpsTemplate(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires, World? homeWorld)
@@ -450,29 +512,6 @@ else
 
         var builder = new GurpsTemplateBuilder();
         return builder.Build(profile, GurpsTemplateEdition.FourthEdition);
-    }
-
-    private static IEnumerable<string> GetRaceHighlights(AlienRace race)
-    {
-        if (!string.IsNullOrWhiteSpace(race.BodyCoverType))
-        {
-            yield return $"Body cover: {race.BodyCoverType}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(race.Reproduction))
-        {
-            yield return $"Reproduction: {race.Reproduction}";
-        }
-
-        if (race.DevotionLevel != AlienDevotionLevel.None)
-        {
-            yield return $"{race.DevotionLevel} devotion";
-        }
-
-        if (race.BiologyProfile.Lifespan > 0)
-        {
-            yield return $"Lifespan {DisplayLifespan(race.BiologyProfile.Lifespan)}";
-        }
     }
 
     private static string DisplayText(string? value)
@@ -530,6 +569,60 @@ else
     private static string DisplayModifier(int modifier)
     {
         return modifier > 0 ? $"+{modifier}" : modifier.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private EmpireCivilizationModifierDisplay? GetSelectedEmpireModifierEntry(IReadOnlyList<EmpireCivilizationModifierDisplay> entries)
+    {
+        if (entries.Count == 0)
+        {
+            selectedModifierEmpireId = 0;
+            return null;
+        }
+
+        if (selectedModifierEmpireId > 0)
+        {
+            var selectedEntry = entries.FirstOrDefault(entry => entry.Empire.Id == selectedModifierEmpireId);
+            if (selectedEntry is not null)
+            {
+                return selectedEntry;
+            }
+        }
+
+        selectedModifierEmpireId = entries[0].Empire.Id;
+        return entries[0];
+    }
+
+    private void SelectModifierEmpire(int empireId)
+    {
+        selectedModifierEmpireId = empireId;
+    }
+
+    private static string BuildModifierSummary(EmpireCivilizationModifierDisplay entry)
+    {
+        var changedTraits = entry.Traits
+            .Where(trait => trait.Modifier != 0)
+            .Select(trait => $"{trait.Name} {DisplayModifier(trait.Modifier)}")
+            .Take(2)
+            .ToList();
+
+        return changedTraits.Count == 0
+            ? "No recorded drift from species baseline"
+            : string.Join(" | ", changedTraits);
+    }
+
+    private static int ResolveModifier(byte baseline, byte currentValue, int explicitModifier)
+    {
+        if (explicitModifier != 0)
+        {
+            return explicitModifier;
+        }
+
+        if (currentValue > 0 && currentValue != baseline)
+        {
+            return currentValue - baseline;
+        }
+
+        return 0;
     }
 
     private static string BuildVisualDescriptionPrompt(AlienRace race)
@@ -643,7 +736,7 @@ else
 
     private sealed record RaceEmpireMembership(Empire Empire, EmpireRaceMembership Membership);
 
-    private sealed record CivilizationTraitDisplay(string Name, int Baseline, int Modifier, int Computed);
+    private sealed record CivilizationTraitDisplay(string Name, int Baseline, int CurrentValue, int Modifier, int Computed);
 
     private sealed record EmpireCivilizationModifierDisplay(Empire Empire, IReadOnlyList<CivilizationTraitDisplay> Traits);
 }

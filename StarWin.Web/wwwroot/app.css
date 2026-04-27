@@ -1901,6 +1901,10 @@ dd {
     gap: 16px;
 }
 
+.alien-summary-editor-card {
+    padding-top: 4px;
+}
+
 .alien-overview-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.8fr) minmax(220px, 0.95fr);
@@ -1956,6 +1960,88 @@ dd {
 .alien-image-panel {
     margin-bottom: 0;
     align-content: start;
+}
+
+.alien-modifier-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+}
+
+.alien-modifier-toolbar label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.alien-modifier-toolbar input[type="text"],
+.alien-modifier-toolbar input:not([type]) {
+    min-height: 40px;
+    min-width: min(280px, 100%);
+    border: 1px solid rgba(125, 211, 252, 0.38);
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.76);
+    color: var(--ink);
+    padding: 8px 10px;
+}
+
+.alien-toggle-label {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 6px;
+}
+
+.alien-toggle-label input {
+    width: auto;
+    min-height: 0;
+}
+
+.alien-modifier-layout {
+    display: grid;
+    grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.alien-modifier-list {
+    max-height: 540px;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.alien-modifier-detail-card {
+    gap: 14px;
+}
+
+.alien-modifier-detail-card .alien-field-grid {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+}
+
+.alien-modifier-detail-card .alien-field-grid div {
+    display: grid;
+    gap: 2px;
+}
+
+.alien-modifier-detail-card small {
+    color: var(--muted);
+    font-size: 0.74rem;
+    font-weight: 600;
+}
+
+.alien-modifier-detail-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.alien-modifier-detail-header h3 {
+    margin: 4px 0 0;
 }
 
 .parent-actions {
@@ -2078,6 +2164,26 @@ dd {
 .image-upload-control:hover {
     border-color: var(--accent);
     background: rgba(14, 165, 233, 0.28);
+}
+
+.image-upload-control input[type="file"] {
+    color: #dff8ff;
+}
+
+.image-upload-control input[type="file"]::file-selector-button {
+    margin-right: 10px;
+    border: 1px solid rgba(125, 211, 252, 0.22);
+    border-radius: 6px;
+    background: rgba(3, 10, 24, 0.76);
+    color: #f8fbff;
+    padding: 8px 10px;
+    font: inherit;
+    font-weight: 800;
+}
+
+.image-upload-control input[type="file"]::file-selector-button:hover {
+    border-color: var(--accent);
+    background: rgba(14, 165, 233, 0.22);
 }
 
 .import-dropzone {
@@ -2279,6 +2385,7 @@ dd {
 }
 
 .relationship-row:hover,
+.relationship-row.active,
 .demographic-row:hover {
     border-color: var(--accent);
     background: rgba(14, 165, 233, 0.18);
@@ -2381,7 +2488,8 @@ dd {
 
 @media (max-width: 1100px) {
     .alien-overview-grid,
-    .alien-secondary-grid {
+    .alien-secondary-grid,
+    .alien-modifier-layout {
         grid-template-columns: 1fr;
     }
 
@@ -2402,6 +2510,10 @@ dd {
 
     .entity-image-panel.compact-empty .image-upload-control {
         justify-self: start;
+    }
+
+    .editable-name-display {
+        align-items: start;
     }
 }
 
@@ -2634,10 +2746,8 @@ dd {
 .entity-notes-panel {
     display: grid;
     gap: 12px;
-    border-top: 1px solid rgba(125, 211, 252, 0.16);
-    border-bottom: 1px solid rgba(125, 211, 252, 0.12);
-    margin: 18px 0;
-    padding: 16px 0;
+    margin: 0;
+    padding: 0;
 }
 
 .notes-header {
@@ -2656,6 +2766,25 @@ dd {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+.notes-header button,
+.name-actions button,
+.icon-text-button {
+    border: 1px solid rgba(56, 189, 248, 0.38);
+    border-radius: 6px;
+    background: rgba(14, 165, 233, 0.16);
+    color: #ecfeff;
+    padding: 8px 10px;
+    font-weight: 800;
+}
+
+.notes-header button:hover,
+.name-actions button:hover,
+.icon-text-button:hover {
+    border-color: var(--accent);
+    background: rgba(14, 165, 233, 0.28);
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.16);
 }
 
 .markdown-editor {
@@ -2732,6 +2861,14 @@ dd {
     margin: 0 0 12px;
 }
 
+.editable-name-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+}
+
 .editable-name h2 {
     margin-bottom: 0;
 }
@@ -2764,7 +2901,7 @@ dd {
 
 .icon-text-button {
     justify-self: start;
-    padding: 8px 10px;
+    white-space: nowrap;
 }
 
 @media (max-width: 1100px) {

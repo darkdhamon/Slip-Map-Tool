@@ -29,16 +29,20 @@ public sealed class AliensPageTests : BunitContext
         {
             Assert.Contains("Alien biology", cut.Markup);
             Assert.Contains("Aurelian", cut.Markup);
+            Assert.Contains("Summary", cut.Markup);
+            Assert.Contains("No summary yet.", cut.Markup);
             Assert.Contains("Homeworld: Helios", cut.Markup);
             Assert.Contains("Empire memberships", cut.Markup);
             Assert.Contains("Species baseline traits", cut.Markup);
             Assert.Contains("Empire modifiers", cut.Markup);
+            Assert.Contains("Base 6, mod +2", cut.Markup);
             Assert.Contains("Hair type", cut.Markup);
             Assert.Contains("Striped/Banded", cut.Markup);
             Assert.Contains("Visual profile", cut.Markup);
             Assert.Contains("Species: Aurelian", cut.Markup);
             Assert.Contains("Style target: detailed science-fiction species concept art", cut.Markup);
             Assert.Contains("Aurelian import", cut.Markup);
+            Assert.DoesNotContain("? null", cut.Markup);
         });
     }
 
@@ -173,7 +177,8 @@ public sealed class AliensPageTests : BunitContext
         Assert.EndsWith("/sector-explorer/worlds?sectorId=7&systemId=11&worldId=101&raceId=1", navigationManager.Uri, StringComparison.Ordinal);
 
         cut.FindAll(".relationship-row")
-            .Single(button => button.TextContent.Contains("Orion Compact", StringComparison.Ordinal))
+            .Single(button => button.TextContent.Contains("Orion Compact", StringComparison.Ordinal)
+                && button.TextContent.Contains("3200 million", StringComparison.Ordinal))
             .Click();
 
         Assert.EndsWith("/sector-explorer/empires?sectorId=7&systemId=11&raceId=1&empireId=2", navigationManager.Uri, StringComparison.Ordinal);
