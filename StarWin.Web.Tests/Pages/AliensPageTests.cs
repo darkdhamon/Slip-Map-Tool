@@ -55,7 +55,7 @@ public sealed class AliensPageTests : BunitContext
 
         var cut = Render<Aliens>();
 
-        cut.Find("input[placeholder='Name, biology, traits...']").Input("Krell");
+        cut.Find("input[placeholder='Name, appearance, environment...']").Input("Krell");
 
         cut.WaitForAssertion(() =>
         {
@@ -73,6 +73,22 @@ public sealed class AliensPageTests : BunitContext
         {
             Assert.Equal(2, cut.FindAll(".record-row").Count);
             Assert.Contains("Showing 2 races", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void SearchPanelStartsCollapsed()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext());
+
+        var cut = Render<Aliens>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var searchPanel = cut.Find(".record-filter-panel");
+            Assert.DoesNotContain("open", searchPanel.OuterHtml, StringComparison.OrdinalIgnoreCase);
         });
     }
 
@@ -190,6 +206,7 @@ public sealed class AliensPageTests : BunitContext
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
+        Services.AddSingleton<IStarWinExplorerQueryService>(new FakeExplorerQueryService(context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinImageService>(new FakeImageService());
         Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());
@@ -366,6 +383,98 @@ public sealed class AliensPageTests : BunitContext
         public Task<StarWinSector?> LoadSectorAsync(int sectorId, ExplorerSectorLoadSections loadSections, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<StarWinSector?>(context.Sectors.FirstOrDefault(sector => sector.Id == sectorId));
+        }
+    }
+
+    private sealed class FakeExplorerQueryService(StarWinExplorerContext context) : IStarWinExplorerQueryService
+    {
+        public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default)
+        {
+            var items = GetSectorRaces(request.SectorId)
+                .OrderBy(race => race.Name)
+                .ThenBy(race => race.Id)
+                .Select(race => new ExplorerAlienRaceListItem(race.Id, race.Name, race.AppearanceType, race.EnvironmentType))
+                .ToList();
+
+            var page = items.Skip(request.Offset).Take(request.Limit + 1).ToList();
+            var hasMore = page.Count > request.Limit;
+            return Task.FromResult(new ExplorerAlienRaceListPage(page.Take(request.Limit).ToList(), hasMore));
+        }
+
+        public Task<ExplorerAlienRaceListItem?> LoadAlienRaceListItemAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
+        {
+            var race = GetSectorRaces(sectorId).FirstOrDefault(item => item.Id == raceId);
+            return Task.FromResult(race is null
+                ? null
+                : new ExplorerAlienRaceListItem(race.Id, race.Name, race.AppearanceType, race.EnvironmentType));
+        }
+
+        public Task<ExplorerAlienRaceDetail?> LoadAlienRaceDetailAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
+        {
+            var sector = context.Sectors.FirstOrDefault(item => item.Id == sectorId);
+            var race = GetSectorRaces(sectorId).FirstOrDefault(item => item.Id == raceId);
+            if (sector is null || race is null)
+            {
+                return Task.FromResult<ExplorerAlienRaceDetail?>(null);
+            }
+
+            var homeWorld = sector.Systems
+                .SelectMany(system => system.Worlds)
+                .FirstOrDefault(world => world.Id == race.HomePlanetId);
+            var empires = context.Empires
+                .Where(empire => empire.RaceMemberships.Any(membership => membership.RaceId == raceId))
+                .ToList();
+
+            return Task.FromResult<ExplorerAlienRaceDetail?>(new ExplorerAlienRaceDetail(sectorId, race, homeWorld, empires));
+        }
+
+        public Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ExplorerTimelinePage> LoadTimelinePageAsync(ExplorerTimelinePageRequest request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ExplorerTimelineEventDetail?> LoadTimelineEventDetailAsync(int eventId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        private IReadOnlyList<AlienRace> GetSectorRaces(int sectorId)
+        {
+            var sector = context.Sectors.FirstOrDefault(item => item.Id == sectorId);
+            if (sector is null)
+            {
+                return [];
+            }
+
+            var raceIds = sector.Systems
+                .SelectMany(system => system.Worlds)
+                .SelectMany(world => new[]
+                {
+                    world.AlienRaceId,
+                    world.Colony?.RaceId
+                }.Where(id => id.HasValue).Select(id => id!.Value))
+                .ToHashSet();
+
+            foreach (var demographicRaceId in sector.Systems
+                .SelectMany(system => system.Worlds)
+                .Where(world => world.Colony is not null)
+                .SelectMany(world => world.Colony!.Demographics)
+                .Select(demographic => demographic.RaceId))
+            {
+                raceIds.Add(demographicRaceId);
+            }
+
+            return context.AlienRaces.Where(race => raceIds.Contains(race.Id)).ToList();
         }
     }
 

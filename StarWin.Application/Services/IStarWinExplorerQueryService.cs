@@ -3,6 +3,9 @@ namespace StarWin.Application.Services;
 public interface IStarWinExplorerQueryService
 {
     Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default);
+    Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default);
+    Task<ExplorerAlienRaceListItem?> LoadAlienRaceListItemAsync(int sectorId, int raceId, CancellationToken cancellationToken = default);
+    Task<ExplorerAlienRaceDetail?> LoadAlienRaceDetailAsync(int sectorId, int raceId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default);
     Task<ExplorerTimelinePage> LoadTimelinePageAsync(ExplorerTimelinePageRequest request, CancellationToken cancellationToken = default);
     Task<ExplorerTimelineEventDetail?> LoadTimelineEventDetailAsync(int eventId, CancellationToken cancellationToken = default);
@@ -19,6 +22,27 @@ public sealed record ExplorerSectorOverviewData(
     int RaceCount,
     IReadOnlyList<ExplorerLookupOption> Systems,
     IReadOnlyList<ExplorerLookupOption> Empires);
+
+public sealed record ExplorerAlienRaceListPageRequest(
+    int SectorId,
+    int Offset,
+    int Limit);
+
+public sealed record ExplorerAlienRaceListPage(
+    IReadOnlyList<ExplorerAlienRaceListItem> Items,
+    bool HasMore);
+
+public sealed record ExplorerAlienRaceListItem(
+    int RaceId,
+    string Name,
+    string AppearanceType,
+    string EnvironmentType);
+
+public sealed record ExplorerAlienRaceDetail(
+    int SectorId,
+    StarWin.Domain.Model.Entity.Civilization.AlienRace Race,
+    StarWin.Domain.Model.Entity.StarMap.World? HomeWorld,
+    IReadOnlyList<StarWin.Domain.Model.Entity.Civilization.Empire> Empires);
 
 public sealed record ExplorerTimelinePageRequest(
     int SectorId,
