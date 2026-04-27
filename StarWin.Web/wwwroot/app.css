@@ -2135,6 +2135,12 @@ dd {
     margin: 0;
 }
 
+.entity-image-trigger {
+    border: 0;
+    background: transparent;
+    padding: 0;
+}
+
 .entity-image-grid img {
     width: 100%;
     aspect-ratio: 16 / 10;
@@ -2147,6 +2153,58 @@ dd {
 .entity-image-grid figcaption {
     color: var(--muted);
     font-size: 0.78rem;
+}
+
+.entity-image-trigger:hover img,
+.entity-image-trigger:focus-visible img {
+    border-color: var(--accent);
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.18);
+}
+
+.image-preview-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: grid;
+    place-items: center;
+    background: rgba(2, 6, 23, 0.82);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+}
+
+.image-preview-panel {
+    display: grid;
+    gap: 16px;
+    width: min(960px, 100%);
+    max-height: min(92vh, 920px);
+    overflow: auto;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: rgba(5, 14, 30, 0.98);
+    box-shadow: var(--shadow), var(--glow);
+    padding: 18px;
+}
+
+.image-preview-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.image-preview-header h3 {
+    margin: 4px 0 0;
+    color: #f8fbff;
+}
+
+.image-preview-full {
+    width: 100%;
+    max-height: 72vh;
+    object-fit: contain;
+    border: 1px solid rgba(125, 211, 252, 0.24);
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.72);
 }
 
 .image-upload-control {

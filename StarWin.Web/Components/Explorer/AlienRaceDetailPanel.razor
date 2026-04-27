@@ -73,7 +73,11 @@ else
                         @foreach (var image in RaceImages)
                         {
                             <figure>
-                                <img src="@image.RelativePath" alt="@image.FileName" />
+                                <button type="button"
+                                        class="entity-image-trigger"
+                                        @onclick="() => OpenImagePreview(image)">
+                                    <img src="@image.RelativePath" alt="@image.FileName" />
+                                </button>
                                 <figcaption>@(image.IsPrimary ? "Primary" : image.FileName)</figcaption>
                             </figure>
                         }
@@ -93,6 +97,22 @@ else
                 }
             </section>
         </div>
+
+        @if (previewImage is not null)
+        {
+            <div class="image-preview-backdrop" role="dialog" aria-modal="true" aria-label="Race image preview" @onclick="CloseImagePreview">
+                <section class="image-preview-panel" @onclick:stopPropagation="true">
+                    <div class="image-preview-header">
+                        <div>
+                            <span class="panel-kicker">Race image</span>
+                            <h3>@(string.IsNullOrWhiteSpace(previewImage.Caption) ? previewImage.FileName : previewImage.Caption)</h3>
+                        </div>
+                        <button type="button" class="timeline-secondary-button" @onclick="CloseImagePreview">Close</button>
+                    </div>
+                    <img class="image-preview-full" src="@previewImage.RelativePath" alt="@previewImage.FileName" />
+                </section>
+            </div>
+        }
 
         <div class="alien-secondary-grid">
             <section class="alien-summary-card">
@@ -413,6 +433,7 @@ else
     private string modifierSearch = string.Empty;
     private bool showOnlyChangedModifiers;
     private int selectedModifierEmpireId;
+    private EntityImage? previewImage;
 
     protected override void OnParametersSet()
     {
@@ -595,6 +616,16 @@ else
     private void SelectModifierEmpire(int empireId)
     {
         selectedModifierEmpireId = empireId;
+    }
+
+    private void OpenImagePreview(EntityImage image)
+    {
+        previewImage = image;
+    }
+
+    private void CloseImagePreview()
+    {
+        previewImage = null;
     }
 
     private static string BuildModifierSummary(EmpireCivilizationModifierDisplay entry)

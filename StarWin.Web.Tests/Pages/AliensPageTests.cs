@@ -185,6 +185,41 @@ public sealed class AliensPageTests : BunitContext
     }
 
     [Fact]
+    public void OpensRaceImageInPreviewModal()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(), images:
+        [
+            new EntityImage
+            {
+                Id = 1,
+                TargetKind = EntityImageTargetKind.AlienRace,
+                TargetId = 1,
+                FileName = "aurelian.png",
+                RelativePath = "/uploads/aurelian.png",
+                IsPrimary = true
+            }
+        ]);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/aliens?sectorId=7&raceId=1");
+
+        var cut = Render<Aliens>();
+
+        cut.WaitForAssertion(() => Assert.Contains("aurelian.png", cut.Markup));
+
+        cut.Find(".entity-image-trigger").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Race image preview", cut.Markup);
+            Assert.Contains("image-preview-full", cut.Markup);
+            Assert.Contains("/uploads/aurelian.png", cut.Markup);
+        });
+    }
+
+    [Fact]
     public void ShowsEmptyMembershipStateWhenRaceHasNoEmpireMemberships()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -207,13 +242,13 @@ public sealed class AliensPageTests : BunitContext
         });
     }
 
-    private void ConfigureServices(StarWinExplorerContext context)
+    private void ConfigureServices(StarWinExplorerContext context, IReadOnlyList<EntityImage>? images = null)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
         Services.AddSingleton<IStarWinExplorerQueryService>(new FakeExplorerQueryService(context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
-        Services.AddSingleton<IStarWinImageService>(new FakeImageService());
+        Services.AddSingleton<IStarWinImageService>(new FakeImageService(images ?? []));
         Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());
         Services.AddSingleton<IStarWinEntityNoteService>(new FakeEntityNoteService());
     }
@@ -491,11 +526,11 @@ public sealed class AliensPageTests : BunitContext
         }
     }
 
-    private sealed class FakeImageService : IStarWinImageService
+    private sealed class FakeImageService(IReadOnlyList<EntityImage> images) : IStarWinImageService
     {
         public Task<IReadOnlyList<EntityImage>> GetImagesAsync(CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<IReadOnlyList<EntityImage>>([]);
+            return Task.FromResult(images);
         }
 
         public Task<EntityImage> UploadImageAsync(EntityImageTargetKind targetKind, int targetId, string fileName, string contentType, Stream content, CancellationToken cancellationToken = default)
