@@ -4,13 +4,7 @@
 
 @{
     var sector = GetSelectedSector();
-    var sectorSummary = GetSectorSummary(sector);
-    var sectionCache = GetSectorCache(sector);
-    var sectorRaceIds = sectionCache.RaceIds;
-    var sectorEmpireIds = sectionCache.EmpireIds;
-    var sectorRaces = ExplorerAlienRaces.Where(race => sectorRaceIds.Contains(race.Id)).OrderBy(race => race.Name).ToList();
-    var sectorEmpires = ExplorerEmpires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
-    var selectedEmpire = sectorEmpires.FirstOrDefault(empire => empire.Id == selectedEmpireId) ?? sectorEmpires.FirstOrDefault();
+    var selectedEmpire = selectedEmpireDetail?.Empire;
     var layoutState = new SectorExplorerLayoutState(
         null,
         ExplorerSectors,
@@ -39,53 +33,93 @@
                     <summary class="record-filter-summary">Search</summary>
                     <label>
                         Search
-                        <input placeholder="Name, policy, homeworld..."
+                        <input placeholder="Name, summary, or notes..."
                                @bind="empireQuery"
                                @bind:event="oninput"
-                               @bind:after="ResetEmpireWindow" />
+                               @bind:after="HandleEmpireFiltersChangedAsync" />
                     </label>
-                    <button type="button" class="timeline-clear-button" @onclick="ToggleEmpireFilters">
-                        @(showEmpireFilters ? "Hide filters" : "Show filters")
-                    </button>
-                    @if (showEmpireFilters)
-                    {
-                        <label>
-                            Race
-                            <input list="empire-race-options"
-                                   placeholder="All races"
-                                   @bind="empireRaceText"
-                                   @bind:event="oninput"
-                                   @bind:after="ApplyEmpireRaceFilter" />
-                            <datalist id="empire-race-options">
-                                @foreach (var race in sectorRaces)
-                                {
-                                    <option value="@FormatRaceOption(race)" />
-                                }
-                            </datalist>
+                    <div class="record-filter-actions">
+                        <button type="button" class="timeline-clear-button" @onclick="HandleClearEmpireFiltersAsync">Clear filters</button>
+                    </div>
+                    <label>
+                        Race
+                        <input list="empire-race-options"
+                               placeholder="All races"
+                               @bind="empireRaceText"
+                               @bind:event="oninput"
+                               @bind:after="ApplyEmpireRaceFilterAsync" />
+                        <datalist id="empire-race-options">
+                            @foreach (var race in empireFilterOptions.Races)
+                            {
+                                <option value="@($"{race.Id} - {race.Name}")" />
+                            }
+                        </datalist>
+                    </label>
+                    <div class="record-filter-toggle-row">
+                        <label class="record-filter-toggle">
+                            <span class="record-filter-toggle-copy">
+                                <span class="record-filter-toggle-label">Fallen empires only</span>
+                                <span class="record-filter-toggle-hint">Limit the list to inactive former empires</span>
+                            </span>
+                            <span class="record-filter-toggle-control">
+                                <input type="checkbox"
+                                       class="record-filter-toggle-input"
+                                       data-testid="fallen-empire-filter-toggle"
+                                       checked="@showOnlyFallenEmpires"
+                                       @onchange="ToggleFallenEmpireFilterAsync" />
+                                <span class="record-filter-toggle-track" aria-hidden="true">
+                                    <span class="record-filter-toggle-track-lines">
+                                        <span class="record-filter-toggle-track-line"></span>
+                                    </span>
+                                    <span class="record-filter-toggle-data">
+                                        <span class="record-filter-toggle-data-text off">OFF</span>
+                                        <span class="record-filter-toggle-data-text on">ON</span>
+                                        <span class="record-filter-toggle-status off"></span>
+                                        <span class="record-filter-toggle-status on"></span>
+                                    </span>
+                                    <span class="record-filter-toggle-energy-rings">
+                                        <span class="record-filter-toggle-energy-ring"></span>
+                                        <span class="record-filter-toggle-energy-ring"></span>
+                                        <span class="record-filter-toggle-energy-ring"></span>
+                                    </span>
+                                    <span class="record-filter-toggle-thumb">
+                                        <span class="record-filter-toggle-thumb-core"></span>
+                                        <span class="record-filter-toggle-thumb-inner"></span>
+                                        <span class="record-filter-toggle-thumb-scan"></span>
+                                        <span class="record-filter-toggle-thumb-particles">
+                                            <span class="record-filter-toggle-thumb-particle"></span>
+                                            <span class="record-filter-toggle-thumb-particle"></span>
+                                            <span class="record-filter-toggle-thumb-particle"></span>
+                                            <span class="record-filter-toggle-thumb-particle"></span>
+                                            <span class="record-filter-toggle-thumb-particle"></span>
+                                        </span>
+                                    </span>
+                                    <span class="record-filter-toggle-reflection"></span>
+                                    <span class="record-filter-toggle-holo-glow"></span>
+                                </span>
+                            </span>
                         </label>
-                    }
-                    <button type="button" class="timeline-clear-button" @onclick="ClearEmpireFilters">Clear filters</button>
+                    </div>
                 </details>
-                @{
-                    var empireWindow = GetFilteredEmpires(sectorEmpires)
-                        .Take(empireVisibleCount + 1)
-                        .ToList();
-                    var hasMoreEmpires = empireWindow.Count > empireVisibleCount;
-                    var visibleEmpires = empireWindow.Take(empireVisibleCount).ToList();
-                    empireHasMoreRecords = hasMoreEmpires;
+                <div class="timeline-count">Showing @LoadedEmpireSummaries.Count empire@(LoadedEmpireSummaries.Count == 1 ? string.Empty : "s")@(empireHasMoreRecords ? "+" : string.Empty)</div>
+                @if ((empireListLoading || empireFilterPending) && LoadedEmpireSummaries.Count == 0)
+                {
+                    <article class="timeline-event-card">
+                        <span class="timeline-century">@(empireFilterPending ? "Searching" : "Loading")</span>
+                        <p>@(empireFilterPending ? "Searching empires with the current filters..." : "Loading empires for this sector.")</p>
+                    </article>
                 }
-                <div class="timeline-count">Showing @visibleEmpires.Count empire@(visibleEmpires.Count == 1 ? string.Empty : "s")@(hasMoreEmpires ? "+" : string.Empty)</div>
-                @if (visibleEmpires.Count == 0)
+                else if (LoadedEmpireSummaries.Count == 0)
                 {
                     <article class="timeline-event-card">
                         <span class="timeline-century">No matches</span>
                         <p>Adjust the filters to widen the empire list.</p>
                     </article>
                 }
-                @foreach (var empire in visibleEmpires)
+                @foreach (var empire in LoadedEmpireSummaries)
                 {
-                    var empireIsFallen = IsFallenEmpire(empire, sector);
-                    <button type="button" class="record-row @(selectedEmpire?.Id == empire.Id ? "active" : null) @(empireIsFallen ? "fallen" : null)" @onclick="() => SelectEmpire(empire.Id)">
+                    var empireIsFallen = empire.IsFallen;
+                    <button type="button" class="record-row @(selectedEmpire?.Id == empire.EmpireId ? "active" : null) @(empireIsFallen ? "fallen" : null)" @onclick="() => SelectEmpire(empire.EmpireId)">
                         <strong class="record-row-title">
                             <span>@empire.Name</span>
                             @if (empireIsFallen)
@@ -93,10 +127,10 @@
                                 <span class="empire-status fallen">Fallen empire</span>
                             }
                         </strong>
-                        <span>@(empireIsFallen ? "No controlled colonies; former holdings conquered" : $"GURPS TL {GetGurpsTechLevel(empire)}; {empire.Planets} planets")</span>
+                        <span>@GetEmpireListSummary(empire)</span>
                     </button>
                 }
-                @if (hasMoreEmpires)
+                @if (empireHasMoreRecords)
                 {
                     <div @ref="empireLoadMoreElement" class="timeline-load-more">
                         <button type="button" @onclick="LoadMoreEmpires">Load more</button>
@@ -106,133 +140,276 @@
 
             @if (selectedEmpire is not null)
             {
-                <article class="detail-panel">
+                <article class="detail-panel alien-detail-panel empire-detail-panel">
                     <span class="panel-kicker">Empire profile</span>
                     <EditableEntityName Name="@selectedEmpire.Name"
                                         Label="Empire"
                                         NameSaved="name => SaveEntityNameAsync(EntityNoteTargetKind.Empire, selectedEmpire.Id, name)" />
+                    <section class="alien-summary-card alien-summary-editor-card">
+                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.EmpireSummary"
+                                          TargetId="selectedEmpire.Id"
+                                          Title="Empire summary"
+                                          Heading="Summary"
+                                          EditButtonText="Edit summary"
+                                          EmptyText="No summary yet."
+                                          EditorPlaceholder="Write a short summary for this empire..."
+                                          EditorRows="4" />
+                    </section>
                     @{
                         var empireImages = GetEntityImages(EntityImageTargetKind.Empire, selectedEmpire.Id);
                     }
-                    <section class="entity-image-panel">
-                        <div class="image-panel-header">
-                            <h4>Empire flag</h4>
-                            <span>One image</span>
-                        </div>
-                        @if (empireImages.Count > 0)
-                        {
-                            <div class="entity-image-grid single">
-                                @foreach (var image in empireImages)
+                    @{
+                        var empireHomeworld = selectedEmpireDetail?.HomeWorld;
+                        var empireMemberRaces = selectedEmpireDetail?.MemberRaces ?? [];
+                        var capitalColony = selectedEmpireDetail is null ? null : GetCapitalColony(selectedEmpireDetail);
+                        var empireColonies = selectedEmpireDetail?.Colonies ?? [];
+                        var empireRelationships = selectedEmpireDetail?.Relationships ?? [];
+                        var empireRelationshipTypes = GetRelationshipTypeOptions(empireRelationships);
+                        var controlledColonyCount = selectedEmpireDetail?.ControlledColonyCount ?? 0;
+                        var selectedEmpireModifierDetail = selectedEmpireDetail?.CivilizationModifierDetail;
+                        var filteredEmpireMemberRaces = FilterMemberRaces(empireMemberRaces, empireMemberRaceSearch);
+                        var filteredEmpireColonies = FilterColonies(empireColonies, empireColonySearch);
+                        var filteredEmpireRelationships = FilterRelationships(empireRelationships, empireRelationshipSearch, empireRelationshipType);
+                        var selectedEmpireIsFallen = selectedEmpireDetail?.IsFallen ?? false;
+                    }
+                    <div class="alien-overview-grid empire-overview-grid">
+                        <section class="alien-summary-card alien-summary-card-primary empire-stat-card">
+                            @if (selectedEmpireIsFallen)
+                            {
+                                <div class="empire-alert fallen empire-fallen-alert">
+                                    <strong>Fallen empire</strong>
+                                    <span>This empire no longer controls any colonies in this sector.</span>
+                                </div>
+                            }
+                            <div class="parent-actions">
+                                @if (empireHomeworld is not null)
                                 {
-                                    <figure>
-                                        <img src="@image.RelativePath" alt="@image.FileName" />
-                                        <figcaption>@(image.IsPrimary ? "Primary" : image.FileName)</figcaption>
-                                    </figure>
+                                    <button type="button" @onclick="() => NavigateToWorld(empireHomeworld.Id)">Homeworld: @empireHomeworld.Name</button>
+                                }
+                                @if (capitalColony is not null)
+                                {
+                                    <button type="button" @onclick="() => NavigateToColony(capitalColony.ColonyId)">Capital: @capitalColony.WorldName</button>
                                 }
                             </div>
-                        }
-                        else
-                        {
-                            <p>No image uploaded.</p>
-                        }
-                        <label class="image-upload-control">
-                            <span>Upload image</span>
-                            <InputFile OnChange="@(args => UploadEntityImage(EntityImageTargetKind.Empire, selectedEmpire.Id, args))" accept="image/jpeg,image/png,image/gif,image/webp" />
-                        </label>
-                        @if (!string.IsNullOrWhiteSpace(imageUploadStatus))
-                        {
-                            <small>@imageUploadStatus</small>
-                        }
-                    </section>
-                    @{
-                        var empireHomeworld = FindWorld(selectedEmpire.Founding.FoundingWorldId);
-                        var capitalColony = GetCapitalColony(selectedEmpire);
-                        var empireColonies = GetEmpireColonies(selectedEmpire, sector).ToList();
-                        var empireControlledColonies = GetControlledEmpireColonies(selectedEmpire, sector).ToList();
-                        var selectedEmpireIsFallen = IsFallenEmpire(selectedEmpire, sector);
-                    }
-                    @if (selectedEmpireIsFallen)
-                    {
-                        <div class="empire-alert fallen">
-                            <strong>Fallen empire</strong>
-                            <span>This empire no longer controls any colonies in this sector.</span>
-                        </div>
-                    }
-                    <div class="parent-actions">
-                        @if (empireHomeworld is not null)
-                        {
-                            <button type="button" @onclick="() => NavigateToWorld(empireHomeworld.Id)">Homeworld: @empireHomeworld.Name</button>
-                        }
-                        @if (capitalColony is not null)
-                        {
-                            <button type="button" @onclick="() => NavigateToColony(capitalColony.Colony.Id)">Capital: @capitalColony.World.Name</button>
-                        }
+                            <dl class="field-grid alien-field-grid alien-field-grid-primary empire-field-grid-primary">
+                                <div><dt>Status</dt><dd>@(selectedEmpireIsFallen ? "Fallen empire" : "Active empire")</dd></div>
+                                <div><dt>Controlled colonies</dt><dd>@(selectedEmpireDetail?.ControlledColonyCount ?? 0)</dd></div>
+                                <div><dt>Tech level</dt><dd>GURPS TL @GetGurpsTechLevel(selectedEmpire) / StarWin @selectedEmpire.CivilizationProfile.TechLevel</dd></div>
+                                <div><dt>Expansion</dt><dd>@selectedEmpire.ExpansionPolicy</dd></div>
+                                <div><dt>Military power</dt><dd>@selectedEmpire.MilitaryPower</dd></div>
+                                <div><dt>Economic power</dt><dd>@selectedEmpire.EconomicPowerMcr MCr</dd></div>
+                                <div><dt>Trade bonus</dt><dd>@selectedEmpire.TradeBonusMcr MCr</dd></div>
+                                <div><dt>Native population</dt><dd><abbr class="population-abbr" title="@GetPopulationTooltip(selectedEmpire.NativePopulationMillions)">@FormatPopulationMillions(selectedEmpire.NativePopulationMillions)</abbr></dd></div>
+                                <div><dt>Planets</dt><dd>@selectedEmpire.Planets</dd></div>
+                                <div><dt>Moons</dt><dd>@selectedEmpire.Moons</dd></div>
+                                <div><dt>Captive planets</dt><dd>@selectedEmpire.CaptivePlanets</dd></div>
+                                <div><dt>Space habitats</dt><dd>@selectedEmpire.SpaceHabitats</dd></div>
+                                <div><dt>Captive population</dt><dd><abbr class="population-abbr" title="@GetPopulationTooltip(selectedEmpire.CaptivePopulationMillions)">@FormatPopulationMillions(selectedEmpire.CaptivePopulationMillions)</abbr></dd></div>
+                            </dl>
+                        </section>
+
+                        <section class="entity-image-panel alien-image-panel empire-image-panel @(empireImages.Count == 0 ? "compact-empty" : null)">
+                            <div class="image-panel-header">
+                                <h4>Empire flag</h4>
+                                <span>One image</span>
+                            </div>
+                            @if (empireImages.Count > 0)
+                            {
+                                <div class="entity-image-grid single">
+                                    @foreach (var image in empireImages)
+                                    {
+                                        <figure>
+                                            <img src="@image.RelativePath" alt="@image.FileName" />
+                                            <figcaption>@(image.IsPrimary ? "Primary" : image.FileName)</figcaption>
+                                        </figure>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <p>No image uploaded.</p>
+                            }
+                            <label class="image-upload-control">
+                                <span>Upload image</span>
+                                <InputFile OnChange="@(args => UploadEntityImage(EntityImageTargetKind.Empire, selectedEmpire.Id, args))" accept="image/jpeg,image/png,image/gif,image/webp" />
+                            </label>
+                            @if (!string.IsNullOrWhiteSpace(imageUploadStatus))
+                            {
+                                <small>@imageUploadStatus</small>
+                            }
+                        </section>
                     </div>
-                    <dl class="field-grid">
-                        <div><dt>Status</dt><dd>@(selectedEmpireIsFallen ? "Fallen empire" : "Active empire")</dd></div>
-                        <div><dt>Controlled colonies</dt><dd>@empireControlledColonies.Count</dd></div>
-                        <div><dt>Tech level</dt><dd>GURPS TL @GetGurpsTechLevel(selectedEmpire) / StarWin @selectedEmpire.CivilizationProfile.TechLevel</dd></div>
-                        <div><dt>Military power</dt><dd>@selectedEmpire.MilitaryPower</dd></div>
-                        <div><dt>Economic power</dt><dd>@selectedEmpire.EconomicPowerMcr MCr</dd></div>
-                        <div><dt>Trade bonus</dt><dd>@selectedEmpire.TradeBonusMcr MCr</dd></div>
-                        <div><dt>Planets</dt><dd>@selectedEmpire.Planets</dd></div>
-                        <div><dt>Moons</dt><dd>@selectedEmpire.Moons</dd></div>
-                        <div><dt>Captive planets</dt><dd>@selectedEmpire.CaptivePlanets</dd></div>
-                        <div><dt>Space habitats</dt><dd>@selectedEmpire.SpaceHabitats</dd></div>
-                        <div><dt>Native population</dt><dd>@selectedEmpire.NativePopulationMillions million</dd></div>
-                        <div><dt>Captive population</dt><dd>@selectedEmpire.CaptivePopulationMillions million</dd></div>
-                        <div><dt>Expansion</dt><dd>@selectedEmpire.ExpansionPolicy</dd></div>
-                    </dl>
 
-                    <EntityNotesPanel TargetKind="EntityNoteTargetKind.Empire"
-                                      TargetId="selectedEmpire.Id"
-                                      Title="Empire notes" />
+                    @if (selectedEmpireModifierDetail is not null)
+                    {
+                        <section class="alien-summary-card alien-modifier-detail-card empire-modifier-card">
+                            <div class="alien-modifier-detail-header">
+                                <div>
+                                    <h3>Empire modifiers</h3>
+                                </div>
+                            </div>
+                            <p class="alien-empty-state">These civilization modifiers apply empire-wide across all member races.</p>
+                            <dl class="empire-modifier-pill-grid">
+                                @foreach (var trait in selectedEmpireModifierDetail.Traits)
+                                {
+                                    <div class="empire-modifier-pill">
+                                        <dt>@trait.Name</dt>
+                                        <dd>@DisplayModifier(trait.Modifier)</dd>
+                                    </div>
+                                }
+                            </dl>
+                        </section>
+                    }
 
-                    <div class="force-grid">
-                        <article>
+                    <section class="alien-summary-card alien-summary-editor-card empire-notes-card">
+                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.Empire"
+                                          TargetId="selectedEmpire.Id"
+                                          Title="Empire notes" />
+                    </section>
+
+                    <div class="alien-secondary-grid empire-support-grid">
+                        <section class="alien-summary-card empire-force-card">
                             <h3>Fleet</h3>
+                            @if (selectedEmpire.MilitaryForces.Fleet.Count == 0)
+                            {
+                                <p class="alien-empty-state">No fleet entries recorded.</p>
+                            }
                             @foreach (var ship in selectedEmpire.MilitaryForces.Fleet)
                             {
                                 <div class="inline-row"><span>@ship.Quantity @ship.Name</span><strong>@ship.Code</strong></div>
                             }
-                        </article>
-                        <article>
+                        </section>
+                        <section class="alien-summary-card empire-force-card">
                             <h3>Ground forces</h3>
+                            @if (selectedEmpire.MilitaryForces.GroundForces.Count == 0)
+                            {
+                                <p class="alien-empty-state">No ground force entries recorded.</p>
+                            }
                             @foreach (var force in selectedEmpire.MilitaryForces.GroundForces)
                             {
                                 <div class="inline-row"><span>@force.Name</span><strong>@force.Quantity</strong></div>
                             }
-                        </article>
+                        </section>
                     </div>
 
-                    <section class="relationship-section">
-                        <h3>Member races</h3>
-                        <div class="relationship-list">
-                            @foreach (var membership in selectedEmpire.RaceMemberships
-                                                    .Where(item => sectorRaceIds.Contains(item.RaceId))
-                                                    .OrderByDescending(item => item.IsPrimary)
-                                                    .ThenBy(item => item.RaceId))
-                            {
-                                <button type="button" class="relationship-row" @onclick="() => NavigateToRace(membership.RaceId)">
-                                    <strong>@DisplayRace(membership.RaceId)</strong>
-                                    <span>@membership.Role; @membership.PopulationMillions million</span>
-                                </button>
-                            }
-                        </div>
-                    </section>
+                    <div class="alien-secondary-grid empire-support-grid">
+                        <section class="alien-summary-card empire-relationship-card empire-browser-card">
+                            <div class="empire-browser-header">
+                                <div class="empire-browser-title">
+                                    <h3>Member races</h3>
+                                    <span>@(empireMemberRaces.Count == filteredEmpireMemberRaces.Count ? $"{empireMemberRaces.Count} tracked" : $"{filteredEmpireMemberRaces.Count} of {empireMemberRaces.Count} shown")</span>
+                                </div>
+                                <label class="empire-browser-search">
+                                    <span>Search races</span>
+                                    <input placeholder="Race or role..."
+                                           @bind="empireMemberRaceSearch"
+                                           @bind:event="oninput" />
+                                </label>
+                            </div>
+                            <div class="relationship-list empire-scroll-list">
+                                @if (filteredEmpireMemberRaces.Count > 0)
+                                {
+                                    @foreach (var membership in filteredEmpireMemberRaces)
+                                    {
+                                        <button type="button" class="relationship-row" @onclick="() => NavigateToRace(membership.RaceId)">
+                                            <strong>@membership.RaceName</strong>
+                                            <span>@membership.Role; <abbr class="population-abbr" title="@GetPopulationTooltip(membership.PopulationMillions)">@FormatPopulationMillions(membership.PopulationMillions)</abbr>; @DisplayPopulationPercent(membership.PopulationPercent) of empire population</span>
+                                        </button>
+                                    }
+                                }
+                                else if (empireMemberRaces.Count > 0)
+                                {
+                                    <p class="alien-empty-state">No member races match the current search.</p>
+                                }
+                                else
+                                {
+                                    <p class="alien-empty-state">No member races recorded.</p>
+                                }
+                            </div>
+                        </section>
 
-                    <section class="relationship-section">
-                        <h3>Colonies</h3>
-                        <div class="relationship-list">
-                            @foreach (var listing in empireColonies)
-                            {
-                                <button type="button" class="relationship-row" @onclick="() => NavigateToColony(listing.Colony.Id)">
-                                    <strong>@DisplayColonyName(listing.Colony) on @listing.World.Name</strong>
-                                    <span>@listing.System.Name; @DisplayPopulation(listing.Colony.EstimatedPopulation)</span>
-                                </button>
-                            }
-                        </div>
-                    </section>
+                        <section class="alien-summary-card empire-relationship-card empire-browser-card">
+                            <div class="empire-browser-header">
+                                <div class="empire-browser-title">
+                                    <h3>Colonies</h3>
+                                    <span>@(empireColonies.Count == filteredEmpireColonies.Count
+                                        ? (controlledColonyCount == empireColonies.Count ? $"{empireColonies.Count} total" : $"{controlledColonyCount} controlled / {empireColonies.Count} tracked")
+                                        : $"{filteredEmpireColonies.Count} of {empireColonies.Count} shown")</span>
+                                </div>
+                                <label class="empire-browser-search">
+                                    <span>Search colonies</span>
+                                    <input placeholder="Colony, world, or system..."
+                                           @bind="empireColonySearch"
+                                           @bind:event="oninput" />
+                                </label>
+                            </div>
+                            <div class="relationship-list empire-scroll-list">
+                                @if (filteredEmpireColonies.Count > 0)
+                                {
+                                    @foreach (var listing in filteredEmpireColonies)
+                                    {
+                                        <button type="button" class="@GetEmpireColonyRowClass(listing)" @onclick="() => NavigateToColony(listing.ColonyId)">
+                                            <strong>@listing.ColonyName on @listing.WorldName</strong>
+                                            <span>@FormatEmpireColonyDetails(listing)</span>
+                                        </button>
+                                    }
+                                }
+                                else if (empireColonies.Count > 0)
+                                {
+                                    <p class="alien-empty-state">No colonies match the current search.</p>
+                                }
+                                else
+                                {
+                                    <p class="alien-empty-state">No colonies recorded for this empire.</p>
+                                }
+                            </div>
+                        </section>
+
+                        <section class="alien-summary-card empire-relationship-card empire-browser-card">
+                            <div class="empire-browser-header">
+                                <div class="empire-browser-title">
+                                    <h3>Empire relationships</h3>
+                                    <span>@(empireRelationships.Count == filteredEmpireRelationships.Count ? $"{empireRelationships.Count} tracked" : $"{filteredEmpireRelationships.Count} of {empireRelationships.Count} shown")</span>
+                                </div>
+                                <label class="empire-browser-search">
+                                    <span>Search empires</span>
+                                    <input placeholder="Empire name..."
+                                           @bind="empireRelationshipSearch"
+                                           @bind:event="oninput" />
+                                </label>
+                                <label class="empire-browser-search">
+                                    <span>Relationship type</span>
+                                    <select @bind="empireRelationshipType">
+                                        <option value="">All relationship types</option>
+                                        @foreach (var relationshipType in empireRelationshipTypes)
+                                        {
+                                            <option value="@relationshipType">@relationshipType</option>
+                                        }
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="relationship-list empire-scroll-list">
+                                @if (filteredEmpireRelationships.Count > 0)
+                                {
+                                    @foreach (var relationship in filteredEmpireRelationships)
+                                    {
+                                        <button type="button" class="@GetEmpireRelationshipRowClass(relationship)" @onclick="() => NavigateToEmpire(relationship.OtherEmpireId)">
+                                            <strong>@relationship.OtherEmpireName</strong>
+                                            <span>@FormatEmpireRelationshipDetails(relationship)</span>
+                                        </button>
+                                    }
+                                }
+                                else if (empireRelationships.Count > 0)
+                                {
+                                    <p class="alien-empty-state">No relationships match the current search.</p>
+                                }
+                                else
+                                {
+                                    <p class="alien-empty-state">No diplomatic relationships recorded.</p>
+                                }
+                            </div>
+                        </section>
+                    </div>
                 </article>
             }
         </section>

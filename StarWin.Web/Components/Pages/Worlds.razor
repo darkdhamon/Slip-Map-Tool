@@ -242,6 +242,10 @@
                         {
                             <button type="button" @onclick="OpenSelectedSystemRecord">Parent astral body: @DisplayAstralBody(selectedSystem, selectedWorld.PrimaryAstralBodySequence ?? 0)</button>
                         }
+                        @if (selectedWorld.Colony is not null)
+                        {
+                            <button type="button" @onclick="() => NavigateToColony(selectedWorld.Colony.Id)">Colony: @selectedWorld.Colony.Name</button>
+                        }
                     </div>
                     <dl class="field-grid">
                         <div><dt>World type</dt><dd>@selectedWorld.WorldType</dd></div>

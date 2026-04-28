@@ -1,22 +1,21 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.JSInterop;
+using System.Globalization;
 using StarWin.Application.Services;
-using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.Media;
 using StarWin.Domain.Model.Entity.Notes;
 using StarWin.Domain.Model.Entity.StarMap;
-using StarWin.Domain.Model.ViewModel;
-using StarWin.Domain.Services;
 using StarWin.Web.Components.Explorer;
 
 namespace StarWin.Web.Components.Pages;
 
 public partial class Aliens : ComponentBase, IAsyncDisposable
 {
-    private const int ExplorerListBatchSize = 120;
+    private const int ExplorerListBatchSize = 30;
     private const int ComboAllFilterId = -1;
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
+    [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
     [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
     [Inject] protected IStarWinImageService ImageService { get; set; } = default!;
     [Inject] protected IStarWinEntityNameService EntityNameService { get; set; } = default!;
@@ -36,11 +35,6 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     public int? RequestedEmpireId { get; set; }
 
     protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
-    protected readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
-    private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
-    private readonly Dictionary<int, World> worldsById = [];
-    private readonly Dictionary<int, AlienRace> alienRacesById = [];
-    private readonly Dictionary<int, Empire> empiresById = [];
 
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     protected string explorerRenderError = string.Empty;
@@ -53,13 +47,20 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     protected string raceQuery = string.Empty;
     protected string raceEnvironment = string.Empty;
     protected string raceAppearance = string.Empty;
-    protected int raceVisibleCount = ExplorerListBatchSize;
+    protected string raceMaxPointCost = string.Empty;
+    protected string raceStarWinTechLevel = string.Empty;
+    protected string raceGurpsTechLevel = string.Empty;
+    protected bool raceRequireSuperscience;
     protected bool raceHasMoreRecords;
     protected bool showRaceFilters;
+    protected ExplorerAlienRaceDetail? selectedRaceDetail;
+    protected ExplorerAlienRaceFilterOptions raceFilterOptions = new([], [], [], []);
 
     private IReadOnlyList<EntityImage> entityImages = [];
     private bool entityImagesLoaded;
     private bool entityImagesLoading;
+    private bool raceListLoading;
+    private bool raceDetailLoading;
     private string imageUploadStatus = string.Empty;
     private ElementReference raceLoadMoreElement;
     private DotNetObjectReference<Aliens>? dotNetReference;
@@ -67,10 +68,11 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     private bool raceObserverConfigured;
     private bool browserSessionReady;
     private bool browserSessionRestored;
+    private int loadedRaceSectorId;
+    private readonly List<ExplorerAlienRaceListItem> loadedRaceSummaries = [];
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
-    protected IReadOnlyList<AlienRace> ExplorerAlienRaces => explorerContext.AlienRaces;
-    protected IReadOnlyList<Empire> ExplorerEmpires => explorerContext.Empires;
+    protected IReadOnlyList<ExplorerAlienRaceListItem> LoadedRaceSummaries => loadedRaceSummaries;
 
     protected override async Task OnInitializedAsync()
     {
@@ -80,11 +82,9 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             : explorerContext.CurrentSector;
 
         selectedSectorId = initialSector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        initialSector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
-        selectedRaceId = ResolveSelectedRaceId(initialSector);
+        await LoadRacePageAsync(resetList: true);
     }
 
     protected override async Task OnParametersSetAsync()
@@ -98,13 +98,13 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
-            await EnsureSectorDataLoadedAsync(selectedSectorId);
+            await LoadRacePageAsync(resetList: true);
         }
 
         var sector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedRaceId = ResolveSelectedRaceId(sector);
+        await EnsureSelectedRaceDetailAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -119,16 +119,6 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
 
         await ConfigureRaceObserverAsync();
         _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
-    }
-
-    protected ExplorerSectorCache GetSectorCache(StarWinSector sector)
-    {
-        return sectorCacheBuilder.Get(sector);
-    }
-
-    protected ExplorerSectorSummary GetSectorSummary(StarWinSector sector)
-    {
-        return sectorCacheBuilder.GetSummary(sector);
     }
 
     protected StarWinSector GetSelectedSector()
@@ -159,12 +149,11 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedRaceId = ResolveSelectedRaceId(sector);
         ClearRaceFilters();
+        await LoadRacePageAsync(resetList: true);
         await PersistExplorerSessionAsync();
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Aliens", selectedSectorId, selectedSystemId, raceId: selectedRaceId));
     }
@@ -226,22 +215,19 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     {
         await EntityNameService.SaveNameAsync(targetKind, targetId, name);
         await RefreshExplorerDataAsync();
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
         selectedSystemText = FormatSelectedSystem(GetSelectedSector(), selectedSystemId);
-    }
-
-    protected IEnumerable<AlienRace> GetFilteredRaces(IReadOnlyList<AlienRace> races)
-    {
-        return races
-            .Where(RaceMatches)
-            .OrderBy(race => race.Name)
-            .ThenBy(race => race.Id);
+        await LoadRacePageAsync(resetList: true);
     }
 
     protected void ResetRaceWindow()
     {
-        raceVisibleCount = ExplorerListBatchSize;
         raceObserverConfigured = false;
+    }
+
+    protected async Task HandleRaceFiltersChangedAsync()
+    {
+        ResetRaceWindow();
+        await LoadRacePageAsync(resetList: true);
     }
 
     protected void ToggleRaceFilters()
@@ -254,6 +240,10 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         raceQuery = string.Empty;
         raceEnvironment = string.Empty;
         raceAppearance = string.Empty;
+        raceMaxPointCost = string.Empty;
+        raceStarWinTechLevel = string.Empty;
+        raceGurpsTechLevel = string.Empty;
+        raceRequireSuperscience = false;
         showRaceFilters = false;
         ResetRaceWindow();
     }
@@ -261,64 +251,8 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     [JSInvokable]
     public Task LoadMoreRaces()
     {
-        raceVisibleCount += ExplorerListBatchSize;
         raceObserverConfigured = false;
-        StateHasChanged();
-        return Task.CompletedTask;
-    }
-
-    protected IEnumerable<RaceEmpireMembership> GetRaceEmpireMemberships(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
-    {
-        return sectorEmpires
-            .SelectMany(empire => empire.RaceMemberships
-                .Where(membership => membership.RaceId == race.Id)
-                .Select(membership => new RaceEmpireMembership(empire, membership)))
-            .OrderByDescending(item => item.Membership.IsPrimary)
-            .ThenBy(item => item.Empire.Name);
-    }
-
-    protected GurpsTemplate BuildGurpsTemplate(AlienRace race, IReadOnlyCollection<Empire> sectorEmpires)
-    {
-        var sector = GetSelectedSector();
-        var memberships = GetRaceEmpireMemberships(race, sectorEmpires).ToList();
-        var primaryEmpire = memberships.FirstOrDefault(item => item.Membership.IsPrimary)?.Empire
-            ?? memberships.FirstOrDefault()?.Empire;
-
-        var profile = new AlienRaceExportProfile
-        {
-            Race = race,
-            Empire = primaryEmpire,
-            HomeWorld = FindWorld(race.HomePlanetId)
-        };
-
-        foreach (var listing in sector.Systems
-            .SelectMany(system => system.Worlds)
-            .Where(world => world.Colony is not null && world.Colony.Demographics.Any(demographic => demographic.RaceId == race.Id))
-            .Select(world => world.Colony!))
-        {
-            profile.Colonies.Add(listing);
-        }
-
-        var builder = new GurpsTemplateBuilder();
-        return builder.Build(profile, GurpsTemplateEdition.FourthEdition);
-    }
-
-    protected World? FindWorld(int? worldId)
-    {
-        if (worldId is null or 0)
-        {
-            return null;
-        }
-
-        if (worldsById.Count == 0)
-        {
-            foreach (var world in ExplorerSectors.SelectMany(sector => sector.Systems).SelectMany(system => system.Worlds))
-            {
-                worldsById[world.Id] = world;
-            }
-        }
-
-        return worldsById.TryGetValue(worldId.Value, out var matchedWorld) ? matchedWorld : null;
+        return LoadMoreRaceSummariesAsync();
     }
 
     protected IReadOnlyList<EntityImage> GetEntityImages(EntityImageTargetKind targetKind, int targetId)
@@ -328,102 +262,6 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             .OrderByDescending(image => image.IsPrimary)
             .ThenBy(image => image.UploadedAt)
             .ToList();
-    }
-
-    protected static string DisplayText(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value) ? "N/A" : value;
-    }
-
-    protected static IEnumerable<string> GetRaceHighlights(AlienRace race)
-    {
-        if (!string.IsNullOrWhiteSpace(race.BodyCoverType))
-        {
-            yield return $"Body cover: {race.BodyCoverType}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(race.Reproduction))
-        {
-            yield return $"Reproduction: {race.Reproduction}";
-        }
-
-        if (race.DevotionLevel != AlienDevotionLevel.None)
-        {
-            yield return $"{race.DevotionLevel} devotion";
-        }
-
-        if (race.BiologyProfile.Lifespan > 0)
-        {
-            yield return $"Lifespan {race.BiologyProfile.Lifespan}";
-        }
-    }
-
-    protected static int CountGurpsTraits(GurpsTemplate template)
-    {
-        return template.AttributeModifiers.Count
-            + template.SecondaryCharacteristicModifiers.Count
-            + template.Advantages.Count
-            + template.Disadvantages.Count
-            + template.Quirks.Count
-            + template.Features.Count
-            + template.Skills.Count;
-    }
-
-    protected static string DisplayGurpsEdition(GurpsTemplateEdition edition)
-    {
-        return edition switch
-        {
-            GurpsTemplateEdition.FourthEdition => "GURPS Fourth Edition",
-            GurpsTemplateEdition.LegacyStarWin => "Legacy StarWin",
-            _ => edition.ToString()
-        };
-    }
-
-    protected static string DisplayPoints(int points)
-    {
-        return points > 0 ? $"+{points} points" : $"{points} points";
-    }
-
-    private bool RaceMatches(AlienRace race)
-    {
-        if (!string.IsNullOrWhiteSpace(raceEnvironment)
-            && !string.Equals(race.EnvironmentType, raceEnvironment, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrWhiteSpace(raceAppearance)
-            && !string.Equals(race.AppearanceType, raceAppearance, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(raceQuery))
-        {
-            return true;
-        }
-
-        var query = raceQuery.Trim();
-        var homeWorld = FindWorld(race.HomePlanetId);
-        return ContainsQuery(race.Name, query)
-            || ContainsQuery(race.Id.ToString(), query)
-            || ContainsQuery(race.AppearanceType, query)
-            || ContainsQuery(race.BodyChemistry, query)
-            || ContainsQuery(race.EnvironmentType, query)
-            || ContainsQuery(race.GovernmentType, query)
-            || ContainsQuery(race.ReproductionMethod, query)
-            || ContainsQuery(race.Diet, query)
-            || ContainsQuery(race.Religion, query)
-            || ContainsQuery(race.BiologyProfile.Body.ToString(), query)
-            || ContainsQuery(race.BiologyProfile.Mind.ToString(), query)
-            || ContainsQuery(race.BiologyProfile.Speed.ToString(), query)
-            || ContainsQuery(race.BiologyProfile.PsiRating.ToString(), query)
-            || ContainsQuery(homeWorld?.Name, query);
-    }
-
-    protected static string DisplayTraitName(GurpsTemplateTrait trait)
-    {
-        return trait.Level == 0 ? trait.Name : $"{trait.Name} {trait.Level:+#;-#;0}";
     }
 
     private async Task ConfigureRaceObserverAsync()
@@ -482,88 +320,14 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
             includeSavedRoutes: false,
-            includeReferenceData: true,
+            includeReferenceData: false,
             cancellationToken: cancellationToken);
-
-        loadedSectorSectionsById.Clear();
-        foreach (var sectorId in ExplorerSectors.Select(sector => sector.Id))
-        {
-            sectorCacheBuilder.Invalidate(sectorId);
-        }
-        worldsById.Clear();
-        alienRacesById.Clear();
-        empiresById.Clear();
-    }
-
-    private async Task EnsureSectorDataLoadedAsync(int sectorId, CancellationToken cancellationToken = default)
-    {
-        if (sectorId <= 0)
-        {
-            return;
-        }
-
-        const ExplorerSectorLoadSections requiredSections = ExplorerSectorLoadSections.Worlds
-            | ExplorerSectorLoadSections.Colonies
-            | ExplorerSectorLoadSections.ColonyDemographics;
-
-        loadedSectorSectionsById.TryGetValue(sectorId, out var loadedSections);
-        if ((loadedSections & requiredSections) == requiredSections)
-        {
-            return;
-        }
-
-        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiredSections, cancellationToken);
-        if (detailedSector is null)
-        {
-            return;
-        }
-
-        var sectors = ExplorerSectors.ToList();
-        var sectorIndex = sectors.FindIndex(item => item.Id == detailedSector.Id);
-        if (sectorIndex >= 0)
-        {
-            sectors[sectorIndex] = detailedSector;
-        }
-
-        explorerContext = explorerContext with
-        {
-            Sectors = sectors,
-            CurrentSector = explorerContext.CurrentSector.Id == detailedSector.Id ? detailedSector : explorerContext.CurrentSector
-        };
-
-        loadedSectorSectionsById[sectorId] = loadedSections | requiredSections;
-        sectorCacheBuilder.Invalidate(sectorId);
-        worldsById.Clear();
-    }
-
-    private int ResolveSelectedRaceId(StarWinSector sector)
-    {
-        var sectorSummary = GetSectorSummary(sector);
-        if (RequestedRaceId is int requestedRaceId && sectorSummary.RaceIds.Contains(requestedRaceId))
-        {
-            return requestedRaceId;
-        }
-
-        if (selectedRaceId > 0 && sectorSummary.RaceIds.Contains(selectedRaceId))
-        {
-            return selectedRaceId;
-        }
-
-        return ExplorerAlienRaces.FirstOrDefault(race => sectorSummary.RaceIds.Contains(race.Id))?.Id ?? 0;
     }
 
     private void RunSearch()
     {
-        var sector = GetSelectedSector();
-        var sectorSummary = GetSectorSummary(sector);
-
         searchResults = SearchService.Search(searchQuery)
-            .Where(result => result.Type switch
-            {
-                StarWinSearchResultType.AlienRace => result.RaceId is int raceId && sectorSummary.RaceIds.Contains(raceId),
-                StarWinSearchResultType.Empire => result.EmpireId is int empireId && sectorSummary.EmpireIds.Contains(empireId),
-                _ => result.SectorId is null || result.SectorId == sector.Id
-            })
+            .Where(result => result.SectorId is null || result.SectorId == selectedSectorId)
             .ToList();
     }
 
@@ -588,14 +352,148 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         }
 
         selectedSectorId = sector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        sector = GetSelectedSector();
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedRaceId = ResolveSelectedRaceId(sector);
+        await LoadRacePageAsync(resetList: true);
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Aliens", selectedSectorId, selectedSystemId, raceId: selectedRaceId), replace: true);
+    }
+
+    private async Task LoadRacePageAsync(bool resetList, CancellationToken cancellationToken = default)
+    {
+        if (selectedSectorId <= 0)
+        {
+            loadedRaceSummaries.Clear();
+            raceHasMoreRecords = false;
+            selectedRaceId = 0;
+            selectedRaceDetail = null;
+            raceFilterOptions = new([], [], [], []);
+            return;
+        }
+
+        if (resetList || loadedRaceSectorId != selectedSectorId)
+        {
+            loadedRaceSummaries.Clear();
+            loadedRaceSectorId = selectedSectorId;
+            raceHasMoreRecords = false;
+            raceObserverConfigured = false;
+            raceFilterOptions = await ExplorerQueryService.LoadAlienRaceFilterOptionsAsync(selectedSectorId, cancellationToken);
+            await LoadMoreRaceSummariesAsync(cancellationToken);
+        }
+
+        await EnsureSelectedRaceSummaryVisibleAsync(cancellationToken);
+        await EnsureSelectedRaceDetailAsync(cancellationToken);
+    }
+
+    private async Task LoadMoreRaceSummariesAsync(CancellationToken cancellationToken = default)
+    {
+        if (raceListLoading || selectedSectorId <= 0)
+        {
+            return;
+        }
+
+        raceListLoading = true;
+        try
+        {
+            var page = await ExplorerQueryService.LoadAlienRaceListPageAsync(
+                BuildRaceListRequest(loadedRaceSummaries.Count),
+                cancellationToken);
+
+            foreach (var item in page.Items)
+            {
+                if (loadedRaceSummaries.All(existing => existing.RaceId != item.RaceId))
+                {
+                    loadedRaceSummaries.Add(item);
+                }
+            }
+
+            raceHasMoreRecords = page.HasMore;
+            if (selectedRaceId == 0 && loadedRaceSummaries.Count > 0)
+            {
+                selectedRaceId = loadedRaceSummaries[0].RaceId;
+            }
+            else if (selectedRaceId > 0 && loadedRaceSummaries.All(item => item.RaceId != selectedRaceId))
+            {
+                selectedRaceId = loadedRaceSummaries.FirstOrDefault()?.RaceId ?? 0;
+            }
+
+            await EnsureSelectedRaceSummaryVisibleAsync(cancellationToken);
+            await EnsureSelectedRaceDetailAsync(cancellationToken);
+            await InvokeAsync(StateHasChanged);
+        }
+        finally
+        {
+            raceListLoading = false;
+        }
+    }
+
+    private async Task EnsureSelectedRaceSummaryVisibleAsync(CancellationToken cancellationToken = default)
+    {
+        if (HasActiveRaceFilters())
+        {
+            return;
+        }
+
+        var requestedRaceId = RequestedRaceId ?? selectedRaceId;
+        if (requestedRaceId <= 0 || loadedRaceSummaries.Any(item => item.RaceId == requestedRaceId))
+        {
+            return;
+        }
+
+        var requestedItem = await ExplorerQueryService.LoadAlienRaceListItemAsync(selectedSectorId, requestedRaceId, cancellationToken);
+        if (requestedItem is null)
+        {
+            return;
+        }
+
+        loadedRaceSummaries.Add(requestedItem);
+        loadedRaceSummaries.Sort((left, right) =>
+        {
+            var nameComparison = string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
+            return nameComparison != 0 ? nameComparison : left.RaceId.CompareTo(right.RaceId);
+        });
+    }
+
+    private async Task EnsureSelectedRaceDetailAsync(CancellationToken cancellationToken = default)
+    {
+        var targetRaceId = HasActiveRaceFilters()
+            ? selectedRaceId
+            : RequestedRaceId ?? selectedRaceId;
+        if (targetRaceId <= 0)
+        {
+            targetRaceId = loadedRaceSummaries.FirstOrDefault()?.RaceId ?? 0;
+        }
+
+        if (targetRaceId <= 0)
+        {
+            selectedRaceId = 0;
+            selectedRaceDetail = null;
+            return;
+        }
+
+        if (raceDetailLoading)
+        {
+            return;
+        }
+
+        raceDetailLoading = true;
+        try
+        {
+            var detail = await ExplorerQueryService.LoadAlienRaceDetailAsync(selectedSectorId, targetRaceId, cancellationToken);
+            if (detail is null && loadedRaceSummaries.Count > 0)
+            {
+                targetRaceId = loadedRaceSummaries[0].RaceId;
+                detail = await ExplorerQueryService.LoadAlienRaceDetailAsync(selectedSectorId, targetRaceId, cancellationToken);
+            }
+
+            selectedRaceDetail = detail;
+            selectedRaceId = detail?.Race.Id ?? 0;
+        }
+        finally
+        {
+            raceDetailLoading = false;
+        }
     }
 
     private async Task PersistExplorerSessionAsync()
@@ -646,9 +544,42 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         return int.TryParse(idText, out var id) ? id : ComboAllFilterId;
     }
 
-    private static bool ContainsQuery(string? value, string query)
+    private bool HasActiveRaceFilters()
     {
-        return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
+        return !string.IsNullOrWhiteSpace(raceQuery)
+            || !string.IsNullOrWhiteSpace(raceEnvironment)
+            || !string.IsNullOrWhiteSpace(raceAppearance)
+            || !string.IsNullOrWhiteSpace(raceMaxPointCost)
+            || !string.IsNullOrWhiteSpace(raceStarWinTechLevel)
+            || !string.IsNullOrWhiteSpace(raceGurpsTechLevel)
+            || raceRequireSuperscience;
+    }
+
+    private ExplorerAlienRaceListPageRequest BuildRaceListRequest(int offset)
+    {
+        byte? starWinTechLevel = null;
+        if (byte.TryParse(raceStarWinTechLevel, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedStarWinTechLevel))
+        {
+            starWinTechLevel = parsedStarWinTechLevel;
+        }
+
+        int? maxTotalPointCost = null;
+        if (int.TryParse(raceMaxPointCost, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedMaxTotalPointCost))
+        {
+            maxTotalPointCost = parsedMaxTotalPointCost;
+        }
+
+        return new ExplorerAlienRaceListPageRequest(
+            selectedSectorId,
+            offset,
+            ExplorerListBatchSize,
+            string.IsNullOrWhiteSpace(raceQuery) ? null : raceQuery.Trim(),
+            string.IsNullOrWhiteSpace(raceEnvironment) ? null : raceEnvironment.Trim(),
+            string.IsNullOrWhiteSpace(raceAppearance) ? null : raceAppearance.Trim(),
+            maxTotalPointCost,
+            starWinTechLevel,
+            string.IsNullOrWhiteSpace(raceGurpsTechLevel) ? null : raceGurpsTechLevel.Trim(),
+            raceRequireSuperscience);
     }
 
     public async ValueTask DisposeAsync()
@@ -667,6 +598,4 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
 
         dotNetReference?.Dispose();
     }
-
-    protected sealed record RaceEmpireMembership(Empire Empire, EmpireRaceMembership Membership);
 }

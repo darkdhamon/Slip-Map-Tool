@@ -6,6 +6,7 @@ public enum EntityNoteTargetKind
     World,
     Colony,
     AlienRace,
+    EmpireSummary,
     Empire,
     HyperlaneRoute
 }

@@ -103,6 +103,66 @@ public sealed class ExplorerTimelineSectionTests : BunitContext
             return Task.FromResult(new ExplorerSectorOverviewData(sectorId, 0, 0, 0, 0, 0, [], []));
         }
 
+        public Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ExplorerAlienRaceListItem?> LoadAlienRaceListItemAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ExplorerAlienRaceDetail?> LoadAlienRaceDetailAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerEmpireFilterOptions([]));
+        }
+
+        public Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerEmpireListPage([], false));
+        }
+
+        public Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<ExplorerEmpireListItem?>(null);
+        }
+
+        public Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<ExplorerEmpireDetail?>(null);
+        }
+
+        public Task<ExplorerReligionFilterOptions> LoadReligionFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerReligionFilterOptions([]));
+        }
+
+        public Task<ExplorerReligionListPage> LoadReligionListPageAsync(ExplorerReligionListPageRequest request, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerReligionListPage([], false));
+        }
+
+        public Task<ExplorerReligionListItem?> LoadReligionListItemAsync(int sectorId, int religionId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<ExplorerReligionListItem?>(null);
+        }
+
+        public Task<ExplorerReligionDetail?> LoadReligionDetailAsync(int sectorId, int religionId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<ExplorerReligionDetail?>(null);
+        }
+
         public Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default)
         {
             LoadTimelineEventTypesCallCount++;

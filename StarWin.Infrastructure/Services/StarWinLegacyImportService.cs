@@ -292,25 +292,45 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         "Name",
         "EnvironmentType",
         "BodyChemistry",
-        "GovernmentType",
         "BodyCoverType",
         "AppearanceType",
         "Diet",
         "Reproduction",
         "ReproductionMethod",
-        "Religion",
         "Devotion",
         "DevotionLevel",
+        "CivilizationProfile_Militancy",
+        "CivilizationProfile_Determination",
+        "CivilizationProfile_RacialTolerance",
+        "CivilizationProfile_Progressiveness",
+        "CivilizationProfile_Loyalty",
+        "CivilizationProfile_SocialCohesion",
+        "CivilizationProfile_Art",
+        "CivilizationProfile_Individualism",
         "BiologyProfile_PsiPower",
         "BiologyProfile_PsiRating",
         "BiologyProfile_Body",
         "BiologyProfile_Mind",
         "BiologyProfile_Speed",
         "BiologyProfile_Lifespan",
+        "GravityPreference",
+        "TemperaturePreference",
+        "AtmosphereBreathed",
         "MassKg",
         "SizeCm",
         "LimbPairCount",
-        "LegacyAttributes"
+        "LimbTypes",
+        "Abilities",
+        "BodyCharacteristics",
+        "EyeCharacteristics",
+        "EyeColors",
+        "HairColors",
+        "HairType",
+        "Colors",
+        "ColorPattern",
+        "LegacyAttributes",
+        "RequiresUserRename",
+        "ImportDataJson"
     ];
 
     private static readonly string[] EmpireColumns =
@@ -318,6 +338,8 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         "Id",
         "Name",
         "LegacyRaceId",
+        "GovernmentType",
+        "IsFallen",
         "CivilizationProfile_Militancy",
         "CivilizationProfile_Determination",
         "CivilizationProfile_RacialTolerance",
@@ -328,6 +350,14 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         "CivilizationProfile_Art",
         "CivilizationProfile_Individualism",
         "CivilizationProfile_SpatialAge",
+        "CivilizationModifiers_Militancy",
+        "CivilizationModifiers_Determination",
+        "CivilizationModifiers_RacialTolerance",
+        "CivilizationModifiers_Progressiveness",
+        "CivilizationModifiers_Loyalty",
+        "CivilizationModifiers_SocialCohesion",
+        "CivilizationModifiers_Art",
+        "CivilizationModifiers_Individualism",
         "Founding_Origin",
         "Founding_FoundingWorldId",
         "Founding_FoundingColonyId",
@@ -359,7 +389,8 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         "MilitaryForces_NavyDoctrine_BeamWeaponEmphasisPercent",
         "MilitaryForces_NavyDoctrine_AssaultEmphasisPercent",
         "MilitaryForces_NavyDoctrine_DefenseEmphasisPercent",
-        "MilitaryForces_Notes"
+        "MilitaryForces_Notes",
+        "ImportDataJson"
     ];
 
     private static readonly string[] EmpireRaceMembershipColumns =
@@ -597,6 +628,256 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         "Trade",
         "Alliance",
         "Unity"
+    ];
+
+    private static readonly string[] ColorTypes =
+    [
+        "White",
+        "Black",
+        "Yellow",
+        "Red",
+        "Gray",
+        "Blue",
+        "Green",
+        "Brown",
+        "Pink",
+        "Orange",
+        "Crimson",
+        "Violet",
+        "Clear",
+        "Calico",
+        "Silver",
+        "Gold"
+    ];
+
+    private static readonly string[] HairColorTypes =
+    [
+        "White",
+        "Black",
+        "Blonde",
+        "Red",
+        "Gray",
+        "Blue",
+        "Green",
+        "Chestnut",
+        "Pink",
+        "Orange",
+        "Crimson",
+        "Violet",
+        "Clear",
+        "Calico",
+        "Silver",
+        "Gold"
+    ];
+
+    private static readonly string[] EyeColorTypes =
+    [
+        "White",
+        "Black",
+        "Yellow",
+        "Red",
+        "Gray",
+        "Blue",
+        "Green",
+        "Hazel",
+        "Pink",
+        "Orange",
+        "Crimson",
+        "Violet",
+        "Clear",
+        "Calico",
+        "Silver",
+        "Gold"
+    ];
+
+    private static readonly string[] BodyPartTypes =
+    [
+        "Tail",
+        "Trunk",
+        "Horn(s)",
+        "Antennas",
+        "Fangs",
+        "Claws",
+        "Nippers",
+        "Hooves",
+        "Jelly bag",
+        "bp10",
+        "One color",
+        "Two-tone",
+        "Multi color",
+        "Striped/Banded",
+        "Spots",
+        "Randomly mottled"
+    ];
+
+    private static readonly string[] EyeDetailTypes =
+    [
+        "No eyes",
+        "Single",
+        "Three",
+        "Four",
+        "Multiple",
+        "Large",
+        "Double-lidded",
+        "Bulging",
+        "Luminous",
+        "Stalked",
+        "Round pupil",
+        "Slitted pupil",
+        "No pupil",
+        "Multifaceted"
+    ];
+
+    private static readonly string[] HairTypes =
+    [
+        "No hair",
+        "Rare",
+        "Bony crest",
+        "Palps",
+        "Crest",
+        "Fur",
+        "Feather",
+        "Short"
+    ];
+
+    private static readonly string[] LimbRoleTypes =
+    [
+        "None",
+        "Wings",
+        "Fins",
+        "Legs",
+        "Dual-purpose arm/legs",
+        "Arms",
+        "Tentacles",
+        "Pseudopods"
+    ];
+
+    private static readonly string[] SpecialAbilityTypes =
+    [
+        "Acute hearing",
+        "Poor hearing",
+        "Acute smell",
+        "Acute vision",
+        "Poor vision",
+        "Ambidextrous",
+        "Chameleon skin",
+        "Cold sensitivity",
+        "Cold tolerance",
+        "Color blind",
+        "Heat sensitivity",
+        "Heat tolerance",
+        "Infrared vision",
+        "Night vision",
+        "Poison",
+        "Radiation tolerance",
+        "Fast healing",
+        "Sonar",
+        "Wall climbing",
+        "Web spinning",
+        "Nictating membrane",
+        "Radio hearing",
+        "Acid secretion",
+        "Metamorphosis",
+        "Electric blast",
+        "Hypnotism",
+        "Mimicry",
+        "Dampen",
+        "360 degrees vision",
+        "Sonic beam",
+        "Vampirism",
+        "Slow motion",
+        "Sealed system",
+        "Clone",
+        "Stretching",
+        "Systemic antidote",
+        "Mystical power",
+        "Independent eyes",
+        "Quick maturity",
+        "Infertile",
+        "Hive mind",
+        "Bicephalous",
+        "Regeneration",
+        "Racial memory",
+        "Universal digestion",
+        "Pressure support",
+        "Polarized eyes",
+        "Vulnerability to disease",
+        "Cultural adaptability",
+        "Field sense",
+        "Cold blooded biology",
+        "Winged flight",
+        "Water breathing",
+        "Flight",
+        "Charisma",
+        "Spectrum vision",
+        "Ultrasonic hearing",
+        "Microscopic vision",
+        "Blind",
+        "Deafness",
+        "Odious racial habit",
+        "Merchant bonus skill",
+        "Engineer bonus skill",
+        "Pilot bonus skill",
+        "Combat bonus skill",
+        "Science bonus skill",
+        "Water dependency",
+        "Light sensitivity",
+        "Involuntary dampen",
+        "Sound sensitivity",
+        "Disease tolerance",
+        "Eidetic memory",
+        "Language talent",
+        "No sense of smell/taste",
+        "Strange appearance",
+        "Manual dexterity",
+        "Perfect balance",
+        "Foul odor",
+        "Skin color change",
+        "Dependency",
+        "High fecundity",
+        "Cybernetic enhancements",
+        "Computer skill bonus",
+        "Leap",
+        "Vibration sense",
+        "Toughness",
+        "High gravity sensitivity",
+        "Toxin intolerance",
+        "Extra heart",
+        "Heavy sleeper",
+        "Light sleeper",
+        "Chemical communication",
+        "Lightning calculator",
+        "Time sense",
+        "EM imaging",
+        "Ultrasonic communication"
+    ];
+
+    private static readonly string[] UniversalSpeciesPrefixes =
+    [
+        "Neo",
+        "Proto",
+        "High",
+        "Deep",
+        "Prime",
+        "Star",
+        "Void",
+        "Astra",
+        "Solar",
+        "True"
+    ];
+
+    private static readonly string[] UniversalSpeciesSuffixes =
+    [
+        "kin",
+        "born",
+        "ari",
+        "ori",
+        "an",
+        "ite",
+        "id",
+        "folk",
+        "ward",
+        "ae"
     ];
 
     private static readonly string[] RequiredExtensions =
@@ -852,6 +1133,7 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         var colonies = ReadColonyRecords(colonyEntry).ToList();
         var contacts = ReadContactRecords(contactEntry).ToList();
         var historyEvents = ReadHistoryEvents(historyEntry, sectorId, historyCsvFile is not null).ToList();
+        var legacyAliensById = aliens.ToDictionary(alien => alien.LegacyId);
         var addedSystemCount = 0;
         var addedAstralBodyCount = 0;
         var addedWorldCount = 0;
@@ -1007,10 +1289,14 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
             }
 
             var importedAlienRaces = new List<AlienRace>();
+            var usedRaceNames = knownAlienRaces.Values
+                .Select(race => race.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             await ReportImportProgressAsync(progress, 60, "Writing alien races...", $"Preparing {aliens.Count:N0} alien race record(s).");
             foreach (var alienRecord in aliens)
             {
-                var alienRace = CreateAlienRace(alienRecord, sectorId);
+                var alienRace = CreateAlienRace(alienRecord, sectorId, existingWorldsById, usedRaceNames);
                 if (knownAlienRaces.TryGetValue(alienRecord.LegacyId, out var existingAlienRace))
                 {
                     skippedAlienCount++;
@@ -1029,11 +1315,15 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
             }
 
             var importedEmpires = new List<Empire>();
+            var usedEmpireNames = knownEmpires.Values
+                .Select(empire => empire.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var addedRaceMembershipCount = 0;
             await ReportImportProgressAsync(progress, 66, "Writing empires and contacts...", $"Preparing {empires.Count:N0} empire record(s) and {contacts.Count:N0} contact record(s).");
             foreach (var empireRecord in empires)
             {
-                var empire = CreateEmpire(empireRecord, aliens, contacts, sectorId);
+                var empire = CreateEmpire(empireRecord, legacyAliensById, knownAlienRaces, contacts, sectorId, usedEmpireNames);
                 if (knownEmpires.TryGetValue(empireRecord.LegacyId, out var existingEmpire))
                 {
                     skippedEmpireCount++;
@@ -1071,9 +1361,66 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
                 cancellationToken,
                 clearChangeTracker: false);
 
+            if (importedEmpires.Count > 0)
+            {
+                var existingReligions = await dbContext.Religions
+                    .ToDictionaryAsync(religion => religion.Name, StringComparer.OrdinalIgnoreCase, cancellationToken);
+
+                foreach (var empire in importedEmpires.Where(item => item.Religions.Count > 0))
+                {
+                    foreach (var empireReligion in empire.Religions)
+                    {
+                        if (!existingReligions.TryGetValue(empireReligion.ReligionName, out var religion))
+                        {
+                            religion = new Religion
+                            {
+                                Name = empireReligion.ReligionName,
+                                Type = InferReligionTypeFromName(empireReligion.ReligionName),
+                                IsUserDefined = false
+                            };
+                            dbContext.Religions.Add(religion);
+                            existingReligions[religion.Name] = religion;
+                        }
+                    }
+                }
+
+                await FlushImportChangesAsync(
+                    dbContext,
+                    progress,
+                    72,
+                    "Saving religions...",
+                    $"Persisting religion definitions and empire religion links for imported empires.",
+                    cancellationToken,
+                    clearChangeTracker: false);
+
+                foreach (var empire in importedEmpires.Where(item => item.Religions.Count > 0))
+                {
+                    foreach (var empireReligion in empire.Religions)
+                    {
+                        var religion = existingReligions[empireReligion.ReligionName];
+                        dbContext.Set<EmpireReligion>().Add(new EmpireReligion
+                        {
+                            EmpireId = empire.Id,
+                            ReligionId = religion.Id,
+                            ReligionName = empireReligion.ReligionName,
+                            PopulationPercent = empireReligion.PopulationPercent
+                        });
+                    }
+                }
+
+                await FlushImportChangesAsync(
+                    dbContext,
+                    progress,
+                    72,
+                    "Saving religions...",
+                    $"Persisting empire religion links for imported empires.",
+                    cancellationToken,
+                    clearChangeTracker: false);
+            }
+
             var importedColonies = new List<Colony>();
             var importedHistoryEvents = new List<HistoryEvent>();
-            await ReportImportProgressAsync(progress, 72, "Writing colonies...", $"Preparing {colonies.Count:N0} colony record(s).");
+            await ReportImportProgressAsync(progress, 73, "Writing colonies...", $"Preparing {colonies.Count:N0} colony record(s).");
             for (var colonyIndex = 0; colonyIndex < colonies.Count; colonyIndex++)
             {
                 var colonyRecord = colonies[colonyIndex];
@@ -1233,6 +1580,9 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
 
                 addedSpaceHabitatCount++;
             }
+
+            await ReportImportProgressAsync(progress, 95, "Updating empire state...", "Setting fallen-empire flags from the finalized colony control data.");
+            await ApplyStoredFallenEmpireFlagsAsync(dbContext, knownEmpires.Keys, cancellationToken);
 
             await ReportImportProgressAsync(progress, 96, "Preparing import summary...", "Recording the import history event and final change summary.");
             if (addedSystemCount > 0 || addedAstralBodyCount > 0 || addedWorldCount > 0 || addedAlienCount > 0 || addedEmpireCount > 0 || addedColonyCount > 0 || addedHistoryCount > 0 || addedIndependentEmpireCount > 0 || addedSpaceHabitatCount > 0)
@@ -1719,25 +2069,45 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         alienRace.Name,
         alienRace.EnvironmentType,
         alienRace.BodyChemistry,
-        alienRace.GovernmentType,
         alienRace.BodyCoverType,
         alienRace.AppearanceType,
         alienRace.Diet,
         alienRace.Reproduction,
         alienRace.ReproductionMethod,
-        alienRace.Religion,
         alienRace.Devotion,
         alienRace.DevotionLevel.ToString(),
+        alienRace.CivilizationProfile.Militancy,
+        alienRace.CivilizationProfile.Determination,
+        alienRace.CivilizationProfile.RacialTolerance,
+        alienRace.CivilizationProfile.Progressiveness,
+        alienRace.CivilizationProfile.Loyalty,
+        alienRace.CivilizationProfile.SocialCohesion,
+        alienRace.CivilizationProfile.Art,
+        alienRace.CivilizationProfile.Individualism,
         alienRace.BiologyProfile.PsiPower,
         alienRace.BiologyProfile.PsiRating.ToString(),
         alienRace.BiologyProfile.Body,
         alienRace.BiologyProfile.Mind,
         alienRace.BiologyProfile.Speed,
         alienRace.BiologyProfile.Lifespan,
+        alienRace.GravityPreference,
+        alienRace.TemperaturePreference,
+        alienRace.AtmosphereBreathed,
         alienRace.MassKg,
         alienRace.SizeCm,
         alienRace.LimbPairCount,
-        alienRace.LegacyAttributes
+        SerializeImportData(alienRace.LimbTypes),
+        SerializeImportData(alienRace.Abilities),
+        SerializeImportData(alienRace.BodyCharacteristics),
+        SerializeImportData(alienRace.EyeCharacteristics),
+        SerializeImportData(alienRace.EyeColors),
+        SerializeImportData(alienRace.HairColors),
+        alienRace.HairType,
+        SerializeImportData(alienRace.Colors),
+        alienRace.ColorPattern,
+        alienRace.LegacyAttributes,
+        alienRace.RequiresUserRename,
+        alienRace.ImportDataJson
     ];
 
     private static object?[] BuildEmpireValues(Empire empire) =>
@@ -1745,6 +2115,8 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         empire.Id,
         empire.Name,
         empire.LegacyRaceId,
+        empire.GovernmentType,
+        empire.IsFallen,
         empire.CivilizationProfile.Militancy,
         empire.CivilizationProfile.Determination,
         empire.CivilizationProfile.RacialTolerance,
@@ -1755,6 +2127,14 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         empire.CivilizationProfile.Art,
         empire.CivilizationProfile.Individualism,
         empire.CivilizationProfile.SpatialAge,
+        empire.CivilizationModifiers.Militancy,
+        empire.CivilizationModifiers.Determination,
+        empire.CivilizationModifiers.RacialTolerance,
+        empire.CivilizationModifiers.Progressiveness,
+        empire.CivilizationModifiers.Loyalty,
+        empire.CivilizationModifiers.SocialCohesion,
+        empire.CivilizationModifiers.Art,
+        empire.CivilizationModifiers.Individualism,
         empire.Founding.Origin.ToString(),
         empire.Founding.FoundingWorldId,
         empire.Founding.FoundingColonyId,
@@ -1786,7 +2166,8 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         empire.MilitaryForces.NavyDoctrine.BeamWeaponEmphasisPercent,
         empire.MilitaryForces.NavyDoctrine.AssaultEmphasisPercent,
         empire.MilitaryForces.NavyDoctrine.DefenseEmphasisPercent,
-        empire.MilitaryForces.Notes
+        empire.MilitaryForces.Notes,
+        empire.ImportDataJson
     ];
 
     private static object?[] BuildEmpireRaceMembershipValues(EmpireRaceMembership membership) =>
@@ -2393,26 +2774,44 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         return worlds;
     }
 
-    private static AlienRace CreateAlienRace(LegacyAlienImport record, int sectorId)
+    private static AlienRace CreateAlienRace(
+        LegacyAlienImport record,
+        int sectorId,
+        IReadOnlyDictionary<int, World> worldsById,
+        ISet<string> usedRaceNames)
     {
-        var name = string.IsNullOrWhiteSpace(record.Name)
-            ? $"Race {record.LegacyId}"
-            : record.Name;
+        var homeWorldId = BuildPlanetWorldId(sectorId, Math.Abs(record.HomePlanetId));
+        worldsById.TryGetValue(homeWorldId, out var homeWorld);
+        var generatedName = GenerateSpeciesName(record, homeWorld, usedRaceNames);
+        var atmosphereBreathed = homeWorld?.AtmosphereComposition ?? string.Empty;
+        var gravity = homeWorld?.GravityEarthG ?? 0d;
+        var gravityPreference = homeWorld is null
+            ? string.Empty
+            : $"{Math.Max(0.1d, gravity - 0.25d):0.0}-{gravity + 0.25d:0.0} g";
+        var minTemperature = homeWorld?.AverageTemperatureCelsius - 10 ?? 0;
+        var maxTemperature = homeWorld?.AverageTemperatureCelsius + 10 ?? 0;
+        if (HasFlag(record.AbilityFlags, 1, 4))
+        {
+            maxTemperature += 5;
+        }
+
+        if (HasFlag(record.AbilityFlags, 1, 1))
+        {
+            maxTemperature -= 5;
+        }
 
         return new AlienRace
         {
             Id = record.LegacyId,
-            HomePlanetId = BuildPlanetWorldId(sectorId, Math.Abs(record.HomePlanetId)),
-            Name = name,
+            HomePlanetId = homeWorldId,
+            Name = generatedName.Name,
             EnvironmentType = Lookup(EnvironmentTypes, record.EnvironmentType, "Environment"),
             BodyChemistry = Lookup(BodyChemistries, record.BodyType, "Body"),
-            GovernmentType = Lookup(GovernmentTypes, record.GovernmentType, "Government"),
             BodyCoverType = Lookup(BodyCoverTypes, record.BodyCoverType, "Body cover"),
             AppearanceType = Lookup(AppearanceTypes, record.AppearanceType, "Appearance"),
             Diet = Lookup(DietTypes, record.DietType, "Diet"),
             Reproduction = Lookup(ReproductionTypes, record.ReproductionType, "Reproduction"),
             ReproductionMethod = Lookup(ReproductionMethodTypes, record.ReproductionMethodType, "Reproduction method"),
-            Religion = Lookup(ReligionTypes, record.ReligionType, "Religion"),
             Devotion = record.Devotion,
             DevotionLevel = record.Devotion switch
             {
@@ -2421,6 +2820,17 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
                 <= 6 => AlienDevotionLevel.Fair,
                 <= 8 => AlienDevotionLevel.Good,
                 _ => AlienDevotionLevel.High
+            },
+            CivilizationProfile = new CivilizationProfile
+            {
+                Militancy = GetAttribute(record.Attributes, 1),
+                Determination = GetAttribute(record.Attributes, 2),
+                RacialTolerance = GetAttribute(record.Attributes, 3),
+                Progressiveness = GetAttribute(record.Attributes, 4),
+                Loyalty = GetAttribute(record.Attributes, 5),
+                SocialCohesion = GetAttribute(record.Attributes, 6),
+                Art = GetAttribute(record.Attributes, 13),
+                Individualism = GetAttribute(record.Attributes, 14)
             },
             BiologyProfile = new AlienBiologyProfile
             {
@@ -2439,37 +2849,58 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
                 Speed = GetAttribute(record.Attributes, 11),
                 Lifespan = GetAttribute(record.Attributes, 12)
             },
+            GravityPreference = gravityPreference,
+            TemperaturePreference = homeWorld is null ? string.Empty : $"{minTemperature} to {maxTemperature} C",
+            AtmosphereBreathed = atmosphereBreathed,
             MassKg = record.MassKg,
             SizeCm = record.SizeCm,
             LimbPairCount = record.LimbPairCount,
-            LegacyAttributes = record.Attributes
+            LimbTypes = DecodeLimbTypes(record.LimbTypes, record.LimbPairCount),
+            Abilities = DecodeFlags(record.AbilityFlags, SpecialAbilityTypes),
+            BodyCharacteristics = DecodeBodyCharacteristics(record.BodyCharacteristicFlags),
+            EyeCharacteristics = DecodeFlags(record.EyeCharacteristicFlags, EyeDetailTypes),
+            EyeColors = DecodeFlags(record.EyeColorFlags, EyeColorTypes),
+            HairColors = DecodeFlags(record.HairColorFlags, HairColorTypes),
+            HairType = LookupZeroBased(HairTypes, record.HairType, "Hair type"),
+            Colors = DecodeFlags(record.ColorFlags, ColorTypes),
+            ColorPattern = GetColorPattern(record.BodyCharacteristicFlags),
+            LegacyAttributes = record.Attributes,
+            RequiresUserRename = generatedName.RequiresUserRename,
+            ImportDataJson = SerializeImportData(BuildLegacyAlienImportData(record))
         };
     }
 
     private static Empire CreateEmpire(
         LegacyEmpireImport record,
-        IReadOnlyList<LegacyAlienImport> aliens,
+        IReadOnlyDictionary<int, LegacyAlienImport> legacyAliensById,
+        IReadOnlyDictionary<int, AlienRace> alienRacesById,
         IReadOnlyList<LegacyContactImport> contacts,
-        int sectorId)
+        int sectorId,
+        ISet<string> usedEmpireNames)
     {
-        var alien = aliens.FirstOrDefault(item => item.LegacyId == record.LegacyId);
+        legacyAliensById.TryGetValue(record.LegacyId, out var legacyAlien);
+        alienRacesById.TryGetValue(record.LegacyId, out var alien);
+        var governmentType = Lookup(GovernmentTypes, legacyAlien?.GovernmentType ?? 0, "Government");
+        var religionType = Lookup(ReligionTypes, legacyAlien?.ReligionType ?? 0, "Religion");
+        var empireName = GenerateEmpireName(alien?.Name ?? $"Empire {record.LegacyId}", governmentType, null, usedEmpireNames);
         var empire = new Empire
         {
             Id = record.LegacyId,
-            Name = string.IsNullOrWhiteSpace(alien?.Name) ? $"Empire {record.LegacyId}" : alien.Name,
+            Name = empireName,
             LegacyRaceId = record.LegacyId,
+            GovernmentType = governmentType,
             CivilizationProfile = new CivilizationProfile
             {
-                Militancy = GetAttribute(alien?.Attributes, 1),
-                Determination = GetAttribute(alien?.Attributes, 2),
-                RacialTolerance = GetAttribute(alien?.Attributes, 3),
-                Progressiveness = GetAttribute(alien?.Attributes, 4),
-                Loyalty = GetAttribute(alien?.Attributes, 5),
-                SocialCohesion = GetAttribute(alien?.Attributes, 6),
-                TechLevel = GetAttribute(alien?.Attributes, 8),
-                Art = GetAttribute(alien?.Attributes, 13),
-                Individualism = GetAttribute(alien?.Attributes, 14),
-                SpatialAge = GetAttribute(alien?.Attributes, 15)
+                Militancy = alien?.CivilizationProfile.Militancy ?? 0,
+                Determination = alien?.CivilizationProfile.Determination ?? 0,
+                RacialTolerance = alien?.CivilizationProfile.RacialTolerance ?? 0,
+                Progressiveness = alien?.CivilizationProfile.Progressiveness ?? 0,
+                Loyalty = alien?.CivilizationProfile.Loyalty ?? 0,
+                SocialCohesion = alien?.CivilizationProfile.SocialCohesion ?? 0,
+                TechLevel = GetAttribute(alien?.LegacyAttributes, 8),
+                Art = alien?.CivilizationProfile.Art ?? 0,
+                Individualism = alien?.CivilizationProfile.Individualism ?? 0,
+                SpatialAge = GetAttribute(alien?.LegacyAttributes, 15)
             },
             EconomicPowerMcr = GetEmpireAttribute(record.Attributes, 1),
             MilitaryPower = GetEmpireAttribute(record.Attributes, 2),
@@ -2483,13 +2914,13 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
             SubjugatedPlanets = GetEmpireAttributeAsInt(record.Attributes, 10),
             Moons = GetEmpireAttributeAsInt(record.Attributes, 11),
             SubjugatedMoons = GetEmpireAttributeAsInt(record.Attributes, 12),
-            IndependentColonies = GetEmpireAttributeAsInt(record.Attributes, 13),
             Founding = new EmpireFounding
             {
                 Origin = EmpireOrigin.NativeHomeworld,
                 FoundingRaceId = record.LegacyId,
-                FoundingWorldId = alien is null ? null : BuildPlanetWorldId(sectorId, Math.Abs(alien.HomePlanetId))
-            }
+                FoundingWorldId = alien?.HomePlanetId
+            },
+            ImportDataJson = SerializeImportData(BuildLegacyEmpireImportData(record, legacyAlien, alien, empireName, governmentType, religionType))
         };
 
         empire.RaceMemberships.Add(new EmpireRaceMembership
@@ -2512,6 +2943,14 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
                 Age = contact.Age
             });
         }
+
+        empire.Religions.Add(new EmpireReligion
+        {
+            EmpireId = empire.Id,
+            ReligionId = 0,
+            ReligionName = GenerateReligionName(alien?.Name ?? $"Empire {record.LegacyId}", religionType),
+            PopulationPercent = 100m
+        });
 
         return empire;
     }
@@ -2824,6 +3263,60 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
             : null;
     }
 
+    private static async Task ApplyStoredFallenEmpireFlagsAsync(
+        StarWinDbContext dbContext,
+        IReadOnlyCollection<int> empireIds,
+        CancellationToken cancellationToken)
+    {
+        if (empireIds.Count == 0)
+        {
+            return;
+        }
+
+        var colonies = await dbContext.Colonies.ToListAsync(cancellationToken);
+        var controlledEmpireIds = colonies
+            .Where(colony => colony.ControllingEmpireId.HasValue)
+            .Select(colony => colony.ControllingEmpireId!.Value)
+            .ToHashSet();
+        var colonyLinkedEmpireIds = colonies
+            .Where(colony => colony.ControllingEmpireId.HasValue)
+            .Select(colony => colony.ControllingEmpireId!.Value)
+            .Concat(colonies
+                .Where(colony => colony.FoundingEmpireId.HasValue)
+                .Select(colony => colony.FoundingEmpireId!.Value))
+            .ToHashSet();
+
+        var persistedEmpires = await dbContext.Empires
+            .Where(empire => empireIds.Contains(empire.Id))
+            .ToListAsync(cancellationToken);
+        var empiresToUpdate = persistedEmpires
+            .Concat(dbContext.ChangeTracker
+                .Entries<Empire>()
+                .Where(entry => entry.State == EntityState.Added && empireIds.Contains(entry.Entity.Id))
+                .Select(entry => entry.Entity))
+            .DistinctBy(empire => empire.Id)
+            .ToList();
+
+        foreach (var empire in empiresToUpdate)
+        {
+            empire.IsFallen = DetermineStoredFallenEmpireStatus(empire, controlledEmpireIds, colonyLinkedEmpireIds);
+        }
+    }
+
+    private static bool DetermineStoredFallenEmpireStatus(
+        Empire empire,
+        IReadOnlySet<int> controlledEmpireIds,
+        IReadOnlySet<int> colonyLinkedEmpireIds)
+    {
+        return !controlledEmpireIds.Contains(empire.Id)
+            && (colonyLinkedEmpireIds.Contains(empire.Id)
+                || empire.Planets > 0
+                || empire.Moons > 0
+                || empire.SpaceHabitats > 0
+                || empire.NativePopulationMillions > 0
+                || empire.SubjectPopulationMillions > 0);
+    }
+
     private static void AssignColonyToIndependentEmpire(Colony colony, Empire empire)
     {
         colony.ControllingEmpireId = empire.Id;
@@ -2850,6 +3343,385 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
     private static int BuildColonyId(int sectorId, int legacyColonyId)
     {
         return sectorId * 1_000_000 + 800_000 + legacyColonyId + 1;
+    }
+
+    private static GeneratedNameResult GenerateSpeciesName(LegacyAlienImport record, World? homeWorld, ISet<string> usedRaceNames)
+    {
+        if (!IsPlaceholderName(record.Name))
+        {
+            usedRaceNames.Add(record.Name.Trim());
+            return new GeneratedNameResult(record.Name.Trim(), false);
+        }
+
+        var baseRoot = homeWorld is not null
+            ? NormalizeNameRoot(homeWorld.Name)
+            : string.Empty;
+        if (string.IsNullOrWhiteSpace(baseRoot))
+        {
+            return new GeneratedNameResult($"Race {record.LegacyId}", true);
+        }
+
+        var baseName = BuildSpeciesNameFromRoot(baseRoot);
+        if (usedRaceNames.Add(baseName))
+        {
+            return new GeneratedNameResult(baseName, false);
+        }
+
+        foreach (var variant in GenerateSpeciesVariants(baseName, baseRoot))
+        {
+            if (usedRaceNames.Add(variant))
+            {
+                return new GeneratedNameResult(variant, false);
+            }
+        }
+
+        return new GeneratedNameResult(baseName, true);
+    }
+
+    private static string GenerateEmpireName(string speciesName, string governmentType, string? colonyWorldName, ISet<string> usedEmpireNames)
+    {
+        foreach (var template in GetGovernmentTemplates(governmentType))
+        {
+            var candidate = ApplyNameTemplate(template, speciesName);
+            if (usedEmpireNames.Add(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        var colonyRoot = NormalizeNameRoot(colonyWorldName);
+        if (!string.IsNullOrWhiteSpace(colonyRoot))
+        {
+            foreach (var template in GetGovernmentTemplates(governmentType))
+            {
+                var candidate = ApplyNameTemplate(template, colonyRoot);
+                if (usedEmpireNames.Add(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        var suffix = 2;
+        while (true)
+        {
+            var candidate = $"{speciesName} {governmentType} {suffix}";
+            if (usedEmpireNames.Add(candidate))
+            {
+                return candidate;
+            }
+
+            suffix++;
+        }
+    }
+
+    private static string GenerateReligionName(string speciesName, string religionType)
+    {
+        return religionType switch
+        {
+            "Animism" => $"{speciesName} Tradition",
+            "Polytheism" => $"{speciesName} Pantheon",
+            "Dualism" => $"{speciesName} Doctrine",
+            "Monotheism" => $"{speciesName} Church",
+            "Deism" => $"{speciesName} Path",
+            "Pantheism" => $"{speciesName} Faith",
+            "Agnosticism" => $"{speciesName} Philosophy",
+            "Rational atheism" => $"{speciesName} Rationalists",
+            "Philosophical atheism" => $"{speciesName} Humanists",
+            "Leader worship" => $"{speciesName} Cult",
+            "Multiple monotheism" => $"{speciesName} Communion",
+            _ => $"{speciesName} Faith"
+        };
+    }
+
+    private static string InferReligionTypeFromName(string religionName)
+    {
+        return religionName switch
+        {
+            var name when name.Contains("Pantheon", StringComparison.OrdinalIgnoreCase) => "Polytheism",
+            var name when name.Contains("Church", StringComparison.OrdinalIgnoreCase) => "Monotheism",
+            var name when name.Contains("Cult", StringComparison.OrdinalIgnoreCase) => "Leader worship",
+            var name when name.Contains("Doctrine", StringComparison.OrdinalIgnoreCase) => "Dualism",
+            var name when name.Contains("Path", StringComparison.OrdinalIgnoreCase) => "Deism",
+            var name when name.Contains("Tradition", StringComparison.OrdinalIgnoreCase) => "Animism",
+            _ => "Religion"
+        };
+    }
+
+    private static bool IsPlaceholderName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return true;
+        }
+
+        var trimmed = name.Trim();
+        return trimmed.StartsWith("Race ", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeNameRoot(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = name.Trim();
+        var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 1)
+        {
+            var suffix = parts[^1];
+            if (int.TryParse(suffix, out _)
+                || IsRomanNumeral(suffix)
+                || (suffix.Length == 1 && char.IsLetter(suffix[0])))
+            {
+                trimmed = string.Join(' ', parts[..^1]);
+            }
+        }
+
+        return trimmed.Trim();
+    }
+
+    private static bool IsRomanNumeral(string value)
+    {
+        return value.All(character => "IVXLCDMivxlcdm".Contains(character));
+    }
+
+    private static string BuildSpeciesNameFromRoot(string root)
+    {
+        if (root.EndsWith("a", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{root[..^1]}an";
+        }
+
+        if (root.EndsWith("earth", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{root}ling";
+        }
+
+        if (root.EndsWith("sol", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{root}an";
+        }
+
+        if (root.EndsWith("erra", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{root[..^1]}n";
+        }
+
+        if (root.EndsWith("el", StringComparison.OrdinalIgnoreCase)
+            || root.EndsWith("il", StringComparison.OrdinalIgnoreCase)
+            || root.EndsWith("ol", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{root}ian";
+        }
+
+        return $"{root}ian";
+    }
+
+    private static IEnumerable<string> GenerateSpeciesVariants(string baseName, string root)
+    {
+        foreach (var prefix in UniversalSpeciesPrefixes)
+        {
+            yield return $"{prefix}{baseName}";
+        }
+
+        foreach (var suffix in UniversalSpeciesSuffixes)
+        {
+            yield return $"{root}{suffix}";
+        }
+
+        foreach (var prefix in UniversalSpeciesPrefixes)
+        {
+            foreach (var suffix in UniversalSpeciesSuffixes)
+            {
+                yield return $"{prefix}{root}{suffix}";
+            }
+        }
+    }
+
+    private static IReadOnlyList<string> GetGovernmentTemplates(string governmentType)
+    {
+        return governmentType switch
+        {
+            "Imperialism" => ["{0} Empire", "{0} Imperium", "Imperium of {0}", "{0} Dominion"],
+            "Democracy" or "Republic" or "Federation" => ["{0} Republic", "Republic of {0}", "{0} Federation", "{0} Union"],
+            "Theocracy" => ["{0} Church", "{0} Covenant", "{0} Theocracy", "Holy State of {0}"],
+            "Corporation" => ["{0} Combine", "{0} Consortium", "{0} Syndicate", "{0} Holdings"],
+            "Monarchy" => ["Kingdom of {0}", "{0} Kingdom", "{0} Crown", "{0} Realm"],
+            _ => ["{0} State", "{0} Compact", "{0} Assembly", "{0} Accord"]
+        };
+    }
+
+    private static string ApplyNameTemplate(string template, string value)
+    {
+        return string.Format(CultureInfo.InvariantCulture, template, value).Trim();
+    }
+
+    private static List<string> DecodeLimbTypes(IReadOnlyList<byte> limbTypes, byte limbPairCount)
+    {
+        var results = new List<string>();
+        for (var index = 0; index < limbPairCount && index < limbTypes.Count; index++)
+        {
+            var role = limbTypes[index] < LimbRoleTypes.Length
+                ? LimbRoleTypes[limbTypes[index]]
+                : $"Limb type {limbTypes[index]}";
+            results.Add($"Pair {index + 1}: {role}");
+        }
+
+        if (results.Count == 0 && limbPairCount == 0)
+        {
+            results.Add("None");
+        }
+
+        return results;
+    }
+
+    private static List<string> DecodeBodyCharacteristics(IReadOnlyList<byte> flags)
+    {
+        return DecodeFlags(flags, BodyPartTypes)
+            .Where(value => value is not "One color" and not "Two-tone" and not "Multi color" and not "Striped/Banded" and not "Spots" and not "Randomly mottled")
+            .ToList();
+    }
+
+    private static string GetColorPattern(IReadOnlyList<byte> flags)
+    {
+        return DecodeFlags(flags, BodyPartTypes)
+            .FirstOrDefault(value => value is "One color" or "Two-tone" or "Multi color" or "Striped/Banded" or "Spots" or "Randomly mottled")
+            ?? string.Empty;
+    }
+
+    private static List<string> DecodeFlags(IReadOnlyList<byte> flags, IReadOnlyList<string> labels)
+    {
+        var results = new List<string>();
+        for (var byteIndex = 0; byteIndex < flags.Count; byteIndex++)
+        {
+            for (var bitIndex = 0; bitIndex < 8; bitIndex++)
+            {
+                if ((flags[byteIndex] & (1 << bitIndex)) == 0)
+                {
+                    continue;
+                }
+
+                var labelIndex = byteIndex * 8 + bitIndex;
+                if (labelIndex >= labels.Count)
+                {
+                    continue;
+                }
+
+                results.Add(labels[labelIndex]);
+            }
+        }
+
+        return results;
+    }
+
+    private static object BuildLegacyAlienImportData(LegacyAlienImport record)
+    {
+        return new
+        {
+            record.LegacyId,
+            record.HomePlanetId,
+            Name = record.Name,
+            EnvironmentType = Lookup(EnvironmentTypes, record.EnvironmentType, "Environment"),
+            BodyType = Lookup(BodyChemistries, record.BodyType, "Body"),
+            LimbPairCount = record.LimbPairCount,
+            LimbTypes = DecodeLimbTypes(record.LimbTypes, record.LimbPairCount),
+            DietType = Lookup(DietTypes, record.DietType, "Diet"),
+            ReproductionType = Lookup(ReproductionTypes, record.ReproductionType, "Reproduction"),
+            ReproductionMethodType = Lookup(ReproductionMethodTypes, record.ReproductionMethodType, "Reproduction method"),
+            GovernmentType = Lookup(GovernmentTypes, record.GovernmentType, "Government"),
+            BodyCoverType = Lookup(BodyCoverTypes, record.BodyCoverType, "Body cover"),
+            AppearanceType = Lookup(AppearanceTypes, record.AppearanceType, "Appearance"),
+            record.MassKg,
+            record.SizeCm,
+            Attributes = BuildLegacyAlienAttributeData(record.Attributes),
+            Abilities = DecodeFlags(record.AbilityFlags, SpecialAbilityTypes),
+            BodyColors = DecodeFlags(record.ColorFlags, ColorTypes),
+            HairColors = DecodeFlags(record.HairColorFlags, HairColorTypes),
+            BodyCharacteristics = DecodeBodyCharacteristics(record.BodyCharacteristicFlags),
+            ColorPattern = GetColorPattern(record.BodyCharacteristicFlags),
+            EyeColors = DecodeFlags(record.EyeColorFlags, EyeColorTypes),
+            EyeCharacteristics = DecodeFlags(record.EyeCharacteristicFlags, EyeDetailTypes),
+            HairType = LookupZeroBased(HairTypes, record.HairType, "Hair type"),
+            ReligionType = Lookup(ReligionTypes, record.ReligionType, "Religion"),
+            record.Devotion
+        };
+    }
+
+    private static object BuildLegacyEmpireImportData(
+        LegacyEmpireImport record,
+        LegacyAlienImport? legacyAlien,
+        AlienRace? alien,
+        string empireName,
+        string governmentType,
+        string religionType)
+    {
+        return new
+        {
+            record.LegacyId,
+            GeneratedEmpireName = empireName,
+            GovernmentType = governmentType,
+            ReligionType = religionType,
+            EmpireAttributes = new
+            {
+                EconomicPowerMcr = GetEmpireAttribute(record.Attributes, 1),
+                MilitaryPower = GetEmpireAttribute(record.Attributes, 2),
+                NativePopulationMillions = GetEmpireAttribute(record.Attributes, 3),
+                TradeBonusMcr = GetEmpireAttribute(record.Attributes, 4),
+                CaptivePopulationMillions = GetEmpireAttribute(record.Attributes, 5),
+                IndependentPopulationMillions = GetEmpireAttribute(record.Attributes, 6),
+                SubjectPopulationMillions = GetEmpireAttribute(record.Attributes, 7),
+                Planets = GetEmpireAttributeAsInt(record.Attributes, 8),
+                CaptivePlanets = GetEmpireAttributeAsInt(record.Attributes, 9),
+                SubjugatedPlanets = GetEmpireAttributeAsInt(record.Attributes, 10),
+                Moons = GetEmpireAttributeAsInt(record.Attributes, 11),
+                SubjugatedMoons = GetEmpireAttributeAsInt(record.Attributes, 12),
+                IndependentColonies = GetEmpireAttributeAsInt(record.Attributes, 13)
+            },
+            SourceRace = legacyAlien is null
+                ? null
+                : new
+                {
+                    legacyAlien.LegacyId,
+                    RaceName = alien?.Name ?? legacyAlien.Name,
+                    TechLevel = GetAttribute(legacyAlien.Attributes, 8),
+                    SpatialAge = GetAttribute(legacyAlien.Attributes, 15)
+                }
+        };
+    }
+
+    private static object BuildLegacyAlienAttributeData(IReadOnlyList<byte> attributes)
+    {
+        return new
+        {
+            Militancy = GetAttribute(attributes, 1),
+            Determination = GetAttribute(attributes, 2),
+            RacialTolerance = GetAttribute(attributes, 3),
+            Progressiveness = GetAttribute(attributes, 4),
+            Loyalty = GetAttribute(attributes, 5),
+            SocialCohesion = GetAttribute(attributes, 6),
+            PsiPower = GetAttribute(attributes, 7),
+            TechLevel = GetAttribute(attributes, 8),
+            Body = GetAttribute(attributes, 9),
+            Mind = GetAttribute(attributes, 10),
+            Speed = GetAttribute(attributes, 11),
+            Lifespan = GetAttribute(attributes, 12),
+            Art = GetAttribute(attributes, 13),
+            Individualism = GetAttribute(attributes, 14),
+            SpatialAge = GetAttribute(attributes, 15)
+        };
+    }
+
+    private static bool HasFlag(IReadOnlyList<byte> flags, int oneBasedByteIndex, int oneBasedBitIndex)
+    {
+        if (oneBasedByteIndex < 1 || oneBasedByteIndex > flags.Count)
+        {
+            return false;
+        }
+
+        var value = flags[oneBasedByteIndex - 1];
+        return (value & (1 << (oneBasedBitIndex - 1))) != 0;
     }
 
     private static string Lookup(IReadOnlyList<string> values, byte legacyCode, string label)
@@ -3187,13 +4059,15 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         changed |= FillMissingString(() => existing.Name, value => existing.Name = value, imported.Name);
         changed |= FillMissingString(() => existing.EnvironmentType, value => existing.EnvironmentType = value, imported.EnvironmentType);
         changed |= FillMissingString(() => existing.BodyChemistry, value => existing.BodyChemistry = value, imported.BodyChemistry);
-        changed |= FillMissingString(() => existing.GovernmentType, value => existing.GovernmentType = value, imported.GovernmentType);
         changed |= FillMissingString(() => existing.BodyCoverType, value => existing.BodyCoverType = value, imported.BodyCoverType);
         changed |= FillMissingString(() => existing.AppearanceType, value => existing.AppearanceType = value, imported.AppearanceType);
         changed |= FillMissingString(() => existing.Diet, value => existing.Diet = value, imported.Diet);
         changed |= FillMissingString(() => existing.Reproduction, value => existing.Reproduction = value, imported.Reproduction);
         changed |= FillMissingString(() => existing.ReproductionMethod, value => existing.ReproductionMethod = value, imported.ReproductionMethod);
-        changed |= FillMissingString(() => existing.Religion, value => existing.Religion = value, imported.Religion);
+        changed |= FillMissingString(() => existing.GravityPreference, value => existing.GravityPreference = value, imported.GravityPreference);
+        changed |= FillMissingString(() => existing.TemperaturePreference, value => existing.TemperaturePreference = value, imported.TemperaturePreference);
+        changed |= FillMissingString(() => existing.AtmosphereBreathed, value => existing.AtmosphereBreathed = value, imported.AtmosphereBreathed);
+        changed |= FillMissingString(() => existing.ImportDataJson, value => existing.ImportDataJson = value, imported.ImportDataJson);
 
         if (existing.Devotion == 0 && imported.Devotion > 0)
         {
@@ -3256,6 +4130,15 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
             changed = true;
         }
 
+        changed |= FillMissingByte(() => existing.CivilizationProfile.Militancy, value => existing.CivilizationProfile.Militancy = value, imported.CivilizationProfile.Militancy);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.Determination, value => existing.CivilizationProfile.Determination = value, imported.CivilizationProfile.Determination);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.RacialTolerance, value => existing.CivilizationProfile.RacialTolerance = value, imported.CivilizationProfile.RacialTolerance);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.Progressiveness, value => existing.CivilizationProfile.Progressiveness = value, imported.CivilizationProfile.Progressiveness);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.Loyalty, value => existing.CivilizationProfile.Loyalty = value, imported.CivilizationProfile.Loyalty);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.SocialCohesion, value => existing.CivilizationProfile.SocialCohesion = value, imported.CivilizationProfile.SocialCohesion);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.Art, value => existing.CivilizationProfile.Art = value, imported.CivilizationProfile.Art);
+        changed |= FillMissingByte(() => existing.CivilizationProfile.Individualism, value => existing.CivilizationProfile.Individualism = value, imported.CivilizationProfile.Individualism);
+
         if ((existing.LegacyAttributes?.Length ?? 0) == 0 && (imported.LegacyAttributes?.Length ?? 0) > 0)
         {
             existing.LegacyAttributes = imported.LegacyAttributes ?? Array.Empty<byte>();
@@ -3269,6 +4152,8 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         changed |= AddMissingStrings(existing.EyeColors, imported.EyeColors);
         changed |= AddMissingStrings(existing.HairColors, imported.HairColors);
         changed |= AddMissingStrings(existing.Colors, imported.Colors);
+        changed |= FillMissingString(() => existing.HairType, value => existing.HairType = value, imported.HairType);
+        changed |= FillMissingString(() => existing.ColorPattern, value => existing.ColorPattern = value, imported.ColorPattern);
 
         return changed;
     }
@@ -3279,6 +4164,8 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
 
         changed |= FillMissingString(() => existing.Name, value => existing.Name = value, imported.Name);
         changed |= FillMissingNullable(() => existing.LegacyRaceId, value => existing.LegacyRaceId = value, imported.LegacyRaceId);
+        changed |= FillMissingString(() => existing.GovernmentType, value => existing.GovernmentType = value, imported.GovernmentType);
+        changed |= FillMissingString(() => existing.ImportDataJson, value => existing.ImportDataJson = value, imported.ImportDataJson);
 
         changed |= FillMissingByte(() => existing.CivilizationProfile.Militancy, value => existing.CivilizationProfile.Militancy = value, imported.CivilizationProfile.Militancy);
         changed |= FillMissingByte(() => existing.CivilizationProfile.Determination, value => existing.CivilizationProfile.Determination = value, imported.CivilizationProfile.Determination);
@@ -3290,6 +4177,14 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         changed |= FillMissingByte(() => existing.CivilizationProfile.Art, value => existing.CivilizationProfile.Art = value, imported.CivilizationProfile.Art);
         changed |= FillMissingByte(() => existing.CivilizationProfile.Individualism, value => existing.CivilizationProfile.Individualism = value, imported.CivilizationProfile.Individualism);
         changed |= FillMissingByte(() => existing.CivilizationProfile.SpatialAge, value => existing.CivilizationProfile.SpatialAge = value, imported.CivilizationProfile.SpatialAge);
+        changed |= FillMissingInt(() => existing.CivilizationModifiers.Militancy, value => existing.CivilizationModifiers.Militancy = value, imported.CivilizationModifiers.Militancy);
+        changed |= FillMissingInt(() => existing.CivilizationModifiers.Determination, value => existing.CivilizationModifiers.Determination = value, imported.CivilizationModifiers.Determination);
+        changed |= FillMissingInt(() => existing.CivilizationModifiers.RacialTolerance, value => existing.CivilizationModifiers.RacialTolerance = value, imported.CivilizationModifiers.RacialTolerance);
+        changed |= FillMissingInt(() => existing.CivilizationModifiers.Progressiveness, value => existing.CivilizationModifiers.Progressiveness = value, imported.CivilizationModifiers.Progressiveness);
+        changed |= FillMissingInt(() => existing.CivilizationModifiers.Loyalty, value => existing.CivilizationModifiers.Loyalty = value, imported.CivilizationModifiers.Loyalty);
+        changed |= FillMissingInt(() => existing.CivilizationModifiers.SocialCohesion, value => existing.CivilizationModifiers.SocialCohesion = value, imported.CivilizationModifiers.SocialCohesion);
+        changed |= FillMissingInt(() => existing.CivilizationModifiers.Art, value => existing.CivilizationModifiers.Art = value, imported.CivilizationModifiers.Art);
+        changed |= FillMissingInt(() => existing.CivilizationModifiers.Individualism, value => existing.CivilizationModifiers.Individualism = value, imported.CivilizationModifiers.Individualism);
 
         changed |= FillMissingLong(() => existing.EconomicPowerMcr, value => existing.EconomicPowerMcr = value, imported.EconomicPowerMcr);
         changed |= FillMissingLong(() => existing.MilitaryPower, value => existing.MilitaryPower = value, imported.MilitaryPower);
@@ -3625,6 +4520,8 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
 
         return samples;
     }
+
+    private readonly record struct GeneratedNameResult(string Name, bool RequiresUserRename);
 
     private sealed record LegacyStarSystemImport(
         int LegacyId,

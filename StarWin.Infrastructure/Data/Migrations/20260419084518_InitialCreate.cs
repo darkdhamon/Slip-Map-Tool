@@ -37,7 +37,9 @@ namespace StarWin.Web.Data.Migrations
                     MassKg = table.Column<short>(type: "smallint", nullable: false),
                     SizeCm = table.Column<short>(type: "smallint", nullable: false),
                     LimbPairCount = table.Column<byte>(type: "tinyint", nullable: false),
-                    LegacyAttributes = table.Column<byte[]>(type: "varbinary(max)", nullable: false)
+                    LegacyAttributes = table.Column<byte[]>(
+                        type: ActiveProvider.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) ? "BLOB" : "varbinary(max)",
+                        nullable: false)
                 },
                 constraints: table =>
                 {

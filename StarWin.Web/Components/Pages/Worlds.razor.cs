@@ -251,6 +251,17 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Systems", selectedSectorId, selectedSystemId));
     }
 
+    protected void NavigateToColony(int colonyId)
+    {
+        NavigationManager.NavigateTo(
+            SectorExplorerRoutes.BuildSectionUri(
+                "Colonies",
+                selectedSectorId,
+                selectedSystemId,
+                selectedWorldId,
+                colonyId));
+    }
+
     protected async Task SaveEntityNameAsync(EntityNoteTargetKind targetKind, int targetId, string name)
     {
         await EntityNameService.SaveNameAsync(targetKind, targetId, name);

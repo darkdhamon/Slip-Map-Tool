@@ -12,6 +12,7 @@ internal static class SectorExplorerSections
         "Worlds",
         "Colonies",
         "Aliens",
+        "Religions",
         "Empires"
     ];
 }

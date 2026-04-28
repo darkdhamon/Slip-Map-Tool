@@ -129,6 +129,25 @@ public sealed class WorldsPageTests : BunitContext
         });
     }
 
+    [Fact]
+    public void NavigatesToColonyFromWorldDetail()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        ConfigureServices(CreateContext());
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/worlds?sectorId=7&systemId=11&worldId=101");
+
+        var cut = Render<Worlds>();
+        cut.WaitForAssertion(() => Assert.Contains("Colony: Eos Prime", cut.Markup));
+
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Trim() == "Colony: Eos Prime")
+            .Click();
+
+        Assert.EndsWith("/sector-explorer/colonies?sectorId=7&systemId=11&worldId=101&colonyId=501", navigationManager.Uri, StringComparison.Ordinal);
+    }
+
     private void ConfigureServices(StarWinExplorerContext context, FakeSpaceHabitatService? habitatService = null)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
@@ -168,6 +187,7 @@ public sealed class WorldsPageTests : BunitContext
         {
             Id = 501,
             WorldId = 101,
+            Name = "Eos Prime",
             ColonyClass = "Capital",
             AllegianceId = 2,
             AllegianceName = "Orion Compact"
