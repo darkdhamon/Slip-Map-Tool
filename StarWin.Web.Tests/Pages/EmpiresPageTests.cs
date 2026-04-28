@@ -304,6 +304,24 @@ public sealed class EmpiresPageTests : BunitContext
     }
 
     [Fact]
+    public void RendersSciFiToggleVisualLayersForFallenEmpireFilter()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext());
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find(".record-filter-toggle-thumb-scan"));
+            Assert.Equal(5, cut.FindAll(".record-filter-toggle-thumb-particle").Count);
+            Assert.Equal(3, cut.FindAll(".record-filter-toggle-energy-ring").Count);
+            Assert.NotNull(cut.Find(".record-filter-toggle-track-line"));
+        });
+    }
+
+    [Fact]
     public void ShowsSearchingStateWhileEmpireFiltersReloadResults()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;

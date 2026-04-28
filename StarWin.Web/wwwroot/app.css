@@ -1432,8 +1432,13 @@ dd {
     transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, filter 180ms ease;
 }
 
-.record-filter-toggle-track::before {
-    content: "";
+.record-filter-toggle-track-lines {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.record-filter-toggle-track-line {
     position: absolute;
     left: 26px;
     right: 22px;
@@ -1452,18 +1457,105 @@ dd {
     transition: opacity 180ms ease, background 180ms ease, left 180ms ease, right 180ms ease;
 }
 
-.record-filter-toggle-track::after {
-    content: "OFF";
+.record-filter-toggle-data {
     position: absolute;
-    right: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: rgba(88, 194, 255, 0.82);
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.record-filter-toggle-data-text {
+    position: absolute;
     font-size: 0.84rem;
     font-weight: 900;
     letter-spacing: 0.08em;
+    top: 50%;
+    transform: translateY(-50%);
+    transition: opacity 180ms ease, color 180ms ease, right 180ms ease, left 180ms ease, text-shadow 180ms ease;
+}
+
+.record-filter-toggle-data-text.off {
+    right: 15px;
+    color: rgba(88, 194, 255, 0.82);
     text-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
-    transition: color 180ms ease, right 180ms ease, left 180ms ease, text-shadow 180ms ease;
+    opacity: 1;
+}
+
+.record-filter-toggle-data-text.on {
+    left: 18px;
+    color: rgba(103, 255, 194, 0.94);
+    text-shadow: 0 0 12px rgba(34, 255, 173, 0.52);
+    opacity: 0;
+}
+
+.record-filter-toggle-status {
+    position: absolute;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    transform: translateY(-50%);
+    animation: record-filter-toggle-blink 2s infinite alternate;
+    transition: opacity 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.record-filter-toggle-status.off {
+    right: 42px;
+    background: radial-gradient(circle, rgba(78, 196, 255, 0.94) 0%, rgba(15, 118, 255, 0.36) 100%);
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
+    opacity: 1;
+}
+
+.record-filter-toggle-status.on {
+    left: 42px;
+    background: radial-gradient(circle, rgba(103, 255, 194, 0.95) 0%, rgba(6, 182, 120, 0.38) 100%);
+    box-shadow: 0 0 10px rgba(16, 255, 169, 0.5);
+    opacity: 0;
+}
+
+.record-filter-toggle-energy-rings {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 42px;
+    height: 42px;
+    z-index: 1;
+    pointer-events: none;
+    transition: transform 180ms ease;
+}
+
+.record-filter-toggle-energy-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 2px solid transparent;
+    opacity: 0;
+}
+
+.record-filter-toggle-energy-ring:nth-child(1) {
+    width: 40px;
+    height: 40px;
+    border-top-color: rgba(69, 188, 255, 0.5);
+    border-right-color: rgba(69, 188, 255, 0.24);
+    animation: record-filter-toggle-spin 3s linear infinite;
+}
+
+.record-filter-toggle-energy-ring:nth-child(2) {
+    width: 31px;
+    height: 31px;
+    border-bottom-color: rgba(69, 188, 255, 0.45);
+    border-left-color: rgba(69, 188, 255, 0.2);
+    animation: record-filter-toggle-spin 2s linear infinite reverse;
+}
+
+.record-filter-toggle-energy-ring:nth-child(3) {
+    width: 22px;
+    height: 22px;
+    border-left-color: rgba(69, 188, 255, 0.4);
+    border-top-color: rgba(69, 188, 255, 0.2);
+    animation: record-filter-toggle-spin 1.4s linear infinite;
 }
 
 .record-filter-toggle-thumb {
@@ -1485,26 +1577,112 @@ dd {
     transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
-.record-filter-toggle-thumb::before {
-    content: "";
+.record-filter-toggle-thumb-core {
     position: absolute;
     inset: 9px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(217, 246, 255, 0.9) 0%, rgba(103, 203, 255, 0.34) 42%, transparent 72%);
-    filter: blur(0.4px);
+    background: radial-gradient(circle, rgba(102, 216, 255, 0.7) 0%, rgba(36, 119, 198, 0.22) 58%, transparent 100%);
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
+    opacity: 0.9;
+    transition: background 180ms ease, box-shadow 180ms ease;
 }
 
-.record-filter-toggle-thumb::after {
-    content: "";
+.record-filter-toggle-thumb-inner {
     position: absolute;
-    top: 8px;
-    left: 11px;
-    width: 15px;
-    height: 10px;
+    width: 18px;
+    height: 18px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.84) 0%, rgba(148, 217, 255, 0.52) 100%);
+    border-radius: 50%;
+    box-shadow: 0 0 12px rgba(125, 211, 252, 0.52);
+    opacity: 0.8;
+    animation: record-filter-toggle-pulse 2s infinite alternate;
+}
+
+.record-filter-toggle-thumb-scan {
+    position: absolute;
+    width: 100%;
+    height: 5px;
+    top: -7px;
+    left: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(56, 189, 248, 0.34) 18%,
+        rgba(255, 255, 255, 0.82) 50%,
+        rgba(56, 189, 248, 0.34) 82%,
+        transparent 100%);
+    filter: blur(0.6px);
+    animation: record-filter-toggle-thumb-scan 2s linear infinite;
+    opacity: 0.78;
+}
+
+.record-filter-toggle-thumb-particles {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.record-filter-toggle-thumb-particle {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: rgba(125, 211, 252, 0.82);
+    box-shadow: 0 0 5px rgba(125, 211, 252, 0.7);
+    opacity: 0;
+    animation: record-filter-toggle-particle-float 3s infinite ease-out;
+}
+
+.record-filter-toggle-thumb-particle:nth-child(1) {
+    top: 70%;
+    left: 30%;
+    animation-delay: 0.2s;
+}
+
+.record-filter-toggle-thumb-particle:nth-child(2) {
+    top: 60%;
+    left: 60%;
+    animation-delay: 0.6s;
+}
+
+.record-filter-toggle-thumb-particle:nth-child(3) {
+    top: 50%;
+    left: 40%;
+    animation-delay: 1s;
+}
+
+.record-filter-toggle-thumb-particle:nth-child(4) {
+    top: 40%;
+    left: 70%;
+    animation-delay: 1.4s;
+}
+
+.record-filter-toggle-thumb-particle:nth-child(5) {
+    top: 80%;
+    left: 50%;
+    animation-delay: 1.8s;
+}
+
+.record-filter-toggle-reflection {
+    position: absolute;
+    inset: 0;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.2);
-    filter: blur(0.4px);
-    transform: rotate(-18deg);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 40%);
+    pointer-events: none;
+}
+
+.record-filter-toggle-holo-glow {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: radial-gradient(ellipse at center, rgba(56, 189, 248, 0.16) 0%, rgba(2, 6, 23, 0) 72%);
+    filter: blur(10px);
+    opacity: 0.5;
+    transition: background 180ms ease, opacity 180ms ease;
+    z-index: 0;
 }
 
 .record-filter-toggle-input:checked + .record-filter-toggle-track {
@@ -1519,7 +1697,7 @@ dd {
         0 0 26px rgba(16, 255, 169, 0.26);
 }
 
-.record-filter-toggle-input:checked + .record-filter-toggle-track::before {
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-track-line {
     left: 20px;
     right: 28px;
     background:
@@ -1530,12 +1708,37 @@ dd {
             transparent 11px 18px);
 }
 
-.record-filter-toggle-input:checked + .record-filter-toggle-track::after {
-    content: "ON";
-    left: 18px;
-    right: auto;
-    color: rgba(103, 255, 194, 0.94);
-    text-shadow: 0 0 12px rgba(34, 255, 173, 0.52);
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-data-text.off,
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-status.off {
+    opacity: 0;
+}
+
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-data-text.on,
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-status.on {
+    opacity: 1;
+}
+
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-energy-rings {
+    transform: translateX(68px);
+}
+
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-energy-ring {
+    opacity: 1;
+}
+
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-energy-ring:nth-child(1) {
+    border-top-color: rgba(83, 255, 193, 0.52);
+    border-right-color: rgba(83, 255, 193, 0.26);
+}
+
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-energy-ring:nth-child(2) {
+    border-bottom-color: rgba(83, 255, 193, 0.48);
+    border-left-color: rgba(83, 255, 193, 0.24);
+}
+
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-energy-ring:nth-child(3) {
+    border-left-color: rgba(83, 255, 193, 0.42);
+    border-top-color: rgba(83, 255, 193, 0.18);
 }
 
 .record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-thumb {
@@ -1549,6 +1752,35 @@ dd {
         0 0 20px rgba(32, 255, 167, 0.5),
         0 10px 22px rgba(2, 6, 23, 0.34),
         inset 0 1px 1px rgba(255, 255, 255, 0.28);
+}
+
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-thumb-core {
+    background: radial-gradient(circle, rgba(118, 255, 208, 0.72) 0%, rgba(14, 122, 82, 0.22) 58%, transparent 100%);
+    box-shadow: 0 0 18px rgba(16, 255, 169, 0.36);
+}
+
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-thumb-inner {
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.86) 0%, rgba(168, 255, 223, 0.56) 100%);
+    box-shadow: 0 0 12px rgba(83, 255, 193, 0.54);
+}
+
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-thumb-scan {
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(83, 255, 193, 0.38) 18%,
+        rgba(255, 255, 255, 0.82) 50%,
+        rgba(83, 255, 193, 0.38) 82%,
+        transparent 100%);
+}
+
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-thumb-particle {
+    background: rgba(110, 255, 206, 0.84);
+    box-shadow: 0 0 5px rgba(83, 255, 193, 0.78);
+}
+
+.record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-holo-glow {
+    background: radial-gradient(ellipse at center, rgba(16, 255, 169, 0.18) 0%, rgba(2, 6, 23, 0) 72%);
 }
 
 .record-filter-toggle-input:focus-visible + .record-filter-toggle-track {
@@ -1570,6 +1802,77 @@ dd {
     100% {
         background-position: 34px 0;
         opacity: 0.55;
+    }
+}
+
+@keyframes record-filter-toggle-pulse {
+    0% {
+        opacity: 0.55;
+        transform: translate(-50%, -50%) scale(0.92);
+    }
+
+    100% {
+        opacity: 0.86;
+        transform: translate(-50%, -50%) scale(1.08);
+    }
+}
+
+@keyframes record-filter-toggle-thumb-scan {
+    0% {
+        top: -6px;
+        opacity: 0;
+    }
+
+    18% {
+        opacity: 0.75;
+    }
+
+    82% {
+        opacity: 0.75;
+    }
+
+    100% {
+        top: 43px;
+        opacity: 0;
+    }
+}
+
+@keyframes record-filter-toggle-particle-float {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 0;
+    }
+
+    20% {
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: translateY(-24px) scale(0);
+        opacity: 0;
+    }
+}
+
+@keyframes record-filter-toggle-blink {
+    0%,
+    100% {
+        opacity: 0.55;
+        transform: translateY(-50%) scale(0.9);
+    }
+
+    50% {
+        opacity: 1;
+        transform: translateY(-50%) scale(1.1);
+    }
+}
+
+@keyframes record-filter-toggle-spin {
+    0% {
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+
+    100% {
+        transform: translate(-50%, -50%) rotate(360deg);
     }
 }
 
