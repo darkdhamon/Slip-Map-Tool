@@ -22,10 +22,8 @@ public interface IStarWinExplorerContextService
     Task<StarWinExplorerContext> LoadShellAsync(
         bool includeSavedRoutes = true,
         bool includeReferenceData = true,
-        CancellationToken cancellationToken = default);
-    Task<StarWinSector?> LoadSectorAsync(
-        int sectorId,
-        ExplorerSectorLoadSections loadSections,
+        int? detailedSectorId = null,
+        ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None,
         CancellationToken cancellationToken = default);
 }
 

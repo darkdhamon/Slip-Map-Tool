@@ -10,6 +10,8 @@ public sealed class StarWinExplorerContextService(IDbContextFactory<StarWinDbCon
     public async Task<StarWinExplorerContext> LoadShellAsync(
         bool includeSavedRoutes = true,
         bool includeReferenceData = true,
+        int? detailedSectorId = null,
+        ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None,
         CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -17,19 +19,8 @@ public sealed class StarWinExplorerContextService(IDbContextFactory<StarWinDbCon
             dbContext,
             includeSavedRoutes,
             includeReferenceData,
-            cancellationToken);
-    }
-
-    public async Task<StarWinSector?> LoadSectorAsync(
-        int sectorId,
-        ExplorerSectorLoadSections loadSections,
-        CancellationToken cancellationToken = default)
-    {
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await StarWinExplorerContextLoader.LoadSectorAsync(
-            dbContext,
-            sectorId,
-            loadSections,
+            detailedSectorId,
+            detailedSectorSections,
             cancellationToken);
     }
 }

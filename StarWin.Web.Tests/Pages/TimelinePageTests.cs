@@ -31,7 +31,6 @@ public sealed class TimelinePageTests : BunitContext
             Assert.Equal(1, queryService.LoadTimelineEventTypesCallCount);
             Assert.Single(queryService.PageRequests);
             Assert.Equal(1, queryService.LoadSectorEntityUsageCallCount);
-            Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
         });
 
         cut.Find(".timeline-filter-panel select").Change("War");
@@ -91,7 +90,6 @@ public sealed class TimelinePageTests : BunitContext
 
         cut.FindAll(".timeline-links button").Single(button => button.TextContent.Contains("System: Helios", StringComparison.Ordinal)).Click();
         Assert.EndsWith("/sector-explorer/systems?sectorId=7&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
-        Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
     }
 
     [Fact]
@@ -126,7 +124,6 @@ public sealed class TimelinePageTests : BunitContext
 
         cut.Find(".timeline-secondary-button").Click();
         cut.WaitForAssertion(() => Assert.Contains("\"Century\": \"1\"", cut.Markup));
-        Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
     }
 
     [Fact]
@@ -156,7 +153,6 @@ public sealed class TimelinePageTests : BunitContext
             Assert.DoesNotContain("Preparing timeline events for the selected sector.", cut.Markup);
             Assert.Contains("Border war begins", cut.Markup);
         });
-        Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
     }
 
     private void ConfigureServices(FakeExplorerContextService explorerContextService, FakeExplorerQueryService? queryService = null)
@@ -212,17 +208,9 @@ public sealed class TimelinePageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
-        public int LoadSectorAsyncCallCount { get; private set; }
-
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, int? detailedSectorId = null, ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
-        }
-
-        public Task<StarWinSector?> LoadSectorAsync(int sectorId, ExplorerSectorLoadSections loadSections, CancellationToken cancellationToken = default)
-        {
-            LoadSectorAsyncCallCount++;
-            return Task.FromResult<StarWinSector?>(context.Sectors.FirstOrDefault(sector => sector.Id == sectorId));
         }
     }
 

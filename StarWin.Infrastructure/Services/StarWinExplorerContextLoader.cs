@@ -57,6 +57,8 @@ internal static class StarWinExplorerContextLoader
         StarWinDbContext dbContext,
         bool includeSavedRoutes = true,
         bool includeReferenceData = true,
+        int? detailedSectorId = null,
+        ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None,
         CancellationToken cancellationToken = default)
     {
         IQueryable<StarWinSector> sectorsQuery = dbContext.Sectors
@@ -91,15 +93,31 @@ internal static class StarWinExplorerContextLoader
                 .ToListAsync(cancellationToken)
             : [];
 
+        if (detailedSectorId is int selectedSectorId
+            && selectedSectorId > 0
+            && detailedSectorSections != ExplorerSectorLoadSections.None
+            && await LoadSectorDetailAsync(dbContext, selectedSectorId, detailedSectorSections, cancellationToken) is { } detailedSector)
+        {
+            var sectorIndex = sectors.FindIndex(sector => sector.Id == detailedSector.Id);
+            if (sectorIndex >= 0)
+            {
+                sectors[sectorIndex] = detailedSector;
+            }
+        }
+
+        var currentSector = detailedSectorId is int preferredSectorId && preferredSectorId > 0
+            ? sectors.FirstOrDefault(sector => sector.Id == preferredSectorId)
+            : null;
+
         return new StarWinExplorerContext(
             sectors,
-            sectors.FirstOrDefault() ?? StarWinExplorerContext.Empty.CurrentSector,
+            currentSector ?? sectors.FirstOrDefault() ?? StarWinExplorerContext.Empty.CurrentSector,
             alienRaces,
             empires,
             includeReferenceData ? empires.SelectMany(empire => empire.Contacts).ToList() : []);
     }
 
-    public static async Task<StarWinSector?> LoadSectorAsync(
+    private static async Task<StarWinSector?> LoadSectorDetailAsync(
         StarWinDbContext dbContext,
         int sectorId,
         ExplorerSectorLoadSections loadSections,

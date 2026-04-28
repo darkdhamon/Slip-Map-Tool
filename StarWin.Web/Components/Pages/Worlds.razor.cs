@@ -14,6 +14,11 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
 {
     private const int ExplorerListBatchSize = 120;
     private const int ComboAllFilterId = -1;
+    private const ExplorerSectorLoadSections DetailedSectorSections = ExplorerSectorLoadSections.AstralBodies
+        | ExplorerSectorLoadSections.Worlds
+        | ExplorerSectorLoadSections.SpaceHabitats
+        | ExplorerSectorLoadSections.Colonies
+        | ExplorerSectorLoadSections.ColonyDemographics;
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
     [Inject] protected IStarWinImageService ImageService { get; set; } = default!;
@@ -40,7 +45,6 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
     protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
     protected readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
     protected readonly Dictionary<int, World> WorldsById = [];
-    private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
 
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     protected string explorerRenderError = string.Empty;
@@ -81,13 +85,12 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
 
     protected override async Task OnInitializedAsync()
     {
-        await RefreshExplorerDataAsync();
+        await RefreshExplorerDataAsync(RequestedSectorId);
         var initialSector = RequestedSectorId is int requestedSectorId
             ? ExplorerSectors.FirstOrDefault(sector => sector.Id == requestedSectorId) ?? explorerContext.CurrentSector
             : explorerContext.CurrentSector;
 
         selectedSectorId = initialSector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
         ApplyRequestedSelection(GetSelectedSector());
     }
 
@@ -102,7 +105,7 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
-            await EnsureSectorDataLoadedAsync(selectedSectorId);
+            await RefreshExplorerDataAsync(selectedSectorId);
         }
 
         ApplyRequestedSelection(GetSelectedSector());
@@ -150,7 +153,7 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
+        await RefreshExplorerDataAsync(selectedSectorId);
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
@@ -265,8 +268,7 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
     protected async Task SaveEntityNameAsync(EntityNoteTargetKind targetKind, int targetId, string name)
     {
         await EntityNameService.SaveNameAsync(targetKind, targetId, name);
-        await RefreshExplorerDataAsync();
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
+        await RefreshExplorerDataAsync(selectedSectorId);
         ApplyRequestedSelection(GetSelectedSector());
     }
 
@@ -667,61 +669,19 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
         }
     }
 
-    private async Task RefreshExplorerDataAsync(CancellationToken cancellationToken = default)
+    private async Task RefreshExplorerDataAsync(int? detailedSectorId = null, CancellationToken cancellationToken = default)
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
             includeSavedRoutes: false,
             includeReferenceData: true,
+            detailedSectorId: detailedSectorId,
+            detailedSectorSections: DetailedSectorSections,
             cancellationToken: cancellationToken);
 
-        loadedSectorSectionsById.Clear();
         foreach (var sectorId in ExplorerSectors.Select(sector => sector.Id))
         {
             sectorCacheBuilder.Invalidate(sectorId);
         }
-        WorldsById.Clear();
-    }
-
-    private async Task EnsureSectorDataLoadedAsync(int sectorId, CancellationToken cancellationToken = default)
-    {
-        if (sectorId <= 0)
-        {
-            return;
-        }
-
-        const ExplorerSectorLoadSections requiredSections = ExplorerSectorLoadSections.AstralBodies
-            | ExplorerSectorLoadSections.Worlds
-            | ExplorerSectorLoadSections.SpaceHabitats
-            | ExplorerSectorLoadSections.Colonies
-            | ExplorerSectorLoadSections.ColonyDemographics;
-
-        loadedSectorSectionsById.TryGetValue(sectorId, out var loadedSections);
-        if ((loadedSections & requiredSections) == requiredSections)
-        {
-            return;
-        }
-
-        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiredSections, cancellationToken);
-        if (detailedSector is null)
-        {
-            return;
-        }
-
-        var sectors = ExplorerSectors.ToList();
-        var sectorIndex = sectors.FindIndex(item => item.Id == detailedSector.Id);
-        if (sectorIndex >= 0)
-        {
-            sectors[sectorIndex] = detailedSector;
-        }
-
-        explorerContext = explorerContext with
-        {
-            Sectors = sectors,
-            CurrentSector = explorerContext.CurrentSector.Id == detailedSector.Id ? detailedSector : explorerContext.CurrentSector
-        };
-
-        loadedSectorSectionsById[sectorId] = loadedSections | requiredSections;
-        sectorCacheBuilder.Invalidate(sectorId);
         WorldsById.Clear();
         foreach (var world in explorerContext.Sectors.SelectMany(sector => sector.Systems).SelectMany(system => system.Worlds))
         {
@@ -757,7 +717,7 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
         }
 
         selectedSectorId = sector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
+        await RefreshExplorerDataAsync(selectedSectorId);
         sector = GetSelectedSector();
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId

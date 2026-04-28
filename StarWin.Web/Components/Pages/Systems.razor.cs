@@ -12,6 +12,9 @@ namespace StarWin.Web.Components.Pages;
 
 public partial class Systems : ComponentBase
 {
+    private const ExplorerSectorLoadSections DetailedSectorSections = ExplorerSectorLoadSections.AstralBodies
+        | ExplorerSectorLoadSections.Worlds
+        | ExplorerSectorLoadSections.SpaceHabitats;
 
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
@@ -29,7 +32,6 @@ public partial class Systems : ComponentBase
 
     protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
     protected readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
-    private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
 
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     protected string explorerRenderError = string.Empty;
@@ -58,14 +60,12 @@ public partial class Systems : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
-        await RefreshExplorerDataAsync();
+        await RefreshExplorerDataAsync(RequestedSectorId);
         var initialSector = RequestedSectorId is int requestedSectorId
             ? ExplorerSectors.FirstOrDefault(sector => sector.Id == requestedSectorId) ?? explorerContext.CurrentSector
             : explorerContext.CurrentSector;
 
         selectedSectorId = initialSector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        initialSector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
     }
@@ -81,7 +81,7 @@ public partial class Systems : ComponentBase
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
-            await EnsureSectorDataLoadedAsync(selectedSectorId);
+            await RefreshExplorerDataAsync(selectedSectorId);
         }
 
         var sector = GetSelectedSector();
@@ -132,7 +132,7 @@ public partial class Systems : ComponentBase
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
+        await RefreshExplorerDataAsync(selectedSectorId);
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
@@ -196,8 +196,7 @@ public partial class Systems : ComponentBase
     protected async Task SaveEntityNameAsync(EntityNoteTargetKind targetKind, int targetId, string name)
     {
         await EntityNameService.SaveNameAsync(targetKind, targetId, name);
-        await RefreshExplorerDataAsync();
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
+        await RefreshExplorerDataAsync(selectedSectorId);
         selectedSystemText = FormatSelectedSystem(GetSelectedSector(), selectedSystemId);
     }
 
@@ -330,58 +329,19 @@ public partial class Systems : ComponentBase
         }
     }
 
-    private async Task RefreshExplorerDataAsync(CancellationToken cancellationToken = default)
+    private async Task RefreshExplorerDataAsync(int? detailedSectorId = null, CancellationToken cancellationToken = default)
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
             includeSavedRoutes: false,
             includeReferenceData: true,
+            detailedSectorId: detailedSectorId,
+            detailedSectorSections: DetailedSectorSections,
             cancellationToken: cancellationToken);
 
-        loadedSectorSectionsById.Clear();
         foreach (var sectorId in ExplorerSectors.Select(sector => sector.Id))
         {
             sectorCacheBuilder.Invalidate(sectorId);
         }
-    }
-
-    private async Task EnsureSectorDataLoadedAsync(int sectorId, CancellationToken cancellationToken = default)
-    {
-        if (sectorId <= 0)
-        {
-            return;
-        }
-
-        const ExplorerSectorLoadSections requiredSections = ExplorerSectorLoadSections.AstralBodies
-            | ExplorerSectorLoadSections.Worlds
-            | ExplorerSectorLoadSections.SpaceHabitats;
-
-        loadedSectorSectionsById.TryGetValue(sectorId, out var loadedSections);
-        if ((loadedSections & requiredSections) == requiredSections)
-        {
-            return;
-        }
-
-        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiredSections, cancellationToken);
-        if (detailedSector is null)
-        {
-            return;
-        }
-
-        var sectors = ExplorerSectors.ToList();
-        var sectorIndex = sectors.FindIndex(item => item.Id == detailedSector.Id);
-        if (sectorIndex >= 0)
-        {
-            sectors[sectorIndex] = detailedSector;
-        }
-
-        explorerContext = explorerContext with
-        {
-            Sectors = sectors,
-            CurrentSector = explorerContext.CurrentSector.Id == detailedSector.Id ? detailedSector : explorerContext.CurrentSector
-        };
-
-        loadedSectorSectionsById[sectorId] = loadedSections | requiredSections;
-        sectorCacheBuilder.Invalidate(sectorId);
     }
 
     private void RunSearch()
@@ -412,7 +372,7 @@ public partial class Systems : ComponentBase
         }
 
         selectedSectorId = sector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
+        await RefreshExplorerDataAsync(selectedSectorId);
         sector = GetSelectedSector();
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId

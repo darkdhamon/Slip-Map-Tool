@@ -32,7 +32,6 @@ public sealed class SectorConfigurationPageTests : BunitContext
             Assert.Contains("Del Corra", cut.Markup);
             Assert.Contains("Save configuration", cut.Markup);
             Assert.Contains("Saved route report", cut.Markup);
-            Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
         });
     }
 
@@ -53,7 +52,6 @@ public sealed class SectorConfigurationPageTests : BunitContext
             Assert.Equal("Del Corra Prime", configService.SavedSectorName);
             Assert.NotNull(configService.SavedConfiguration);
             Assert.Contains("Del Corra Prime saved.", cut.Markup);
-            Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
         });
     }
 
@@ -72,7 +70,6 @@ public sealed class SectorConfigurationPageTests : BunitContext
         {
             Assert.True(routeService.SaveCalled);
             Assert.Contains("Updated 3 saved hyperlane segments", cut.Markup);
-            Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
         });
     }
 
@@ -91,7 +88,6 @@ public sealed class SectorConfigurationPageTests : BunitContext
         {
             Assert.True(colonyService.ConvertCalled);
             Assert.Contains("Created 1 empire and assigned 2 colonies.", cut.Markup);
-            Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
         });
     }
 
@@ -148,17 +144,9 @@ public sealed class SectorConfigurationPageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
-        public int LoadSectorAsyncCallCount { get; private set; }
-
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, int? detailedSectorId = null, ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
-        }
-
-        public Task<StarWinSector?> LoadSectorAsync(int sectorId, ExplorerSectorLoadSections loadSections, CancellationToken cancellationToken = default)
-        {
-            LoadSectorAsyncCallCount++;
-            return Task.FromResult<StarWinSector?>(context.Sectors.FirstOrDefault(sector => sector.Id == sectorId));
         }
     }
 
