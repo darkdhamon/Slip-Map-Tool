@@ -76,6 +76,36 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
+    public async Task OverviewMetricsLoadOncePerSectorWhileSameSectorRequestsAreInFlight()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        var queryService = new FakeExplorerQueryService(sector);
+        ConfigureServices(sector, workspace, queryService);
+
+        var cut = Render<SectorExplorer>();
+        cut.WaitForAssertion(() => Assert.Contains("<strong>2</strong>", cut.Markup));
+
+        var baselineCallCount = queryService.LoadSectorOverviewCallCount;
+        queryService.DelayOverviewLoads = true;
+
+        var loadMethod = typeof(SectorExplorer).GetMethod("LoadSectorOverviewDataAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(loadMethod);
+
+        var loadOne = cut.InvokeAsync(() => (Task)loadMethod!.Invoke(cut.Instance, [99, CancellationToken.None])!);
+        var loadTwo = cut.InvokeAsync(() => (Task)loadMethod!.Invoke(cut.Instance, [99, CancellationToken.None])!);
+
+        cut.WaitForAssertion(() => Assert.Equal(baselineCallCount + 1, queryService.LoadSectorOverviewCallCount));
+
+        queryService.ReleaseOverviewLoad();
+        await Task.WhenAll(loadOne, loadTwo);
+
+        Assert.Equal(baselineCallCount + 1, queryService.LoadSectorOverviewCallCount);
+    }
+
+    [Fact]
     public void MapWorkspaceShowsSingleSharedLoadingModalWhileDeferredWorkspaceLoads()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -105,7 +135,7 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
-    public void MapWorkspaceUpdatesOverviewQueryWithoutParentCallback()
+    public async Task MapWorkspaceUpdatesOverviewQueryWithoutParentCallback()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -121,7 +151,7 @@ public sealed class SectorExplorerPageTests : BunitContext
             .Add(component => component.SystemId, 11));
 
         cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
-        cut.InvokeAsync(() => cut.Instance.SelectSystemFromMap(12));
+        await cut.InvokeAsync(() => cut.Instance.SelectSystemFromMap(12));
 
         Assert.EndsWith("/sector-explorer?sectorId=7&systemId=12", navigationManager.Uri, StringComparison.Ordinal);
     }
@@ -248,12 +278,12 @@ public sealed class SectorExplorerPageTests : BunitContext
         Assert.Contains("\"solarMasses\":1.01", json);
     }
 
-    private void ConfigureServices(StarWinSector sector, FakeWorkspace workspace)
+    private void ConfigureServices(StarWinSector sector, FakeWorkspace workspace, FakeExplorerQueryService? queryService = null)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinWorkspace>(workspace);
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(sector));
-        Services.AddSingleton<IStarWinExplorerQueryService>(new FakeExplorerQueryService(sector));
+        Services.AddSingleton<IStarWinExplorerQueryService>(queryService ?? new FakeExplorerQueryService(sector));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinImageService>(new FakeImageService());
         Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());
@@ -399,6 +429,7 @@ public sealed class SectorExplorerPageTests : BunitContext
     private sealed class FakeExplorerQueryService : IStarWinExplorerQueryService
     {
         private readonly ExplorerSectorOverviewData overviewData;
+        private readonly TaskCompletionSource overviewLoadTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public FakeExplorerQueryService(StarWinSector sector)
         {
@@ -408,14 +439,29 @@ public sealed class SectorExplorerPageTests : BunitContext
                 sector.Systems.SelectMany(system => system.Worlds).Count(),
                 sector.Systems.SelectMany(system => system.Worlds).Count(world => world.Colony is not null),
                 1,
-                1,
-                [new ExplorerLookupOption(11, "Helios")],
-                [new ExplorerLookupOption(8, "Orion Compact")]);
+                1);
         }
 
-        public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
+        public bool DelayOverviewLoads { get; set; }
+
+        public int LoadSectorOverviewCallCount { get; private set; }
+
+        public async Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(overviewData);
+            LoadSectorOverviewCallCount++;
+
+            if (DelayOverviewLoads)
+            {
+                using var registration = cancellationToken.Register(() => overviewLoadTcs.TrySetCanceled(cancellationToken));
+                await overviewLoadTcs.Task;
+            }
+
+            return overviewData with { SectorId = sectorId };
+        }
+
+        public void ReleaseOverviewLoad()
+        {
+            overviewLoadTcs.TrySetResult();
         }
 
         public Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default)

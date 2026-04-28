@@ -11,7 +11,7 @@ internal sealed class ContextBackedExplorerQueryService(StarWinExplorerContext c
         var sector = GetSector(sectorId);
         if (sector is null)
         {
-            return Task.FromResult(new ExplorerSectorOverviewData(sectorId, 0, 0, 0, 0, 0, [], []));
+            return Task.FromResult(new ExplorerSectorOverviewData(sectorId, 0, 0, 0, 0, 0));
         }
 
         var raceIds = GetRaceIds(sector);
@@ -22,18 +22,7 @@ internal sealed class ContextBackedExplorerQueryService(StarWinExplorerContext c
             sector.Systems.SelectMany(system => system.Worlds).Count(),
             sector.Systems.SelectMany(system => system.Worlds).Count(world => world.Colony is not null),
             empireIds.Count,
-            raceIds.Count,
-            sector.Systems
-                .OrderBy(system => system.Name, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(system => system.Id)
-                .Select(system => new ExplorerLookupOption(system.Id, system.Name))
-                .ToList(),
-            context.Empires
-                .Where(empire => empireIds.Contains(empire.Id))
-                .OrderBy(empire => empire.Name, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(empire => empire.Id)
-                .Select(empire => new ExplorerLookupOption(empire.Id, empire.Name))
-                .ToList()));
+            raceIds.Count));
     }
 
     public Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default)

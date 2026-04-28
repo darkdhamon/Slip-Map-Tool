@@ -16,114 +16,83 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
 
     public async Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
     {
+        if (sectorId <= 0)
+        {
+            return new ExplorerSectorOverviewData(0, 0, 0, 0, 0, 0);
+        }
+
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-
-        var systems = await dbContext.StarSystems
-            .AsNoTracking()
-            .Where(system => system.SectorId == sectorId)
-            .OrderBy(system => system.Name)
-            .ThenBy(system => system.Id)
-            .Select(system => new ExplorerLookupOption(system.Id, system.Name))
-            .ToListAsync(cancellationToken);
-
-        var systemCount = systems.Count;
-
-        var worldCount = await (
-            from world in dbContext.Worlds.AsNoTracking()
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId
-            select world.Id)
-            .CountAsync(cancellationToken);
-
-        var colonyCount = await (
-            from colony in dbContext.Colonies.AsNoTracking()
-            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId
-            select colony.Id)
-            .CountAsync(cancellationToken);
-
-        var empireIds = new HashSet<int>();
-        empireIds.UnionWith(await dbContext.StarSystems
-            .AsNoTracking()
-            .Where(system => system.SectorId == sectorId && system.AllegianceId != ushort.MaxValue)
-            .Select(system => (int)system.AllegianceId)
-            .ToListAsync(cancellationToken));
-        empireIds.UnionWith(await (
-            from world in dbContext.Worlds.AsNoTracking()
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId && world.ControlledByEmpireId.HasValue
-            select world.ControlledByEmpireId!.Value)
-            .ToListAsync(cancellationToken));
-        empireIds.UnionWith(await (
-            from world in dbContext.Worlds.AsNoTracking()
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId && world.AllegianceId != ushort.MaxValue
-            select (int)world.AllegianceId)
-            .ToListAsync(cancellationToken));
-        empireIds.UnionWith(await (
-            from colony in dbContext.Colonies.AsNoTracking()
-            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId && colony.ControllingEmpireId.HasValue
-            select colony.ControllingEmpireId!.Value)
-            .ToListAsync(cancellationToken));
-        empireIds.UnionWith(await (
-            from colony in dbContext.Colonies.AsNoTracking()
-            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId && colony.FoundingEmpireId.HasValue
-            select colony.FoundingEmpireId!.Value)
-            .ToListAsync(cancellationToken));
-        empireIds.UnionWith(await (
-            from colony in dbContext.Colonies.AsNoTracking()
-            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId && colony.ParentEmpireId.HasValue
-            select colony.ParentEmpireId!.Value)
-            .ToListAsync(cancellationToken));
-        empireIds.UnionWith(await (
-            from colony in dbContext.Colonies.AsNoTracking()
-            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId && colony.AllegianceId != ushort.MaxValue
-            select (int)colony.AllegianceId)
-            .ToListAsync(cancellationToken));
-
-        var raceIds = new HashSet<int>();
-        raceIds.UnionWith(await (
-            from world in dbContext.Worlds.AsNoTracking()
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId && world.AlienRaceId.HasValue
-            select (int)world.AlienRaceId!.Value)
-            .ToListAsync(cancellationToken));
-        raceIds.UnionWith(await (
-            from colony in dbContext.Colonies.AsNoTracking()
-            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId
-            select (int)colony.RaceId)
-            .ToListAsync(cancellationToken));
-
-        var empires = empireIds.Count == 0
-            ? []
-            : await dbContext.Empires
-                .AsNoTracking()
-                .Where(empire => empireIds.Contains(empire.Id))
-                .OrderBy(empire => empire.Name)
-                .ThenBy(empire => empire.Id)
-                .Select(empire => new ExplorerLookupOption(empire.Id, empire.Name))
-                .ToListAsync(cancellationToken);
+        var overviewRow = await dbContext.Database
+            .SqlQuery<ExplorerSectorOverviewRow>($"""
+                WITH SectorSystems AS (
+                    SELECT Id, AllegianceId
+                    FROM StarSystems
+                    WHERE SectorId = {sectorId}
+                ),
+                SectorWorlds AS (
+                    SELECT Worlds.Id, Worlds.AlienRaceId, Worlds.ControlledByEmpireId, Worlds.AllegianceId
+                    FROM Worlds
+                    INNER JOIN SectorSystems ON Worlds.StarSystemId = SectorSystems.Id
+                ),
+                SectorColonies AS (
+                    SELECT Colonies.Id, Colonies.RaceId, Colonies.ControllingEmpireId, Colonies.FoundingEmpireId, Colonies.ParentEmpireId, Colonies.AllegianceId
+                    FROM Colonies
+                    INNER JOIN SectorWorlds ON Colonies.WorldId = SectorWorlds.Id
+                ),
+                SectorEmpireIds AS (
+                    SELECT CAST(AllegianceId AS INTEGER) AS EmpireId
+                    FROM SectorSystems
+                    WHERE AllegianceId <> {ushort.MaxValue}
+                    UNION
+                    SELECT CAST(ControlledByEmpireId AS INTEGER) AS EmpireId
+                    FROM SectorWorlds
+                    WHERE ControlledByEmpireId IS NOT NULL
+                    UNION
+                    SELECT CAST(AllegianceId AS INTEGER) AS EmpireId
+                    FROM SectorWorlds
+                    WHERE AllegianceId <> {ushort.MaxValue}
+                    UNION
+                    SELECT CAST(ControllingEmpireId AS INTEGER) AS EmpireId
+                    FROM SectorColonies
+                    WHERE ControllingEmpireId IS NOT NULL
+                    UNION
+                    SELECT CAST(FoundingEmpireId AS INTEGER) AS EmpireId
+                    FROM SectorColonies
+                    WHERE FoundingEmpireId IS NOT NULL
+                    UNION
+                    SELECT CAST(ParentEmpireId AS INTEGER) AS EmpireId
+                    FROM SectorColonies
+                    WHERE ParentEmpireId IS NOT NULL
+                    UNION
+                    SELECT CAST(AllegianceId AS INTEGER) AS EmpireId
+                    FROM SectorColonies
+                    WHERE AllegianceId <> {ushort.MaxValue}
+                ),
+                SectorRaceIds AS (
+                    SELECT CAST(AlienRaceId AS INTEGER) AS RaceId
+                    FROM SectorWorlds
+                    WHERE AlienRaceId IS NOT NULL
+                    UNION
+                    SELECT CAST(RaceId AS INTEGER) AS RaceId
+                    FROM SectorColonies
+                )
+                SELECT
+                    {sectorId} AS SectorId,
+                    (SELECT COUNT(*) FROM SectorSystems) AS SystemCount,
+                    (SELECT COUNT(*) FROM SectorWorlds) AS WorldCount,
+                    (SELECT COUNT(*) FROM SectorColonies) AS ColonyCount,
+                    (SELECT COUNT(*) FROM SectorEmpireIds) AS EmpireCount,
+                    (SELECT COUNT(*) FROM SectorRaceIds) AS RaceCount
+                """)
+            .SingleAsync(cancellationToken);
 
         return new ExplorerSectorOverviewData(
-            sectorId,
-            systemCount,
-            worldCount,
-            colonyCount,
-            empires.Count,
-            raceIds.Count,
-            systems,
-            empires);
+            overviewRow.SectorId,
+            overviewRow.SystemCount,
+            overviewRow.WorldCount,
+            overviewRow.ColonyCount,
+            overviewRow.EmpireCount,
+            overviewRow.RaceCount);
     }
 
     public async Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default)
@@ -2580,6 +2549,21 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         }
 
         return Math.Round((decimal)population * 100m / totalPopulation, 1, MidpointRounding.AwayFromZero);
+    }
+
+    private sealed class ExplorerSectorOverviewRow
+    {
+        public int SectorId { get; set; }
+
+        public int SystemCount { get; set; }
+
+        public int WorldCount { get; set; }
+
+        public int ColonyCount { get; set; }
+
+        public int EmpireCount { get; set; }
+
+        public int RaceCount { get; set; }
     }
 
     private sealed record RaceDisplayProjection(int RaceId, string RaceName, string? HomeWorldName);

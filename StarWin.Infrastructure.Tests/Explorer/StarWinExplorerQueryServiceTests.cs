@@ -14,6 +14,34 @@ namespace StarWin.Infrastructure.Tests.Explorer;
 public sealed class StarWinExplorerQueryServiceTests
 {
     [Fact]
+    public async Task LoadSectorOverviewAsync_returns_expected_sector_counts()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var overview = await service.LoadSectorOverviewAsync(1);
+
+            Assert.Equal(1, overview.SectorId);
+            Assert.Equal(2, overview.SystemCount);
+            Assert.Equal(4, overview.WorldCount);
+            Assert.Equal(3, overview.ColonyCount);
+            Assert.Equal(3, overview.EmpireCount);
+            Assert.Equal(2, overview.RaceCount);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task LoadAlienRaceFilterOptionsAsync_returns_distinct_database_backed_filter_values()
     {
         var databasePath = CreateTempFilePath(".db");

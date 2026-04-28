@@ -60,9 +60,7 @@ public sealed record ExplorerSectorOverviewData(
     int WorldCount,
     int ColonyCount,
     int EmpireCount,
-    int RaceCount,
-    IReadOnlyList<ExplorerLookupOption> Systems,
-    IReadOnlyList<ExplorerLookupOption> Empires);
+    int RaceCount);
 
 public sealed record ExplorerSectorEntityUsage(
     int SectorId,

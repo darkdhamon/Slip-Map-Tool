@@ -100,7 +100,7 @@ public sealed class ExplorerTimelineSectionTests : BunitContext
 
         public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(new ExplorerSectorOverviewData(sectorId, 0, 0, 0, 0, 0, [], []));
+            return Task.FromResult(new ExplorerSectorOverviewData(sectorId, 0, 0, 0, 0, 0));
         }
 
         public Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default)

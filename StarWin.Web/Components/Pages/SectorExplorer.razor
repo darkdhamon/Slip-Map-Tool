@@ -126,6 +126,7 @@ else
 
     private static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
     private readonly Dictionary<int, ExplorerSectorOverviewData> sectorOverviewDataById = [];
+    private readonly Dictionary<int, Task<ExplorerSectorOverviewData>> sectorOverviewLoadTasksById = [];
     private StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     private (int? SectorId, int? SystemId, int? WorldId, int? ColonyId, int? HabitatId, int? RaceId, int? EmpireId) lastAppliedRequest;
     private bool overviewMapWorkspaceReady;
@@ -211,7 +212,25 @@ else
             return;
         }
 
-        sectorOverviewDataById[sectorId] = await ExplorerQueryService.LoadSectorOverviewAsync(sectorId, cancellationToken);
+        if (sectorOverviewDataById.ContainsKey(sectorId))
+        {
+            return;
+        }
+
+        if (!sectorOverviewLoadTasksById.TryGetValue(sectorId, out var loadTask))
+        {
+            loadTask = ExplorerQueryService.LoadSectorOverviewAsync(sectorId, cancellationToken);
+            sectorOverviewLoadTasksById[sectorId] = loadTask;
+        }
+
+        try
+        {
+            sectorOverviewDataById[sectorId] = await loadTask;
+        }
+        finally
+        {
+            sectorOverviewLoadTasksById.Remove(sectorId);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
