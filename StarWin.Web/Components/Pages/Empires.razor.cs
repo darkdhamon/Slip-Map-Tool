@@ -47,6 +47,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected string empireRaceText = string.Empty;
     protected string empireMemberRaceSearch = string.Empty;
     protected string empireColonySearch = string.Empty;
+    protected string empireRelationshipSearch = string.Empty;
     protected int empireRaceId = ComboAllFilterId;
     protected bool showOnlyFallenEmpires;
     protected bool empireHasMoreRecords;
@@ -216,6 +217,11 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected void NavigateToRace(int raceId)
     {
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Aliens", selectedSectorId, selectedSystemId, raceId: raceId, empireId: selectedEmpireId));
+    }
+
+    protected void NavigateToEmpire(int empireId)
+    {
+        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Empires", selectedSectorId, selectedSystemId, empireId: empireId));
     }
 
     protected async Task SaveEntityNameAsync(EntityNoteTargetKind targetKind, int targetId, string name)
@@ -791,6 +797,54 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             : modifier.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    protected static string GetEmpireListSummary(ExplorerEmpireListItem empire)
+    {
+        return $"GURPS TL {empire.GurpsTechLevel}; {DescribeWorldTracking(empire.ControlledWorldCount, empire.TrackedWorldCount)}";
+    }
+
+    protected static string GetEmpireColonyRowClass(ExplorerEmpireColonyListing listing)
+    {
+        return listing.IsControlled
+            ? "relationship-row"
+            : "relationship-row conquered";
+    }
+
+    protected static string GetEmpireRelationshipRowClass(ExplorerEmpireRelationshipListing relationship)
+    {
+        return relationship.Relation.Trim().ToLowerInvariant() switch
+        {
+            "war" or "no intercourse" => "relationship-row relation-hostile",
+            "alliance" or "unity" => "relationship-row relation-friendly",
+            "trade" => "relationship-row relation-neutral",
+            _ => "relationship-row"
+        };
+    }
+
+    protected static string FormatEmpireColonyDetails(ExplorerEmpireColonyListing listing)
+    {
+        var details = new List<string>
+        {
+            listing.SystemName,
+            DisplayPopulation(listing.EstimatedPopulation)
+        };
+
+        if (!listing.IsControlled)
+        {
+            details.Add(string.IsNullOrWhiteSpace(listing.ControllingEmpireName)
+                ? "control lost; no current empire recorded"
+                : $"controlled by {listing.ControllingEmpireName}");
+        }
+
+        return string.Join("; ", details);
+    }
+
+    protected static string FormatEmpireRelationshipDetails(ExplorerEmpireRelationshipListing relationship)
+    {
+        return relationship.Age > 0
+            ? $"{relationship.Relation}; contact age {relationship.Age}"
+            : relationship.Relation;
+    }
+
     protected static IReadOnlyList<ExplorerEmpireRaceMembershipDetail> FilterMemberRaces(
         IReadOnlyList<ExplorerEmpireRaceMembershipDetail> memberRaces,
         string query)
@@ -822,8 +876,42 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             .Where(colony =>
                 colony.ColonyName.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase)
                 || colony.WorldName.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase)
-                || colony.SystemName.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase))
+                || colony.SystemName.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase)
+                || (!string.IsNullOrWhiteSpace(colony.ControllingEmpireName)
+                    && colony.ControllingEmpireName.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase)))
             .ToList();
+    }
+
+    protected static IReadOnlyList<ExplorerEmpireRelationshipListing> FilterRelationships(
+        IReadOnlyList<ExplorerEmpireRelationshipListing> relationships,
+        string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return relationships;
+        }
+
+        var trimmedQuery = query.Trim();
+        return relationships
+            .Where(relationship =>
+                relationship.OtherEmpireName.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase)
+                || relationship.Relation.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private static string DescribeWorldTracking(int controlledWorldCount, int trackedWorldCount)
+    {
+        if (trackedWorldCount <= 0)
+        {
+            return "0 worlds";
+        }
+
+        if (controlledWorldCount == trackedWorldCount)
+        {
+            return trackedWorldCount == 1 ? "1 world" : $"{trackedWorldCount} worlds";
+        }
+
+        return $"{controlledWorldCount} controlled / {trackedWorldCount} tracked worlds";
     }
 
     protected static int GetGurpsTechLevel(Empire empire)

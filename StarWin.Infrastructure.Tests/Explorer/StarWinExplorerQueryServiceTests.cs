@@ -132,6 +132,8 @@ public sealed class StarWinExplorerQueryServiceTests
             var querySearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, Query: "Concord"));
             Assert.Single(querySearch.Items);
             Assert.Equal("Aurelian Concord", querySearch.Items[0].Name);
+            Assert.Equal(1, querySearch.Items[0].ControlledWorldCount);
+            Assert.Equal(1, querySearch.Items[0].TrackedWorldCount);
 
             var summarySearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, Query: "trade coalition"));
             Assert.Single(summarySearch.Items);
@@ -152,6 +154,8 @@ public sealed class StarWinExplorerQueryServiceTests
             var fallenOnlySearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, FallenOnly: true));
             Assert.Single(fallenOnlySearch.Items);
             Assert.Equal("Watcher Remnant", fallenOnlySearch.Items[0].Name);
+            Assert.Equal(0, fallenOnlySearch.Items[0].ControlledWorldCount);
+            Assert.Equal(1, fallenOnlySearch.Items[0].TrackedWorldCount);
             Assert.True(fallenOnlySearch.Items[0].IsFallen);
         }
         finally
@@ -182,8 +186,13 @@ public sealed class StarWinExplorerQueryServiceTests
             Assert.Equal("Aurelian", detail.MemberRaces[0].RaceName);
             Assert.Single(detail.Colonies);
             Assert.Equal("Far Aurel", detail.Colonies[0].WorldName);
+            Assert.True(detail.Colonies[0].IsControlled);
+            Assert.Equal("Aurelian Concord", detail.Colonies[0].ControllingEmpireName);
             Assert.Equal(1, detail.ControlledColonyCount);
             Assert.False(detail.IsFallen);
+            Assert.Equal(2, detail.Relationships.Count);
+            Assert.Equal("Krell Reach", detail.Relationships[0].OtherEmpireName);
+            Assert.Equal("Trade", detail.Relationships[0].Relation);
             Assert.NotNull(detail.CivilizationModifierDetail);
             Assert.Contains(
                 detail.CivilizationModifierDetail.Traits,
@@ -235,6 +244,33 @@ public sealed class StarWinExplorerQueryServiceTests
                     Assert.Equal(5.3m, item.PopulationPercent);
                     Assert.False(item.IsPrimary);
                 });
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task LoadEmpireDetailAsync_marks_tracked_conquered_colonies_with_current_controller()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var detail = await service.LoadEmpireDetailAsync(1, 203);
+
+            Assert.NotNull(detail);
+            Assert.Single(detail!.Colonies);
+            Assert.False(detail.Colonies[0].IsControlled);
+            Assert.Equal("Krell Reach", detail.Colonies[0].ControllingEmpireName);
+            Assert.Equal(0, detail.ControlledColonyCount);
         }
         finally
         {
@@ -594,6 +630,22 @@ public sealed class StarWinExplorerQueryServiceTests
             IsPrimary = true,
             Role = EmpireRaceRole.Member,
             PopulationMillions = 1200
+        });
+        aurelianEmpire.Contacts.Add(new EmpireContact
+        {
+            EmpireId = 201,
+            OtherEmpireId = 202,
+            Relation = "Trade",
+            RelationCode = 2,
+            Age = 4
+        });
+        aurelianEmpire.Contacts.Add(new EmpireContact
+        {
+            EmpireId = 201,
+            OtherEmpireId = 203,
+            Relation = "Alliance",
+            RelationCode = 3,
+            Age = 2
         });
 
         var krellEmpire = new Empire

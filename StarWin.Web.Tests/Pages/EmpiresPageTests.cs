@@ -257,18 +257,22 @@ public sealed class EmpiresPageTests : BunitContext
         cut.WaitForAssertion(() =>
         {
             var browserCards = cut.FindAll(".empire-browser-card");
-            Assert.Equal(2, browserCards.Count);
-            Assert.Contains("2 tracked", browserCards[0].TextContent);
-            Assert.Contains("Krell", browserCards[0].TextContent);
-            Assert.Contains("11.1% of empire population", browserCards[0].TextContent);
-            Assert.Contains("2 total", browserCards[1].TextContent);
+            Assert.Equal(3, browserCards.Count);
+
+            var memberRaceCard = browserCards.Single(card => card.TextContent.Contains("Member races"));
+            var colonyCard = browserCards.Single(card => card.TextContent.Contains("Colonies"));
+
+            Assert.Contains("2 tracked", memberRaceCard.TextContent);
+            Assert.Contains("Krell", memberRaceCard.TextContent);
+            Assert.Contains("11.1% of empire population", memberRaceCard.TextContent);
+            Assert.Contains("2 total", colonyCard.TextContent);
         });
 
         cut.Find("input[placeholder='Colony, world, or system...']").Input("Watcher");
 
         cut.WaitForAssertion(() =>
         {
-            var colonyCard = cut.FindAll(".empire-browser-card")[1];
+            var colonyCard = cut.FindAll(".empire-browser-card").Single(card => card.TextContent.Contains("Colonies"));
             Assert.Contains("1 of 2 shown", colonyCard.TextContent);
             Assert.Contains("Watcher Hold on Watchers Reach", colonyCard.TextContent);
             Assert.DoesNotContain("Helios Prime on Helios", colonyCard.TextContent);
@@ -319,9 +323,8 @@ public sealed class EmpiresPageTests : BunitContext
 
         cut.WaitForAssertion(() =>
         {
-            var memberRaceRows = cut.FindAll(".empire-browser-card .relationship-list .relationship-row")
-                .Take(2)
-                .ToList();
+            var memberRaceCard = cut.FindAll(".empire-browser-card").Single(card => card.TextContent.Contains("Member races"));
+            var memberRaceRows = memberRaceCard.QuerySelectorAll(".relationship-row").Take(2).ToList();
 
             Assert.Equal(2, memberRaceRows.Count);
             Assert.Contains("Krell", memberRaceRows[0].TextContent);
@@ -374,6 +377,125 @@ public sealed class EmpiresPageTests : BunitContext
             Assert.Contains("0", modifierCard.TextContent);
             Assert.DoesNotContain("Base 11", modifierCard.TextContent);
             Assert.DoesNotContain("Computed", modifierCard.TextContent);
+        });
+    }
+
+    [Fact]
+    public void ShowsTrackedWorldCountsAndHighlightsConqueredColonies()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(
+            additionalEmpires:
+            [
+                CreateEmpire(
+                    3,
+                    "Orion Compact",
+                    foundingWorldId: 102,
+                    primaryRaceId: 1,
+                    planets: 3,
+                    nativePopulationMillions: 1600)
+            ],
+            additionalWorlds:
+            [
+                CreateWorld(
+                    102,
+                    "Watcher Rest",
+                    colonyId: 202,
+                    colonyName: "Watcher Hold",
+                    controllingEmpireId: 3,
+                    foundingEmpireId: 2)
+            ]));
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/empires?sectorId=7&empireId=2");
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var selectedRow = cut.FindAll(".record-row").Single(row => row.ClassList.Contains("active"));
+            Assert.Contains("1 controlled / 2 tracked worlds", selectedRow.TextContent);
+
+            var colonyCard = cut.FindAll(".empire-browser-card").Single(card => card.TextContent.Contains("Colonies"));
+            Assert.Contains("1 controlled / 2 tracked", colonyCard.TextContent);
+
+            var conqueredRow = colonyCard.QuerySelectorAll(".relationship-row.conquered").Single();
+            Assert.Contains("Watcher Hold on Watcher Rest", conqueredRow.TextContent);
+            Assert.Contains("controlled by Orion Compact", conqueredRow.TextContent);
+        });
+    }
+
+    [Fact]
+    public void RendersSearchableEmpireRelationships()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var context = CreateContext(
+            additionalEmpires:
+            [
+                CreateEmpire(
+                    3,
+                    "Krell Reach",
+                    foundingWorldId: 102,
+                    primaryRaceId: 1,
+                    planets: 2,
+                    nativePopulationMillions: 800),
+                CreateEmpire(
+                    4,
+                    "Watcher Remnant",
+                    foundingWorldId: 103,
+                    primaryRaceId: 1,
+                    planets: 1,
+                    nativePopulationMillions: 300,
+                    isFallen: true)
+            ],
+            additionalWorlds:
+            [
+                CreateWorld(
+                    102,
+                    "Krellos",
+                    colonyId: 202,
+                    colonyName: "Krell Hold",
+                    controllingEmpireId: 3,
+                    foundingEmpireId: 3),
+                CreateWorld(
+                    103,
+                    "Watcher Rest",
+                    colonyId: 203,
+                    colonyName: "Watcher Hold",
+                    controllingEmpireId: 4,
+                    foundingEmpireId: 4)
+            ]);
+
+        var empire = context.Empires.Single(item => item.Id == 2);
+        empire.Contacts.Add(new EmpireContact { EmpireId = 2, OtherEmpireId = 3, Relation = "Trade", RelationCode = 2, Age = 4 });
+        empire.Contacts.Add(new EmpireContact { EmpireId = 2, OtherEmpireId = 4, Relation = "War", RelationCode = 0, Age = 1 });
+
+        ConfigureServices(context);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/empires?sectorId=7&empireId=2");
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var relationshipCard = cut.FindAll(".empire-browser-card").Single(card => card.TextContent.Contains("Empire relationships"));
+            Assert.Contains("2 tracked", relationshipCard.TextContent);
+            Assert.Contains("Watcher Remnant", relationshipCard.TextContent);
+            Assert.Contains("War; contact age 1", relationshipCard.TextContent);
+            Assert.Contains("Krell Reach", relationshipCard.TextContent);
+        });
+
+        cut.Find("input[placeholder='Empire or relation...']").Input("war");
+
+        cut.WaitForAssertion(() =>
+        {
+            var relationshipCard = cut.FindAll(".empire-browser-card").Single(card => card.TextContent.Contains("Empire relationships"));
+            Assert.Contains("1 of 2 shown", relationshipCard.TextContent);
+            Assert.Contains("Watcher Remnant", relationshipCard.TextContent);
+            Assert.DoesNotContain("Krell Reach", relationshipCard.TextContent);
         });
     }
 
@@ -862,12 +984,17 @@ public sealed class EmpiresPageTests : BunitContext
                 .Where(empire => MatchesEmpireFilters(request, empire))
                 .OrderBy(empire => empire.Name)
                 .ThenBy(empire => empire.Id)
-                .Select(empire => new ExplorerEmpireListItem(
-                    empire.Id,
-                    empire.Name,
-                    empire.Planets,
-                    empire.CivilizationProfile.TechLevel + 2,
-                    empire.IsFallen))
+                .Select(empire =>
+                {
+                    var (controlledWorldCount, trackedWorldCount) = GetEmpireWorldCounts(request.SectorId, empire.Id);
+                    return new ExplorerEmpireListItem(
+                        empire.Id,
+                        empire.Name,
+                        controlledWorldCount,
+                        trackedWorldCount,
+                        empire.CivilizationProfile.TechLevel + 2,
+                        empire.IsFallen);
+                })
                 .ToList();
 
             var page = items.Skip(request.Offset).Take(request.Limit + 1).ToList();
@@ -886,7 +1013,8 @@ public sealed class EmpiresPageTests : BunitContext
             return Task.FromResult<ExplorerEmpireListItem?>(new ExplorerEmpireListItem(
                 empire.Id,
                 empire.Name,
-                empire.Planets,
+                GetEmpireWorldCounts(sectorId, empire.Id).ControlledWorldCount,
+                GetEmpireWorldCounts(sectorId, empire.Id).TrackedWorldCount,
                 empire.CivilizationProfile.TechLevel + 2,
                 empire.IsFallen));
         }
@@ -913,6 +1041,10 @@ public sealed class EmpiresPageTests : BunitContext
                         string.IsNullOrWhiteSpace(world.Colony.Name) ? world.Colony.ColonyClass : world.Colony.Name,
                         world.Colony.EstimatedPopulation,
                         world.Colony.ControllingEmpireId == empireId,
+                        world.Colony.ControllingEmpireId,
+                        world.Colony.ControllingEmpireId is int controllingEmpireId
+                            ? context.Empires.FirstOrDefault(item => item.Id == controllingEmpireId)?.Name
+                            : null,
                         world.Id,
                         world.Name,
                         system.Id,
@@ -923,6 +1055,15 @@ public sealed class EmpiresPageTests : BunitContext
                 .ToList();
 
             var memberRaces = BuildEmpireRaceDetails(sector, empire, empireId);
+            var relationships = empire.Contacts
+                .OrderBy(contact => contact.RelationCode)
+                .ThenBy(contact => contact.OtherEmpireId)
+                .Select(contact => new ExplorerEmpireRelationshipListing(
+                    contact.OtherEmpireId,
+                    context.Empires.FirstOrDefault(item => item.Id == contact.OtherEmpireId)?.Name ?? $"Empire {contact.OtherEmpireId}",
+                    contact.Relation,
+                    contact.Age))
+                .ToList();
             var modifierDetail = BuildEmpireCivilizationModifierDetail(empire);
 
             return Task.FromResult<ExplorerEmpireDetail?>(new ExplorerEmpireDetail(
@@ -931,6 +1072,7 @@ public sealed class EmpiresPageTests : BunitContext
                 homeWorld,
                 memberRaces,
                 colonies,
+                relationships,
                 colonies.Count(item => item.IsControlled),
                 empire.IsFallen,
                 modifierDetail));
@@ -1027,6 +1169,33 @@ public sealed class EmpiresPageTests : BunitContext
             }
 
             return context.Empires.Where(empire => empireIds.Contains(empire.Id)).ToList();
+        }
+
+        private (int ControlledWorldCount, int TrackedWorldCount) GetEmpireWorldCounts(int sectorId, int empireId)
+        {
+            var sector = context.Sectors.FirstOrDefault(item => item.Id == sectorId);
+            if (sector is null)
+            {
+                return (0, 0);
+            }
+
+            var worlds = sector.Systems.SelectMany(system => system.Worlds)
+                .Where(world => world.Colony is not null)
+                .ToList();
+
+            var controlledWorldCount = worlds
+                .Where(world => world.Colony!.ControllingEmpireId == empireId)
+                .Select(world => world.Id)
+                .Distinct()
+                .Count();
+
+            var trackedWorldCount = worlds
+                .Where(world => world.Colony!.ControllingEmpireId == empireId || world.Colony.FoundingEmpireId == empireId)
+                .Select(world => world.Id)
+                .Distinct()
+                .Count();
+
+            return (controlledWorldCount, trackedWorldCount);
         }
 
         private bool MatchesEmpireFilters(ExplorerEmpireListPageRequest request, Empire empire)

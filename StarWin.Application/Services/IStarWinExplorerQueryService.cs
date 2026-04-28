@@ -84,7 +84,8 @@ public sealed record ExplorerEmpireListPage(
 public sealed record ExplorerEmpireListItem(
     int EmpireId,
     string Name,
-    int Planets,
+    int ControlledWorldCount,
+    int TrackedWorldCount,
     int GurpsTechLevel,
     bool IsFallen);
 
@@ -94,6 +95,7 @@ public sealed record ExplorerEmpireDetail(
     StarWin.Domain.Model.Entity.StarMap.World? HomeWorld,
     IReadOnlyList<ExplorerEmpireRaceMembershipDetail> MemberRaces,
     IReadOnlyList<ExplorerEmpireColonyListing> Colonies,
+    IReadOnlyList<ExplorerEmpireRelationshipListing> Relationships,
     int ControlledColonyCount,
     bool IsFallen,
     ExplorerEmpireCivilizationModifierDetail? CivilizationModifierDetail);
@@ -150,10 +152,18 @@ public sealed record ExplorerEmpireColonyListing(
     string ColonyName,
     long EstimatedPopulation,
     bool IsControlled,
+    int? ControllingEmpireId,
+    string? ControllingEmpireName,
     int WorldId,
     string WorldName,
     int SystemId,
     string SystemName);
+
+public sealed record ExplorerEmpireRelationshipListing(
+    int OtherEmpireId,
+    string OtherEmpireName,
+    string Relation,
+    byte Age);
 
 public sealed record ExplorerEmpireCivilizationModifierDetail(
     IReadOnlyList<ExplorerCivilizationTraitModifier> Traits);

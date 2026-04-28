@@ -344,7 +344,34 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             .Select(empire => new EmpireListProjection(
                 empire.Id,
                 empire.Name,
-                empire.Planets,
+                dbContext.Colonies
+                    .Where(colony =>
+                        colony.ControllingEmpireId == empire.Id
+                        && dbContext.Worlds
+                            .Where(world => world.Id == colony.WorldId)
+                            .Join(
+                                dbContext.StarSystems,
+                                world => world.StarSystemId,
+                                system => system.Id,
+                                (world, system) => system.SectorId)
+                            .Contains(request.SectorId))
+                    .Select(colony => colony.WorldId)
+                    .Distinct()
+                    .Count(),
+                dbContext.Colonies
+                    .Where(colony =>
+                        (colony.ControllingEmpireId == empire.Id || colony.FoundingEmpireId == empire.Id)
+                        && dbContext.Worlds
+                            .Where(world => world.Id == colony.WorldId)
+                            .Join(
+                                dbContext.StarSystems,
+                                world => world.StarSystemId,
+                                system => system.Id,
+                                (world, system) => system.SectorId)
+                            .Contains(request.SectorId))
+                    .Select(colony => colony.WorldId)
+                    .Distinct()
+                    .Count(),
                 empire.CivilizationProfile.TechLevel + 2,
                 empire.GovernmentType,
                 empire.Founding.Origin,
@@ -367,19 +394,7 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         return new ExplorerEmpireListPage(
             items
                 .Take(request.Limit)
-                .Select(item => new ExplorerEmpireListItem(
-                    item.EmpireId,
-                    ResolveEmpireDisplayName(
-                        item.EmpireId,
-                        item.Name,
-                        item.GovernmentType,
-                    item.Origin,
-                    item.FoundingRaceId,
-                    item.FoundingRaceName,
-                    item.FoundingWorldName),
-                    item.Planets,
-                    item.GurpsTechLevel,
-                    item.IsFallen))
+                .Select(BuildEmpireListItem)
                 .ToList(),
             hasMore);
     }
@@ -400,7 +415,34 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             .Select(empire => new EmpireListProjection(
                 empire.Id,
                 empire.Name,
-                empire.Planets,
+                dbContext.Colonies
+                    .Where(colony =>
+                        colony.ControllingEmpireId == empire.Id
+                        && dbContext.Worlds
+                            .Where(world => world.Id == colony.WorldId)
+                            .Join(
+                                dbContext.StarSystems,
+                                world => world.StarSystemId,
+                                system => system.Id,
+                                (world, system) => system.SectorId)
+                            .Contains(sectorId))
+                    .Select(colony => colony.WorldId)
+                    .Distinct()
+                    .Count(),
+                dbContext.Colonies
+                    .Where(colony =>
+                        (colony.ControllingEmpireId == empire.Id || colony.FoundingEmpireId == empire.Id)
+                        && dbContext.Worlds
+                            .Where(world => world.Id == colony.WorldId)
+                            .Join(
+                                dbContext.StarSystems,
+                                world => world.StarSystemId,
+                                system => system.Id,
+                                (world, system) => system.SectorId)
+                            .Contains(sectorId))
+                    .Select(colony => colony.WorldId)
+                    .Distinct()
+                    .Count(),
                 empire.CivilizationProfile.TechLevel + 2,
                 empire.GovernmentType,
                 empire.Founding.Origin,
@@ -419,19 +461,7 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
 
         return item is null
             ? null
-            : new ExplorerEmpireListItem(
-                item.EmpireId,
-                ResolveEmpireDisplayName(
-                    item.EmpireId,
-                    item.Name,
-                    item.GovernmentType,
-                item.Origin,
-                item.FoundingRaceId,
-                item.FoundingRaceName,
-                item.FoundingWorldName),
-                item.Planets,
-                item.GurpsTechLevel,
-                item.IsFallen);
+            : BuildEmpireListItem(item);
     }
 
     public async Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
@@ -536,21 +566,95 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             from colony in dbContext.Colonies.AsNoTracking()
             join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
             join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
+            join controllingEmpire in dbContext.Empires.AsNoTracking() on colony.ControllingEmpireId equals controllingEmpire.Id into controllingEmpires
+            from controllingEmpire in controllingEmpires.DefaultIfEmpty()
+            join controllingRace in dbContext.AlienRaces.AsNoTracking() on controllingEmpire.Founding.FoundingRaceId equals controllingRace.Id into controllingRaces
+            from controllingRace in controllingRaces.DefaultIfEmpty()
+            join controllingWorld in dbContext.Worlds.AsNoTracking() on controllingEmpire.Founding.FoundingWorldId equals controllingWorld.Id into controllingWorlds
+            from controllingWorld in controllingWorlds.DefaultIfEmpty()
             where system.SectorId == sectorId
                 && (colony.ControllingEmpireId == empireId || colony.FoundingEmpireId == empireId)
             orderby colony.EstimatedPopulation descending, world.Name, colony.Id
-            select new ExplorerEmpireColonyListing(
+            select new EmpireColonyListingProjection(
                 colony.Id,
                 string.IsNullOrWhiteSpace(colony.Name) ? colony.ColonyClass : colony.Name,
                 colony.EstimatedPopulation,
                 colony.ControllingEmpireId == empireId,
+                colony.ControllingEmpireId,
+                controllingEmpire != null ? controllingEmpire.Id : (int?)null,
+                controllingEmpire != null ? controllingEmpire.Name : null,
+                controllingEmpire != null ? controllingEmpire.GovernmentType : null,
+                controllingEmpire != null ? controllingEmpire.Founding.Origin : (EmpireOrigin?)null,
+                controllingEmpire != null ? controllingEmpire.Founding.FoundingRaceId : null,
+                controllingRace != null ? controllingRace.Name : null,
+                controllingWorld != null ? controllingWorld.Name : null,
                 world.Id,
                 world.Name,
                 system.Id,
                 system.Name))
             .ToListAsync(cancellationToken);
 
-        var controlledColonyCount = colonies.Count(colony => colony.IsControlled);
+        var relationships = await (
+            from contact in dbContext.Set<EmpireContact>().AsNoTracking()
+            join relatedEmpire in dbContext.Empires.AsNoTracking() on contact.OtherEmpireId equals relatedEmpire.Id
+            join relatedRace in dbContext.AlienRaces.AsNoTracking() on relatedEmpire.Founding.FoundingRaceId equals relatedRace.Id into relatedRaces
+            from relatedRace in relatedRaces.DefaultIfEmpty()
+            join relatedWorld in dbContext.Worlds.AsNoTracking() on relatedEmpire.Founding.FoundingWorldId equals relatedWorld.Id into relatedWorlds
+            from relatedWorld in relatedWorlds.DefaultIfEmpty()
+            where contact.EmpireId == empireId
+                && sectorEmpireIds.Contains(relatedEmpire.Id)
+            orderby contact.RelationCode, relatedEmpire.Name, relatedEmpire.Id
+            select new EmpireRelationshipProjection(
+                relatedEmpire.Id,
+                relatedEmpire.Name,
+                relatedEmpire.GovernmentType,
+                relatedEmpire.Founding.Origin,
+                relatedEmpire.Founding.FoundingRaceId,
+                relatedRace != null ? relatedRace.Name : null,
+                relatedWorld != null ? relatedWorld.Name : null,
+                contact.Relation,
+                contact.Age))
+            .ToListAsync(cancellationToken);
+
+        var resolvedColonies = colonies
+            .Select(colony => new ExplorerEmpireColonyListing(
+                colony.ColonyId,
+                colony.ColonyName,
+                colony.EstimatedPopulation,
+                colony.IsControlled,
+                colony.ControllingEmpireId,
+                colony.ControllingEmpireRecordId.HasValue
+                    ? ResolveEmpireDisplayName(
+                        colony.ControllingEmpireRecordId.Value,
+                        colony.ControllingEmpireName,
+                        colony.ControllingEmpireGovernmentType,
+                        colony.ControllingEmpireOrigin ?? EmpireOrigin.Unknown,
+                        colony.ControllingEmpireFoundingRaceId,
+                        colony.ControllingEmpireFoundingRaceName,
+                        colony.ControllingEmpireFoundingWorldName)
+                    : null,
+                colony.WorldId,
+                colony.WorldName,
+                colony.SystemId,
+                colony.SystemName))
+            .ToList();
+
+        var resolvedRelationships = relationships
+            .Select(contact => new ExplorerEmpireRelationshipListing(
+                contact.OtherEmpireId,
+                ResolveEmpireDisplayName(
+                    contact.OtherEmpireId,
+                    contact.OtherEmpireName,
+                    contact.OtherEmpireGovernmentType,
+                    contact.OtherEmpireOrigin,
+                    contact.OtherEmpireFoundingRaceId,
+                    contact.OtherEmpireFoundingRaceName,
+                    contact.OtherEmpireFoundingWorldName),
+                contact.Relation,
+                contact.Age))
+            .ToList();
+
+        var controlledColonyCount = resolvedColonies.Count(colony => colony.IsControlled);
 
         var foundingRaceDisplayName = memberRaces
             .FirstOrDefault(item => item.RaceId == empire.Founding.FoundingRaceId)
@@ -569,7 +673,8 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             empire,
             homeWorld,
             memberRaces,
-            colonies,
+            resolvedColonies,
+            resolvedRelationships,
             controlledColonyCount,
             empire.IsFallen,
             BuildEmpireCivilizationModifierDetail(empire));
@@ -1264,6 +1369,24 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             : empireName.Trim();
     }
 
+    private static ExplorerEmpireListItem BuildEmpireListItem(EmpireListProjection item)
+    {
+        return new ExplorerEmpireListItem(
+            item.EmpireId,
+            ResolveEmpireDisplayName(
+                item.EmpireId,
+                item.Name,
+                item.GovernmentType,
+                item.Origin,
+                item.FoundingRaceId,
+                item.FoundingRaceName,
+                item.FoundingWorldName),
+            item.ControlledWorldCount,
+            item.TrackedWorldCount,
+            item.GurpsTechLevel,
+            item.IsFallen);
+    }
+
     private static bool IsPlaceholderRaceName(string? name)
     {
         return string.IsNullOrWhiteSpace(name)
@@ -1470,7 +1593,8 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
     private sealed record EmpireListProjection(
         int EmpireId,
         string Name,
-        int Planets,
+        int ControlledWorldCount,
+        int TrackedWorldCount,
         int GurpsTechLevel,
         string GovernmentType,
         EmpireOrigin Origin,
@@ -1479,6 +1603,35 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         string? FoundingRaceName,
         string? FoundingWorldName,
         bool IsFallen);
+
+    private sealed record EmpireColonyListingProjection(
+        int ColonyId,
+        string ColonyName,
+        long EstimatedPopulation,
+        bool IsControlled,
+        int? ControllingEmpireId,
+        int? ControllingEmpireRecordId,
+        string? ControllingEmpireName,
+        string? ControllingEmpireGovernmentType,
+        EmpireOrigin? ControllingEmpireOrigin,
+        int? ControllingEmpireFoundingRaceId,
+        string? ControllingEmpireFoundingRaceName,
+        string? ControllingEmpireFoundingWorldName,
+        int WorldId,
+        string WorldName,
+        int SystemId,
+        string SystemName);
+
+    private sealed record EmpireRelationshipProjection(
+        int OtherEmpireId,
+        string OtherEmpireName,
+        string OtherEmpireGovernmentType,
+        EmpireOrigin OtherEmpireOrigin,
+        int? OtherEmpireFoundingRaceId,
+        string? OtherEmpireFoundingRaceName,
+        string? OtherEmpireFoundingWorldName,
+        string Relation,
+        byte Age);
 
     private sealed record EmpireRaceMembershipProjection(
         int RaceId,

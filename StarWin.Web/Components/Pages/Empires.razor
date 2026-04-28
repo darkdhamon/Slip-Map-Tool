@@ -127,7 +127,7 @@
                                 <span class="empire-status fallen">Fallen empire</span>
                             }
                         </strong>
-                        <span>@(empireIsFallen ? "No controlled colonies; former holdings conquered" : $"GURPS TL {empire.GurpsTechLevel}; {empire.Planets} planets")</span>
+                        <span>@GetEmpireListSummary(empire)</span>
                     </button>
                 }
                 @if (empireHasMoreRecords)
@@ -163,10 +163,12 @@
                         var empireMemberRaces = selectedEmpireDetail?.MemberRaces ?? [];
                         var capitalColony = selectedEmpireDetail is null ? null : GetCapitalColony(selectedEmpireDetail);
                         var empireColonies = selectedEmpireDetail?.Colonies ?? [];
+                        var empireRelationships = selectedEmpireDetail?.Relationships ?? [];
                         var controlledColonyCount = selectedEmpireDetail?.ControlledColonyCount ?? 0;
                         var selectedEmpireModifierDetail = selectedEmpireDetail?.CivilizationModifierDetail;
                         var filteredEmpireMemberRaces = FilterMemberRaces(empireMemberRaces, empireMemberRaceSearch);
                         var filteredEmpireColonies = FilterColonies(empireColonies, empireColonySearch);
+                        var filteredEmpireRelationships = FilterRelationships(empireRelationships, empireRelationshipSearch);
                         var selectedEmpireIsFallen = selectedEmpireDetail?.IsFallen ?? false;
                     }
                     <div class="alien-overview-grid empire-overview-grid">
@@ -345,9 +347,9 @@
                                 {
                                     @foreach (var listing in filteredEmpireColonies)
                                     {
-                                        <button type="button" class="relationship-row" @onclick="() => NavigateToColony(listing.ColonyId)">
+                                        <button type="button" class="@GetEmpireColonyRowClass(listing)" @onclick="() => NavigateToColony(listing.ColonyId)">
                                             <strong>@listing.ColonyName on @listing.WorldName</strong>
-                                            <span>@listing.SystemName; @DisplayPopulation(listing.EstimatedPopulation)</span>
+                                            <span>@FormatEmpireColonyDetails(listing)</span>
                                         </button>
                                     }
                                 }
@@ -358,6 +360,41 @@
                                 else
                                 {
                                     <p class="alien-empty-state">No colonies recorded for this empire.</p>
+                                }
+                            </div>
+                        </section>
+
+                        <section class="alien-summary-card empire-relationship-card empire-browser-card">
+                            <div class="empire-browser-header">
+                                <div class="empire-browser-title">
+                                    <h3>Empire relationships</h3>
+                                    <span>@(empireRelationships.Count == filteredEmpireRelationships.Count ? $"{empireRelationships.Count} tracked" : $"{filteredEmpireRelationships.Count} of {empireRelationships.Count} shown")</span>
+                                </div>
+                                <label class="empire-browser-search">
+                                    <span>Search relationships</span>
+                                    <input placeholder="Empire or relation..."
+                                           @bind="empireRelationshipSearch"
+                                           @bind:event="oninput" />
+                                </label>
+                            </div>
+                            <div class="relationship-list empire-scroll-list">
+                                @if (filteredEmpireRelationships.Count > 0)
+                                {
+                                    @foreach (var relationship in filteredEmpireRelationships)
+                                    {
+                                        <button type="button" class="@GetEmpireRelationshipRowClass(relationship)" @onclick="() => NavigateToEmpire(relationship.OtherEmpireId)">
+                                            <strong>@relationship.OtherEmpireName</strong>
+                                            <span>@FormatEmpireRelationshipDetails(relationship)</span>
+                                        </button>
+                                    }
+                                }
+                                else if (empireRelationships.Count > 0)
+                                {
+                                    <p class="alien-empty-state">No relationships match the current search.</p>
+                                }
+                                else
+                                {
+                                    <p class="alien-empty-state">No diplomatic relationships recorded.</p>
                                 }
                             </div>
                         </section>
