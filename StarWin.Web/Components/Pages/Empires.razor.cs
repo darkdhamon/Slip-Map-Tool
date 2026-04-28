@@ -51,6 +51,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected bool empireListLoading;
     protected bool empireDetailLoading;
     protected bool empireFilterPending;
+    protected bool empireFilterReloadRunning;
     protected ExplorerEmpireDetail? selectedEmpireDetail;
     protected ExplorerEmpireFilterOptions empireFilterOptions = new([]);
 
@@ -65,6 +66,8 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     private bool browserSessionReady;
     private bool browserSessionRestored;
     private int loadedEmpireSectorId;
+    private int empireFilterRequestVersion;
+    private bool empireFilterReloadQueued;
     private CancellationTokenSource? empireFilterDebounceCancellation;
     private readonly List<ExplorerEmpireListItem> loadedEmpireSummaries = [];
 
@@ -229,39 +232,21 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     protected Task HandleEmpireFiltersChangedAsync()
     {
-        if (IsEmpireFilterBusy)
-        {
-            return Task.CompletedTask;
-        }
-
-        ResetEmpireWindow();
-        ScheduleEmpireFilterReload();
+        RequestEmpireFilterReload(useDebounce: true);
         return Task.CompletedTask;
     }
 
     protected Task ApplyEmpireRaceFilterAsync()
     {
-        if (IsEmpireFilterBusy)
-        {
-            return Task.CompletedTask;
-        }
-
         empireRaceId = ParseComboId(empireRaceText);
-        ResetEmpireWindow();
-        ScheduleEmpireFilterReload();
+        RequestEmpireFilterReload(useDebounce: true);
         return Task.CompletedTask;
     }
 
     protected Task ToggleFallenEmpireFilterAsync()
     {
-        if (IsEmpireFilterBusy)
-        {
-            return Task.CompletedTask;
-        }
-
         showOnlyFallenEmpires = !showOnlyFallenEmpires;
-        ResetEmpireWindow();
-        BeginEmpireFilterReload();
+        RequestEmpireFilterReload(useDebounce: false);
         return Task.CompletedTask;
     }
 
@@ -276,13 +261,8 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     protected Task HandleClearEmpireFiltersAsync()
     {
-        if (IsEmpireFilterBusy)
-        {
-            return Task.CompletedTask;
-        }
-
         ClearEmpireFilters();
-        BeginEmpireFilterReload();
+        RequestEmpireFilterReload(useDebounce: false);
         return Task.CompletedTask;
     }
 
@@ -402,7 +382,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Empires")));
     }
 
-    private async Task LoadEmpirePageAsync(bool resetList, CancellationToken cancellationToken = default)
+    private async Task LoadEmpirePageAsync(bool resetList, CancellationToken cancellationToken = default, int? requestVersion = null)
     {
         if (selectedSectorId <= 0)
         {
@@ -426,12 +406,43 @@ public partial class Empires : ComponentBase, IAsyncDisposable
                 empireFilterOptions = await ExplorerQueryService.LoadEmpireFilterOptionsAsync(selectedSectorId, cancellationToken);
             }
 
-            await LoadMoreEmpireSummariesAsync(cancellationToken);
+            if (IsStaleEmpireFilterRequest(requestVersion))
+            {
+                return;
+            }
+
+            await LoadMoreEmpireSummariesAsync(cancellationToken, requestVersion);
             return;
         }
 
-        await EnsureSelectedEmpireSummaryVisibleAsync(cancellationToken);
-        await EnsureSelectedEmpireDetailAsync(cancellationToken);
+        await EnsureSelectedEmpireSummaryVisibleAsync(cancellationToken, requestVersion);
+        await EnsureSelectedEmpireDetailAsync(cancellationToken, requestVersion);
+    }
+
+    private void RequestEmpireFilterReload(bool useDebounce)
+    {
+        var hasInFlightReload = empireFilterReloadRunning || empireListLoading;
+        CancelEmpireFilterReloadDebounce();
+        empireFilterRequestVersion++;
+        empireFilterPending = true;
+        empireFilterReloadQueued = false;
+        ResetEmpireWindow();
+        loadedEmpireSummaries.Clear();
+        empireHasMoreRecords = false;
+        if (hasInFlightReload)
+        {
+            empireFilterReloadQueued = true;
+            _ = InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (useDebounce)
+        {
+            ScheduleEmpireFilterReload(empireFilterRequestVersion);
+            return;
+        }
+
+        _ = RunEmpireFilterReloadAsync(empireFilterRequestVersion);
     }
 
     private void BeginEmpireFilterReload()
@@ -441,18 +452,19 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         loadedEmpireSummaries.Clear();
         empireHasMoreRecords = false;
         empireObserverConfigured = false;
-        _ = RunEmpireFilterReloadAsync();
+        empireFilterRequestVersion++;
+        _ = RunEmpireFilterReloadAsync(empireFilterRequestVersion);
     }
 
-    private void ScheduleEmpireFilterReload()
+    private void ScheduleEmpireFilterReload(int requestVersion)
     {
         CancelEmpireFilterReloadDebounce();
         var cancellation = new CancellationTokenSource();
         empireFilterDebounceCancellation = cancellation;
-        _ = RunScheduledEmpireFilterReloadAsync(cancellation.Token);
+        _ = RunScheduledEmpireFilterReloadAsync(requestVersion, cancellation.Token);
     }
 
-    private async Task RunScheduledEmpireFilterReloadAsync(CancellationToken cancellationToken)
+    private async Task RunScheduledEmpireFilterReloadAsync(int requestVersion, CancellationToken cancellationToken)
     {
         try
         {
@@ -462,7 +474,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
                 return;
             }
 
-            await InvokeAsync(BeginEmpireFilterReload);
+            await InvokeAsync(() => RunEmpireFilterReloadAsync(requestVersion));
         }
         catch (OperationCanceledException)
         {
@@ -481,13 +493,17 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         empireFilterDebounceCancellation = null;
     }
 
-    private async Task RunEmpireFilterReloadAsync()
+    private async Task RunEmpireFilterReloadAsync(int requestVersion)
     {
+        empireFilterReloadRunning = true;
         try
         {
             await InvokeAsync(StateHasChanged);
             await Task.Delay(50);
-            await InvokeAsync(() => LoadEmpirePageAsync(resetList: true));
+            await InvokeAsync(() => LoadEmpirePageAsync(resetList: true, requestVersion: requestVersion));
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception exception)
         {
@@ -495,12 +511,28 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         }
         finally
         {
-            empireFilterPending = false;
+            empireFilterReloadRunning = false;
+            var shouldStartQueuedReload = empireFilterReloadQueued;
+            if (shouldStartQueuedReload)
+            {
+                empireFilterReloadQueued = false;
+            }
+
+            if (requestVersion == empireFilterRequestVersion && !shouldStartQueuedReload)
+            {
+                empireFilterPending = false;
+            }
+
             await InvokeAsync(StateHasChanged);
+            if (shouldStartQueuedReload)
+            {
+                var queuedRequestVersion = empireFilterRequestVersion;
+                await InvokeAsync(() => RunEmpireFilterReloadAsync(queuedRequestVersion));
+            }
         }
     }
 
-    private async Task LoadMoreEmpireSummariesAsync(CancellationToken cancellationToken = default)
+    private async Task LoadMoreEmpireSummariesAsync(CancellationToken cancellationToken = default, int? requestVersion = null)
     {
         if (empireListLoading || selectedSectorId <= 0)
         {
@@ -520,6 +552,11 @@ public partial class Empires : ComponentBase, IAsyncDisposable
                     showOnlyFallenEmpires),
                 cancellationToken);
 
+            if (IsStaleEmpireFilterRequest(requestVersion))
+            {
+                return;
+            }
+
             foreach (var item in page.Items)
             {
                 if (loadedEmpireSummaries.All(existing => existing.EmpireId != item.EmpireId))
@@ -538,8 +575,8 @@ public partial class Empires : ComponentBase, IAsyncDisposable
                 selectedEmpireId = loadedEmpireSummaries.FirstOrDefault()?.EmpireId ?? 0;
             }
 
-            await EnsureSelectedEmpireSummaryVisibleAsync(cancellationToken);
-            await EnsureSelectedEmpireDetailAsync(cancellationToken);
+            await EnsureSelectedEmpireSummaryVisibleAsync(cancellationToken, requestVersion);
+            await EnsureSelectedEmpireDetailAsync(cancellationToken, requestVersion);
             await InvokeAsync(StateHasChanged);
         }
         finally
@@ -548,7 +585,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         }
     }
 
-    private async Task EnsureSelectedEmpireSummaryVisibleAsync(CancellationToken cancellationToken = default)
+    private async Task EnsureSelectedEmpireSummaryVisibleAsync(CancellationToken cancellationToken = default, int? requestVersion = null)
     {
         if (HasActiveEmpireFilters())
         {
@@ -567,6 +604,11 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             return;
         }
 
+        if (IsStaleEmpireFilterRequest(requestVersion))
+        {
+            return;
+        }
+
         loadedEmpireSummaries.Add(requestedItem);
         loadedEmpireSummaries.Sort((left, right) =>
         {
@@ -575,7 +617,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         });
     }
 
-    private async Task EnsureSelectedEmpireDetailAsync(CancellationToken cancellationToken = default)
+    private async Task EnsureSelectedEmpireDetailAsync(CancellationToken cancellationToken = default, int? requestVersion = default)
     {
         var targetEmpireId = HasActiveEmpireFilters()
             ? selectedEmpireId
@@ -607,6 +649,11 @@ public partial class Empires : ComponentBase, IAsyncDisposable
                 detail = await ExplorerQueryService.LoadEmpireDetailAsync(selectedSectorId, targetEmpireId, cancellationToken);
             }
 
+            if (IsStaleEmpireFilterRequest(requestVersion))
+            {
+                return;
+            }
+
             selectedEmpireDetail = detail;
             selectedEmpireId = detail?.Empire.Id ?? 0;
         }
@@ -632,6 +679,12 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         return !string.IsNullOrWhiteSpace(empireQuery)
             || empireRaceId != ComboAllFilterId
             || showOnlyFallenEmpires;
+    }
+
+    private bool IsStaleEmpireFilterRequest(int? requestVersion)
+    {
+        return requestVersion is int version
+            && version != empireFilterRequestVersion;
     }
 
     protected IReadOnlyList<EntityImage> GetEntityImages(EntityImageTargetKind targetKind, int targetId)

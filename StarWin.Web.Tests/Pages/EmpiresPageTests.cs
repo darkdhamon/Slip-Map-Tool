@@ -350,13 +350,81 @@ public sealed class EmpiresPageTests : BunitContext
         {
             Assert.Contains("Searching", cut.Markup);
             Assert.Contains("Searching empires with the current filters...", cut.Markup);
-            Assert.NotNull(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("disabled"));
+            Assert.Null(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("disabled"));
             Assert.NotNull(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("checked"));
         });
 
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Ancient Watchers", cut.Markup);
+            Assert.DoesNotContain("Searching empires with the current filters...", cut.Markup);
+        }, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void AllowsFallenToggleToBeClearedWhileResultsAreStillLoading()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var context = CreateContext(
+            primaryEmpireName: "Ancient Watchers",
+            primaryEmpireNativePopulationMillions: 950,
+            primaryEmpirePlanets: 1,
+            primaryWorld: CreateWorld(
+                101,
+                "Helios",
+                colonyId: 201,
+                colonyName: "Helios Prime",
+                controllingEmpireId: 3,
+                foundingEmpireId: 2),
+            additionalEmpires:
+            [
+                CreateEmpire(
+                    3,
+                    "Orion Compact",
+                    foundingWorldId: 102,
+                    primaryRaceId: 1,
+                    planets: 3,
+                    nativePopulationMillions: 1600)
+            ],
+            additionalWorlds:
+            [
+                CreateWorld(
+                    102,
+                    "Nova Helios",
+                    colonyId: 202,
+                    colonyName: "Nova Helios Prime",
+                    controllingEmpireId: 3,
+                    foundingEmpireId: 3)
+            ]);
+
+        ConfigureServices(context, queryService: new DelayedEmpireQueryService(context, TimeSpan.FromMilliseconds(400)));
+
+        var cut = Render<Empires>();
+
+        cut.Find("[data-testid='fallen-empire-filter-toggle']").Change(true);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Searching empires with the current filters...", cut.Markup);
+            Assert.NotNull(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("checked"));
+        });
+
+        cut.Find("[data-testid='fallen-empire-filter-toggle']").Change(false);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Searching empires with the current filters...", cut.Markup);
+            Assert.Null(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("disabled"));
+            Assert.Null(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("checked"));
+        });
+
+        cut.WaitForAssertion(() =>
+        {
+            var visibleRows = cut.FindAll(".record-row");
+            Assert.Equal(2, visibleRows.Count);
+            Assert.Contains("Ancient Watchers", cut.Markup);
+            Assert.Contains("Orion Compact", cut.Markup);
             Assert.DoesNotContain("Searching empires with the current filters...", cut.Markup);
         }, TimeSpan.FromSeconds(5));
     }
