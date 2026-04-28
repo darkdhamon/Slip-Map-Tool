@@ -1354,16 +1354,24 @@ dd {
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    border: 1px solid rgba(125, 211, 252, 0.2);
+    border: 1px solid rgba(125, 211, 252, 0.18);
     border-radius: 18px;
     background:
-        linear-gradient(180deg, rgba(9, 18, 36, 0.96), rgba(4, 11, 24, 0.92)),
+        linear-gradient(180deg, rgba(8, 16, 31, 0.98), rgba(4, 9, 20, 0.94)),
         radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 48%);
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.04),
         0 16px 30px rgba(2, 6, 23, 0.18);
     padding: 14px 16px;
     cursor: pointer;
+    transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.record-filter-toggle:hover {
+    border-color: rgba(125, 211, 252, 0.3);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 18px 34px rgba(2, 6, 23, 0.24);
 }
 
 .record-filter-toggle-copy {
@@ -1407,66 +1415,162 @@ dd {
     position: relative;
     display: inline-flex;
     align-items: center;
-    width: 72px;
-    height: 38px;
+    justify-content: center;
+    width: 118px;
+    height: 52px;
     border-radius: 999px;
     overflow: hidden;
-    background: linear-gradient(180deg, #071121, #0d1830);
-    border: 1px solid rgba(125, 211, 252, 0.26);
+    background:
+        radial-gradient(circle at 24% 50%, rgba(24, 174, 255, 0.18), transparent 32%),
+        linear-gradient(180deg, #071121, #081a31 58%, #071120);
+    border: 1px solid rgba(41, 183, 255, 0.4);
     box-shadow:
-        inset 0 3px 8px rgba(2, 6, 23, 0.55),
-        0 8px 16px rgba(2, 6, 23, 0.16);
-    transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+        inset 0 3px 10px rgba(2, 6, 23, 0.6),
+        inset 0 0 22px rgba(14, 165, 233, 0.14),
+        0 0 0 1px rgba(5, 21, 43, 0.65),
+        0 0 22px rgba(14, 165, 233, 0.18);
+    transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, filter 180ms ease;
 }
 
 .record-filter-toggle-track::before {
     content: "";
     position: absolute;
-    inset: 4px;
+    left: 26px;
+    right: 22px;
+    top: 50%;
+    height: 2px;
+    transform: translateY(-50%);
     border-radius: 999px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0));
-    transition: opacity 180ms ease;
+    background:
+        repeating-linear-gradient(
+            90deg,
+            rgba(69, 188, 255, 0.08) 0 6px,
+            rgba(69, 188, 255, 0.36) 6px 11px,
+            transparent 11px 18px);
+    opacity: 0.9;
+    animation: record-filter-toggle-scan 2.2s linear infinite;
+    transition: opacity 180ms ease, background 180ms ease, left 180ms ease, right 180ms ease;
+}
+
+.record-filter-toggle-track::after {
+    content: "OFF";
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgba(88, 194, 255, 0.82);
+    font-size: 0.84rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-shadow: 0 0 10px rgba(56, 189, 248, 0.45);
+    transition: color 180ms ease, right 180ms ease, left 180ms ease, text-shadow 180ms ease;
 }
 
 .record-filter-toggle-thumb {
     position: absolute;
     top: 4px;
     left: 4px;
-    width: 30px;
-    height: 30px;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
-    border: 1px solid rgba(255, 255, 255, 0.46);
-    background: linear-gradient(180deg, #f8fcff 0%, #dce9f6 60%, #bfd2e5 100%);
+    border: 1px solid rgba(81, 200, 255, 0.58);
+    background:
+        radial-gradient(circle at 46% 42%, rgba(166, 231, 255, 0.88), rgba(118, 203, 255, 0.35) 34%, rgba(25, 121, 198, 0.94) 76%, rgba(5, 38, 84, 0.98) 100%),
+        linear-gradient(180deg, rgba(7, 26, 54, 0.98), rgba(5, 17, 35, 0.98));
     box-shadow:
-        0 10px 18px rgba(2, 6, 23, 0.38),
-        inset 0 1px 1px rgba(255, 255, 255, 0.9);
-    transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+        0 0 0 2px rgba(9, 85, 155, 0.44),
+        0 0 18px rgba(38, 180, 255, 0.42),
+        0 8px 18px rgba(2, 6, 23, 0.42),
+        inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.record-filter-toggle-thumb::before {
+    content: "";
+    position: absolute;
+    inset: 9px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(217, 246, 255, 0.9) 0%, rgba(103, 203, 255, 0.34) 42%, transparent 72%);
+    filter: blur(0.4px);
+}
+
+.record-filter-toggle-thumb::after {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 11px;
+    width: 15px;
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.2);
+    filter: blur(0.4px);
+    transform: rotate(-18deg);
 }
 
 .record-filter-toggle-input:checked + .record-filter-toggle-track {
-    background: linear-gradient(135deg, #09adf4, #39f0ff);
-    border-color: rgba(165, 243, 252, 0.9);
+    background:
+        radial-gradient(circle at 74% 50%, rgba(0, 255, 163, 0.18), transparent 32%),
+        linear-gradient(180deg, #061c16, #083226 58%, #061811);
+    border-color: rgba(45, 255, 169, 0.46);
     box-shadow:
-        inset 0 4px 10px rgba(255, 255, 255, 0.2),
-        0 0 24px rgba(34, 211, 238, 0.3);
+        inset 0 3px 10px rgba(2, 6, 23, 0.45),
+        inset 0 0 24px rgba(22, 255, 170, 0.16),
+        0 0 0 1px rgba(6, 49, 36, 0.7),
+        0 0 26px rgba(16, 255, 169, 0.26);
 }
 
 .record-filter-toggle-input:checked + .record-filter-toggle-track::before {
-    opacity: 0.34;
+    left: 20px;
+    right: 28px;
+    background:
+        repeating-linear-gradient(
+            90deg,
+            rgba(83, 255, 193, 0.08) 0 6px,
+            rgba(83, 255, 193, 0.38) 6px 11px,
+            transparent 11px 18px);
+}
+
+.record-filter-toggle-input:checked + .record-filter-toggle-track::after {
+    content: "ON";
+    left: 18px;
+    right: auto;
+    color: rgba(103, 255, 194, 0.94);
+    text-shadow: 0 0 12px rgba(34, 255, 173, 0.52);
 }
 
 .record-filter-toggle-input:checked + .record-filter-toggle-track .record-filter-toggle-thumb {
-    transform: translateX(34px);
-    background: linear-gradient(180deg, #ffffff 0%, #effcff 60%, #d9f9ff 100%);
+    transform: translateX(68px);
+    border-color: rgba(99, 255, 196, 0.64);
+    background:
+        radial-gradient(circle at 46% 42%, rgba(196, 255, 232, 0.9), rgba(112, 255, 196, 0.4) 34%, rgba(11, 167, 101, 0.92) 76%, rgba(3, 59, 40, 0.98) 100%),
+        linear-gradient(180deg, rgba(6, 47, 35, 0.98), rgba(3, 25, 18, 0.98));
     box-shadow:
-        0 12px 22px rgba(2, 6, 23, 0.28),
-        inset 0 1px 1px rgba(255, 255, 255, 0.96);
+        0 0 0 2px rgba(13, 120, 78, 0.42),
+        0 0 20px rgba(32, 255, 167, 0.5),
+        0 10px 22px rgba(2, 6, 23, 0.34),
+        inset 0 1px 1px rgba(255, 255, 255, 0.28);
 }
 
 .record-filter-toggle-input:focus-visible + .record-filter-toggle-track {
     box-shadow:
         0 0 0 3px rgba(56, 189, 248, 0.2),
         0 0 26px rgba(34, 211, 238, 0.26);
+}
+
+@keyframes record-filter-toggle-scan {
+    0% {
+        background-position: 0 0;
+        opacity: 0.55;
+    }
+
+    50% {
+        opacity: 0.95;
+    }
+
+    100% {
+        background-position: 34px 0;
+        opacity: 0.55;
+    }
 }
 
 .feature-panel,
