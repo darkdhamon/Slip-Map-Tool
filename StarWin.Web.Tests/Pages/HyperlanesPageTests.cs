@@ -29,6 +29,7 @@ public sealed class HyperlanesPageTests : BunitContext
             Assert.Contains("Saved Hyperlanes", cut.Markup);
             Assert.Contains("Helios", cut.Markup);
             Assert.Contains("Zephyria", cut.Markup);
+            Assert.Contains("TL8 Advanced Hyperlane - 2.5 pc - 4 Months, 28 Days", cut.Markup);
             Assert.Contains("Advanced Hyperlane", cut.Markup);
             Assert.Contains("Orion Compact + Zephyr League", cut.Markup);
         });

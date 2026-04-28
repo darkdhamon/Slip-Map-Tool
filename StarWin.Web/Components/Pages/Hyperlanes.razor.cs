@@ -236,6 +236,49 @@ public partial class Hyperlanes : ComponentBase
         return $"{route.PrimaryOwnerEmpireName} + {route.SecondaryOwnerEmpireName}";
     }
 
+    protected static string FormatTravelTimeBreakdown(decimal travelTimeYears)
+    {
+        const int hoursPerDay = 24;
+        const int daysPerYear = 365;
+        const int monthsPerYear = 12;
+        const int hoursPerYear = daysPerYear * hoursPerDay;
+        const int hoursPerMonth = hoursPerYear / monthsPerYear;
+
+        var totalHours = (int)Math.Round(travelTimeYears * hoursPerYear, MidpointRounding.AwayFromZero);
+        var years = totalHours / hoursPerYear;
+        totalHours %= hoursPerYear;
+
+        var months = totalHours / hoursPerMonth;
+        totalHours %= hoursPerMonth;
+
+        var days = totalHours / hoursPerDay;
+        var hours = totalHours % hoursPerDay;
+        var components = new List<string>();
+        if (years > 0)
+        {
+            components.Add($"{years} Years");
+        }
+
+        if (months > 0)
+        {
+            components.Add($"{months} Months");
+        }
+
+        if (days > 0)
+        {
+            components.Add($"{days} Days");
+        }
+
+        if (hours > 0)
+        {
+            components.Add($"{hours} Hours");
+        }
+
+        return components.Count == 0
+            ? "0 Hours"
+            : string.Join(", ", components);
+    }
+
     protected Task LoadMoreHyperlanes()
     {
         hyperlaneVisibleCount += ExplorerListBatchSize;

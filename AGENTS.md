@@ -16,6 +16,30 @@ GitHub project workflow uses the `Starforged Atlas Task Board`.
 
 When an issue is in `Backlog`, move it to `Ready` after research is complete.
 
+GitHub release workflow:
+1. Create releases from `master` only.
+2. Pull the latest `origin/master` before building release artifacts.
+3. Build the portable desktop package with `scripts/New-PortableDesktopPackage.ps1`.
+4. Upload `Starforged-Atlas-Portable.zip` as the primary release asset.
+5. Do not re-upload the Delcora sector import zip if it has not changed. In release notes, direct users to download `Delcora.Sector.zip` from the previous release instead. Only upload it again when the file changes or when a fully self-contained onboarding release is explicitly requested.
+6. Release notes must include a changelog covering what changed since the previous release.
+7. Follow the same release note format used by `2026-04-26.2 Developer Preview`, with these sections in this order:
+   - `Developer Preview release for {date}.`
+   - `Included assets`
+   - `Built from`
+   - `Changelog since {previous release}`
+   - `Highlights`
+   - `Issues included`
+   - `Commit summary`
+   - `Notes`
+8. In the `Included assets` section, list the portable desktop package zip and note that `Delcora.Sector.zip` should be downloaded from the previous release when it is not re-uploaded for the current release.
+9. When promoting `dev` to `master`, update the desktop application version before the pull request is merged so the version change is included in the `dev` -> `master` pull request.
+10. The desktop application version format is `{year}-{two-digit-month}-{two-digit-day}.{release-index}-developer-preview` for the informational release tag, where the first release of a day uses release index `0`, the second uses `1`, and so on.
+11. For the corresponding assembly/file/package numeric version, use `{year}.{month}.{day}.{release-index}`.
+12. Until explicitly changed, the release name suffix is `Developer Preview`.
+13. Include the release name in the `dev` -> `master` pull request title/body when preparing the promotion.
+14. After the `dev` -> `master` pull request is fully merged, create the GitHub release from `master` using that version.
+
 When I explicitly tell you to implement the changes, move the issue from `Ready` to `In progress`.
 
 When I tell you to promote the work to `dev`, move the issue from `In progress` to `In review`.
