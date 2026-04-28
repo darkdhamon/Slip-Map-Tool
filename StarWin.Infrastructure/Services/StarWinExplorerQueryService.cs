@@ -1422,8 +1422,8 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                         CalculatePopulationPercent(group.Population, totalControlledPopulation),
                         membership?.IsPrimary ?? empire.Founding.FoundingRaceId == group.RaceId);
                 })
-                .OrderByDescending(item => item.IsPrimary)
-                .ThenByDescending(item => item.PopulationMillions)
+                .OrderByDescending(item => item.PopulationMillions)
+                .ThenByDescending(item => item.IsPrimary)
                 .ThenBy(item => item.RaceName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(item => item.RaceId)
                 .ToList();
@@ -1438,8 +1438,8 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                 member.PopulationMillions,
                 CalculatePopulationPercent(member.PopulationMillions, totalMembershipPopulationMillions),
                 member.IsPrimary))
-            .OrderByDescending(item => item.IsPrimary)
-            .ThenByDescending(item => item.PopulationMillions)
+            .OrderByDescending(item => item.PopulationMillions)
+            .ThenByDescending(item => item.IsPrimary)
             .ThenBy(item => item.RaceName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.RaceId)
             .ToList();

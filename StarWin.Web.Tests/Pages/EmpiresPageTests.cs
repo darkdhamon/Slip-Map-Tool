@@ -276,6 +276,60 @@ public sealed class EmpiresPageTests : BunitContext
     }
 
     [Fact]
+    public void OrdersMemberRacesByPopulationDescendingInEmpireView()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(
+            additionalRaces:
+            [
+                new AlienRace
+                {
+                    Id = 2,
+                    Name = "Krell"
+                }
+            ],
+            primaryWorld: CreateWorld(
+                101,
+                "Helios",
+                colonyId: 201,
+                colonyName: "Helios Prime",
+                controllingEmpireId: 2,
+                foundingEmpireId: 2,
+                demographics:
+                [
+                    new ColonyDemographic
+                    {
+                        RaceId = 1,
+                        RaceName = "Human",
+                        Population = 100_000_000
+                    },
+                    new ColonyDemographic
+                    {
+                        RaceId = 2,
+                        RaceName = "Krell",
+                        Population = 400_000_000
+                    }
+                ])));
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/empires?sectorId=7&empireId=2");
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var memberRaceRows = cut.FindAll(".empire-browser-card .relationship-list .relationship-row")
+                .Take(2)
+                .ToList();
+
+            Assert.Equal(2, memberRaceRows.Count);
+            Assert.Contains("Krell", memberRaceRows[0].TextContent);
+            Assert.Contains("Human", memberRaceRows[1].TextContent);
+        });
+    }
+
+    [Fact]
     public void RendersEmpireRacialModifiersAgainstPrimaryRaceBaseline()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -1060,8 +1114,8 @@ public sealed class EmpiresPageTests : BunitContext
                             CalculatePopulationPercent(population, totalPopulation),
                             membership?.IsPrimary ?? empire.Founding.FoundingRaceId == group.Key);
                     })
-                    .OrderByDescending(item => item.IsPrimary)
-                    .ThenByDescending(item => item.PopulationMillions)
+                    .OrderByDescending(item => item.PopulationMillions)
+                    .ThenByDescending(item => item.IsPrimary)
                     .ThenBy(item => item.RaceName)
                     .ThenBy(item => item.RaceId)
                     .ToList();
@@ -1076,8 +1130,8 @@ public sealed class EmpiresPageTests : BunitContext
                     membership.PopulationMillions,
                     CalculatePopulationPercent(membership.PopulationMillions, totalMembershipPopulation),
                     membership.IsPrimary))
-                .OrderByDescending(item => item.IsPrimary)
-                .ThenByDescending(item => item.PopulationMillions)
+                .OrderByDescending(item => item.PopulationMillions)
+                .ThenByDescending(item => item.IsPrimary)
                 .ThenBy(item => item.RaceName)
                 .ThenBy(item => item.RaceId)
                 .ToList();

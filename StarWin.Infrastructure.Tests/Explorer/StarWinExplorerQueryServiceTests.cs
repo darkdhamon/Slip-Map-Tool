@@ -248,6 +248,40 @@ public sealed class StarWinExplorerQueryServiceTests
     }
 
     [Fact]
+    public async Task LoadEmpireDetailAsync_orders_member_races_by_population_descending()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var conqueredColony = await seedContext.Colonies.SingleAsync(colony => colony.Id == 1003);
+            conqueredColony.EstimatedPopulation = 600_000_000;
+            await seedContext.SaveChangesAsync();
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var detail = await service.LoadEmpireDetailAsync(1, 202);
+
+            Assert.NotNull(detail);
+            Assert.Equal(2, detail!.MemberRaces.Count);
+            Assert.Equal("Aurelian", detail.MemberRaces[0].RaceName);
+            Assert.Equal(600, detail.MemberRaces[0].PopulationMillions);
+            Assert.False(detail.MemberRaces[0].IsPrimary);
+            Assert.Equal("Krell", detail.MemberRaces[1].RaceName);
+            Assert.Equal(450, detail.MemberRaces[1].PopulationMillions);
+            Assert.True(detail.MemberRaces[1].IsPrimary);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task EmpireQueries_resolve_placeholder_race_and_empire_names_from_founding_data()
     {
         var databasePath = CreateTempFilePath(".db");
