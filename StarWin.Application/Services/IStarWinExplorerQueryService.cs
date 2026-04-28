@@ -3,6 +3,7 @@ namespace StarWin.Application.Services;
 public interface IStarWinExplorerQueryService
 {
     Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default);
+    Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default);
     Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default);
     Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default);
     Task<ExplorerAlienRaceListItem?> LoadAlienRaceListItemAsync(int sectorId, int raceId, CancellationToken cancellationToken = default);
@@ -31,6 +32,11 @@ public sealed record ExplorerSectorOverviewData(
     int RaceCount,
     IReadOnlyList<ExplorerLookupOption> Systems,
     IReadOnlyList<ExplorerLookupOption> Empires);
+
+public sealed record ExplorerSectorEntityUsage(
+    int SectorId,
+    IReadOnlyList<int> RaceIds,
+    IReadOnlyList<int> EmpireIds);
 
 public sealed record ExplorerAlienRaceFilterOptions(
     IReadOnlyList<string> EnvironmentTypes,

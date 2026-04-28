@@ -92,11 +92,11 @@
                 }
                 @if (selectedTimelineEventDetail.Colony is { } colony)
                 {
-                    <button type="button" @onclick="() => ColonySelected.InvokeAsync(colony.Id)">Colony: @colony.Name</button>
+                    <button type="button" @onclick="() => ColonySelected.InvokeAsync(BuildColonyLinkTarget(colony.Id))">Colony: @colony.Name</button>
                 }
                 @if (selectedTimelineEventDetail.World is { } world)
                 {
-                    <button type="button" @onclick="() => WorldSelected.InvokeAsync(world.Id)">World: @world.Name</button>
+                    <button type="button" @onclick="() => WorldSelected.InvokeAsync(BuildWorldLinkTarget(world.Id))">World: @world.Name</button>
                 }
                 @if (selectedTimelineEventDetail.System is { } system)
                 {
@@ -133,10 +133,10 @@
     public EventCallback<int> EmpireSelected { get; set; }
 
     [Parameter]
-    public EventCallback<int> ColonySelected { get; set; }
+    public EventCallback<ExplorerTimelineLinkTarget> ColonySelected { get; set; }
 
     [Parameter]
-    public EventCallback<int> WorldSelected { get; set; }
+    public EventCallback<ExplorerTimelineLinkTarget> WorldSelected { get; set; }
 
     [Parameter]
     public EventCallback<int> SystemSelected { get; set; }
@@ -318,6 +318,21 @@
             offset,
             limit,
             selectedEventType);
+    }
+
+    private ExplorerTimelineLinkTarget BuildColonyLinkTarget(int colonyId)
+    {
+        return new ExplorerTimelineLinkTarget(
+            selectedTimelineEventDetail?.System?.Id ?? 0,
+            selectedTimelineEventDetail?.World?.Id ?? 0,
+            colonyId);
+    }
+
+    private ExplorerTimelineLinkTarget BuildWorldLinkTarget(int worldId)
+    {
+        return new ExplorerTimelineLinkTarget(
+            selectedTimelineEventDetail?.System?.Id ?? 0,
+            worldId);
     }
 
     private string GetFilterSummary()

@@ -16,7 +16,8 @@ public sealed class TimelinePageTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         var queryService = new FakeExplorerQueryService();
-        ConfigureServices(CreateContext(), queryService);
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService, queryService);
 
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("http://localhost/sector-explorer/timeline?sectorId=7&systemId=11");
@@ -29,6 +30,8 @@ public sealed class TimelinePageTests : BunitContext
             Assert.Contains("Border war begins", cut.Markup);
             Assert.Equal(1, queryService.LoadTimelineEventTypesCallCount);
             Assert.Single(queryService.PageRequests);
+            Assert.Equal(1, queryService.LoadSectorEntityUsageCallCount);
+            Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
         });
 
         cut.Find(".timeline-filter-panel select").Change("War");
@@ -62,7 +65,8 @@ public sealed class TimelinePageTests : BunitContext
                 new ExplorerLookupOption(101, "Eos"),
                 new ExplorerLookupOption(11, "Helios"))
         };
-        ConfigureServices(CreateContext(), queryService);
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService, queryService);
 
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("http://localhost/sector-explorer/timeline?sectorId=7&systemId=11");
@@ -87,6 +91,7 @@ public sealed class TimelinePageTests : BunitContext
 
         cut.FindAll(".timeline-links button").Single(button => button.TextContent.Contains("System: Helios", StringComparison.Ordinal)).Click();
         Assert.EndsWith("/sector-explorer/systems?sectorId=7&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
+        Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
     }
 
     [Fact]
@@ -110,7 +115,8 @@ public sealed class TimelinePageTests : BunitContext
                 null,
                 null)
         };
-        ConfigureServices(CreateContext(), queryService);
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService, queryService);
 
         var cut = Render<Timeline>();
         cut.WaitForAssertion(() => Assert.Contains("Border war begins", cut.Markup));
@@ -120,6 +126,7 @@ public sealed class TimelinePageTests : BunitContext
 
         cut.Find(".timeline-secondary-button").Click();
         cut.WaitForAssertion(() => Assert.Contains("\"Century\": \"1\"", cut.Markup));
+        Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
     }
 
     [Fact]
@@ -130,7 +137,8 @@ public sealed class TimelinePageTests : BunitContext
         {
             DelayFirstTimelinePage = true
         };
-        ConfigureServices(CreateContext(), queryService);
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService, queryService);
 
         var cut = Render<Timeline>();
 
@@ -148,12 +156,13 @@ public sealed class TimelinePageTests : BunitContext
             Assert.DoesNotContain("Preparing timeline events for the selected sector.", cut.Markup);
             Assert.Contains("Border war begins", cut.Markup);
         });
+        Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
     }
 
-    private void ConfigureServices(StarWinExplorerContext context, FakeExplorerQueryService? queryService = null)
+    private void ConfigureServices(FakeExplorerContextService explorerContextService, FakeExplorerQueryService? queryService = null)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
-        Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
+        Services.AddSingleton<IStarWinExplorerContextService>(explorerContextService);
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinExplorerQueryService>(queryService ?? new FakeExplorerQueryService());
     }
@@ -203,6 +212,8 @@ public sealed class TimelinePageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
+        public int LoadSectorAsyncCallCount { get; private set; }
+
         public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
@@ -210,6 +221,7 @@ public sealed class TimelinePageTests : BunitContext
 
         public Task<StarWinSector?> LoadSectorAsync(int sectorId, ExplorerSectorLoadSections loadSections, CancellationToken cancellationToken = default)
         {
+            LoadSectorAsyncCallCount++;
             return Task.FromResult<StarWinSector?>(context.Sectors.FirstOrDefault(sector => sector.Id == sectorId));
         }
     }
@@ -221,6 +233,7 @@ public sealed class TimelinePageTests : BunitContext
 
     private sealed class FakeExplorerQueryService : IStarWinExplorerQueryService
     {
+        public int LoadSectorEntityUsageCallCount { get; private set; }
         public int LoadTimelineEventTypesCallCount { get; private set; }
 
         public List<ExplorerTimelinePageRequest> PageRequests { get; } = [];
@@ -232,6 +245,12 @@ public sealed class TimelinePageTests : BunitContext
         public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new ExplorerSectorOverviewData(sectorId, 0, 0, 0, 0, 0, [], []));
+        }
+
+        public Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            LoadSectorEntityUsageCallCount++;
+            return Task.FromResult(new ExplorerSectorEntityUsage(sectorId, [3], [8]));
         }
 
         public Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)

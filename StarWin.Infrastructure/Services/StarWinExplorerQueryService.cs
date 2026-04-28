@@ -122,6 +122,19 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             empires);
     }
 
+    public async Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var raceIds = await LoadSectorRaceIdsAsync(dbContext, sectorId, cancellationToken);
+        var empireIds = await LoadSectorEmpireIdsAsync(dbContext, sectorId, cancellationToken);
+
+        return new ExplorerSectorEntityUsage(
+            sectorId,
+            raceIds.OrderBy(id => id).ToList(),
+            empireIds.OrderBy(id => id).ToList());
+    }
+
     public async Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);

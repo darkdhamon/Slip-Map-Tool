@@ -958,6 +958,11 @@ public sealed class EmpiresPageTests : BunitContext
             throw new NotSupportedException();
         }
 
+        public Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerSectorEntityUsage(sectorId, [], []));
+        }
+
         public Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();

@@ -19,6 +19,7 @@ public partial class Timeline : ComponentBase
     ];
 
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
+    [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
     [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
     [Inject] protected NavigationManager NavigationManager { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
@@ -30,7 +31,7 @@ public partial class Timeline : ComponentBase
     public int? RequestedSystemId { get; set; }
 
     protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
-    private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
+    private readonly Dictionary<int, ExplorerSectorEntityUsage> sectorEntityUsageById = [];
 
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     protected string explorerRenderError = string.Empty;
@@ -58,8 +59,7 @@ public partial class Timeline : ComponentBase
             : explorerContext.CurrentSector;
 
         selectedSectorId = initialSector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        initialSector = GetSelectedSector();
+        await EnsureSectorEntityUsageLoadedAsync(selectedSectorId);
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
         timelinePageLoadingVisible = true;
@@ -78,7 +78,7 @@ public partial class Timeline : ComponentBase
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
-            await EnsureSectorDataLoadedAsync(selectedSectorId);
+            await EnsureSectorEntityUsageLoadedAsync(selectedSectorId);
         }
 
         var sector = GetSelectedSector();
@@ -127,7 +127,7 @@ public partial class Timeline : ComponentBase
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
+        await EnsureSectorEntityUsageLoadedAsync(selectedSectorId);
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
@@ -153,8 +153,7 @@ public partial class Timeline : ComponentBase
     protected Task HandleSearchQueryChangedAsync(string value)
     {
         searchQuery = value;
-        RunSearch();
-        return Task.CompletedTask;
+        return RunSearchAsync();
     }
 
     protected void NavigateToSearchResult(StarWinSearchResult result)
@@ -184,26 +183,32 @@ public partial class Timeline : ComponentBase
         return Task.CompletedTask;
     }
 
-    protected Task NavigateToColony(int colonyId)
+    protected Task NavigateToColony(ExplorerTimelineLinkTarget target)
     {
-        var sector = GetSelectedSector();
-        var listing = sector.Systems
-            .SelectMany(system => system.Worlds.Select(world => new { system, world }))
-            .FirstOrDefault(item => item.world.Colony?.Id == colonyId);
-        if (listing is not null)
+        if (target.ColonyId > 0)
         {
-            NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Colonies", selectedSectorId, listing.system.Id, listing.world.Id, colonyId));
+            NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri(
+                "Colonies",
+                selectedSectorId,
+                target.SystemId > 0 ? target.SystemId : selectedSystemId,
+                target.WorldId,
+                target.ColonyId));
         }
 
         return Task.CompletedTask;
     }
 
-    protected Task NavigateToWorld(int worldId)
+    protected Task NavigateToWorld(ExplorerTimelineLinkTarget target)
     {
-        var sector = GetSelectedSector();
-        var system = sector.Systems.FirstOrDefault(item => item.Worlds.Any(world => world.Id == worldId));
-        var systemId = system?.Id ?? selectedSystemId;
-        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Worlds", selectedSectorId, systemId, worldId: worldId));
+        if (target.WorldId > 0)
+        {
+            NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri(
+                "Worlds",
+                selectedSectorId,
+                target.SystemId > 0 ? target.SystemId : selectedSystemId,
+                worldId: target.WorldId));
+        }
+
         return Task.CompletedTask;
     }
 
@@ -273,73 +278,31 @@ public partial class Timeline : ComponentBase
             includeReferenceData: true,
             cancellationToken: cancellationToken);
 
-        loadedSectorSectionsById.Clear();
+        sectorEntityUsageById.Clear();
     }
 
-    private async Task EnsureSectorDataLoadedAsync(int sectorId, CancellationToken cancellationToken = default)
+    private async Task EnsureSectorEntityUsageLoadedAsync(int sectorId, CancellationToken cancellationToken = default)
     {
         if (sectorId <= 0)
         {
             return;
         }
 
-        const ExplorerSectorLoadSections requiredSections = ExplorerSectorLoadSections.Worlds
-            | ExplorerSectorLoadSections.Colonies
-            | ExplorerSectorLoadSections.ColonyDemographics;
-
-        loadedSectorSectionsById.TryGetValue(sectorId, out var loadedSections);
-        if ((loadedSections & requiredSections) == requiredSections)
+        if (sectorEntityUsageById.ContainsKey(sectorId))
         {
             return;
         }
 
-        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiredSections, cancellationToken);
-        if (detailedSector is null)
-        {
-            return;
-        }
-
-        var sectors = ExplorerSectors.ToList();
-        var sectorIndex = sectors.FindIndex(item => item.Id == detailedSector.Id);
-        if (sectorIndex >= 0)
-        {
-            sectors[sectorIndex] = detailedSector;
-        }
-
-        explorerContext = explorerContext with
-        {
-            Sectors = sectors,
-            CurrentSector = explorerContext.CurrentSector.Id == detailedSector.Id ? detailedSector : explorerContext.CurrentSector
-        };
-
-        loadedSectorSectionsById[sectorId] = loadedSections | requiredSections;
+        sectorEntityUsageById[sectorId] = await ExplorerQueryService.LoadSectorEntityUsageAsync(sectorId, cancellationToken);
     }
 
-    private void RunSearch()
+    private async Task RunSearchAsync()
     {
         var sector = GetSelectedSector();
-        var sectorRaceIds = sector.Systems
-            .SelectMany(system => system.Worlds)
-            .Where(world => world.Colony is not null)
-            .SelectMany(world => world.Colony!.Demographics.Select(demographic => demographic.RaceId))
-            .Concat(sector.Systems.SelectMany(system => system.Worlds)
-                .Where(world => world.Colony is not null)
-                .Select(world => (int)world.Colony!.RaceId))
-            .ToHashSet();
-        var sectorEmpireIds = sector.Systems
-            .Where(system => system.AllegianceId != ushort.MaxValue)
-            .Select(system => (int)system.AllegianceId)
-            .Concat(sector.Systems.SelectMany(system => system.Worlds)
-                .Where(world => world.Colony is not null)
-                .SelectMany(world => new[]
-                {
-                    world.Colony!.AllegianceId == ushort.MaxValue ? 0 : world.Colony.AllegianceId,
-                    world.Colony.ControllingEmpireId is > 0 ? world.Colony.ControllingEmpireId.Value : 0,
-                    world.Colony.FoundingEmpireId is > 0 ? world.Colony.FoundingEmpireId.Value : 0,
-                    world.Colony.ParentEmpireId is > 0 ? world.Colony.ParentEmpireId.Value : 0
-                }))
-            .Where(id => id > 0)
-            .ToHashSet();
+        await EnsureSectorEntityUsageLoadedAsync(sector.Id);
+        var sectorEntityUsage = sectorEntityUsageById.GetValueOrDefault(sector.Id);
+        var sectorRaceIds = sectorEntityUsage?.RaceIds.ToHashSet() ?? [];
+        var sectorEmpireIds = sectorEntityUsage?.EmpireIds.ToHashSet() ?? [];
 
         searchResults = SearchService.Search(searchQuery)
             .Where(result => result.Type switch
@@ -372,8 +335,7 @@ public partial class Timeline : ComponentBase
         }
 
         selectedSectorId = sector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        sector = GetSelectedSector();
+        await EnsureSectorEntityUsageLoadedAsync(selectedSectorId);
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;
