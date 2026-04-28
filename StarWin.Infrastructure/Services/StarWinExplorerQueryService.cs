@@ -486,13 +486,50 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                 membership.IsPrimary))
             .ToListAsync(cancellationToken);
 
-        var memberRaces = memberRaceRows
-            .Select(member => new ExplorerEmpireRaceMembershipDetail(
-                member.RaceId,
-                ResolveRaceDisplayName(member.RaceId, member.RaceName, member.HomeWorldName),
-                member.Role,
-                member.PopulationMillions,
-                member.IsPrimary))
+        var controlledDemographicRows = await (
+            from colony in dbContext.Colonies.AsNoTracking()
+            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
+            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
+            join demographic in dbContext.Set<ColonyDemographic>().AsNoTracking() on colony.Id equals demographic.ColonyId
+            join race in dbContext.AlienRaces.AsNoTracking() on demographic.RaceId equals race.Id into races
+            from race in races.DefaultIfEmpty()
+            join raceHomeWorld in dbContext.Worlds.AsNoTracking() on race.HomePlanetId equals raceHomeWorld.Id into raceHomeWorlds
+            from raceHomeWorld in raceHomeWorlds.DefaultIfEmpty()
+            where system.SectorId == sectorId
+                && colony.ControllingEmpireId == empireId
+            select new EmpireControlledRacePopulationProjection(
+                demographic.RaceId,
+                !string.IsNullOrWhiteSpace(race.Name) ? race.Name : demographic.RaceName,
+                raceHomeWorld != null ? raceHomeWorld.Name : null,
+                demographic.Population,
+                colony.FoundingEmpireId == empireId,
+                colony.FoundingEmpireId != empireId))
+            .ToListAsync(cancellationToken);
+
+        var inferredControlledPopulationRows = await (
+            from colony in dbContext.Colonies.AsNoTracking()
+            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
+            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
+            join race in dbContext.AlienRaces.AsNoTracking() on (int)colony.RaceId equals race.Id into races
+            from race in races.DefaultIfEmpty()
+            join raceHomeWorld in dbContext.Worlds.AsNoTracking() on race.HomePlanetId equals raceHomeWorld.Id into raceHomeWorlds
+            from raceHomeWorld in raceHomeWorlds.DefaultIfEmpty()
+            where system.SectorId == sectorId
+                && colony.ControllingEmpireId == empireId
+                && !dbContext.Set<ColonyDemographic>().AsNoTracking().Any(demographic => demographic.ColonyId == colony.Id)
+            select new EmpireControlledRacePopulationProjection(
+                (int)colony.RaceId,
+                !string.IsNullOrWhiteSpace(race.Name) ? race.Name : colony.ColonistRaceName,
+                raceHomeWorld != null ? raceHomeWorld.Name : null,
+                colony.EstimatedPopulation,
+                colony.FoundingEmpireId == empireId,
+                colony.FoundingEmpireId != empireId))
+            .ToListAsync(cancellationToken);
+
+        var memberRaces = BuildEmpireRaceMembershipDetails(
+                empire,
+                memberRaceRows,
+                controlledDemographicRows.Concat(inferredControlledPopulationRows))
             .ToList();
 
         var colonies = await (
@@ -1314,6 +1351,97 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         return string.Format(template, speciesName).Trim();
     }
 
+    private static IReadOnlyList<ExplorerEmpireRaceMembershipDetail> BuildEmpireRaceMembershipDetails(
+        Empire empire,
+        IReadOnlyList<EmpireRaceMembershipProjection> membershipRows,
+        IEnumerable<EmpireControlledRacePopulationProjection> controlledPopulationRows)
+    {
+        var membershipByRaceId = membershipRows.ToDictionary(row => row.RaceId);
+        var controlledGroups = controlledPopulationRows
+            .Where(row => row.RaceId > 0 && row.Population > 0)
+            .GroupBy(row => row.RaceId)
+            .Select(group => new EmpireControlledRaceAggregate(
+                group.Key,
+                group.Select(row => row.RaceName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? $"Race {group.Key}",
+                group.Select(row => row.HomeWorldName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)),
+                group.Sum(row => row.Population),
+                group.Any(row => row.FoundedByEmpire),
+                group.Any(row => row.ForeignFounded)))
+            .ToList();
+
+        if (controlledGroups.Count > 0)
+        {
+            var totalControlledPopulation = controlledGroups.Sum(group => group.Population);
+            return controlledGroups
+                .Select(group =>
+                {
+                    membershipByRaceId.TryGetValue(group.RaceId, out var membership);
+                    return new ExplorerEmpireRaceMembershipDetail(
+                        group.RaceId,
+                        ResolveRaceDisplayName(group.RaceId, membership?.RaceName ?? group.RaceName, membership?.HomeWorldName ?? group.HomeWorldName),
+                        membership?.Role ?? DeriveEmpireRaceRole(group),
+                        ToPopulationMillions(group.Population),
+                        CalculatePopulationPercent(group.Population, totalControlledPopulation),
+                        membership?.IsPrimary ?? empire.Founding.FoundingRaceId == group.RaceId);
+                })
+                .OrderByDescending(item => item.IsPrimary)
+                .ThenByDescending(item => item.PopulationMillions)
+                .ThenBy(item => item.RaceName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => item.RaceId)
+                .ToList();
+        }
+
+        var totalMembershipPopulationMillions = membershipRows.Sum(row => row.PopulationMillions);
+        return membershipRows
+            .Select(member => new ExplorerEmpireRaceMembershipDetail(
+                member.RaceId,
+                ResolveRaceDisplayName(member.RaceId, member.RaceName, member.HomeWorldName),
+                member.Role,
+                member.PopulationMillions,
+                CalculatePopulationPercent(member.PopulationMillions, totalMembershipPopulationMillions),
+                member.IsPrimary))
+            .OrderByDescending(item => item.IsPrimary)
+            .ThenByDescending(item => item.PopulationMillions)
+            .ThenBy(item => item.RaceName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.RaceId)
+            .ToList();
+    }
+
+    private static EmpireRaceRole DeriveEmpireRaceRole(EmpireControlledRaceAggregate aggregate)
+    {
+        if (aggregate.ForeignFounded)
+        {
+            return EmpireRaceRole.Subjugated;
+        }
+
+        if (aggregate.FoundedByEmpire)
+        {
+            return EmpireRaceRole.Member;
+        }
+
+        return EmpireRaceRole.Subject;
+    }
+
+    private static long ToPopulationMillions(long population)
+    {
+        if (population <= 0)
+        {
+            return 0;
+        }
+
+        return Math.Max(1L, (long)Math.Round(population / 1_000_000d, MidpointRounding.AwayFromZero));
+    }
+
+    private static decimal CalculatePopulationPercent(long population, long totalPopulation)
+    {
+        if (population <= 0 || totalPopulation <= 0)
+        {
+            return 0m;
+        }
+
+        return Math.Round((decimal)population * 100m / totalPopulation, 1, MidpointRounding.AwayFromZero);
+    }
+
     private sealed record RaceDisplayProjection(int RaceId, string RaceName, string? HomeWorldName);
 
     private sealed record EmpireListProjection(
@@ -1336,4 +1464,20 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         EmpireRaceRole Role,
         long PopulationMillions,
         bool IsPrimary);
+
+    private sealed record EmpireControlledRacePopulationProjection(
+        int RaceId,
+        string RaceName,
+        string? HomeWorldName,
+        long Population,
+        bool FoundedByEmpire,
+        bool ForeignFounded);
+
+    private sealed record EmpireControlledRaceAggregate(
+        int RaceId,
+        string RaceName,
+        string? HomeWorldName,
+        long Population,
+        bool FoundedByEmpire,
+        bool ForeignFounded);
 }

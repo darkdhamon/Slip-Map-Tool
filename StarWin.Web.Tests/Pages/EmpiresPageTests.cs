@@ -222,6 +222,60 @@ public sealed class EmpiresPageTests : BunitContext
     }
 
     [Fact]
+    public void RendersEmpireWideRacePercentagesAndSearchableColonyBrowser()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(
+            additionalRaces:
+            [
+                new AlienRace
+                {
+                    Id = 2,
+                    Name = "Krell"
+                }
+            ],
+            additionalWorlds:
+            [
+                CreateWorld(
+                    102,
+                    "Watchers Reach",
+                    colonyId: 202,
+                    colonyName: "Watcher Hold",
+                    controllingEmpireId: 2,
+                    foundingEmpireId: 7,
+                    colonyRaceId: 2,
+                    colonyRaceName: "Krell",
+                    estimatedPopulation: 400_000_000)
+            ]));
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/empires?sectorId=7&empireId=2");
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var browserCards = cut.FindAll(".empire-browser-card");
+            Assert.Equal(2, browserCards.Count);
+            Assert.Contains("2 tracked", browserCards[0].TextContent);
+            Assert.Contains("Krell", browserCards[0].TextContent);
+            Assert.Contains("11.1% of empire population", browserCards[0].TextContent);
+            Assert.Contains("2 total", browserCards[1].TextContent);
+        });
+
+        cut.Find("input[placeholder='Colony, world, or system...']").Input("Watcher");
+
+        cut.WaitForAssertion(() =>
+        {
+            var colonyCard = cut.FindAll(".empire-browser-card")[1];
+            Assert.Contains("1 of 2 shown", colonyCard.TextContent);
+            Assert.Contains("Watcher Hold on Watchers Reach", colonyCard.TextContent);
+            Assert.DoesNotContain("Helios Prime on Helios", colonyCard.TextContent);
+        });
+    }
+
+    [Fact]
     public void RendersFallenEmpireStatusWhenEmpireHasNoControlledColonies()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -574,7 +628,11 @@ public sealed class EmpiresPageTests : BunitContext
         int colonyId,
         string colonyName,
         int controllingEmpireId,
-        int foundingEmpireId)
+        int foundingEmpireId,
+        int colonyRaceId = 1,
+        string colonyRaceName = "Human",
+        long estimatedPopulation = 3_200_000_000,
+        IEnumerable<ColonyDemographic>? demographics = null)
     {
         var world = new World
         {
@@ -591,14 +649,22 @@ public sealed class EmpiresPageTests : BunitContext
             WorldId = world.Id,
             Name = colonyName,
             ColonyClass = "Capital",
-            EstimatedPopulation = 3_200_000_000,
-            RaceId = 1,
-            ColonistRaceName = "Human",
+            EstimatedPopulation = estimatedPopulation,
+            RaceId = (ushort)colonyRaceId,
+            ColonistRaceName = colonyRaceName,
             ControllingEmpireId = controllingEmpireId,
             FoundingEmpireId = foundingEmpireId,
             AllegianceId = (ushort)controllingEmpireId,
             AllegianceName = controllingEmpireId == 2 ? "Orion Compact" : $"Empire {controllingEmpireId}"
         };
+
+        if (demographics is not null)
+        {
+            foreach (var demographic in demographics)
+            {
+                world.Colony.Demographics.Add(demographic);
+            }
+        }
 
         return world;
     }
@@ -735,22 +801,6 @@ public sealed class EmpiresPageTests : BunitContext
                 .SelectMany(system => system.Worlds)
                 .FirstOrDefault(world => world.Id == empire.Founding.FoundingWorldId);
 
-            var memberRaces = empire.RaceMemberships
-                .Join(
-                    context.AlienRaces,
-                    membership => membership.RaceId,
-                    race => race.Id,
-                    (membership, race) => new ExplorerEmpireRaceMembershipDetail(
-                        race.Id,
-                        race.Name,
-                        membership.Role,
-                        membership.PopulationMillions,
-                        membership.IsPrimary))
-                .OrderByDescending(item => item.IsPrimary)
-                .ThenBy(item => item.RaceName)
-                .ThenBy(item => item.RaceId)
-                .ToList();
-
             var colonies = sector.Systems
                 .SelectMany(system => system.Worlds
                     .Where(world => world.Colony is not null
@@ -768,6 +818,8 @@ public sealed class EmpiresPageTests : BunitContext
                 .ThenBy(item => item.WorldName)
                 .ThenBy(item => item.ColonyId)
                 .ToList();
+
+            var memberRaces = BuildEmpireRaceDetails(sector, empire, empireId);
 
             return Task.FromResult<ExplorerEmpireDetail?>(new ExplorerEmpireDetail(
                 sectorId,
@@ -907,6 +959,105 @@ public sealed class EmpiresPageTests : BunitContext
                 : null;
         }
 
+        private IReadOnlyList<ExplorerEmpireRaceMembershipDetail> BuildEmpireRaceDetails(StarWinSector sector, Empire empire, int empireId)
+        {
+            var membershipByRaceId = empire.RaceMemberships.ToDictionary(membership => membership.RaceId);
+            var controlledPopulationRows = sector.Systems
+                .SelectMany(system => system.Worlds)
+                .Where(world => world.Colony?.ControllingEmpireId == empireId)
+                .SelectMany(world =>
+                {
+                    var colony = world.Colony!;
+                    if (colony.Demographics.Count > 0)
+                    {
+                        return colony.Demographics.Select(demographic => new TestEmpireRacePopulationRow(
+                            demographic.RaceId,
+                            ResolveRaceName(demographic.RaceId, demographic.RaceName),
+                            demographic.Population,
+                            colony.FoundingEmpireId == empireId,
+                            colony.FoundingEmpireId != empireId));
+                    }
+
+                    return
+                    [
+                        new TestEmpireRacePopulationRow(
+                            colony.RaceId,
+                            ResolveRaceName(colony.RaceId, colony.ColonistRaceName),
+                            colony.EstimatedPopulation,
+                            colony.FoundingEmpireId == empireId,
+                            colony.FoundingEmpireId != empireId)
+                    ];
+                })
+                .ToList();
+
+            if (controlledPopulationRows.Count > 0)
+            {
+                var totalPopulation = controlledPopulationRows.Sum(row => row.Population);
+                return controlledPopulationRows
+                    .GroupBy(row => row.RaceId)
+                    .Select(group =>
+                    {
+                        membershipByRaceId.TryGetValue(group.Key, out var membership);
+                        var population = group.Sum(item => item.Population);
+                        return new ExplorerEmpireRaceMembershipDetail(
+                            group.Key,
+                            group.Select(item => item.RaceName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? $"Race {group.Key}",
+                            membership?.Role ?? (group.Any(item => item.ForeignFounded) ? EmpireRaceRole.Subjugated : EmpireRaceRole.Member),
+                            ToPopulationMillions(population),
+                            CalculatePopulationPercent(population, totalPopulation),
+                            membership?.IsPrimary ?? empire.Founding.FoundingRaceId == group.Key);
+                    })
+                    .OrderByDescending(item => item.IsPrimary)
+                    .ThenByDescending(item => item.PopulationMillions)
+                    .ThenBy(item => item.RaceName)
+                    .ThenBy(item => item.RaceId)
+                    .ToList();
+            }
+
+            var totalMembershipPopulation = empire.RaceMemberships.Sum(membership => membership.PopulationMillions);
+            return empire.RaceMemberships
+                .Select(membership => new ExplorerEmpireRaceMembershipDetail(
+                    membership.RaceId,
+                    ResolveRaceName(membership.RaceId),
+                    membership.Role,
+                    membership.PopulationMillions,
+                    CalculatePopulationPercent(membership.PopulationMillions, totalMembershipPopulation),
+                    membership.IsPrimary))
+                .OrderByDescending(item => item.IsPrimary)
+                .ThenByDescending(item => item.PopulationMillions)
+                .ThenBy(item => item.RaceName)
+                .ThenBy(item => item.RaceId)
+                .ToList();
+        }
+
+        private string ResolveRaceName(int raceId, string? fallbackName = null)
+        {
+            var race = context.AlienRaces.FirstOrDefault(item => item.Id == raceId);
+            return string.IsNullOrWhiteSpace(race?.Name)
+                ? (string.IsNullOrWhiteSpace(fallbackName) ? $"Race {raceId}" : fallbackName)
+                : race.Name;
+        }
+
+        private static long ToPopulationMillions(long population)
+        {
+            if (population <= 0)
+            {
+                return 0;
+            }
+
+            return Math.Max(1L, (long)Math.Round(population / 1_000_000d, MidpointRounding.AwayFromZero));
+        }
+
+        private static decimal CalculatePopulationPercent(long population, long totalPopulation)
+        {
+            if (population <= 0 || totalPopulation <= 0)
+            {
+                return 0m;
+            }
+
+            return Math.Round((decimal)population * 100m / totalPopulation, 1, MidpointRounding.AwayFromZero);
+        }
+
     }
 
     private sealed class DelayedEmpireQueryService(StarWinExplorerContext context, TimeSpan delay)
@@ -922,6 +1073,13 @@ public sealed class EmpiresPageTests : BunitContext
             return await base.LoadEmpireListPageAsync(request, cancellationToken);
         }
     }
+
+    private sealed record TestEmpireRacePopulationRow(
+        int RaceId,
+        string RaceName,
+        long Population,
+        bool FoundedByEmpire,
+        bool ForeignFounded);
 
     private sealed class FakeSearchService : IStarWinSearchService
     {

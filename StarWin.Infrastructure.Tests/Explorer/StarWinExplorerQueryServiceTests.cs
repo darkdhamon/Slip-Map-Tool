@@ -192,6 +192,48 @@ public sealed class StarWinExplorerQueryServiceTests
     }
 
     [Fact]
+    public async Task LoadEmpireDetailAsync_includes_conquered_world_races_in_empire_demographics()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var detail = await service.LoadEmpireDetailAsync(1, 202);
+
+            Assert.NotNull(detail);
+            Assert.Equal(2, detail!.MemberRaces.Count);
+            Assert.Collection(
+                detail.MemberRaces,
+                item =>
+                {
+                    Assert.Equal("Krell", item.RaceName);
+                    Assert.Equal(EmpireRaceRole.Member, item.Role);
+                    Assert.Equal(450, item.PopulationMillions);
+                    Assert.Equal(94.7m, item.PopulationPercent);
+                    Assert.True(item.IsPrimary);
+                },
+                item =>
+                {
+                    Assert.Equal("Aurelian", item.RaceName);
+                    Assert.Equal(EmpireRaceRole.Subjugated, item.Role);
+                    Assert.Equal(25, item.PopulationMillions);
+                    Assert.Equal(5.3m, item.PopulationPercent);
+                    Assert.False(item.IsPrimary);
+                });
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task EmpireQueries_resolve_placeholder_race_and_empire_names_from_founding_data()
     {
         var databasePath = CreateTempFilePath(".db");

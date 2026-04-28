@@ -141,6 +141,7 @@ public sealed record ExplorerEmpireRaceMembershipDetail(
     string RaceName,
     StarWin.Domain.Model.Entity.Civilization.EmpireRaceRole Role,
     long PopulationMillions,
+    decimal PopulationPercent,
     bool IsPrimary);
 
 public sealed record ExplorerEmpireColonyListing(

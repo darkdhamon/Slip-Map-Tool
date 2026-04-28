@@ -160,8 +160,12 @@
                     }
                     @{
                         var empireHomeworld = selectedEmpireDetail?.HomeWorld;
+                        var empireMemberRaces = selectedEmpireDetail?.MemberRaces ?? [];
                         var capitalColony = selectedEmpireDetail is null ? null : GetCapitalColony(selectedEmpireDetail);
                         var empireColonies = selectedEmpireDetail?.Colonies ?? [];
+                        var controlledColonyCount = selectedEmpireDetail?.ControlledColonyCount ?? 0;
+                        var filteredEmpireMemberRaces = FilterMemberRaces(empireMemberRaces, empireMemberRaceSearch);
+                        var filteredEmpireColonies = FilterColonies(empireColonies, empireColonySearch);
                         var selectedEmpireIsFallen = selectedEmpireDetail?.IsFallen ?? false;
                     }
                     <div class="alien-overview-grid empire-overview-grid">
@@ -264,18 +268,33 @@
                     </div>
 
                     <div class="alien-secondary-grid empire-support-grid">
-                        <section class="alien-summary-card empire-relationship-card">
-                            <h3>Member races</h3>
-                            <div class="relationship-list">
-                                @if (selectedEmpireDetail?.MemberRaces.Count > 0)
+                        <section class="alien-summary-card empire-relationship-card empire-browser-card">
+                            <div class="empire-browser-header">
+                                <div class="empire-browser-title">
+                                    <h3>Member races</h3>
+                                    <span>@(empireMemberRaces.Count == filteredEmpireMemberRaces.Count ? $"{empireMemberRaces.Count} tracked" : $"{filteredEmpireMemberRaces.Count} of {empireMemberRaces.Count} shown")</span>
+                                </div>
+                                <label class="empire-browser-search">
+                                    <span>Search races</span>
+                                    <input placeholder="Race or role..."
+                                           @bind="empireMemberRaceSearch"
+                                           @bind:event="oninput" />
+                                </label>
+                            </div>
+                            <div class="relationship-list empire-scroll-list">
+                                @if (filteredEmpireMemberRaces.Count > 0)
                                 {
-                                    @foreach (var membership in selectedEmpireDetail.MemberRaces)
+                                    @foreach (var membership in filteredEmpireMemberRaces)
                                     {
                                         <button type="button" class="relationship-row" @onclick="() => NavigateToRace(membership.RaceId)">
                                             <strong>@membership.RaceName</strong>
-                                            <span>@membership.Role; <abbr class="population-abbr" title="@GetPopulationTooltip(membership.PopulationMillions)">@FormatPopulationMillions(membership.PopulationMillions)</abbr></span>
+                                            <span>@membership.Role; <abbr class="population-abbr" title="@GetPopulationTooltip(membership.PopulationMillions)">@FormatPopulationMillions(membership.PopulationMillions)</abbr>; @DisplayPopulationPercent(membership.PopulationPercent) of empire population</span>
                                         </button>
                                     }
+                                }
+                                else if (empireMemberRaces.Count > 0)
+                                {
+                                    <p class="alien-empty-state">No member races match the current search.</p>
                                 }
                                 else
                                 {
@@ -284,18 +303,35 @@
                             </div>
                         </section>
 
-                        <section class="alien-summary-card empire-relationship-card">
-                            <h3>Colonies</h3>
-                            <div class="relationship-list">
-                                @if (empireColonies.Count > 0)
+                        <section class="alien-summary-card empire-relationship-card empire-browser-card">
+                            <div class="empire-browser-header">
+                                <div class="empire-browser-title">
+                                    <h3>Colonies</h3>
+                                    <span>@(empireColonies.Count == filteredEmpireColonies.Count
+                                        ? (controlledColonyCount == empireColonies.Count ? $"{empireColonies.Count} total" : $"{controlledColonyCount} controlled / {empireColonies.Count} tracked")
+                                        : $"{filteredEmpireColonies.Count} of {empireColonies.Count} shown")</span>
+                                </div>
+                                <label class="empire-browser-search">
+                                    <span>Search colonies</span>
+                                    <input placeholder="Colony, world, or system..."
+                                           @bind="empireColonySearch"
+                                           @bind:event="oninput" />
+                                </label>
+                            </div>
+                            <div class="relationship-list empire-scroll-list">
+                                @if (filteredEmpireColonies.Count > 0)
                                 {
-                                    @foreach (var listing in empireColonies)
+                                    @foreach (var listing in filteredEmpireColonies)
                                     {
                                         <button type="button" class="relationship-row" @onclick="() => NavigateToColony(listing.ColonyId)">
                                             <strong>@listing.ColonyName on @listing.WorldName</strong>
                                             <span>@listing.SystemName; @DisplayPopulation(listing.EstimatedPopulation)</span>
                                         </button>
                                     }
+                                }
+                                else if (empireColonies.Count > 0)
+                                {
+                                    <p class="alien-empty-state">No colonies match the current search.</p>
                                 }
                                 else
                                 {

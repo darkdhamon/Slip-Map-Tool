@@ -2542,6 +2542,53 @@ dd {
     min-width: 0;
 }
 
+.empire-browser-card {
+    gap: 12px;
+}
+
+.empire-browser-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+    justify-content: space-between;
+}
+
+.empire-browser-title {
+    display: grid;
+    gap: 4px;
+}
+
+.empire-browser-title span {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.empire-browser-search {
+    display: grid;
+    gap: 6px;
+    min-width: min(280px, 100%);
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.empire-browser-search input {
+    min-height: 40px;
+    border: 1px solid rgba(125, 211, 252, 0.38);
+    border-radius: 6px;
+    background: rgba(2, 6, 23, 0.76);
+    color: var(--ink);
+    padding: 8px 10px;
+}
+
+.empire-scroll-list {
+    max-height: 360px;
+    overflow: auto;
+    padding-right: 4px;
+}
+
 .empire-force-card .inline-row:first-of-type {
     border-top: 0;
     padding-top: 0;

@@ -45,6 +45,8 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected IReadOnlyList<StarWinSearchResult> searchResults = [];
     protected string empireQuery = string.Empty;
     protected string empireRaceText = string.Empty;
+    protected string empireMemberRaceSearch = string.Empty;
+    protected string empireColonySearch = string.Empty;
     protected int empireRaceId = ComboAllFilterId;
     protected bool showOnlyFallenEmpires;
     protected bool empireHasMoreRecords;
@@ -70,6 +72,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     private bool empireFilterReloadQueued;
     private CancellationTokenSource? empireFilterDebounceCancellation;
     private readonly List<ExplorerEmpireListItem> loadedEmpireSummaries = [];
+    private int loadedEmpireDetailId;
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
     protected IReadOnlyList<ExplorerEmpireListItem> LoadedEmpireSummaries => loadedEmpireSummaries;
@@ -652,6 +655,13 @@ public partial class Empires : ComponentBase, IAsyncDisposable
                 return;
             }
 
+            if (detail?.Empire.Id != loadedEmpireDetailId)
+            {
+                loadedEmpireDetailId = detail?.Empire.Id ?? 0;
+                empireMemberRaceSearch = string.Empty;
+                empireColonySearch = string.Empty;
+            }
+
             selectedEmpireDetail = detail;
             selectedEmpireId = detail?.Empire.Id ?? 0;
         }
@@ -765,6 +775,48 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     {
         var absolutePopulation = populationMillions * 1_000_000m;
         return $"{absolutePopulation:N0}";
+    }
+
+    protected static string DisplayPopulationPercent(decimal populationPercent)
+    {
+        return populationPercent <= 0m
+            ? "0%"
+            : $"{populationPercent:0.#}%";
+    }
+
+    protected static IReadOnlyList<ExplorerEmpireRaceMembershipDetail> FilterMemberRaces(
+        IReadOnlyList<ExplorerEmpireRaceMembershipDetail> memberRaces,
+        string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return memberRaces;
+        }
+
+        var trimmedQuery = query.Trim();
+        return memberRaces
+            .Where(member =>
+                member.RaceName.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase)
+                || member.Role.ToString().Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    protected static IReadOnlyList<ExplorerEmpireColonyListing> FilterColonies(
+        IReadOnlyList<ExplorerEmpireColonyListing> colonies,
+        string query)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return colonies;
+        }
+
+        var trimmedQuery = query.Trim();
+        return colonies
+            .Where(colony =>
+                colony.ColonyName.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase)
+                || colony.WorldName.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase)
+                || colony.SystemName.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase))
+            .ToList();
     }
 
     protected static int GetGurpsTechLevel(Empire empire)
