@@ -2500,6 +2500,57 @@ dd {
     align-content: start;
 }
 
+.empire-detail-panel {
+    gap: 16px;
+}
+
+.empire-overview-grid {
+    align-items: start;
+}
+
+.empire-stat-card {
+    gap: 14px;
+}
+
+.empire-stat-card .parent-actions {
+    margin: 0;
+}
+
+.empire-field-grid-primary {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+}
+
+.empire-image-panel {
+    margin-bottom: 0;
+    align-content: start;
+}
+
+.empire-fallen-alert {
+    margin: 0;
+}
+
+.empire-notes-card {
+    padding-top: 4px;
+}
+
+.empire-support-grid {
+    align-items: start;
+}
+
+.empire-force-card,
+.empire-relationship-card {
+    min-width: 0;
+}
+
+.empire-force-card .inline-row:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.empire-relationship-card .relationship-list {
+    min-height: 0;
+}
+
 .alien-modifier-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -3092,12 +3143,20 @@ dd {
     .alien-field-grid-primary {
         grid-template-columns: repeat(3, minmax(120px, 1fr));
     }
+
+    .empire-field-grid-primary {
+        grid-template-columns: repeat(2, minmax(140px, 1fr));
+    }
 }
 
 @media (max-width: 720px) {
     .alien-field-grid,
     .alien-field-grid-primary {
         grid-template-columns: repeat(2, minmax(120px, 1fr));
+    }
+
+    .empire-field-grid-primary {
+        grid-template-columns: 1fr;
     }
 
     .entity-image-panel.compact-empty {

@@ -142,7 +142,7 @@
 
             @if (selectedEmpire is not null)
             {
-                <article class="detail-panel">
+                <article class="detail-panel alien-detail-panel empire-detail-panel">
                     <span class="panel-kicker">Empire profile</span>
                     <EditableEntityName Name="@selectedEmpire.Name"
                                         Label="Empire"
@@ -160,121 +160,152 @@
                     @{
                         var empireImages = GetEntityImages(EntityImageTargetKind.Empire, selectedEmpire.Id);
                     }
-                    <section class="entity-image-panel">
-                        <div class="image-panel-header">
-                            <h4>Empire flag</h4>
-                            <span>One image</span>
-                        </div>
-                        @if (empireImages.Count > 0)
-                        {
-                            <div class="entity-image-grid single">
-                                @foreach (var image in empireImages)
-                                {
-                                    <figure>
-                                        <img src="@image.RelativePath" alt="@image.FileName" />
-                                        <figcaption>@(image.IsPrimary ? "Primary" : image.FileName)</figcaption>
-                                    </figure>
-                                }
-                            </div>
-                        }
-                        else
-                        {
-                            <p>No image uploaded.</p>
-                        }
-                        <label class="image-upload-control">
-                            <span>Upload image</span>
-                            <InputFile OnChange="@(args => UploadEntityImage(EntityImageTargetKind.Empire, selectedEmpire.Id, args))" accept="image/jpeg,image/png,image/gif,image/webp" />
-                        </label>
-                    @if (!string.IsNullOrWhiteSpace(imageUploadStatus))
-                    {
-                        <small>@imageUploadStatus</small>
-                    }
-                    </section>
                     @{
                         var empireHomeworld = selectedEmpireDetail?.HomeWorld;
                         var capitalColony = selectedEmpireDetail is null ? null : GetCapitalColony(selectedEmpireDetail);
                         var empireColonies = selectedEmpireDetail?.Colonies ?? [];
                         var selectedEmpireIsFallen = selectedEmpireDetail?.IsFallen ?? false;
                     }
-                    @if (selectedEmpireIsFallen)
-                    {
-                        <div class="empire-alert fallen">
-                            <strong>Fallen empire</strong>
-                            <span>This empire no longer controls any colonies in this sector.</span>
-                        </div>
-                    }
-                    <div class="parent-actions">
-                        @if (empireHomeworld is not null)
-                        {
-                            <button type="button" @onclick="() => NavigateToWorld(empireHomeworld.Id)">Homeworld: @empireHomeworld.Name</button>
-                        }
-                        @if (capitalColony is not null)
-                        {
-                            <button type="button" @onclick="() => NavigateToColony(capitalColony.ColonyId)">Capital: @capitalColony.WorldName</button>
-                        }
+                    <div class="alien-overview-grid empire-overview-grid">
+                        <section class="alien-summary-card alien-summary-card-primary empire-stat-card">
+                            @if (selectedEmpireIsFallen)
+                            {
+                                <div class="empire-alert fallen empire-fallen-alert">
+                                    <strong>Fallen empire</strong>
+                                    <span>This empire no longer controls any colonies in this sector.</span>
+                                </div>
+                            }
+                            <div class="parent-actions">
+                                @if (empireHomeworld is not null)
+                                {
+                                    <button type="button" @onclick="() => NavigateToWorld(empireHomeworld.Id)">Homeworld: @empireHomeworld.Name</button>
+                                }
+                                @if (capitalColony is not null)
+                                {
+                                    <button type="button" @onclick="() => NavigateToColony(capitalColony.ColonyId)">Capital: @capitalColony.WorldName</button>
+                                }
+                            </div>
+                            <dl class="field-grid alien-field-grid alien-field-grid-primary empire-field-grid-primary">
+                                <div><dt>Status</dt><dd>@(selectedEmpireIsFallen ? "Fallen empire" : "Active empire")</dd></div>
+                                <div><dt>Controlled colonies</dt><dd>@(selectedEmpireDetail?.ControlledColonyCount ?? 0)</dd></div>
+                                <div><dt>Tech level</dt><dd>GURPS TL @GetGurpsTechLevel(selectedEmpire) / StarWin @selectedEmpire.CivilizationProfile.TechLevel</dd></div>
+                                <div><dt>Expansion</dt><dd>@selectedEmpire.ExpansionPolicy</dd></div>
+                                <div><dt>Military power</dt><dd>@selectedEmpire.MilitaryPower</dd></div>
+                                <div><dt>Economic power</dt><dd>@selectedEmpire.EconomicPowerMcr MCr</dd></div>
+                                <div><dt>Trade bonus</dt><dd>@selectedEmpire.TradeBonusMcr MCr</dd></div>
+                                <div><dt>Native population</dt><dd><abbr class="population-abbr" title="@GetPopulationTooltip(selectedEmpire.NativePopulationMillions)">@FormatPopulationMillions(selectedEmpire.NativePopulationMillions)</abbr></dd></div>
+                                <div><dt>Planets</dt><dd>@selectedEmpire.Planets</dd></div>
+                                <div><dt>Moons</dt><dd>@selectedEmpire.Moons</dd></div>
+                                <div><dt>Captive planets</dt><dd>@selectedEmpire.CaptivePlanets</dd></div>
+                                <div><dt>Space habitats</dt><dd>@selectedEmpire.SpaceHabitats</dd></div>
+                                <div><dt>Captive population</dt><dd><abbr class="population-abbr" title="@GetPopulationTooltip(selectedEmpire.CaptivePopulationMillions)">@FormatPopulationMillions(selectedEmpire.CaptivePopulationMillions)</abbr></dd></div>
+                            </dl>
+                        </section>
+
+                        <section class="entity-image-panel alien-image-panel empire-image-panel @(empireImages.Count == 0 ? "compact-empty" : null)">
+                            <div class="image-panel-header">
+                                <h4>Empire flag</h4>
+                                <span>One image</span>
+                            </div>
+                            @if (empireImages.Count > 0)
+                            {
+                                <div class="entity-image-grid single">
+                                    @foreach (var image in empireImages)
+                                    {
+                                        <figure>
+                                            <img src="@image.RelativePath" alt="@image.FileName" />
+                                            <figcaption>@(image.IsPrimary ? "Primary" : image.FileName)</figcaption>
+                                        </figure>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <p>No image uploaded.</p>
+                            }
+                            <label class="image-upload-control">
+                                <span>Upload image</span>
+                                <InputFile OnChange="@(args => UploadEntityImage(EntityImageTargetKind.Empire, selectedEmpire.Id, args))" accept="image/jpeg,image/png,image/gif,image/webp" />
+                            </label>
+                            @if (!string.IsNullOrWhiteSpace(imageUploadStatus))
+                            {
+                                <small>@imageUploadStatus</small>
+                            }
+                        </section>
                     </div>
-                    <dl class="field-grid">
-                        <div><dt>Status</dt><dd>@(selectedEmpireIsFallen ? "Fallen empire" : "Active empire")</dd></div>
-                        <div><dt>Controlled colonies</dt><dd>@(selectedEmpireDetail?.ControlledColonyCount ?? 0)</dd></div>
-                        <div><dt>Tech level</dt><dd>GURPS TL @GetGurpsTechLevel(selectedEmpire) / StarWin @selectedEmpire.CivilizationProfile.TechLevel</dd></div>
-                        <div><dt>Military power</dt><dd>@selectedEmpire.MilitaryPower</dd></div>
-                        <div><dt>Economic power</dt><dd>@selectedEmpire.EconomicPowerMcr MCr</dd></div>
-                        <div><dt>Trade bonus</dt><dd>@selectedEmpire.TradeBonusMcr MCr</dd></div>
-                        <div><dt>Planets</dt><dd>@selectedEmpire.Planets</dd></div>
-                        <div><dt>Moons</dt><dd>@selectedEmpire.Moons</dd></div>
-                        <div><dt>Captive planets</dt><dd>@selectedEmpire.CaptivePlanets</dd></div>
-                        <div><dt>Space habitats</dt><dd>@selectedEmpire.SpaceHabitats</dd></div>
-                        <div><dt>Native population</dt><dd><abbr class="population-abbr" title="@GetPopulationTooltip(selectedEmpire.NativePopulationMillions)">@FormatPopulationMillions(selectedEmpire.NativePopulationMillions)</abbr></dd></div>
-                        <div><dt>Captive population</dt><dd><abbr class="population-abbr" title="@GetPopulationTooltip(selectedEmpire.CaptivePopulationMillions)">@FormatPopulationMillions(selectedEmpire.CaptivePopulationMillions)</abbr></dd></div>
-                        <div><dt>Expansion</dt><dd>@selectedEmpire.ExpansionPolicy</dd></div>
-                    </dl>
 
-                    <EntityNotesPanel TargetKind="EntityNoteTargetKind.Empire"
-                                      TargetId="selectedEmpire.Id"
-                                      Title="Empire notes" />
+                    <section class="alien-summary-card alien-summary-editor-card empire-notes-card">
+                        <EntityNotesPanel TargetKind="EntityNoteTargetKind.Empire"
+                                          TargetId="selectedEmpire.Id"
+                                          Title="Empire notes" />
+                    </section>
 
-                    <div class="force-grid">
-                        <article>
+                    <div class="alien-secondary-grid empire-support-grid">
+                        <section class="alien-summary-card empire-force-card">
                             <h3>Fleet</h3>
+                            @if (selectedEmpire.MilitaryForces.Fleet.Count == 0)
+                            {
+                                <p class="alien-empty-state">No fleet entries recorded.</p>
+                            }
                             @foreach (var ship in selectedEmpire.MilitaryForces.Fleet)
                             {
                                 <div class="inline-row"><span>@ship.Quantity @ship.Name</span><strong>@ship.Code</strong></div>
                             }
-                        </article>
-                        <article>
+                        </section>
+                        <section class="alien-summary-card empire-force-card">
                             <h3>Ground forces</h3>
+                            @if (selectedEmpire.MilitaryForces.GroundForces.Count == 0)
+                            {
+                                <p class="alien-empty-state">No ground force entries recorded.</p>
+                            }
                             @foreach (var force in selectedEmpire.MilitaryForces.GroundForces)
                             {
                                 <div class="inline-row"><span>@force.Name</span><strong>@force.Quantity</strong></div>
                             }
-                        </article>
+                        </section>
                     </div>
 
-                    <section class="relationship-section">
-                        <h3>Member races</h3>
-                        <div class="relationship-list">
-                            @foreach (var membership in selectedEmpireDetail?.MemberRaces ?? [])
-                            {
-                                <button type="button" class="relationship-row" @onclick="() => NavigateToRace(membership.RaceId)">
-                                    <strong>@membership.RaceName</strong>
-                                    <span>@membership.Role; <abbr class="population-abbr" title="@GetPopulationTooltip(membership.PopulationMillions)">@FormatPopulationMillions(membership.PopulationMillions)</abbr></span>
-                                </button>
-                            }
-                        </div>
-                    </section>
+                    <div class="alien-secondary-grid empire-support-grid">
+                        <section class="alien-summary-card empire-relationship-card">
+                            <h3>Member races</h3>
+                            <div class="relationship-list">
+                                @if (selectedEmpireDetail?.MemberRaces.Count > 0)
+                                {
+                                    @foreach (var membership in selectedEmpireDetail.MemberRaces)
+                                    {
+                                        <button type="button" class="relationship-row" @onclick="() => NavigateToRace(membership.RaceId)">
+                                            <strong>@membership.RaceName</strong>
+                                            <span>@membership.Role; <abbr class="population-abbr" title="@GetPopulationTooltip(membership.PopulationMillions)">@FormatPopulationMillions(membership.PopulationMillions)</abbr></span>
+                                        </button>
+                                    }
+                                }
+                                else
+                                {
+                                    <p class="alien-empty-state">No member races recorded.</p>
+                                }
+                            </div>
+                        </section>
 
-                    <section class="relationship-section">
-                        <h3>Colonies</h3>
-                        <div class="relationship-list">
-                            @foreach (var listing in empireColonies)
-                            {
-                                <button type="button" class="relationship-row" @onclick="() => NavigateToColony(listing.ColonyId)">
-                                    <strong>@listing.ColonyName on @listing.WorldName</strong>
-                                    <span>@listing.SystemName; @DisplayPopulation(listing.EstimatedPopulation)</span>
-                                </button>
-                            }
-                        </div>
-                    </section>
+                        <section class="alien-summary-card empire-relationship-card">
+                            <h3>Colonies</h3>
+                            <div class="relationship-list">
+                                @if (empireColonies.Count > 0)
+                                {
+                                    @foreach (var listing in empireColonies)
+                                    {
+                                        <button type="button" class="relationship-row" @onclick="() => NavigateToColony(listing.ColonyId)">
+                                            <strong>@listing.ColonyName on @listing.WorldName</strong>
+                                            <span>@listing.SystemName; @DisplayPopulation(listing.EstimatedPopulation)</span>
+                                        </button>
+                                    }
+                                }
+                                else
+                                {
+                                    <p class="alien-empty-state">No colonies recorded for this empire.</p>
+                                }
+                            </div>
+                        </section>
+                    </div>
                 </article>
             }
         </section>
