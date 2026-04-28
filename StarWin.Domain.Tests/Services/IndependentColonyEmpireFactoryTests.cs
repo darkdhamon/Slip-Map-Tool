@@ -46,7 +46,7 @@ public sealed class IndependentColonyEmpireFactoryTests
 
         var empire = factory.CreateEmpireFromIndependentColony(colony, world, race, parentEmpire);
 
-        Assert.Equal("Delcora Prime Independent State", empire.Name);
+        Assert.Equal("Nemorans Independent State", empire.Name);
         Assert.Equal(22, empire.LegacyRaceId);
         Assert.Equal(EmpireOrigin.IndependentColony, empire.Founding.Origin);
         Assert.Equal(4, empire.Founding.FoundingWorldId);
@@ -114,5 +114,31 @@ public sealed class IndependentColonyEmpireFactoryTests
         Assert.Equal(8, empire.CivilizationProfile.SocialCohesion);
         Assert.Equal(12, empire.CivilizationProfile.Art);
         Assert.Equal(14, empire.CivilizationProfile.Individualism);
+    }
+
+    [Fact]
+    public void CreateEmpireFromIndependentColony_FallsBackToParentEmpireNameWhenRaceNameIsPlaceholder()
+    {
+        var factory = new IndependentColonyEmpireFactory(() => 0.10);
+        var colony = new Colony
+        {
+            Id = 8,
+            EstimatedPopulation = 23_000_000
+        };
+        var world = new World { Id = 4, Name = "Delcora Prime" };
+        var race = new AlienRace
+        {
+            Id = 22,
+            Name = "Race 22"
+        };
+        var parentEmpire = new Empire
+        {
+            Id = 51,
+            Name = "Nemoran Concord"
+        };
+
+        var empire = factory.CreateEmpireFromIndependentColony(colony, world, race, parentEmpire);
+
+        Assert.Equal("Nemoran Concord", empire.Name);
     }
 }

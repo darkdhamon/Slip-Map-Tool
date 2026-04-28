@@ -16,6 +16,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 {
     private const int ExplorerListBatchSize = 30;
     private const int ComboAllFilterId = -1;
+    private const int EmpireFilterDebounceMilliseconds = 250;
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
     [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
@@ -64,6 +65,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     private bool browserSessionReady;
     private bool browserSessionRestored;
     private int loadedEmpireSectorId;
+    private CancellationTokenSource? empireFilterDebounceCancellation;
     private readonly List<ExplorerEmpireListItem> loadedEmpireSummaries = [];
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
@@ -233,7 +235,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         }
 
         ResetEmpireWindow();
-        BeginEmpireFilterReload();
+        ScheduleEmpireFilterReload();
         return Task.CompletedTask;
     }
 
@@ -246,7 +248,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
         empireRaceId = ParseComboId(empireRaceText);
         ResetEmpireWindow();
-        BeginEmpireFilterReload();
+        ScheduleEmpireFilterReload();
         return Task.CompletedTask;
     }
 
@@ -434,11 +436,49 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     private void BeginEmpireFilterReload()
     {
+        CancelEmpireFilterReloadDebounce();
         empireFilterPending = true;
         loadedEmpireSummaries.Clear();
         empireHasMoreRecords = false;
         empireObserverConfigured = false;
         _ = RunEmpireFilterReloadAsync();
+    }
+
+    private void ScheduleEmpireFilterReload()
+    {
+        CancelEmpireFilterReloadDebounce();
+        var cancellation = new CancellationTokenSource();
+        empireFilterDebounceCancellation = cancellation;
+        _ = RunScheduledEmpireFilterReloadAsync(cancellation.Token);
+    }
+
+    private async Task RunScheduledEmpireFilterReloadAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(EmpireFilterDebounceMilliseconds, cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await InvokeAsync(BeginEmpireFilterReload);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void CancelEmpireFilterReloadDebounce()
+    {
+        if (empireFilterDebounceCancellation is null)
+        {
+            return;
+        }
+
+        empireFilterDebounceCancellation.Cancel();
+        empireFilterDebounceCancellation.Dispose();
+        empireFilterDebounceCancellation = null;
     }
 
     private async Task RunEmpireFilterReloadAsync()
@@ -683,6 +723,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        CancelEmpireFilterReloadDebounce();
         if (loadMoreScrollModule is not null)
         {
             try

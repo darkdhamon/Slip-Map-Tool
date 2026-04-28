@@ -16,9 +16,7 @@ public sealed class IndependentColonyEmpireFactory(Func<double>? nextRandomValue
 
         var empire = new Empire
         {
-            Name = string.IsNullOrWhiteSpace(world.Name)
-                ? $"{foundingRace.Name} Independent State"
-                : $"{world.Name} Independent State",
+            Name = BuildIndependentEmpireName(world, foundingRace, parentEmpire),
             LegacyRaceId = foundingRace.Id,
             ExpansionPolicy = EmpireExpansionPolicy.CanExpand,
             Founding =
@@ -69,6 +67,28 @@ public sealed class IndependentColonyEmpireFactory(Func<double>? nextRandomValue
         });
 
         return empire;
+    }
+
+    private static string BuildIndependentEmpireName(World world, AlienRace foundingRace, Empire? parentEmpire)
+    {
+        if (!string.IsNullOrWhiteSpace(foundingRace.Name)
+            && !foundingRace.Name.Trim().StartsWith("Race ", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{foundingRace.Name.Trim()} Independent State";
+        }
+
+        if (!string.IsNullOrWhiteSpace(parentEmpire?.Name)
+            && !parentEmpire.Name.Trim().StartsWith("Empire ", StringComparison.OrdinalIgnoreCase))
+        {
+            return parentEmpire.Name.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(world.Name))
+        {
+            return $"{world.Name.Trim()} Independent State";
+        }
+
+        return $"Empire {foundingRace.Id}";
     }
 
     private int RollModifier()

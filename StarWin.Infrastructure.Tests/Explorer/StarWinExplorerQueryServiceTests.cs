@@ -192,6 +192,85 @@ public sealed class StarWinExplorerQueryServiceTests
     }
 
     [Fact]
+    public async Task EmpireQueries_resolve_placeholder_race_and_empire_names_from_founding_data()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var placeholderHomeWorld = new World
+            {
+                Id = 105,
+                Name = "Hersey 1",
+                StarSystemId = 20,
+                AlienRaceId = 10,
+                WorldType = "Terran"
+            };
+            placeholderHomeWorld.Colony = new Colony
+            {
+                Id = 1004,
+                WorldId = 105,
+                RaceId = 10,
+                ColonyClass = "Capital",
+                EstimatedPopulation = 200_000_000,
+                ControllingEmpireId = 210,
+                FoundingEmpireId = 210,
+                AllegianceId = 210
+            };
+
+            var placeholderRace = new AlienRace
+            {
+                Id = 10,
+                Name = "Race 10",
+                HomePlanetId = 105
+            };
+
+            var placeholderEmpire = new Empire
+            {
+                Id = 210,
+                Name = "Empire 10",
+                GovernmentType = "Monarchy",
+                NativePopulationMillions = 200
+            };
+            placeholderEmpire.Founding.FoundingWorldId = 105;
+            placeholderEmpire.Founding.FoundingRaceId = 10;
+            placeholderEmpire.Founding.Origin = EmpireOrigin.NativeHomeworld;
+            placeholderEmpire.RaceMemberships.Add(new EmpireRaceMembership
+            {
+                RaceId = 10,
+                IsPrimary = true,
+                Role = EmpireRaceRole.Founder,
+                PopulationMillions = 200
+            });
+
+            seedContext.Worlds.Add(placeholderHomeWorld);
+            seedContext.AlienRaces.Add(placeholderRace);
+            seedContext.Empires.Add(placeholderEmpire);
+            await seedContext.SaveChangesAsync();
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var listItem = await service.LoadEmpireListItemAsync(1, 210);
+            var detail = await service.LoadEmpireDetailAsync(1, 210);
+
+            Assert.NotNull(listItem);
+            Assert.Equal("Kingdom of Herseyian", listItem!.Name);
+            Assert.NotNull(detail);
+            Assert.Equal("Kingdom of Herseyian", detail!.Empire.Name);
+            Assert.Single(detail.MemberRaces);
+            Assert.Equal("Herseyian", detail.MemberRaces[0].RaceName);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task LoadReligionFilterOptionsAsync_returns_distinct_types_for_sector_religions()
     {
         var databasePath = CreateTempFilePath(".db");

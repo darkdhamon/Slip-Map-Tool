@@ -301,13 +301,25 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             from empire in dbContext.Empires.AsNoTracking()
             from membership in empire.RaceMemberships
             join race in dbContext.AlienRaces.AsNoTracking() on membership.RaceId equals race.Id
+            join homeWorld in dbContext.Worlds.AsNoTracking() on race.HomePlanetId equals homeWorld.Id into homeWorlds
+            from homeWorld in homeWorlds.DefaultIfEmpty()
             where sectorEmpireIds.Contains(empire.Id)
             orderby race.Name, race.Id
-            select new ExplorerLookupOption(race.Id, race.Name))
+            select new RaceDisplayProjection(
+                race.Id,
+                race.Name,
+                homeWorld != null ? homeWorld.Name : null))
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        return new ExplorerEmpireFilterOptions(raceOptions);
+        return new ExplorerEmpireFilterOptions(raceOptions
+            .Select(race => new ExplorerLookupOption(
+                race.RaceId,
+                ResolveRaceDisplayName(race.RaceId, race.RaceName, race.HomeWorldName)))
+            .DistinctBy(race => race.Id)
+            .OrderBy(race => race.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(race => race.Id)
+            .ToList());
     }
 
     public async Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)
@@ -320,33 +332,64 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             return new ExplorerEmpireListPage([], false);
         }
 
+        var sectorFallenEmpireIds = await LoadSectorFallenEmpireIdsAsync(dbContext, request.SectorId, sectorEmpireIds, cancellationToken);
+        var filteredEmpireIds = request.FallenOnly
+            ? sectorFallenEmpireIds
+            : sectorEmpireIds;
+        if (filteredEmpireIds.Count == 0)
+        {
+            return new ExplorerEmpireListPage([], false);
+        }
+
         var empiresQuery = dbContext.Empires
             .AsNoTracking()
-            .Where(empire => sectorEmpireIds.Contains(empire.Id));
+            .Where(empire => filteredEmpireIds.Contains(empire.Id));
 
         empiresQuery = ApplyEmpireFilters(dbContext, empiresQuery, request);
 
         var items = await empiresQuery
             .OrderBy(empire => empire.Name)
             .ThenBy(empire => empire.Id)
-            .Select(empire => new ExplorerEmpireListItem(
+            .Select(empire => new EmpireListProjection(
                 empire.Id,
                 empire.Name,
                 empire.Planets,
                 empire.CivilizationProfile.TechLevel + 2,
-                !dbContext.Colonies.Any(colony => colony.ControllingEmpireId == empire.Id)
-                    && (dbContext.Colonies.Any(colony => colony.ControllingEmpireId == empire.Id || colony.FoundingEmpireId == empire.Id)
-                        || empire.Planets > 0
-                        || empire.Moons > 0
-                        || empire.SpaceHabitats > 0
-                        || empire.NativePopulationMillions > 0
-                        || empire.SubjectPopulationMillions > 0)))
+                empire.GovernmentType,
+                empire.Founding.Origin,
+                empire.Founding.FoundingRaceId,
+                empire.Founding.FoundingWorldId,
+                dbContext.AlienRaces
+                    .Where(race => race.Id == empire.Founding.FoundingRaceId)
+                    .Select(race => race.Name)
+                    .FirstOrDefault(),
+                dbContext.Worlds
+                    .Where(world => world.Id == empire.Founding.FoundingWorldId)
+                    .Select(world => world.Name)
+                    .FirstOrDefault()))
             .Skip(request.Offset)
             .Take(request.Limit + 1)
             .ToListAsync(cancellationToken);
 
         var hasMore = items.Count > request.Limit;
-        return new ExplorerEmpireListPage(items.Take(request.Limit).ToList(), hasMore);
+        return new ExplorerEmpireListPage(
+            items
+                .Take(request.Limit)
+                .Select(item => new ExplorerEmpireListItem(
+                    item.EmpireId,
+                    ResolveEmpireDisplayName(
+                        item.EmpireId,
+                        item.Name,
+                        item.GovernmentType,
+                        item.Origin,
+                        item.FoundingRaceId,
+                        item.FoundingRaceName,
+                        item.FoundingWorldName),
+                    item.Planets,
+                    item.GurpsTechLevel,
+                    sectorFallenEmpireIds.Contains(item.EmpireId)))
+                .ToList(),
+            hasMore);
     }
 
     public async Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
@@ -359,22 +402,44 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             return null;
         }
 
-        return await dbContext.Empires
+        var sectorFallenEmpireIds = await LoadSectorFallenEmpireIdsAsync(dbContext, sectorId, sectorEmpireIds, cancellationToken);
+        var item = await dbContext.Empires
             .AsNoTracking()
             .Where(empire => empire.Id == empireId)
-            .Select(empire => new ExplorerEmpireListItem(
+            .Select(empire => new EmpireListProjection(
                 empire.Id,
                 empire.Name,
                 empire.Planets,
                 empire.CivilizationProfile.TechLevel + 2,
-                !dbContext.Colonies.Any(colony => colony.ControllingEmpireId == empire.Id)
-                    && (dbContext.Colonies.Any(colony => colony.ControllingEmpireId == empire.Id || colony.FoundingEmpireId == empire.Id)
-                        || empire.Planets > 0
-                        || empire.Moons > 0
-                        || empire.SpaceHabitats > 0
-                        || empire.NativePopulationMillions > 0
-                        || empire.SubjectPopulationMillions > 0)))
+                empire.GovernmentType,
+                empire.Founding.Origin,
+                empire.Founding.FoundingRaceId,
+                empire.Founding.FoundingWorldId,
+                dbContext.AlienRaces
+                    .Where(race => race.Id == empire.Founding.FoundingRaceId)
+                    .Select(race => race.Name)
+                    .FirstOrDefault(),
+                dbContext.Worlds
+                    .Where(world => world.Id == empire.Founding.FoundingWorldId)
+                    .Select(world => world.Name)
+                    .FirstOrDefault()))
             .FirstOrDefaultAsync(cancellationToken);
+
+        return item is null
+            ? null
+            : new ExplorerEmpireListItem(
+                item.EmpireId,
+                ResolveEmpireDisplayName(
+                    item.EmpireId,
+                    item.Name,
+                    item.GovernmentType,
+                    item.Origin,
+                    item.FoundingRaceId,
+                    item.FoundingRaceName,
+                    item.FoundingWorldName),
+                item.Planets,
+                item.GurpsTechLevel,
+                sectorFallenEmpireIds.Contains(item.EmpireId));
     }
 
     public async Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
@@ -413,18 +478,30 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                 .FirstOrDefaultAsync(cancellationToken)
             : null;
 
-        var memberRaces = await (
+        var memberRaceRows = await (
             from membership in dbContext.Set<EmpireRaceMembership>().AsNoTracking()
             join race in dbContext.AlienRaces.AsNoTracking() on membership.RaceId equals race.Id
+            join raceHomeWorld in dbContext.Worlds.AsNoTracking() on race.HomePlanetId equals raceHomeWorld.Id into raceHomeWorlds
+            from raceHomeWorld in raceHomeWorlds.DefaultIfEmpty()
             where membership.EmpireId == empireId
             orderby membership.IsPrimary descending, race.Name, race.Id
-            select new ExplorerEmpireRaceMembershipDetail(
+            select new EmpireRaceMembershipProjection(
                 membership.RaceId,
                 race.Name,
+                raceHomeWorld != null ? raceHomeWorld.Name : null,
                 membership.Role,
                 membership.PopulationMillions,
                 membership.IsPrimary))
             .ToListAsync(cancellationToken);
+
+        var memberRaces = memberRaceRows
+            .Select(member => new ExplorerEmpireRaceMembershipDetail(
+                member.RaceId,
+                ResolveRaceDisplayName(member.RaceId, member.RaceName, member.HomeWorldName),
+                member.Role,
+                member.PopulationMillions,
+                member.IsPrimary))
+            .ToList();
 
         var colonies = await (
             from colony in dbContext.Colonies.AsNoTracking()
@@ -452,6 +529,18 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                 || empire.SpaceHabitats > 0
                 || empire.NativePopulationMillions > 0
                 || empire.SubjectPopulationMillions > 0);
+
+        var foundingRaceDisplayName = memberRaces
+            .FirstOrDefault(item => item.RaceId == empire.Founding.FoundingRaceId)
+            ?.RaceName;
+        empire.Name = ResolveEmpireDisplayName(
+            empire.Id,
+            empire.Name,
+            empire.GovernmentType,
+            empire.Founding.Origin,
+            empire.Founding.FoundingRaceId,
+            foundingRaceDisplayName,
+            homeWorld?.Name);
 
         return new ExplorerEmpireDetail(
             sectorId,
@@ -836,18 +925,6 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                     && EF.Functions.Like(note.Markdown, searchPattern)));
         }
 
-        if (request.FallenOnly)
-        {
-            empiresQuery = empiresQuery.Where(empire =>
-                !dbContext.Colonies.Any(colony => colony.ControllingEmpireId == empire.Id)
-                && (dbContext.Colonies.Any(colony => colony.ControllingEmpireId == empire.Id || colony.FoundingEmpireId == empire.Id)
-                    || empire.Planets > 0
-                    || empire.Moons > 0
-                    || empire.SpaceHabitats > 0
-                    || empire.NativePopulationMillions > 0
-                    || empire.SubjectPopulationMillions > 0));
-        }
-
         return empiresQuery;
     }
 
@@ -1101,4 +1178,222 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
 
         return empireIds;
     }
+
+    private static async Task<HashSet<int>> LoadSectorFallenEmpireIdsAsync(
+        StarWinDbContext dbContext,
+        int sectorId,
+        HashSet<int> sectorEmpireIds,
+        CancellationToken cancellationToken)
+    {
+        if (sectorEmpireIds.Count == 0)
+        {
+            return [];
+        }
+
+        var controlledEmpireIds = await (
+            from colony in dbContext.Colonies.AsNoTracking()
+            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
+            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
+            where system.SectorId == sectorId && colony.ControllingEmpireId.HasValue
+            select colony.ControllingEmpireId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var colonyLinkedEmpireIds = await (
+            from colony in dbContext.Colonies.AsNoTracking()
+            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
+            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
+            where system.SectorId == sectorId && colony.ControllingEmpireId.HasValue
+            select colony.ControllingEmpireId!.Value)
+            .Concat(
+                from colony in dbContext.Colonies.AsNoTracking()
+                join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
+                join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
+                where system.SectorId == sectorId && colony.FoundingEmpireId.HasValue
+                select colony.FoundingEmpireId!.Value)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var fallenEmpireIds = await dbContext.Empires
+            .AsNoTracking()
+            .Where(empire => sectorEmpireIds.Contains(empire.Id)
+                && !controlledEmpireIds.Contains(empire.Id)
+                && (colonyLinkedEmpireIds.Contains(empire.Id)
+                    || empire.Planets > 0
+                    || empire.Moons > 0
+                    || empire.SpaceHabitats > 0
+                    || empire.NativePopulationMillions > 0
+                    || empire.SubjectPopulationMillions > 0))
+            .Select(empire => empire.Id)
+            .ToListAsync(cancellationToken);
+
+        return fallenEmpireIds.ToHashSet();
+    }
+
+    private static string ResolveRaceDisplayName(int raceId, string? raceName, string? homeWorldName)
+    {
+        if (!IsPlaceholderRaceName(raceName))
+        {
+            return string.IsNullOrWhiteSpace(raceName)
+                ? $"Race {raceId}"
+                : raceName.Trim();
+        }
+
+        var normalizedRoot = NormalizeNameRoot(homeWorldName);
+        return string.IsNullOrWhiteSpace(normalizedRoot)
+            ? $"Race {raceId}"
+            : BuildSpeciesNameFromRoot(normalizedRoot);
+    }
+
+    private static string ResolveEmpireDisplayName(
+        int empireId,
+        string? empireName,
+        string? governmentType,
+        EmpireOrigin origin,
+        int? foundingRaceId,
+        string? foundingRaceName,
+        string? foundingWorldName)
+    {
+        var resolvedRaceName = foundingRaceId is int raceId
+            ? ResolveRaceDisplayName(raceId, foundingRaceName, foundingWorldName)
+            : string.Empty;
+
+        if (origin == EmpireOrigin.IndependentColony
+            && !string.IsNullOrWhiteSpace(resolvedRaceName)
+            && (IsPlaceholderEmpireName(empireName)
+                || empireName?.EndsWith(" Independent State", StringComparison.OrdinalIgnoreCase) == true))
+        {
+            return $"{resolvedRaceName} Independent State";
+        }
+
+        if (!IsPlaceholderEmpireName(empireName))
+        {
+            return empireName!.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(resolvedRaceName))
+        {
+            return BuildEmpireNameFromGovernment(resolvedRaceName, governmentType);
+        }
+
+        var normalizedRoot = NormalizeNameRoot(foundingWorldName);
+        if (!string.IsNullOrWhiteSpace(normalizedRoot))
+        {
+            return BuildEmpireNameFromGovernment(BuildSpeciesNameFromRoot(normalizedRoot), governmentType);
+        }
+
+        return string.IsNullOrWhiteSpace(empireName)
+            ? $"Empire {empireId}"
+            : empireName.Trim();
+    }
+
+    private static bool IsPlaceholderRaceName(string? name)
+    {
+        return string.IsNullOrWhiteSpace(name)
+            || name.Trim().StartsWith("Race ", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsPlaceholderEmpireName(string? name)
+    {
+        return string.IsNullOrWhiteSpace(name)
+            || name.Trim().StartsWith("Empire ", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeNameRoot(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = name.Trim();
+        var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 1)
+        {
+            var suffix = parts[^1];
+            if (int.TryParse(suffix, out _)
+                || IsRomanNumeral(suffix)
+                || (suffix.Length == 1 && char.IsLetter(suffix[0])))
+            {
+                trimmed = string.Join(' ', parts[..^1]);
+            }
+        }
+
+        return trimmed.Trim();
+    }
+
+    private static bool IsRomanNumeral(string value)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+            && value.All(character => "IVXLCDMivxlcdm".Contains(character));
+    }
+
+    private static string BuildSpeciesNameFromRoot(string root)
+    {
+        if (root.EndsWith("a", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{root[..^1]}an";
+        }
+
+        if (root.EndsWith("earth", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{root}ling";
+        }
+
+        if (root.EndsWith("sol", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{root}an";
+        }
+
+        if (root.EndsWith("erra", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{root[..^1]}n";
+        }
+
+        if (root.EndsWith("el", StringComparison.OrdinalIgnoreCase)
+            || root.EndsWith("il", StringComparison.OrdinalIgnoreCase)
+            || root.EndsWith("ol", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"{root}ian";
+        }
+
+        return $"{root}ian";
+    }
+
+    private static string BuildEmpireNameFromGovernment(string speciesName, string? governmentType)
+    {
+        var template = governmentType switch
+        {
+            "Imperialism" => "{0} Empire",
+            "Democracy" or "Republic" or "Federation" => "{0} Republic",
+            "Theocracy" => "{0} Church",
+            "Corporation" => "{0} Combine",
+            "Monarchy" => "Kingdom of {0}",
+            _ => "{0} State"
+        };
+
+        return string.Format(template, speciesName).Trim();
+    }
+
+    private sealed record RaceDisplayProjection(int RaceId, string RaceName, string? HomeWorldName);
+
+    private sealed record EmpireListProjection(
+        int EmpireId,
+        string Name,
+        int Planets,
+        int GurpsTechLevel,
+        string GovernmentType,
+        EmpireOrigin Origin,
+        int? FoundingRaceId,
+        int? FoundingWorldId,
+        string? FoundingRaceName,
+        string? FoundingWorldName);
+
+    private sealed record EmpireRaceMembershipProjection(
+        int RaceId,
+        string RaceName,
+        string? HomeWorldName,
+        EmpireRaceRole Role,
+        long PopulationMillions,
+        bool IsPrimary);
 }
