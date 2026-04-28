@@ -266,8 +266,6 @@ public partial class Religions : ComponentBase, IAsyncDisposable
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
             preferredSectorId: RequestedSectorId ?? selectedSectorId,
-            includeSavedRoutes: false,
-            includeReferenceData: false,
             cancellationToken: cancellationToken);
     }
 

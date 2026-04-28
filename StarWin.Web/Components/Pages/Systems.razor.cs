@@ -307,7 +307,6 @@ public partial class Systems : ComponentBase, IAsyncDisposable
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
             preferredSectorId: preferredSectorId,
-            includeReferenceData: false,
             cancellationToken: cancellationToken);
     }
 

@@ -177,7 +177,7 @@ public sealed class ColoniesPageTests : BunitContext
         var empire = new Empire { Id = 2, Name = "Orion Compact" };
         var extraEmpire = new Empire { Id = 3, Name = "Zephyr League" };
 
-        return new StarWinExplorerContext([sector], sector, races, [empire, extraEmpire], []);
+        return new StarWinExplorerContext([sector], sector, races, [empire, extraEmpire]);
     }
 
     private static World CreateWorldWithColony(int worldId, string worldName, int colonyId, string colonyName, int allegianceId, string allegianceName, long population, int raceId = 1, string raceName = "Human")
@@ -215,7 +215,7 @@ public sealed class ColoniesPageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, int? detailedSectorId = null, ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(int? preferredSectorId = null, bool includeReferenceData = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
         }

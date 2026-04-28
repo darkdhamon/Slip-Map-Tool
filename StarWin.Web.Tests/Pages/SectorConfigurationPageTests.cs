@@ -140,14 +140,14 @@ public sealed class SectorConfigurationPageTests : BunitContext
         });
 
         var empire = new Empire { Id = 2, Name = "Orion Compact" };
-        return new StarWinExplorerContext([sector], sector, [], [empire], []);
+        return new StarWinExplorerContext([sector], sector, [], [empire]);
     }
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
         public StarWinExplorerContext Context { get; } = context;
 
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, int? detailedSectorId = null, ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(int? preferredSectorId = null, bool includeReferenceData = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(Context);
         }

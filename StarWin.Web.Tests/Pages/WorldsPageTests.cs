@@ -231,8 +231,7 @@ public sealed class WorldsPageTests : BunitContext
             [sector],
             sector,
             [],
-            [new Empire { Id = 2, Name = "Orion Compact" }, new Empire { Id = 3, Name = "Zephyr League" }],
-            []);
+            [new Empire { Id = 2, Name = "Orion Compact" }, new Empire { Id = 3, Name = "Zephyr League" }]);
     }
 
     private static World CreateWorld(int id, string name, string worldType)
@@ -259,7 +258,7 @@ public sealed class WorldsPageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, int? detailedSectorId = null, ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(int? preferredSectorId = null, bool includeReferenceData = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
         }

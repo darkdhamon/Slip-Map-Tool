@@ -401,8 +401,6 @@ public partial class SectorConfiguration : ComponentBase
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
             preferredSectorId: RequestedSectorId ?? selectedSectorId,
-            includeSavedRoutes: false,
-            includeReferenceData: false,
             cancellationToken: cancellationToken);
 
         var workspaceSectorId = RequestedSectorId ?? selectedSectorId;

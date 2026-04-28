@@ -157,7 +157,7 @@ public sealed class SystemsPageTests : BunitContext
             new Empire { Id = 3, Name = "Zephyr League" }
         };
 
-        return new StarWinExplorerContext([sector], sector, [], empires, []);
+        return new StarWinExplorerContext([sector], sector, [], empires);
     }
 
     private static StarSystem CreateSystem(int systemId, string name, ushort allegianceId, string worldName = "Eos")
@@ -208,7 +208,7 @@ public sealed class SystemsPageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, int? detailedSectorId = null, ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(int? preferredSectorId = null, bool includeReferenceData = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
         }

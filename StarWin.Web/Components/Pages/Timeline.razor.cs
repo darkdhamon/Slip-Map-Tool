@@ -274,7 +274,6 @@ public partial class Timeline : ComponentBase
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
             preferredSectorId: RequestedSectorId ?? selectedSectorId,
-            includeSavedRoutes: false,
             includeReferenceData: true,
             cancellationToken: cancellationToken);
 

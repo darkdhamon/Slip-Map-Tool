@@ -854,7 +854,7 @@ public sealed class EmpiresPageTests : BunitContext
             empires.AddRange(additionalEmpires);
         }
 
-        return new StarWinExplorerContext([sector], sector, races, empires, []);
+        return new StarWinExplorerContext([sector], sector, races, empires);
     }
 
     private static World CreateWorld(
@@ -938,7 +938,7 @@ public sealed class EmpiresPageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, int? detailedSectorId = null, ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(int? preferredSectorId = null, bool includeReferenceData = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
         }

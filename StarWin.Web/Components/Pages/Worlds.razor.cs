@@ -439,7 +439,6 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
             preferredSectorId: preferredSectorId,
-            includeReferenceData: false,
             cancellationToken: cancellationToken);
     }
 

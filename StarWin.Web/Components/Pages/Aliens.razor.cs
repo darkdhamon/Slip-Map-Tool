@@ -327,8 +327,6 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
             preferredSectorId: RequestedSectorId ?? selectedSectorId,
-            includeSavedRoutes: false,
-            includeReferenceData: false,
             cancellationToken: cancellationToken);
     }
 

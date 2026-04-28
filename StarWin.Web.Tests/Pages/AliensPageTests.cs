@@ -476,7 +476,7 @@ public sealed class AliensPageTests : BunitContext
             }
         }
 
-        return new StarWinExplorerContext([sector], sector, races, [empire], []);
+        return new StarWinExplorerContext([sector], sector, races, [empire]);
     }
 
     private static AlienRace CreateRace(int raceId, string name, string appearanceType, string environmentType, bool addMembership = true)
@@ -532,7 +532,7 @@ public sealed class AliensPageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, int? detailedSectorId = null, ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(int? preferredSectorId = null, bool includeReferenceData = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
         }

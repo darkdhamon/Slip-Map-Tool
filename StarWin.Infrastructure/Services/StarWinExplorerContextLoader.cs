@@ -50,14 +50,12 @@ internal static class StarWinExplorerContextLoader
             sectors,
             sectors.FirstOrDefault() ?? StarWinExplorerContext.Empty.CurrentSector,
             alienRaces,
-            empires,
-            empires.SelectMany(empire => empire.Contacts).ToList());
+            empires);
     }
 
     public static async Task<StarWinExplorerContext> LoadShellAsync(
         StarWinDbContext dbContext,
         int? preferredSectorId = null,
-        bool includeSavedRoutes = false,
         bool includeReferenceData = false,
         CancellationToken cancellationToken = default)
     {
@@ -107,38 +105,6 @@ internal static class StarWinExplorerContextLoader
             });
         }
 
-        if (includeSavedRoutes && preferredSectorId is int selectedSectorId && sectorsById.TryGetValue(selectedSectorId, out var preferredSector))
-        {
-            var savedRoutes = await dbContext.SectorSavedRoutes
-                .AsNoTracking()
-                .Where(route => route.SectorId == selectedSectorId)
-                .OrderBy(route => route.SourceSystemId)
-                .ThenBy(route => route.TargetSystemId)
-                .Select(route => new SectorSavedRoute
-                {
-                    Id = route.Id,
-                    SectorId = route.SectorId,
-                    SourceSystemId = route.SourceSystemId,
-                    TargetSystemId = route.TargetSystemId,
-                    DistanceParsecs = route.DistanceParsecs,
-                    TravelTimeYears = route.TravelTimeYears,
-                    TechnologyLevel = route.TechnologyLevel,
-                    TierName = route.TierName,
-                    PrimaryOwnerEmpireId = route.PrimaryOwnerEmpireId,
-                    PrimaryOwnerEmpireName = route.PrimaryOwnerEmpireName,
-                    SecondaryOwnerEmpireId = route.SecondaryOwnerEmpireId,
-                    SecondaryOwnerEmpireName = route.SecondaryOwnerEmpireName,
-                    IsUserPersisted = route.IsUserPersisted,
-                    GeneratedAtUtc = route.GeneratedAtUtc
-                })
-                .ToListAsync(cancellationToken);
-
-            foreach (var savedRoute in savedRoutes)
-            {
-                preferredSector.SavedRoutes.Add(savedRoute);
-            }
-        }
-
         var alienRaces = includeReferenceData
             ? await dbContext.AlienRaces
                 .AsNoTracking()
@@ -171,7 +137,6 @@ internal static class StarWinExplorerContextLoader
             sectors,
             currentSector ?? sectors.FirstOrDefault() ?? StarWinExplorerContext.Empty.CurrentSector,
             alienRaces,
-            empires,
-            []);
+            empires);
     }
 }

@@ -88,8 +88,6 @@ public sealed class AppConfigurationPageTests : BunitContext
 
         public IReadOnlyList<Empire> Empires => [];
 
-        public IReadOnlyList<EmpireContact> EmpireContacts => [];
-
         public CivilizationGeneratorSettings CivilizationSettings { get; } = new();
 
         public ArmyGeneratorSettings ArmySettings { get; } = new();
