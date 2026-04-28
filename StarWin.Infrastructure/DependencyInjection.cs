@@ -227,6 +227,7 @@ public static class DependencyInjection
     {
         await EnsureColumnAsync(connection, "Empires", "GovernmentType", "TEXT NOT NULL DEFAULT ''");
         await EnsureColumnAsync(connection, "Empires", "ImportDataJson", "TEXT NULL");
+        await EnsureColumnAsync(connection, "Empires", "IsFallen", "INTEGER NOT NULL DEFAULT 0");
         await EnsureColumnAsync(connection, "Empires", "CivilizationModifiers_Art", "INTEGER NOT NULL DEFAULT 0");
         await EnsureColumnAsync(connection, "Empires", "CivilizationModifiers_Determination", "INTEGER NOT NULL DEFAULT 0");
         await EnsureColumnAsync(connection, "Empires", "CivilizationModifiers_Individualism", "INTEGER NOT NULL DEFAULT 0");
@@ -287,6 +288,41 @@ public static class DependencyInjection
         await ExecuteNonQueryAsync(
             connection,
             """
+            CREATE INDEX IF NOT EXISTS "IX_Empires_IsFallen"
+            ON "Empires" ("IsFallen")
+            """);
+
+        await ExecuteNonQueryAsync(
+            connection,
+            """
+            CREATE INDEX IF NOT EXISTS "IX_Empires_Name"
+            ON "Empires" ("Name")
+            """);
+
+        await ExecuteNonQueryAsync(
+            connection,
+            """
+            CREATE INDEX IF NOT EXISTS "IX_EmpireRaceMemberships_RaceId_EmpireId"
+            ON "EmpireRaceMemberships" ("RaceId", "EmpireId")
+            """);
+
+        await ExecuteNonQueryAsync(
+            connection,
+            """
+            CREATE INDEX IF NOT EXISTS "IX_Colonies_ControllingEmpireId"
+            ON "Colonies" ("ControllingEmpireId")
+            """);
+
+        await ExecuteNonQueryAsync(
+            connection,
+            """
+            CREATE INDEX IF NOT EXISTS "IX_Colonies_FoundingEmpireId"
+            ON "Colonies" ("FoundingEmpireId")
+            """);
+
+        await ExecuteNonQueryAsync(
+            connection,
+            """
             CREATE UNIQUE INDEX IF NOT EXISTS "IX_Religions_Name"
             ON "Religions" ("Name")
             """);
@@ -336,6 +372,8 @@ public static class DependencyInjection
                 WHERE race."Religion" IS NOT NULL AND TRIM(race."Religion") <> '';
                 """);
         }
+
+        await BackfillStoredFallenEmpireFlagsSqliteAsync(connection);
     }
 
     private static async Task BackfillAlienEmpireImportParityDataAsync(StarWinDbContext dbContext, CancellationToken cancellationToken = default)
@@ -429,6 +467,34 @@ public static class DependencyInjection
                OR BiologyProfile_PsiRating = 'Very Poor';
             """,
             cancellationToken);
+    }
+
+    private static Task BackfillStoredFallenEmpireFlagsSqliteAsync(SqliteConnection connection)
+    {
+        return ExecuteNonQueryAsync(
+            connection,
+            """
+            UPDATE "Empires"
+            SET "IsFallen" = CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM "Colonies" AS colony
+                    WHERE colony."ControllingEmpireId" = "Empires"."Id")
+                    THEN 0
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM "Colonies" AS colony
+                    WHERE colony."ControllingEmpireId" = "Empires"."Id"
+                       OR colony."FoundingEmpireId" = "Empires"."Id")
+                    OR COALESCE("Planets", 0) > 0
+                    OR COALESCE("Moons", 0) > 0
+                    OR COALESCE("SpaceHabitats", 0) > 0
+                    OR COALESCE("NativePopulationMillions", 0) > 0
+                    OR COALESCE("SubjectPopulationMillions", 0) > 0
+                    THEN 1
+                ELSE 0
+            END;
+            """);
     }
 
     private static byte GetLegacyAttribute(IReadOnlyList<byte>? attributes, int oneBasedIndex)

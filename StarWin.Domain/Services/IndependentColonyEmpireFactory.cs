@@ -18,6 +18,7 @@ public sealed class IndependentColonyEmpireFactory(Func<double>? nextRandomValue
         {
             Name = BuildIndependentEmpireName(world, foundingRace, parentEmpire),
             LegacyRaceId = foundingRace.Id,
+            IsFallen = false,
             ExpansionPolicy = EmpireExpansionPolicy.CanExpand,
             Founding =
             {

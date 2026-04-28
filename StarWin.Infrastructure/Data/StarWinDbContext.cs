@@ -224,6 +224,8 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.HasKey(empire => empire.Id);
             entity.Property(empire => empire.Id).ValueGeneratedNever();
             entity.Property(empire => empire.Name).HasMaxLength(160);
+            entity.HasIndex(empire => empire.Name);
+            entity.HasIndex(empire => empire.IsFallen);
             entity.Property(empire => empire.GovernmentType).HasMaxLength(120);
             entity.Property(empire => empire.ImportDataJson);
             entity.Property(empire => empire.ExpansionPolicy).HasConversion<string>().HasMaxLength(80);
@@ -281,6 +283,7 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.Property<int>("Id");
             entity.HasKey("Id");
             entity.Property(membership => membership.Role).HasConversion<string>().HasMaxLength(80);
+            entity.HasIndex(membership => new { membership.RaceId, membership.EmpireId });
         });
 
         modelBuilder.Entity<EmpireContact>(entity =>
@@ -313,6 +316,8 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.ToTable("Colonies");
             entity.HasKey(colony => colony.Id);
             entity.Property(colony => colony.Id).ValueGeneratedNever();
+            entity.HasIndex(colony => colony.ControllingEmpireId);
+            entity.HasIndex(colony => colony.FoundingEmpireId);
             entity.Property(colony => colony.Name).HasMaxLength(160);
             entity.Property(colony => colony.WorldKind).HasConversion<string>().HasMaxLength(40);
             entity.Property(colony => colony.ColonistRaceName).HasMaxLength(160);

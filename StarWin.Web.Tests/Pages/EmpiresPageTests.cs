@@ -230,6 +230,7 @@ public sealed class EmpiresPageTests : BunitContext
             primaryEmpireName: "Ancient Watchers",
             primaryEmpireNativePopulationMillions: 950,
             primaryEmpirePlanets: 1,
+            primaryEmpireIsFallen: true,
             primaryWorld: CreateWorld(
                 101,
                 "Helios",
@@ -260,6 +261,7 @@ public sealed class EmpiresPageTests : BunitContext
             primaryEmpireName: "Ancient Watchers",
             primaryEmpireNativePopulationMillions: 950,
             primaryEmpirePlanets: 1,
+            primaryEmpireIsFallen: true,
             primaryWorld: CreateWorld(
                 101,
                 "Helios",
@@ -330,6 +332,7 @@ public sealed class EmpiresPageTests : BunitContext
             primaryEmpireName: "Ancient Watchers",
             primaryEmpireNativePopulationMillions: 950,
             primaryEmpirePlanets: 1,
+            primaryEmpireIsFallen: true,
             primaryWorld: CreateWorld(
                 101,
                 "Helios",
@@ -388,6 +391,7 @@ public sealed class EmpiresPageTests : BunitContext
             primaryEmpireName: "Ancient Watchers",
             primaryEmpireNativePopulationMillions: 950,
             primaryEmpirePlanets: 1,
+            primaryEmpireIsFallen: true,
             primaryWorld: CreateWorld(
                 101,
                 "Helios",
@@ -495,6 +499,7 @@ public sealed class EmpiresPageTests : BunitContext
         string primaryEmpireName = "Orion Compact",
         int primaryEmpirePlanets = 4,
         long primaryEmpireNativePopulationMillions = 3200,
+        bool primaryEmpireIsFallen = false,
         World? primaryWorld = null,
         IEnumerable<AlienRace>? additionalRaces = null,
         IEnumerable<Empire>? additionalEmpires = null,
@@ -549,7 +554,8 @@ public sealed class EmpiresPageTests : BunitContext
             foundingWorldId: world.Id,
             primaryRaceId: 1,
             planets: primaryEmpirePlanets,
-            nativePopulationMillions: primaryEmpireNativePopulationMillions);
+            nativePopulationMillions: primaryEmpireNativePopulationMillions,
+            isFallen: primaryEmpireIsFallen);
 
         var empires = new List<Empire> { empire };
         if (additionalEmpires is not null)
@@ -601,7 +607,8 @@ public sealed class EmpiresPageTests : BunitContext
         int foundingWorldId,
         int primaryRaceId,
         int planets,
-        long nativePopulationMillions)
+        long nativePopulationMillions,
+        bool isFallen = false)
     {
         var empire = new Empire
         {
@@ -609,7 +616,8 @@ public sealed class EmpiresPageTests : BunitContext
             Name = name,
             Planets = planets,
             MilitaryPower = 9,
-            NativePopulationMillions = nativePopulationMillions
+            NativePopulationMillions = nativePopulationMillions,
+            IsFallen = isFallen
         };
         empire.CivilizationProfile.TechLevel = 9;
         empire.Founding.FoundingWorldId = foundingWorldId;
@@ -688,7 +696,7 @@ public sealed class EmpiresPageTests : BunitContext
                     empire.Name,
                     empire.Planets,
                     empire.CivilizationProfile.TechLevel + 2,
-                    IsFallenEmpire(empire, request.SectorId)))
+                    empire.IsFallen))
                 .ToList();
 
             var page = items.Skip(request.Offset).Take(request.Limit + 1).ToList();
@@ -709,7 +717,7 @@ public sealed class EmpiresPageTests : BunitContext
                 empire.Name,
                 empire.Planets,
                 empire.CivilizationProfile.TechLevel + 2,
-                IsFallenEmpire(empire, sectorId)));
+                empire.IsFallen));
         }
 
         public virtual Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
@@ -766,7 +774,7 @@ public sealed class EmpiresPageTests : BunitContext
                 memberRaces,
                 colonies,
                 colonies.Count(item => item.IsControlled),
-                IsFallenEmpire(empire, sectorId)));
+                empire.IsFallen));
         }
 
         public Task<ExplorerReligionFilterOptions> LoadReligionFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
@@ -869,7 +877,7 @@ public sealed class EmpiresPageTests : BunitContext
                 return false;
             }
 
-            if (request.FallenOnly && !IsFallenEmpire(empire, request.SectorId))
+            if (request.FallenOnly && !empire.IsFallen)
             {
                 return false;
             }
@@ -897,26 +905,6 @@ public sealed class EmpiresPageTests : BunitContext
                 : null;
         }
 
-        private bool IsFallenEmpire(Empire empire, int sectorId)
-        {
-            var sector = context.Sectors.First(item => item.Id == sectorId);
-            var hasControlledColony = sector.Systems
-                .SelectMany(system => system.Worlds)
-                .Any(world => world.Colony?.ControllingEmpireId == empire.Id);
-            if (hasControlledColony)
-            {
-                return false;
-            }
-
-            return sector.Systems
-                       .SelectMany(system => system.Worlds)
-                       .Any(world => world.Colony?.FoundingEmpireId == empire.Id)
-                || empire.Planets > 0
-                || empire.Moons > 0
-                || empire.SpaceHabitats > 0
-                || empire.NativePopulationMillions > 0
-                || empire.SubjectPopulationMillions > 0;
-        }
     }
 
     private sealed class DelayedEmpireQueryService(StarWinExplorerContext context, TimeSpan delay)

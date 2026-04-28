@@ -506,7 +506,8 @@ public sealed class StarWinExplorerQueryServiceTests
             Name = "Watcher Remnant",
             GovernmentType = "Council",
             Planets = 1,
-            NativePopulationMillions = 30
+            NativePopulationMillions = 30,
+            IsFallen = true
         };
         fallenEmpire.CivilizationProfile.TechLevel = 7;
         fallenEmpire.Founding.FoundingWorldId = 104;

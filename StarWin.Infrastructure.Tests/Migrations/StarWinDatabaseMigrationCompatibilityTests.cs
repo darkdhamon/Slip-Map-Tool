@@ -14,7 +14,7 @@ namespace StarWin.Infrastructure.Tests.Migrations;
 public sealed class StarWinDatabaseMigrationCompatibilityTests
 {
     private const string PreviousMigrationId = "20260425142621_AddHistoryImportDataJson";
-    private const string CurrentMigrationId = "20260427064246_AddAlienEmpireImportParity";
+    private const string CurrentMigrationId = "20260428011905_AddEmpireIsFallenFlag";
 
     [Fact]
     public async Task Sqlite_can_apply_every_migration_step_in_sequence_from_initial_to_latest()
@@ -145,6 +145,7 @@ public sealed class StarWinDatabaseMigrationCompatibilityTests
         Assert.Contains("nvarchar(max)", script);
         Assert.Contains("INSERT INTO Religions", script);
         Assert.Contains("UPDATE empire", script);
+        Assert.Contains("IsFallen", script);
     }
 
     private static async Task AssertPostParityStateAsync(string databasePath, bool expectLegacyColumnsDropped)
@@ -168,6 +169,7 @@ public sealed class StarWinDatabaseMigrationCompatibilityTests
         Assert.Equal(string.Empty, race.HairType);
 
         Assert.Equal("Representative Democracy", empire.GovernmentType);
+        Assert.True(empire.IsFallen);
         Assert.Equal("Legacy Faith", religion.Name);
         Assert.Equal("Legacy Faith", empireReligion.ReligionName);
         Assert.Equal(100m, empireReligion.PopulationPercent);
@@ -177,6 +179,7 @@ public sealed class StarWinDatabaseMigrationCompatibilityTests
         Assert.True(await ColumnExistsAsync(connection, "AlienRaces", "HairType"));
         Assert.True(await ColumnExistsAsync(connection, "AlienRaces", "CivilizationProfile_Militancy"));
         Assert.True(await ColumnExistsAsync(connection, "Empires", "GovernmentType"));
+        Assert.True(await ColumnExistsAsync(connection, "Empires", "IsFallen"));
         if (expectLegacyColumnsDropped)
         {
             Assert.False(await ColumnExistsAsync(connection, "AlienRaces", "Religion"));

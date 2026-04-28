@@ -339,6 +339,7 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         "Name",
         "LegacyRaceId",
         "GovernmentType",
+        "IsFallen",
         "CivilizationProfile_Militancy",
         "CivilizationProfile_Determination",
         "CivilizationProfile_RacialTolerance",
@@ -1580,6 +1581,9 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
                 addedSpaceHabitatCount++;
             }
 
+            await ReportImportProgressAsync(progress, 95, "Updating empire state...", "Setting fallen-empire flags from the finalized colony control data.");
+            await ApplyStoredFallenEmpireFlagsAsync(dbContext, knownEmpires.Keys, cancellationToken);
+
             await ReportImportProgressAsync(progress, 96, "Preparing import summary...", "Recording the import history event and final change summary.");
             if (addedSystemCount > 0 || addedAstralBodyCount > 0 || addedWorldCount > 0 || addedAlienCount > 0 || addedEmpireCount > 0 || addedColonyCount > 0 || addedHistoryCount > 0 || addedIndependentEmpireCount > 0 || addedSpaceHabitatCount > 0)
             {
@@ -2112,6 +2116,7 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         empire.Name,
         empire.LegacyRaceId,
         empire.GovernmentType,
+        empire.IsFallen,
         empire.CivilizationProfile.Militancy,
         empire.CivilizationProfile.Determination,
         empire.CivilizationProfile.RacialTolerance,
@@ -3256,6 +3261,60 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
         return empireId is { } id && knownEmpires.TryGetValue(id, out var empire)
             ? empire
             : null;
+    }
+
+    private static async Task ApplyStoredFallenEmpireFlagsAsync(
+        StarWinDbContext dbContext,
+        IReadOnlyCollection<int> empireIds,
+        CancellationToken cancellationToken)
+    {
+        if (empireIds.Count == 0)
+        {
+            return;
+        }
+
+        var colonies = await dbContext.Colonies.ToListAsync(cancellationToken);
+        var controlledEmpireIds = colonies
+            .Where(colony => colony.ControllingEmpireId.HasValue)
+            .Select(colony => colony.ControllingEmpireId!.Value)
+            .ToHashSet();
+        var colonyLinkedEmpireIds = colonies
+            .Where(colony => colony.ControllingEmpireId.HasValue)
+            .Select(colony => colony.ControllingEmpireId!.Value)
+            .Concat(colonies
+                .Where(colony => colony.FoundingEmpireId.HasValue)
+                .Select(colony => colony.FoundingEmpireId!.Value))
+            .ToHashSet();
+
+        var persistedEmpires = await dbContext.Empires
+            .Where(empire => empireIds.Contains(empire.Id))
+            .ToListAsync(cancellationToken);
+        var empiresToUpdate = persistedEmpires
+            .Concat(dbContext.ChangeTracker
+                .Entries<Empire>()
+                .Where(entry => entry.State == EntityState.Added && empireIds.Contains(entry.Entity.Id))
+                .Select(entry => entry.Entity))
+            .DistinctBy(empire => empire.Id)
+            .ToList();
+
+        foreach (var empire in empiresToUpdate)
+        {
+            empire.IsFallen = DetermineStoredFallenEmpireStatus(empire, controlledEmpireIds, colonyLinkedEmpireIds);
+        }
+    }
+
+    private static bool DetermineStoredFallenEmpireStatus(
+        Empire empire,
+        IReadOnlySet<int> controlledEmpireIds,
+        IReadOnlySet<int> colonyLinkedEmpireIds)
+    {
+        return !controlledEmpireIds.Contains(empire.Id)
+            && (colonyLinkedEmpireIds.Contains(empire.Id)
+                || empire.Planets > 0
+                || empire.Moons > 0
+                || empire.SpaceHabitats > 0
+                || empire.NativePopulationMillions > 0
+                || empire.SubjectPopulationMillions > 0);
     }
 
     private static void AssignColonyToIndependentEmpire(Colony colony, Empire empire)

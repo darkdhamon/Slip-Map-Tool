@@ -46,6 +46,8 @@ public sealed class Empire
 
     public long IndependentPopulationMillions { get; set; }
 
+    public bool IsFallen { get; set; }
+
     public string? ImportDataJson { get; set; }
 
     public MilitaryForceProfile MilitaryForces { get; set; } = new();

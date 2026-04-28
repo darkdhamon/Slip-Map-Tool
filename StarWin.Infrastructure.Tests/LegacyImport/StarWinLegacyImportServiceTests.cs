@@ -91,6 +91,7 @@ public sealed class StarWinLegacyImportServiceTests
             Assert.Single(empire.Religions);
             Assert.Equal("Veloran Tradition", empire.Religions[0].ReligionName);
             Assert.False(string.IsNullOrWhiteSpace(empire.ImportDataJson));
+            Assert.True(empire.IsFallen);
             Assert.Equal(1, await verificationContext.Religions.CountAsync());
 
             using var raceImportData = JsonDocument.Parse(race.ImportDataJson!);
