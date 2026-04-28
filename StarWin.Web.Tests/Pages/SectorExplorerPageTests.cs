@@ -243,6 +243,55 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
+    public void MapWorkspacePromptsToPreGenerateRoutesWhenSavedRoutesAreMissing()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector(includeSavedRoutes: false);
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("does not have saved hyperlane routes yet", cut.Markup);
+            Assert.Contains("Open sector configuration", cut.Markup);
+        });
+
+        var configurationLink = cut.FindAll("a")
+            .Single(link => link.TextContent.Contains("Open sector configuration", StringComparison.Ordinal));
+        Assert.Equal("/sector-explorer/configuration?sectorId=7&systemId=11", configurationLink.GetAttribute("href"));
+
+        cut.FindAll("button.overlay-action")
+            .First(button => button.TextContent.Contains("Load 3D map", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("using dynamically generated hyperlane routes", cut.Markup));
+    }
+
+    [Fact]
+    public void MapWorkspaceSkipsPreGenerationPromptWhenSavedRoutesExist()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11));
+
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+
+        Assert.DoesNotContain("Open sector configuration", cut.Markup);
+        Assert.DoesNotContain("saved hyperlane routes yet", cut.Markup);
+    }
+
+    [Fact]
     public void MapWorkspaceBuildsPayloadWithExpectedRendererFields()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -289,7 +338,7 @@ public sealed class SectorExplorerPageTests : BunitContext
         Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());
     }
 
-    private static StarWinSector CreateSector()
+    private static StarWinSector CreateSector(bool includeSavedRoutes = true)
     {
         var sector = new StarWinSector
         {
@@ -345,17 +394,20 @@ public sealed class SectorExplorerPageTests : BunitContext
             Coordinates = new Coordinates(1, 0, 0),
             AllegianceId = 8
         });
-        sector.SavedRoutes.Add(new SectorSavedRoute
+        if (includeSavedRoutes)
         {
-            Id = 1,
-            SectorId = 7,
-            SourceSystemId = 11,
-            TargetSystemId = 12,
-            DistanceParsecs = 1m,
-            TravelTimeYears = 0.01m,
-            TechnologyLevel = 6,
-            TierName = "Basic Hyperlane"
-        });
+            sector.SavedRoutes.Add(new SectorSavedRoute
+            {
+                Id = 1,
+                SectorId = 7,
+                SourceSystemId = 11,
+                TargetSystemId = 12,
+                DistanceParsecs = 1m,
+                TravelTimeYears = 0.01m,
+                TechnologyLevel = 6,
+                TierName = "Basic Hyperlane"
+            });
+        }
 
         return sector;
     }

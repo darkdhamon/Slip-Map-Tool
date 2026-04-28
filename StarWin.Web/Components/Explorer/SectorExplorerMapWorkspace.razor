@@ -63,6 +63,16 @@ else
                 <span class="panel-kicker">3D Sector Map</span>
                 <h2>@mapPanelTitle</h2>
                 <p>The interactive map is available on request so large imported sectors do not slow down the explorer while you browse records.</p>
+                @if (ShouldRecommendSavedRouteGeneration(mapSector))
+                {
+                    <div class="route-cache-note">
+                        <p>@GetSavedRouteGenerationRecommendation(mapSector, isDynamicFallbackActive: false)</p>
+                        <a class="overlay-action route-cache-action"
+                           href="@BuildSectorConfigurationRoute()">
+                            Open sector configuration
+                        </a>
+                    </div>
+                }
                 <label class="switch-field">
                     <input type="checkbox"
                            checked="@autoLoadRequested"
@@ -86,6 +96,16 @@ else
                 @if (!string.IsNullOrWhiteSpace(sectorMapPerformanceStatus))
                 {
                     <small class="map-performance-status">@sectorMapPerformanceStatus</small>
+                }
+                @if (ShouldRecommendSavedRouteGeneration(mapSector))
+                {
+                    <div class="route-cache-note route-cache-note-compact">
+                        <p>@GetSavedRouteGenerationRecommendation(mapSector, isDynamicFallbackActive: true)</p>
+                        <a class="overlay-action route-cache-action"
+                           href="@BuildSectorConfigurationRoute()">
+                            Open sector configuration
+                        </a>
+                    </div>
                 }
                 @if (selectedRoutePlan is { } hudRoutePlan)
                 {
@@ -532,6 +552,23 @@ else
     private StarWinSector GetSelectionSector()
     {
         return GetMapSector();
+    }
+
+    private string BuildSectorConfigurationRoute()
+    {
+        return SectorExplorerRoutes.BuildSectionUri("Configuration", SectorId, selectedSystemId);
+    }
+
+    private static string GetSavedRouteGenerationRecommendation(StarWinSector sector, bool isDynamicFallbackActive)
+    {
+        return isDynamicFallbackActive
+            ? $"{sector.Name} is using dynamically generated hyperlane routes because this sector does not have saved routes yet. Run Save Current Routes in Sector Configuration to make future map loads much faster."
+            : $"{sector.Name} does not have saved hyperlane routes yet. The map can generate them dynamically, but running Save Current Routes in Sector Configuration will make future map loads much faster.";
+    }
+
+    private static bool ShouldRecommendSavedRouteGeneration(StarWinSector sector)
+    {
+        return sector.SavedRoutes.Count == 0;
     }
 
     private static int ResolveSelectedSystemId(StarWinSector sector, int requestedSystemId)
