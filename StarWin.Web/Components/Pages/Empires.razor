@@ -164,11 +164,12 @@
                         var capitalColony = selectedEmpireDetail is null ? null : GetCapitalColony(selectedEmpireDetail);
                         var empireColonies = selectedEmpireDetail?.Colonies ?? [];
                         var empireRelationships = selectedEmpireDetail?.Relationships ?? [];
+                        var empireRelationshipTypes = GetRelationshipTypeOptions(empireRelationships);
                         var controlledColonyCount = selectedEmpireDetail?.ControlledColonyCount ?? 0;
                         var selectedEmpireModifierDetail = selectedEmpireDetail?.CivilizationModifierDetail;
                         var filteredEmpireMemberRaces = FilterMemberRaces(empireMemberRaces, empireMemberRaceSearch);
                         var filteredEmpireColonies = FilterColonies(empireColonies, empireColonySearch);
-                        var filteredEmpireRelationships = FilterRelationships(empireRelationships, empireRelationshipSearch);
+                        var filteredEmpireRelationships = FilterRelationships(empireRelationships, empireRelationshipSearch, empireRelationshipType);
                         var selectedEmpireIsFallen = selectedEmpireDetail?.IsFallen ?? false;
                     }
                     <div class="alien-overview-grid empire-overview-grid">
@@ -371,10 +372,20 @@
                                     <span>@(empireRelationships.Count == filteredEmpireRelationships.Count ? $"{empireRelationships.Count} tracked" : $"{filteredEmpireRelationships.Count} of {empireRelationships.Count} shown")</span>
                                 </div>
                                 <label class="empire-browser-search">
-                                    <span>Search relationships</span>
-                                    <input placeholder="Empire or relation..."
+                                    <span>Search empires</span>
+                                    <input placeholder="Empire name..."
                                            @bind="empireRelationshipSearch"
                                            @bind:event="oninput" />
+                                </label>
+                                <label class="empire-browser-search">
+                                    <span>Relationship type</span>
+                                    <select @bind="empireRelationshipType">
+                                        <option value="">All relationship types</option>
+                                        @foreach (var relationshipType in empireRelationshipTypes)
+                                        {
+                                            <option value="@relationshipType">@relationshipType</option>
+                                        }
+                                    </select>
                                 </label>
                             </div>
                             <div class="relationship-list empire-scroll-list">

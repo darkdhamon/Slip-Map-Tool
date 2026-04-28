@@ -48,6 +48,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected string empireMemberRaceSearch = string.Empty;
     protected string empireColonySearch = string.Empty;
     protected string empireRelationshipSearch = string.Empty;
+    protected string empireRelationshipType = string.Empty;
     protected int empireRaceId = ComboAllFilterId;
     protected bool showOnlyFallenEmpires;
     protected bool empireHasMoreRecords;
@@ -884,18 +885,37 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     protected static IReadOnlyList<ExplorerEmpireRelationshipListing> FilterRelationships(
         IReadOnlyList<ExplorerEmpireRelationshipListing> relationships,
-        string query)
+        string query,
+        string relationshipType)
     {
+        IEnumerable<ExplorerEmpireRelationshipListing> filteredRelationships = relationships;
+
+        if (!string.IsNullOrWhiteSpace(relationshipType))
+        {
+            filteredRelationships = filteredRelationships.Where(relationship =>
+                relationship.Relation.Equals(relationshipType.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
         if (string.IsNullOrWhiteSpace(query))
         {
-            return relationships;
+            return filteredRelationships.ToList();
         }
 
         var trimmedQuery = query.Trim();
-        return relationships
+        return filteredRelationships
             .Where(relationship =>
-                relationship.OtherEmpireName.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase)
-                || relationship.Relation.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase))
+                relationship.OtherEmpireName.Contains(trimmedQuery, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    protected static IReadOnlyList<string> GetRelationshipTypeOptions(
+        IReadOnlyList<ExplorerEmpireRelationshipListing> relationships)
+    {
+        return relationships
+            .Select(relationship => relationship.Relation)
+            .Where(relationshipType => !string.IsNullOrWhiteSpace(relationshipType))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(relationshipType => relationshipType, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 

@@ -488,7 +488,7 @@ public sealed class EmpiresPageTests : BunitContext
             Assert.Contains("Krell Reach", relationshipCard.TextContent);
         });
 
-        cut.Find("input[placeholder='Empire or relation...']").Input("war");
+        cut.Find("input[placeholder='Empire name...']").Input("Watcher");
 
         cut.WaitForAssertion(() =>
         {
@@ -496,6 +496,17 @@ public sealed class EmpiresPageTests : BunitContext
             Assert.Contains("1 of 2 shown", relationshipCard.TextContent);
             Assert.Contains("Watcher Remnant", relationshipCard.TextContent);
             Assert.DoesNotContain("Krell Reach", relationshipCard.TextContent);
+        });
+
+        cut.Find("input[placeholder='Empire name...']").Input(string.Empty);
+        cut.FindAll("select").Single(select => select.TextContent.Contains("All relationship types")).Change("Trade");
+
+        cut.WaitForAssertion(() =>
+        {
+            var relationshipCard = cut.FindAll(".empire-browser-card").Single(card => card.TextContent.Contains("Empire relationships"));
+            Assert.Contains("1 of 2 shown", relationshipCard.TextContent);
+            Assert.Contains("Krell Reach", relationshipCard.TextContent);
+            Assert.DoesNotContain("Watcher Remnant", relationshipCard.TextContent);
         });
     }
 
