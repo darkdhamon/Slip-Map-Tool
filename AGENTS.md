@@ -14,6 +14,8 @@ Do not start coding for an issue-driven conversation until I explicitly ask you 
 
 GitHub project workflow uses the `Starforged Atlas Task Board`.
 
+When an issue is in `Backlog`, move it to `Ready` after research is complete.
+
 GitHub release workflow:
 1. Create releases from `master` only.
 2. Pull the latest `origin/master` before building release artifacts.
@@ -37,8 +39,6 @@ GitHub release workflow:
 12. Until explicitly changed, the release name suffix is `Developer Preview`.
 13. Include the release name in the `dev` -> `master` pull request title/body when preparing the promotion.
 14. After the `dev` -> `master` pull request is fully merged, create the GitHub release from `master` using that version.
-
-When an assigned issue is in `Backlog`, move it to `Ready` after research is complete.
 
 When I explicitly tell you to implement the changes, move the issue from `Ready` to `In progress`.
 

@@ -19,7 +19,10 @@ namespace StarWin.Infrastructure.Data.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     TargetKind = table.Column<string>(type: "nvarchar(40)", maxLength: 40, nullable: false),
                     TargetId = table.Column<int>(type: "int", nullable: false),
-                    Markdown = table.Column<string>(type: "nvarchar(max)", maxLength: 16000, nullable: false),
+                    Markdown = table.Column<string>(
+                        type: ActiveProvider.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) ? "TEXT" : "nvarchar(max)",
+                        maxLength: 16000,
+                        nullable: false),
                     UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
                 },
                 constraints: table =>

@@ -12,8 +12,6 @@ public sealed class AlienRace
 
     public string BodyChemistry { get; set; } = string.Empty;
 
-    public string GovernmentType { get; set; } = string.Empty;
-
     public string BodyCoverType { get; set; } = string.Empty;
 
     public string AppearanceType { get; set; } = string.Empty;
@@ -24,13 +22,19 @@ public sealed class AlienRace
 
     public string ReproductionMethod { get; set; } = string.Empty;
 
-    public string Religion { get; set; } = string.Empty;
-
     public byte Devotion { get; set; }
 
     public AlienDevotionLevel DevotionLevel { get; set; }
 
+    public CivilizationProfile CivilizationProfile { get; set; } = new();
+
     public AlienBiologyProfile BiologyProfile { get; set; } = new();
+
+    public string GravityPreference { get; set; } = string.Empty;
+
+    public string TemperaturePreference { get; set; } = string.Empty;
+
+    public string AtmosphereBreathed { get; set; } = string.Empty;
 
     public short MassKg { get; set; }
 
@@ -38,19 +42,27 @@ public sealed class AlienRace
 
     public byte LimbPairCount { get; set; }
 
-    public IList<string> LimbTypes { get; } = new List<string>();
+    public IList<string> LimbTypes { get; set; } = new List<string>();
 
-    public IList<string> Abilities { get; } = new List<string>();
+    public IList<string> Abilities { get; set; } = new List<string>();
 
-    public IList<string> BodyCharacteristics { get; } = new List<string>();
+    public IList<string> BodyCharacteristics { get; set; } = new List<string>();
 
-    public IList<string> EyeCharacteristics { get; } = new List<string>();
+    public IList<string> EyeCharacteristics { get; set; } = new List<string>();
 
-    public IList<string> EyeColors { get; } = new List<string>();
+    public IList<string> EyeColors { get; set; } = new List<string>();
 
-    public IList<string> HairColors { get; } = new List<string>();
+    public IList<string> HairColors { get; set; } = new List<string>();
 
-    public IList<string> Colors { get; } = new List<string>();
+    public string HairType { get; set; } = string.Empty;
+
+    public IList<string> Colors { get; set; } = new List<string>();
+
+    public string ColorPattern { get; set; } = string.Empty;
 
     public byte[] LegacyAttributes { get; set; } = Array.Empty<byte>();
+
+    public bool RequiresUserRename { get; set; }
+
+    public string? ImportDataJson { get; set; }
 }

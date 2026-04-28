@@ -22,6 +22,8 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
 
     public DbSet<Empire> Empires => Set<Empire>();
 
+    public DbSet<Religion> Religions => Set<Religion>();
+
     public DbSet<Colony> Colonies => Set<Colony>();
 
     public DbSet<HistoryEvent> HistoryEvents => Set<HistoryEvent>();
@@ -173,6 +175,11 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
 
     private static void ConfigureCivilization(ModelBuilder modelBuilder)
     {
+        var stringListConverter = new ValueConverter<IList<string>, string>(
+            values => System.Text.Json.JsonSerializer.Serialize(values, (System.Text.Json.JsonSerializerOptions?)null),
+            value => string.IsNullOrWhiteSpace(value)
+                ? new List<string>()
+                : System.Text.Json.JsonSerializer.Deserialize<List<string>>(value) ?? new List<string>());
         modelBuilder.Entity<AlienRace>(entity =>
         {
             entity.ToTable("AlienRaces");
@@ -181,25 +188,34 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.Property(race => race.Name).HasMaxLength(160);
             entity.Property(race => race.EnvironmentType).HasMaxLength(80);
             entity.Property(race => race.BodyChemistry).HasMaxLength(80);
-            entity.Property(race => race.GovernmentType).HasMaxLength(120);
             entity.Property(race => race.BodyCoverType).HasMaxLength(120);
             entity.Property(race => race.AppearanceType).HasMaxLength(120);
             entity.Property(race => race.Diet).HasMaxLength(80);
             entity.Property(race => race.Reproduction).HasMaxLength(80);
             entity.Property(race => race.ReproductionMethod).HasMaxLength(120);
-            entity.Property(race => race.Religion).HasMaxLength(160);
             entity.Property(race => race.DevotionLevel).HasConversion<string>().HasMaxLength(60);
+            entity.Property(race => race.GravityPreference).HasMaxLength(80);
+            entity.Property(race => race.TemperaturePreference).HasMaxLength(80);
+            entity.Property(race => race.AtmosphereBreathed).HasMaxLength(120);
+            entity.Property(race => race.HairType).HasMaxLength(120);
+            entity.Property(race => race.ColorPattern).HasMaxLength(120);
+            entity.Property(race => race.ImportDataJson);
+            entity.OwnsOne(race => race.CivilizationProfile, owned =>
+            {
+                owned.Ignore(profile => profile.TechLevel);
+                owned.Ignore(profile => profile.SpatialAge);
+            });
             entity.OwnsOne(race => race.BiologyProfile, owned =>
             {
                 owned.Property(profile => profile.PsiRating).HasConversion<string>().HasMaxLength(60);
             });
-            entity.Ignore(race => race.LimbTypes);
-            entity.Ignore(race => race.Abilities);
-            entity.Ignore(race => race.BodyCharacteristics);
-            entity.Ignore(race => race.EyeCharacteristics);
-            entity.Ignore(race => race.EyeColors);
-            entity.Ignore(race => race.HairColors);
-            entity.Ignore(race => race.Colors);
+            entity.Property(race => race.LimbTypes).HasConversion(stringListConverter);
+            entity.Property(race => race.Abilities).HasConversion(stringListConverter);
+            entity.Property(race => race.BodyCharacteristics).HasConversion(stringListConverter);
+            entity.Property(race => race.EyeCharacteristics).HasConversion(stringListConverter);
+            entity.Property(race => race.EyeColors).HasConversion(stringListConverter);
+            entity.Property(race => race.HairColors).HasConversion(stringListConverter);
+            entity.Property(race => race.Colors).HasConversion(stringListConverter);
         });
 
         modelBuilder.Entity<Empire>(entity =>
@@ -208,8 +224,13 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.HasKey(empire => empire.Id);
             entity.Property(empire => empire.Id).ValueGeneratedNever();
             entity.Property(empire => empire.Name).HasMaxLength(160);
+            entity.HasIndex(empire => empire.Name);
+            entity.HasIndex(empire => empire.IsFallen);
+            entity.Property(empire => empire.GovernmentType).HasMaxLength(120);
+            entity.Property(empire => empire.ImportDataJson);
             entity.Property(empire => empire.ExpansionPolicy).HasConversion<string>().HasMaxLength(80);
             entity.OwnsOne(empire => empire.CivilizationProfile);
+            entity.OwnsOne(empire => empire.CivilizationModifiers);
             entity.OwnsOne(empire => empire.Founding, owned =>
             {
                 owned.Property(founding => founding.Origin).HasConversion<string>().HasMaxLength(80);
@@ -253,6 +274,7 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             });
             entity.HasMany(empire => empire.RaceMemberships).WithOne().OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(empire => empire.Contacts).WithOne().OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(empire => empire.Religions).WithOne().HasForeignKey(religion => religion.EmpireId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<EmpireRaceMembership>(entity =>
@@ -261,6 +283,7 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.Property<int>("Id");
             entity.HasKey("Id");
             entity.Property(membership => membership.Role).HasConversion<string>().HasMaxLength(80);
+            entity.HasIndex(membership => new { membership.RaceId, membership.EmpireId });
         });
 
         modelBuilder.Entity<EmpireContact>(entity =>
@@ -271,11 +294,30 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.Property(contact => contact.Relation).HasMaxLength(160);
         });
 
+        modelBuilder.Entity<Religion>(entity =>
+        {
+            entity.ToTable("Religions");
+            entity.HasKey(religion => religion.Id);
+            entity.Property(religion => religion.Name).HasMaxLength(160);
+            entity.Property(religion => religion.Type).HasMaxLength(120);
+            entity.HasIndex(religion => religion.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<EmpireReligion>(entity =>
+        {
+            entity.ToTable("EmpireReligions");
+            entity.Property(religion => religion.ReligionName).HasMaxLength(160);
+            entity.HasKey(religion => new { religion.EmpireId, religion.ReligionId });
+            entity.HasOne<Religion>().WithMany().HasForeignKey(religion => religion.ReligionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Colony>(entity =>
         {
             entity.ToTable("Colonies");
             entity.HasKey(colony => colony.Id);
             entity.Property(colony => colony.Id).ValueGeneratedNever();
+            entity.HasIndex(colony => colony.ControllingEmpireId);
+            entity.HasIndex(colony => colony.FoundingEmpireId);
             entity.Property(colony => colony.Name).HasMaxLength(160);
             entity.Property(colony => colony.WorldKind).HasConversion<string>().HasMaxLength(40);
             entity.Property(colony => colony.ColonistRaceName).HasMaxLength(160);

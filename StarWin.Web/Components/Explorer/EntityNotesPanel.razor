@@ -6,7 +6,7 @@
     <div class="notes-header">
         <div>
             <span class="panel-kicker">@Title</span>
-            <h3>Notes</h3>
+            <h3>@Heading</h3>
         </div>
         @if (isEditing)
         {
@@ -17,15 +17,15 @@
         }
         else
         {
-            <button type="button" @onclick="StartEditing">Edit notes</button>
+            <button type="button" @onclick="StartEditing">@EditButtonText</button>
         }
     </div>
 
     @if (isEditing)
     {
         <textarea class="markdown-editor"
-                  rows="10"
-                  placeholder="Write notes in markdown..."
+                  rows="@EditorRows"
+                  placeholder="@EditorPlaceholder"
                   @bind="draftMarkdown"></textarea>
         @if (!string.IsNullOrWhiteSpace(saveStatus))
         {
@@ -34,7 +34,7 @@
     }
     else if (string.IsNullOrWhiteSpace(markdown))
     {
-        <p class="notes-empty">No notes yet.</p>
+        <p class="notes-empty">@EmptyText</p>
     }
     else
     {
@@ -67,6 +67,21 @@
 
     [Parameter]
     public string Title { get; set; } = "Record";
+
+    [Parameter]
+    public string Heading { get; set; } = "Notes";
+
+    [Parameter]
+    public string EditButtonText { get; set; } = "Edit notes";
+
+    [Parameter]
+    public string EmptyText { get; set; } = "No notes yet.";
+
+    [Parameter]
+    public string EditorPlaceholder { get; set; } = "Write notes in markdown...";
+
+    [Parameter]
+    public int EditorRows { get; set; } = 10;
 
     protected override async Task OnParametersSetAsync()
     {

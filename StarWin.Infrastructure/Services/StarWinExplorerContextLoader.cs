@@ -41,6 +41,7 @@ internal static class StarWinExplorerContextLoader
             .AsSplitQuery()
             .Include(empire => empire.RaceMemberships)
             .Include(empire => empire.Contacts)
+            .Include(empire => empire.Religions)
             .OrderBy(empire => empire.Name)
             .ToListAsync(cancellationToken);
 
@@ -85,6 +86,7 @@ internal static class StarWinExplorerContextLoader
                 .AsSplitQuery()
                 .Include(empire => empire.RaceMemberships)
                 .Include(empire => empire.Contacts)
+                .Include(empire => empire.Religions)
                 .OrderBy(empire => empire.Name)
                 .ToListAsync(cancellationToken)
             : [];

@@ -31,15 +31,26 @@ namespace StarWin.Web.Data.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
-            migrationBuilder.Sql("""
-                INSERT INTO SectorConfigurations (SectorId, BasicHyperlaneTierName, BasicHyperlaneMaximumLengthParsecs, UpdatedAtUtc)
-                SELECT Id, 'Basic', 1.000, SYSUTCDATETIME()
-                FROM Sectors
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM SectorConfigurations
-                    WHERE SectorConfigurations.SectorId = Sectors.Id)
-                """);
+            migrationBuilder.Sql(
+                ActiveProvider.Contains("Sqlite", StringComparison.OrdinalIgnoreCase)
+                    ? """
+                      INSERT INTO SectorConfigurations (SectorId, BasicHyperlaneTierName, BasicHyperlaneMaximumLengthParsecs, UpdatedAtUtc)
+                      SELECT Id, 'Basic', 1.000, CURRENT_TIMESTAMP
+                      FROM Sectors
+                      WHERE NOT EXISTS (
+                          SELECT 1
+                          FROM SectorConfigurations
+                          WHERE SectorConfigurations.SectorId = Sectors.Id)
+                      """
+                    : """
+                      INSERT INTO SectorConfigurations (SectorId, BasicHyperlaneTierName, BasicHyperlaneMaximumLengthParsecs, UpdatedAtUtc)
+                      SELECT Id, 'Basic', 1.000, SYSUTCDATETIME()
+                      FROM Sectors
+                      WHERE NOT EXISTS (
+                          SELECT 1
+                          FROM SectorConfigurations
+                          WHERE SectorConfigurations.SectorId = Sectors.Id)
+                      """);
         }
 
         /// <inheritdoc />
