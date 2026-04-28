@@ -4,10 +4,41 @@ public interface IStarWinExplorerQueryService
 {
     Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default);
     Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<StarWinSearchResult>> SearchSectorAsync(int sectorId, string query, int maxResults = 30, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<StarWinSearchResult>>([]);
+    Task<int?> ResolveSystemIdAsync(
+        int sectorId,
+        int? worldId = null,
+        int? colonyId = null,
+        int? habitatId = null,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<int?>(null);
+    Task<IReadOnlyList<ExplorerLookupOption>> LoadSectorEmpireOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<ExplorerLookupOption>>([]);
     Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default);
     Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default);
     Task<ExplorerAlienRaceListItem?> LoadAlienRaceListItemAsync(int sectorId, int raceId, CancellationToken cancellationToken = default);
     Task<ExplorerAlienRaceDetail?> LoadAlienRaceDetailAsync(int sectorId, int raceId, CancellationToken cancellationToken = default);
+    Task<ExplorerSystemFilterOptions> LoadSystemFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        => Task.FromResult(new ExplorerSystemFilterOptions([]));
+    Task<ExplorerSystemListPage> LoadSystemListPageAsync(ExplorerSystemListPageRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult(new ExplorerSystemListPage([], false));
+    Task<ExplorerSystemListItem?> LoadSystemListItemAsync(int sectorId, int systemId, CancellationToken cancellationToken = default)
+        => Task.FromResult<ExplorerSystemListItem?>(null);
+    Task<ExplorerSystemDetail?> LoadSystemDetailAsync(int sectorId, int systemId, CancellationToken cancellationToken = default)
+        => Task.FromResult<ExplorerSystemDetail?>(null);
+    Task<ExplorerWorldsWorkspace?> LoadWorldsWorkspaceAsync(int sectorId, int systemId, CancellationToken cancellationToken = default)
+        => Task.FromResult<ExplorerWorldsWorkspace?>(null);
+    Task<ExplorerColonyFilterOptions> LoadColonyFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
+        => Task.FromResult(new ExplorerColonyFilterOptions([], [], []));
+    Task<ExplorerColonyListPage> LoadColonyListPageAsync(ExplorerColonyListPageRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult(new ExplorerColonyListPage([], false));
+    Task<ExplorerColonyListItem?> LoadColonyListItemAsync(int sectorId, int colonyId, CancellationToken cancellationToken = default)
+        => Task.FromResult<ExplorerColonyListItem?>(null);
+    Task<ExplorerColonyDetail?> LoadColonyDetailAsync(int sectorId, int colonyId, CancellationToken cancellationToken = default)
+        => Task.FromResult<ExplorerColonyDetail?>(null);
+    Task<ExplorerHyperlaneWorkspace?> LoadHyperlaneWorkspaceAsync(int sectorId, CancellationToken cancellationToken = default)
+        => Task.FromResult<ExplorerHyperlaneWorkspace?>(null);
     Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default);
     Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default);
     Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default);
@@ -37,6 +68,86 @@ public sealed record ExplorerSectorEntityUsage(
     int SectorId,
     IReadOnlyList<int> RaceIds,
     IReadOnlyList<int> EmpireIds);
+
+public sealed record ExplorerSystemFilterOptions(
+    IReadOnlyList<ExplorerLookupOption> Empires);
+
+public sealed record ExplorerSystemListPageRequest(
+    int SectorId,
+    int Offset,
+    int Limit,
+    string? Query = null,
+    int? EmpireId = null);
+
+public sealed record ExplorerSystemListPage(
+    IReadOnlyList<ExplorerSystemListItem> Items,
+    bool HasMore);
+
+public sealed record ExplorerSystemListItem(
+    int SystemId,
+    int? LegacySystemId,
+    string Name,
+    StarWin.Domain.Model.Entity.StarMap.Coordinates Coordinates,
+    ushort AllegianceId,
+    string AllegianceName);
+
+public sealed record ExplorerSystemDetail(
+    int SectorId,
+    StarWin.Domain.Model.Entity.StarMap.StarSystem System);
+
+public sealed record ExplorerWorldsWorkspace(
+    int SectorId,
+    StarWin.Domain.Model.Entity.StarMap.StarSystem System,
+    IReadOnlyList<ExplorerLookupOption> Empires);
+
+public sealed record ExplorerColonyFilterOptions(
+    IReadOnlyList<ExplorerLookupOption> Races,
+    IReadOnlyList<ExplorerLookupOption> Empires,
+    IReadOnlyList<string> Classes);
+
+public sealed record ExplorerColonyListPageRequest(
+    int SectorId,
+    int Offset,
+    int Limit,
+    string? Query = null,
+    int? RaceId = null,
+    int? EmpireId = null,
+    string? Status = null,
+    string? ColonyClass = null);
+
+public sealed record ExplorerColonyListPage(
+    IReadOnlyList<ExplorerColonyListItem> Items,
+    bool HasMore);
+
+public sealed record ExplorerColonyListItem(
+    int ColonyId,
+    int WorldId,
+    int SystemId,
+    string ColonyName,
+    string WorldName,
+    string AllegianceName,
+    long EstimatedPopulation);
+
+public sealed record ExplorerColonyDetail(
+    int SectorId,
+    StarWin.Domain.Model.Entity.Civilization.Colony Colony,
+    StarWin.Domain.Model.Entity.StarMap.World World);
+
+public sealed record ExplorerHyperlaneWorkspace(
+    int SectorId,
+    string SectorName,
+    StarWin.Domain.Model.Entity.StarMap.SectorConfiguration Configuration,
+    IReadOnlyList<ExplorerHyperlaneSystem> Systems,
+    IReadOnlyList<StarWin.Domain.Model.Entity.StarMap.SectorSavedRoute> SavedRoutes,
+    IReadOnlyList<int> EligibleSystemIds,
+    IReadOnlyList<ExplorerLookupOption> Empires);
+
+public sealed record ExplorerHyperlaneSystem(
+    int SystemId,
+    int? LegacySystemId,
+    string Name,
+    StarWin.Domain.Model.Entity.StarMap.Coordinates Coordinates,
+    ushort AllegianceId);
 
 public sealed record ExplorerAlienRaceFilterOptions(
     IReadOnlyList<string> EnvironmentTypes,

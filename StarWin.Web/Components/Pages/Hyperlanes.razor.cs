@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using StarWin.Application.Services;
-using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.StarMap;
 using StarWin.Domain.Services;
 using StarWin.Web.Components.Explorer;
@@ -13,7 +12,7 @@ public partial class Hyperlanes : ComponentBase
     private const int ExplorerListBatchSize = 120;
 
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
-    [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
+    [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
     [Inject] protected IStarWinSectorRouteService SectorRouteService { get; set; } = default!;
     [Inject] protected NavigationManager NavigationManager { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
@@ -29,6 +28,7 @@ public partial class Hyperlanes : ComponentBase
 
     protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
+    protected ExplorerHyperlaneWorkspace? selectedWorkspace;
     protected string explorerRenderError = string.Empty;
     protected int selectedSectorId;
     protected int selectedSystemId;
@@ -50,13 +50,14 @@ public partial class Hyperlanes : ComponentBase
 
     private bool browserSessionReady;
     private bool browserSessionRestored;
+    private StarWinSector? selectedSectorRecord;
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
-    protected IReadOnlyList<Empire> ExplorerEmpires => explorerContext.Empires;
+    protected IReadOnlyList<ExplorerLookupOption> ExplorerEmpires => selectedWorkspace?.Empires ?? [];
     protected IReadOnlySet<int> sectorEmpireIds => GetSelectedSector().Systems.Select(system => (int)system.AllegianceId).Where(id => id > 0).ToHashSet();
 
-    private IReadOnlyDictionary<int, Empire> EmpiresById =>
-        ExplorerEmpires.ToDictionary(empire => empire.Id);
+    private IReadOnlyDictionary<int, string> EmpireNamesById =>
+        ExplorerEmpires.ToDictionary(empire => empire.Id, empire => empire.Name);
 
     protected override async Task OnInitializedAsync()
     {
@@ -82,6 +83,7 @@ public partial class Hyperlanes : ComponentBase
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
+            await LoadSelectedWorkspaceAsync(selectedSectorId);
         }
 
         var sector = GetSelectedSector();
@@ -102,7 +104,9 @@ public partial class Hyperlanes : ComponentBase
 
     protected StarWinSector GetSelectedSector()
     {
-        return ExplorerSectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? explorerContext.CurrentSector;
+        return selectedSectorRecord?.Id == selectedSectorId
+            ? selectedSectorRecord
+            : ExplorerSectors.FirstOrDefault(item => item.Id == selectedSectorId) ?? explorerContext.CurrentSector;
     }
 
     protected string BuildSectionRoute(string sectionName)
@@ -128,6 +132,7 @@ public partial class Hyperlanes : ComponentBase
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
+        await LoadSelectedWorkspaceAsync(selectedSectorId);
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
@@ -160,8 +165,7 @@ public partial class Hyperlanes : ComponentBase
     protected Task HandleSearchQueryChangedAsync(string value)
     {
         searchQuery = value;
-        RunSearch();
-        return Task.CompletedTask;
+        return RunSearchAsync();
     }
 
     protected void NavigateToSearchResult(StarWinSearchResult result)
@@ -171,7 +175,7 @@ public partial class Hyperlanes : ComponentBase
             result.SectorId ?? selectedSectorId,
             result.SystemId ?? 0,
             result.WorldId ?? 0,
-            result.Type == StarWinSearchResultType.Colony ? result.WorldId ?? 0 : 0,
+            result.ColonyId ?? 0,
             result.SpaceHabitatId ?? 0,
             result.RaceId ?? 0,
             result.EmpireId ?? 0);
@@ -198,9 +202,13 @@ public partial class Hyperlanes : ComponentBase
 
     protected SectorHyperlaneNetworkReport GetSavedHyperlaneReport(StarWinSector sector)
     {
+        if (selectedWorkspace is null)
+        {
+            return SectorHyperlaneNetworkReport.Empty;
+        }
+
         return SectorRoutePlanner.BuildHyperlaneNetworkReport(
-            sector,
-            EmpiresById,
+            selectedWorkspace.EligibleSystemIds,
             sector.SavedRoutes.Select(route => new SectorHyperlaneRouteDefinition(
                 route.SourceSystemId,
                 route.TargetSystemId,
@@ -366,9 +374,9 @@ public partial class Hyperlanes : ComponentBase
                 (byte)hyperlaneTechnologyLevel,
                 hyperlaneTierName,
                 hyperlanePrimaryOwnerEmpireId > 0 ? hyperlanePrimaryOwnerEmpireId : null,
-                hyperlanePrimaryOwnerEmpireId > 0 && EmpiresById.TryGetValue(hyperlanePrimaryOwnerEmpireId, out var primaryOwner) ? primaryOwner.Name : string.Empty,
+                hyperlanePrimaryOwnerEmpireId > 0 && EmpireNamesById.TryGetValue(hyperlanePrimaryOwnerEmpireId, out var primaryOwnerName) ? primaryOwnerName : string.Empty,
                 hyperlaneSecondaryOwnerEmpireId > 0 ? hyperlaneSecondaryOwnerEmpireId : null,
-                hyperlaneSecondaryOwnerEmpireId > 0 && EmpiresById.TryGetValue(hyperlaneSecondaryOwnerEmpireId, out var secondaryOwner) ? secondaryOwner.Name : string.Empty,
+                hyperlaneSecondaryOwnerEmpireId > 0 && EmpireNamesById.TryGetValue(hyperlaneSecondaryOwnerEmpireId, out var secondaryOwnerName) ? secondaryOwnerName : string.Empty,
                 hyperlaneIsUserPersisted));
 
             await RefreshExplorerDataAsync();
@@ -444,9 +452,18 @@ public partial class Hyperlanes : ComponentBase
     private async Task RefreshExplorerDataAsync(CancellationToken cancellationToken = default)
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
-            includeSavedRoutes: true,
-            includeReferenceData: true,
+            preferredSectorId: RequestedSectorId ?? selectedSectorId,
+            includeSavedRoutes: false,
+            includeReferenceData: false,
             cancellationToken: cancellationToken);
+
+        var workspaceSectorId = RequestedSectorId ?? selectedSectorId;
+        if (workspaceSectorId <= 0)
+        {
+            workspaceSectorId = explorerContext.CurrentSector.Id;
+        }
+
+        await LoadSelectedWorkspaceAsync(workspaceSectorId, cancellationToken);
     }
 
     private SectorSavedRoute? ResolveSelectedHyperlane(StarWinSector sector)
@@ -464,11 +481,9 @@ public partial class Hyperlanes : ComponentBase
         return sector.SavedRoutes.FirstOrDefault();
     }
 
-    private void RunSearch()
+    private async Task RunSearchAsync()
     {
-        searchResults = SearchService.Search(searchQuery)
-            .Where(result => result.SectorId is null || result.SectorId == selectedSectorId)
-            .ToList();
+        searchResults = await ExplorerQueryService.SearchSectorAsync(selectedSectorId, searchQuery);
     }
 
     private async Task RestoreExplorerSessionAsync()
@@ -513,6 +528,19 @@ public partial class Hyperlanes : ComponentBase
             new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Hyperlanes")));
     }
 
+    private async Task LoadSelectedWorkspaceAsync(int sectorId, CancellationToken cancellationToken = default)
+    {
+        if (sectorId <= 0)
+        {
+            selectedWorkspace = null;
+            selectedSectorRecord = null;
+            return;
+        }
+
+        selectedWorkspace = await ExplorerQueryService.LoadHyperlaneWorkspaceAsync(sectorId, cancellationToken);
+        selectedSectorRecord = selectedWorkspace is null ? null : BuildSectorRecord(selectedWorkspace);
+    }
+
     private static string FormatSelectedSystem(StarWinSector sector, int systemId)
     {
         var system = sector.Systems.FirstOrDefault(item => item.Id == systemId);
@@ -536,5 +564,35 @@ public partial class Hyperlanes : ComponentBase
         return sourceSystemId <= targetSystemId
             ? (sourceSystemId, targetSystemId)
             : (targetSystemId, sourceSystemId);
+    }
+
+    private static StarWinSector BuildSectorRecord(ExplorerHyperlaneWorkspace workspace)
+    {
+        var sector = new StarWinSector
+        {
+            Id = workspace.SectorId,
+            Name = workspace.SectorName,
+            Configuration = workspace.Configuration
+        };
+
+        foreach (var system in workspace.Systems)
+        {
+            sector.Systems.Add(new StarSystem
+            {
+                Id = system.SystemId,
+                LegacySystemId = system.LegacySystemId,
+                SectorId = workspace.SectorId,
+                Name = system.Name,
+                Coordinates = system.Coordinates,
+                AllegianceId = system.AllegianceId
+            });
+        }
+
+        foreach (var route in workspace.SavedRoutes)
+        {
+            sector.SavedRoutes.Add(route);
+        }
+
+        return sector;
     }
 }

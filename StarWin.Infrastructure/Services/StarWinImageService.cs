@@ -34,6 +34,45 @@ public sealed class StarWinImageService(
             .ToList();
     }
 
+    public async Task<IReadOnlyList<EntityImage>> GetImagesAsync(
+        IReadOnlyCollection<EntityImageTarget> targets,
+        CancellationToken cancellationToken = default)
+    {
+        if (targets.Count == 0)
+        {
+            return [];
+        }
+
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var normalizedTargets = targets
+            .Distinct()
+            .GroupBy(target => target.TargetKind)
+            .ToDictionary(group => group.Key, group => group.Select(target => target.TargetId).Distinct().ToList());
+
+        var images = new List<EntityImage>();
+        foreach (var targetGroup in normalizedTargets)
+        {
+            var targetIds = targetGroup.Value;
+            if (targetIds.Count == 0)
+            {
+                continue;
+            }
+
+            images.AddRange(await dbContext.EntityImages
+                .AsNoTracking()
+                .Where(image => image.TargetKind == targetGroup.Key && targetIds.Contains(image.TargetId))
+                .ToListAsync(cancellationToken));
+        }
+
+        return images
+            .OrderBy(image => image.TargetKind)
+            .ThenBy(image => image.TargetId)
+            .ThenByDescending(image => image.IsPrimary)
+            .ThenBy(image => image.UploadedAt.UtcTicks)
+            .ToList();
+    }
+
     public async Task<EntityImage> UploadImageAsync(
         EntityImageTargetKind targetKind,
         int targetId,

@@ -99,6 +99,7 @@ public sealed class SectorConfigurationPageTests : BunitContext
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(explorerContextService);
+        Services.AddSingleton<IStarWinExplorerQueryService>(new ContextBackedExplorerQueryService(explorerContextService.Context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinSectorConfigurationService>(configService ?? new FakeSectorConfigurationService());
         Services.AddSingleton<IStarWinSectorRouteService>(routeService ?? new FakeSectorRouteService());
@@ -144,9 +145,11 @@ public sealed class SectorConfigurationPageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
+        public StarWinExplorerContext Context { get; } = context;
+
         public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, int? detailedSectorId = null, ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(context);
+            return Task.FromResult(Context);
         }
     }
 

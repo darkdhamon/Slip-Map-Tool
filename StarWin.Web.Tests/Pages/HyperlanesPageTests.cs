@@ -131,6 +131,7 @@ public sealed class HyperlanesPageTests : BunitContext
 
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(explorerContextService);
+        Services.AddSingleton<IStarWinExplorerQueryService>(new ContextBackedExplorerQueryService(explorerContextService.Context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinSectorRouteService>(activeRouteService);
         Services.AddSingleton<IStarWinEntityNoteService>(new FakeEntityNoteService());

@@ -25,6 +25,18 @@ public interface IStarWinExplorerContextService
         int? detailedSectorId = null,
         ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None,
         CancellationToken cancellationToken = default);
+
+    Task<StarWinExplorerContext> LoadShellAsync(
+        int? preferredSectorId = null,
+        bool includeSavedRoutes = false,
+        bool includeReferenceData = false,
+        CancellationToken cancellationToken = default)
+        => LoadShellAsync(
+            includeSavedRoutes,
+            includeReferenceData,
+            preferredSectorId,
+            ExplorerSectorLoadSections.None,
+            cancellationToken);
 }
 
 public sealed record StarWinExplorerContext(

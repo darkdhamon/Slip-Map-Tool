@@ -12,13 +12,11 @@ namespace StarWin.Web.Components.Pages;
 
 public partial class Colonies : ComponentBase, IAsyncDisposable
 {
-    private const int ColonyBatchSize = 120;
+    private const int ExplorerListBatchSize = 120;
     private const int ComboAllFilterId = -1;
-    private const ExplorerSectorLoadSections DetailedSectorSections = ExplorerSectorLoadSections.Worlds
-        | ExplorerSectorLoadSections.Colonies
-        | ExplorerSectorLoadSections.ColonyDemographics;
+
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
-    [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
+    [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
     [Inject] protected IStarWinImageService ImageService { get; set; } = default!;
     [Inject] protected IStarWinEntityNameService EntityNameService { get; set; } = default!;
     [Inject] protected NavigationManager NavigationManager { get; set; } = default!;
@@ -40,10 +38,10 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
     public int? RequestedEmpireId { get; set; }
 
     protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
-    protected readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
-    protected readonly Dictionary<int, World> WorldsById = [];
 
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
+    protected ExplorerColonyFilterOptions colonyFilterOptions = new([], [], []);
+    protected ExplorerColonyDetail? selectedColonyDetail;
     protected string explorerRenderError = string.Empty;
     protected int selectedSectorId;
     protected int selectedSystemId;
@@ -58,36 +56,38 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
     protected int colonyEmpireId = ComboAllFilterId;
     protected string colonyStatus = string.Empty;
     protected string colonyClass = string.Empty;
-    protected int colonyVisibleCount = ColonyBatchSize;
     protected bool colonyHasMoreRecords;
     protected bool showColonyFilters;
-
-    private IReadOnlyList<EntityImage> entityImages = [];
-    private bool entityImagesLoaded;
-    private bool entityImagesLoading;
     protected string imageUploadStatus = string.Empty;
-    private ElementReference colonyLoadMoreElement;
-    private DotNetObjectReference<Colonies>? dotNetReference;
-    private IJSObjectReference? loadMoreScrollModule;
+
+    private readonly List<ExplorerColonyListItem> loadedColonySummaries = [];
+    private IReadOnlyList<EntityImage> entityImages = [];
+    private bool entityImagesLoading;
+    private bool colonyListLoading;
+    private bool colonyDetailLoading;
     private bool colonyObserverConfigured;
     private bool browserSessionReady;
     private bool browserSessionRestored;
+    private int loadedColonySectorId;
+    private string lastLoadedImageKey = string.Empty;
+    private ElementReference colonyLoadMoreElement;
+    private DotNetObjectReference<Colonies>? dotNetReference;
+    private IJSObjectReference? loadMoreScrollModule;
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
-    protected IReadOnlyList<AlienRace> ExplorerAlienRaces => explorerContext.AlienRaces;
-    protected IReadOnlyList<Empire> ExplorerEmpires => explorerContext.Empires;
+    protected IReadOnlyList<ExplorerColonyListItem> LoadedColonySummaries => loadedColonySummaries;
 
     protected override async Task OnInitializedAsync()
     {
-        await RefreshExplorerDataAsync(RequestedSectorId);
+        await RefreshExplorerShellAsync(RequestedSectorId);
         var initialSector = RequestedSectorId is int requestedSectorId
             ? ExplorerSectors.FirstOrDefault(sector => sector.Id == requestedSectorId) ?? explorerContext.CurrentSector
             : explorerContext.CurrentSector;
 
         selectedSectorId = initialSector.Id;
-        selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
+        selectedSystemId = await ResolveRequestedSystemIdAsync(initialSector);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
-        selectedColonyId = ResolveSelectedColonyId(initialSector);
+        await LoadColonyPageAsync(resetList: true);
     }
 
     protected override async Task OnParametersSetAsync()
@@ -101,13 +101,13 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
-            await RefreshExplorerDataAsync(selectedSectorId);
+            await LoadColonyPageAsync(resetList: true);
         }
 
         var sector = GetSelectedSector();
-        selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
+        selectedSystemId = await ResolveRequestedSystemIdAsync(sector);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedColonyId = ResolveSelectedColonyId(sector);
+        await EnsureSelectedColonyDetailAsync();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -121,12 +121,7 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
         }
 
         await ConfigureColonyObserverAsync();
-        _ = EnsureEntityImagesLoadedAsync(backgroundLoad: true);
     }
-
-    protected ExplorerSectorCache GetSectorCache(StarWinSector sector) => sectorCacheBuilder.Get(sector);
-
-    protected ExplorerSectorSummary GetSectorSummary(StarWinSector sector) => sectorCacheBuilder.GetSummary(sector);
 
     protected StarWinSector GetSelectedSector()
     {
@@ -156,12 +151,11 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
-        await RefreshExplorerDataAsync(selectedSectorId);
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedColonyId = ResolveSelectedColonyId(sector);
         ClearColonyFilters();
+        await LoadColonyPageAsync(resetList: true);
         await PersistExplorerSessionAsync();
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Colonies", selectedSectorId, selectedSystemId, colonyId: selectedColonyId));
     }
@@ -184,8 +178,31 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
     protected Task HandleSearchQueryChangedAsync(string value)
     {
         searchQuery = value;
-        RunSearch();
-        return Task.CompletedTask;
+        return RunSearchAsync();
+    }
+
+    private async Task<int> ResolveRequestedSystemIdAsync(StarWinSector sector, CancellationToken cancellationToken = default)
+    {
+        if (RequestedSystemId is int requestedSystemId
+            && sector.Systems.Any(system => system.Id == requestedSystemId))
+        {
+            return requestedSystemId;
+        }
+
+        if (RequestedColonyId is int requestedColonyId)
+        {
+            var resolvedSystemId = await ExplorerQueryService.ResolveSystemIdAsync(
+                sector.Id,
+                colonyId: requestedColonyId,
+                cancellationToken: cancellationToken);
+            if (resolvedSystemId is int requestedSelectionSystemId
+                && sector.Systems.Any(system => system.Id == requestedSelectionSystemId))
+            {
+                return requestedSelectionSystemId;
+            }
+        }
+
+        return ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
     }
 
     protected void NavigateToSearchResult(StarWinSearchResult result)
@@ -195,7 +212,7 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
             result.SectorId ?? selectedSectorId,
             result.SystemId ?? 0,
             result.WorldId ?? 0,
-            result.Type == StarWinSearchResultType.Colony ? result.WorldId ?? 0 : 0,
+            result.ColonyId ?? 0,
             result.SpaceHabitatId ?? 0,
             result.RaceId ?? 0,
             result.EmpireId ?? 0);
@@ -205,13 +222,21 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
 
     protected void SelectColony(int colonyId)
     {
+        var item = loadedColonySummaries.FirstOrDefault(summary => summary.ColonyId == colonyId);
         selectedColonyId = colonyId;
+        if (item is not null && item.SystemId > 0)
+        {
+            selectedSystemId = item.SystemId;
+            selectedSystemText = FormatSelectedSystem(GetSelectedSector(), selectedSystemId);
+        }
+
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Colonies", selectedSectorId, selectedSystemId, colonyId: colonyId), replace: true);
     }
 
     protected void NavigateToWorld(int worldId)
     {
-        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Worlds", selectedSectorId, selectedSystemId, worldId: worldId, colonyId: selectedColonyId));
+        var targetSystemId = selectedColonyDetail?.World.StarSystemId ?? selectedSystemId;
+        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Worlds", selectedSectorId, targetSystemId, worldId: worldId, colonyId: selectedColonyId));
     }
 
     protected void NavigateToRace(int raceId)
@@ -222,13 +247,45 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
     protected async Task SaveEntityNameAsync(EntityNoteTargetKind targetKind, int targetId, string name)
     {
         await EntityNameService.SaveNameAsync(targetKind, targetId, name);
-        await RefreshExplorerDataAsync(selectedSectorId);
-        selectedSystemText = FormatSelectedSystem(GetSelectedSector(), selectedSystemId);
+        await LoadColonyPageAsync(resetList: true);
     }
 
-    protected IEnumerable<(World World, Colony Colony)> GetFilteredColonies(ExplorerSectorCache sectorCache)
+    protected Task HandleColonyFiltersChangedAsync()
     {
-        return sectorCache.ColoniesByPopulation.Where(ColonyMatches);
+        ResetColonyWindow();
+        return LoadColonyPageAsync(resetList: true);
+    }
+
+    protected Task ApplyColonyRaceFilterAsync()
+    {
+        colonyRaceId = ParseComboId(colonyRaceText);
+        ResetColonyWindow();
+        return LoadColonyPageAsync(resetList: true);
+    }
+
+    protected Task ApplyColonyEmpireFilterAsync()
+    {
+        colonyEmpireId = ParseComboId(colonyEmpireText);
+        ResetColonyWindow();
+        return LoadColonyPageAsync(resetList: true);
+    }
+
+    protected void ToggleColonyFilters()
+    {
+        showColonyFilters = !showColonyFilters;
+    }
+
+    protected Task HandleClearColonyFiltersAsync()
+    {
+        ClearColonyFilters();
+        return LoadColonyPageAsync(resetList: true);
+    }
+
+    [JSInvokable]
+    public Task LoadMoreColonies()
+    {
+        colonyObserverConfigured = false;
+        return LoadMoreColoniesAsync();
     }
 
     protected IReadOnlyList<EntityImage> GetEntityImages(EntityImageTargetKind targetKind, int targetId)
@@ -264,104 +321,259 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
             : (long)Math.Round(colony.EstimatedPopulation * demographic.PopulationPercent / 100m);
     }
 
-    [JSInvokable]
-    public async Task LoadMoreColonies()
+    private async Task RefreshExplorerShellAsync(int? preferredSectorId = null, CancellationToken cancellationToken = default)
     {
-        if (loadMoreScrollModule is not null)
-        {
-            await loadMoreScrollModule.InvokeVoidAsync("disconnectColonyLoadMore");
-        }
-
-        colonyVisibleCount += ColonyBatchSize;
-        colonyObserverConfigured = false;
-        StateHasChanged();
+        explorerContext = await ExplorerContextService.LoadShellAsync(
+            preferredSectorId: preferredSectorId,
+            includeReferenceData: false,
+            cancellationToken: cancellationToken);
     }
 
-    protected void ResetColonyWindow()
+    private async Task LoadColonyPageAsync(bool resetList, CancellationToken cancellationToken = default)
     {
-        colonyVisibleCount = ColonyBatchSize;
-        colonyObserverConfigured = false;
-    }
-
-    protected void ClearColonyFilters()
-    {
-        colonyQuery = string.Empty;
-        colonyRaceText = string.Empty;
-        colonyEmpireText = string.Empty;
-        colonyRaceId = ComboAllFilterId;
-        colonyEmpireId = ComboAllFilterId;
-        colonyStatus = string.Empty;
-        colonyClass = string.Empty;
-        showColonyFilters = false;
-        ResetColonyWindow();
-    }
-
-    protected void ToggleColonyFilters()
-    {
-        showColonyFilters = !showColonyFilters;
-    }
-
-    protected void ApplyColonyRaceFilter()
-    {
-        colonyRaceId = ParseComboId(colonyRaceText);
-        ResetColonyWindow();
-    }
-
-    protected void ApplyColonyEmpireFilter()
-    {
-        colonyEmpireId = ParseComboId(colonyEmpireText);
-        ResetColonyWindow();
-    }
-
-    private bool ColonyMatches((World World, Colony Colony) item)
-    {
-        if (colonyRaceId != ComboAllFilterId
-            && item.Colony.RaceId != colonyRaceId
-            && !item.Colony.Demographics.Any(demographic => demographic.RaceId == colonyRaceId))
+        if (selectedSectorId <= 0)
         {
-            return false;
+            loadedColonySummaries.Clear();
+            colonyHasMoreRecords = false;
+            selectedColonyId = 0;
+            selectedColonyDetail = null;
+            colonyFilterOptions = new([], [], []);
+            entityImages = [];
+            lastLoadedImageKey = string.Empty;
+            return;
         }
 
-        if (colonyEmpireId != ComboAllFilterId
-            && item.Colony.AllegianceId != colonyEmpireId
-            && item.Colony.ControllingEmpireId != colonyEmpireId
-            && item.Colony.FoundingEmpireId != colonyEmpireId
-            && item.Colony.ParentEmpireId != colonyEmpireId)
+        if (resetList || loadedColonySectorId != selectedSectorId)
         {
-            return false;
+            loadedColonySummaries.Clear();
+            loadedColonySectorId = selectedSectorId;
+            colonyHasMoreRecords = false;
+            colonyObserverConfigured = false;
+            colonyFilterOptions = await ExplorerQueryService.LoadColonyFilterOptionsAsync(selectedSectorId, cancellationToken);
+            await LoadMoreColoniesAsync(cancellationToken);
         }
 
-        if (!string.IsNullOrWhiteSpace(colonyStatus)
-            && !string.Equals(item.Colony.PoliticalStatus.ToString(), colonyStatus, StringComparison.OrdinalIgnoreCase))
+        await EnsureSelectedColonySummaryVisibleAsync(cancellationToken);
+        await EnsureSelectedColonyDetailAsync(cancellationToken);
+    }
+
+    private async Task LoadMoreColoniesAsync(CancellationToken cancellationToken = default)
+    {
+        if (colonyListLoading || selectedSectorId <= 0)
         {
-            return false;
+            return;
         }
 
-        if (!string.IsNullOrWhiteSpace(colonyClass)
-            && !string.Equals(item.Colony.ColonyClass, colonyClass, StringComparison.OrdinalIgnoreCase))
+        colonyListLoading = true;
+        try
         {
-            return false;
+            var page = await ExplorerQueryService.LoadColonyListPageAsync(
+                new ExplorerColonyListPageRequest(
+                    selectedSectorId,
+                    loadedColonySummaries.Count,
+                    ExplorerListBatchSize,
+                    string.IsNullOrWhiteSpace(colonyQuery) ? null : colonyQuery.Trim(),
+                    colonyRaceId == ComboAllFilterId ? null : colonyRaceId,
+                    colonyEmpireId == ComboAllFilterId ? null : colonyEmpireId,
+                    string.IsNullOrWhiteSpace(colonyStatus) ? null : colonyStatus.Trim(),
+                    string.IsNullOrWhiteSpace(colonyClass) ? null : colonyClass.Trim()),
+                cancellationToken);
+
+            foreach (var item in page.Items)
+            {
+                if (loadedColonySummaries.All(existing => existing.ColonyId != item.ColonyId))
+                {
+                    loadedColonySummaries.Add(item);
+                }
+            }
+
+            colonyHasMoreRecords = page.HasMore;
+            if (selectedColonyId == 0 && loadedColonySummaries.Count > 0)
+            {
+                selectedColonyId = loadedColonySummaries[0].ColonyId;
+            }
+            else if (selectedColonyId > 0 && loadedColonySummaries.All(item => item.ColonyId != selectedColonyId))
+            {
+                selectedColonyId = loadedColonySummaries.FirstOrDefault()?.ColonyId ?? 0;
+            }
+
+            await EnsureSelectedColonySummaryVisibleAsync(cancellationToken);
+            await EnsureSelectedColonyDetailAsync(cancellationToken);
+            await InvokeAsync(StateHasChanged);
+        }
+        finally
+        {
+            colonyListLoading = false;
+        }
+    }
+
+    private async Task EnsureSelectedColonySummaryVisibleAsync(CancellationToken cancellationToken = default)
+    {
+        if (HasActiveColonyFilters())
+        {
+            return;
         }
 
-        if (string.IsNullOrWhiteSpace(colonyQuery))
+        var targetColonyId = RequestedColonyId ?? selectedColonyId;
+        if (targetColonyId <= 0 || loadedColonySummaries.Any(item => item.ColonyId == targetColonyId))
         {
-            return true;
+            return;
         }
 
-        var query = colonyQuery.Trim();
-        return ContainsQuery(item.World.Name, query)
-            || ContainsQuery(item.World.WorldType, query)
-            || ContainsQuery(item.Colony.Id.ToString(), query)
-            || ContainsQuery(item.Colony.Name, query)
-            || ContainsQuery(item.Colony.WorldId.ToString(), query)
-            || ContainsQuery(item.Colony.ColonyClass, query)
-            || ContainsQuery(item.Colony.ColonistRaceName, query)
-            || ContainsQuery(item.Colony.AllegianceName, query)
-            || ContainsQuery(item.Colony.Starport, query)
-            || ContainsQuery(item.Colony.GovernmentType, query)
-            || ContainsQuery(item.Colony.ExportResource, query)
-            || ContainsQuery(item.Colony.ImportResource, query)
-            || item.Colony.Demographics.Any(demographic => ContainsQuery(demographic.RaceName, query));
+        var requestedItem = await ExplorerQueryService.LoadColonyListItemAsync(selectedSectorId, targetColonyId, cancellationToken);
+        if (requestedItem is null)
+        {
+            return;
+        }
+
+        loadedColonySummaries.Add(requestedItem);
+        loadedColonySummaries.Sort((left, right) =>
+        {
+            var populationComparison = right.EstimatedPopulation.CompareTo(left.EstimatedPopulation);
+            if (populationComparison != 0)
+            {
+                return populationComparison;
+            }
+
+            var worldComparison = string.Compare(left.WorldName, right.WorldName, StringComparison.OrdinalIgnoreCase);
+            return worldComparison != 0 ? worldComparison : left.ColonyId.CompareTo(right.ColonyId);
+        });
+    }
+
+    private async Task EnsureSelectedColonyDetailAsync(CancellationToken cancellationToken = default)
+    {
+        var targetColonyId = HasActiveColonyFilters()
+            ? selectedColonyId
+            : RequestedColonyId ?? selectedColonyId;
+        if (targetColonyId <= 0)
+        {
+            targetColonyId = loadedColonySummaries.FirstOrDefault()?.ColonyId ?? 0;
+        }
+
+        if (targetColonyId <= 0 || colonyDetailLoading)
+        {
+            if (targetColonyId <= 0)
+            {
+                selectedColonyId = 0;
+                selectedColonyDetail = null;
+            }
+
+            return;
+        }
+
+        colonyDetailLoading = true;
+        try
+        {
+            var detail = await ExplorerQueryService.LoadColonyDetailAsync(selectedSectorId, targetColonyId, cancellationToken);
+            if (detail is null && loadedColonySummaries.Count > 0)
+            {
+                targetColonyId = loadedColonySummaries[0].ColonyId;
+                detail = await ExplorerQueryService.LoadColonyDetailAsync(selectedSectorId, targetColonyId, cancellationToken);
+            }
+
+            selectedColonyDetail = detail;
+            selectedColonyId = detail?.Colony.Id ?? 0;
+            if (detail?.World.StarSystemId is int systemId && systemId > 0)
+            {
+                selectedSystemId = systemId;
+                selectedSystemText = FormatSelectedSystem(GetSelectedSector(), selectedSystemId);
+            }
+
+            await EnsureEntityImagesLoadedAsync(cancellationToken);
+        }
+        finally
+        {
+            colonyDetailLoading = false;
+        }
+    }
+
+    private async Task EnsureEntityImagesLoadedAsync(CancellationToken cancellationToken = default)
+    {
+        var targets = selectedColonyDetail is null
+            ? []
+            : new List<EntityImageTarget> { new(EntityImageTargetKind.Colony, selectedColonyDetail.Colony.Id) };
+        var imageKey = string.Join('|', targets.Select(target => $"{(int)target.TargetKind}:{target.TargetId}"));
+        if (entityImagesLoading || imageKey == lastLoadedImageKey)
+        {
+            return;
+        }
+
+        entityImagesLoading = true;
+        try
+        {
+            entityImages = await ImageService.GetImagesAsync(targets, cancellationToken);
+            lastLoadedImageKey = imageKey;
+            explorerRenderError = string.Empty;
+            await InvokeAsync(StateHasChanged);
+        }
+        finally
+        {
+            entityImagesLoading = false;
+        }
+    }
+
+    private async Task RunSearchAsync()
+    {
+        searchResults = await ExplorerQueryService.SearchSectorAsync(selectedSectorId, searchQuery);
+    }
+
+    private async Task RestoreExplorerSessionAsync()
+    {
+        if (browserSessionRestored || RequestedSectorId is not null)
+        {
+            return;
+        }
+
+        browserSessionRestored = true;
+        var storedSelection = await ExplorerPageState.RestoreSelectionAsync(JS, RequestedSectorId);
+        if (storedSelection is null)
+        {
+            return;
+        }
+
+        var sector = ExplorerSectors.FirstOrDefault(item => item.Id == storedSelection.SectorId);
+        if (sector is null)
+        {
+            return;
+        }
+
+        selectedSectorId = sector.Id;
+        selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
+            ? storedSelection.SystemId
+            : sector.Systems.FirstOrDefault()?.Id ?? 0;
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        await LoadColonyPageAsync(resetList: true);
+        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Colonies", selectedSectorId, selectedSystemId, colonyId: selectedColonyId), replace: true);
+    }
+
+    private async Task PersistExplorerSessionAsync()
+    {
+        if (!browserSessionReady)
+        {
+            return;
+        }
+
+        await ExplorerPageState.PersistSelectionAsync(
+            JS,
+            browserSessionReady,
+            new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Colonies")));
+    }
+
+    private async Task UploadEntityImage(EntityImageTargetKind targetKind, int targetId, InputFileChangeEventArgs args)
+    {
+        var file = args.File;
+        try
+        {
+            await using var stream = file.OpenReadStream(10 * 1024 * 1024);
+            await ImageService.UploadImageAsync(targetKind, targetId, file.Name, file.ContentType, stream);
+            lastLoadedImageKey = string.Empty;
+            await EnsureEntityImagesLoadedAsync();
+            imageUploadStatus = $"{file.Name} uploaded.";
+        }
+        catch (Exception exception)
+        {
+            imageUploadStatus = exception.Message;
+        }
     }
 
     private async Task ConfigureColonyObserverAsync()
@@ -388,147 +600,31 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
         colonyObserverConfigured = true;
     }
 
-    private async Task EnsureEntityImagesLoadedAsync(bool backgroundLoad = false)
+    private void ClearColonyFilters()
     {
-        if (entityImagesLoaded || entityImagesLoading)
-        {
-            return;
-        }
-
-        entityImagesLoading = true;
-        try
-        {
-            entityImages = await ImageService.GetImagesAsync();
-            entityImagesLoaded = true;
-            explorerRenderError = string.Empty;
-            if (backgroundLoad)
-            {
-                await InvokeAsync(StateHasChanged);
-            }
-            else
-            {
-                StateHasChanged();
-            }
-        }
-        finally
-        {
-            entityImagesLoading = false;
-        }
+        colonyQuery = string.Empty;
+        colonyRaceText = string.Empty;
+        colonyEmpireText = string.Empty;
+        colonyRaceId = ComboAllFilterId;
+        colonyEmpireId = ComboAllFilterId;
+        colonyStatus = string.Empty;
+        colonyClass = string.Empty;
+        showColonyFilters = false;
+        ResetColonyWindow();
     }
 
-    private async Task RefreshExplorerDataAsync(int? detailedSectorId = null, CancellationToken cancellationToken = default)
+    private void ResetColonyWindow()
     {
-        explorerContext = await ExplorerContextService.LoadShellAsync(
-            includeSavedRoutes: false,
-            includeReferenceData: true,
-            detailedSectorId: detailedSectorId,
-            detailedSectorSections: DetailedSectorSections,
-            cancellationToken: cancellationToken);
-
-        foreach (var sectorId in ExplorerSectors.Select(sector => sector.Id))
-        {
-            sectorCacheBuilder.Invalidate(sectorId);
-        }
-        WorldsById.Clear();
-        foreach (var world in explorerContext.Sectors.SelectMany(sector => sector.Systems).SelectMany(system => system.Worlds))
-        {
-            WorldsById[world.Id] = world;
-        }
+        colonyObserverConfigured = false;
     }
 
-    private int ResolveSelectedColonyId(StarWinSector sector)
+    private bool HasActiveColonyFilters()
     {
-        if (RequestedColonyId is int requestedColonyId
-            && sector.Systems.SelectMany(system => system.Worlds).Any(world => world.Colony?.Id == requestedColonyId))
-        {
-            return requestedColonyId;
-        }
-
-        if (selectedColonyId > 0
-            && sector.Systems.SelectMany(system => system.Worlds).Any(world => world.Colony?.Id == selectedColonyId))
-        {
-            return selectedColonyId;
-        }
-
-        return sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId)?.Worlds.FirstOrDefault()?.Colony?.Id
-            ?? sector.Systems.SelectMany(system => system.Worlds).FirstOrDefault(world => world.Colony is not null)?.Colony?.Id
-            ?? 0;
-    }
-
-    private void RunSearch()
-    {
-        var sector = GetSelectedSector();
-        var sectorSummary = GetSectorSummary(sector);
-
-        searchResults = SearchService.Search(searchQuery)
-            .Where(result => result.Type switch
-            {
-                StarWinSearchResultType.AlienRace => result.RaceId is int raceId && sectorSummary.RaceIds.Contains(raceId),
-                StarWinSearchResultType.Empire => result.EmpireId is int empireId && sectorSummary.EmpireIds.Contains(empireId),
-                _ => result.SectorId is null || result.SectorId == sector.Id
-            })
-            .ToList();
-    }
-
-    private async Task RestoreExplorerSessionAsync()
-    {
-        if (browserSessionRestored || RequestedSectorId is not null)
-        {
-            return;
-        }
-
-        browserSessionRestored = true;
-        var storedSelection = await ExplorerPageState.RestoreSelectionAsync(JS, RequestedSectorId);
-        if (storedSelection is null)
-        {
-            return;
-        }
-
-        var sector = ExplorerSectors.FirstOrDefault(item => item.Id == storedSelection.SectorId);
-        if (sector is null)
-        {
-            return;
-        }
-
-        selectedSectorId = sector.Id;
-        await RefreshExplorerDataAsync(selectedSectorId);
-        sector = GetSelectedSector();
-        selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
-            ? storedSelection.SystemId
-            : sector.Systems.FirstOrDefault()?.Id ?? 0;
-        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        selectedColonyId = ResolveSelectedColonyId(sector);
-        NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Colonies", selectedSectorId, selectedSystemId, colonyId: selectedColonyId), replace: true);
-    }
-
-    private async Task PersistExplorerSessionAsync()
-    {
-        if (!browserSessionReady)
-        {
-            return;
-        }
-
-        await ExplorerPageState.PersistSelectionAsync(
-            JS,
-            browserSessionReady,
-            new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Colonies")));
-    }
-
-    private async Task UploadEntityImage(EntityImageTargetKind targetKind, int targetId, InputFileChangeEventArgs args)
-    {
-        var file = args.File;
-        try
-        {
-            await using var stream = file.OpenReadStream(10 * 1024 * 1024);
-            await ImageService.UploadImageAsync(targetKind, targetId, file.Name, file.ContentType, stream);
-            entityImages = await ImageService.GetImagesAsync();
-            entityImagesLoaded = true;
-            imageUploadStatus = $"{file.Name} uploaded.";
-        }
-        catch (Exception exception)
-        {
-            imageUploadStatus = exception.Message;
-        }
+        return !string.IsNullOrWhiteSpace(colonyQuery)
+            || colonyRaceId != ComboAllFilterId
+            || colonyEmpireId != ComboAllFilterId
+            || !string.IsNullOrWhiteSpace(colonyStatus)
+            || !string.IsNullOrWhiteSpace(colonyClass);
     }
 
     private static string FormatSelectedSystem(StarWinSector sector, int systemId)
@@ -537,9 +633,7 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
         return system is null ? string.Empty : $"{system.Id} - {system.Name}";
     }
 
-    private static string FormatRaceOption(AlienRace race) => $"{race.Id} - {race.Name}";
-
-    private static string FormatEmpireOption(Empire empire) => $"{empire.Id} - {empire.Name}";
+    private static string FormatLookupOption(ExplorerLookupOption option) => $"{option.Id} - {option.Name}";
 
     private static int ParseComboId(string value)
     {
@@ -551,11 +645,6 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
         var separatorIndex = value.IndexOf(" - ", StringComparison.Ordinal);
         var idText = separatorIndex < 0 ? value : value[..separatorIndex];
         return int.TryParse(idText, out var id) ? id : ComboAllFilterId;
-    }
-
-    private static bool ContainsQuery(string? value, string query)
-    {
-        return value?.Contains(query, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     public async ValueTask DisposeAsync()

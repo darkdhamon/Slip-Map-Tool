@@ -4,7 +4,7 @@
 
 @{
     var sector = GetSelectedSector();
-    var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
+    var selectedSystem = GetSelectedSystemRecord();
     var selectedHabitat = selectedSystem?.SpaceHabitats.FirstOrDefault(habitat => habitat.Id == selectedHabitatId);
     var selectedWorld = selectedHabitat is null
         ? selectedSystem?.Worlds.FirstOrDefault(world => world.Id == selectedWorldId) ?? selectedSystem?.Worlds.FirstOrDefault()

@@ -16,7 +16,6 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     private const int ComboAllFilterId = -1;
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
-    [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
     [Inject] protected IStarWinImageService ImageService { get; set; } = default!;
     [Inject] protected IStarWinEntityNameService EntityNameService { get; set; } = default!;
     [Inject] protected NavigationManager NavigationManager { get; set; } = default!;
@@ -57,8 +56,8 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     protected ExplorerAlienRaceFilterOptions raceFilterOptions = new([], [], [], []);
 
     private IReadOnlyList<EntityImage> entityImages = [];
-    private bool entityImagesLoaded;
     private bool entityImagesLoading;
+    private int lastLoadedRaceImageTargetId;
     private bool raceListLoading;
     private bool raceDetailLoading;
     private string imageUploadStatus = string.Empty;
@@ -176,8 +175,7 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     protected Task HandleSearchQueryChangedAsync(string value)
     {
         searchQuery = value;
-        RunSearch();
-        return Task.CompletedTask;
+        return RunSearchAsync();
     }
 
     protected void NavigateToSearchResult(StarWinSearchResult result)
@@ -187,7 +185,7 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             result.SectorId ?? selectedSectorId,
             result.SystemId ?? 0,
             result.WorldId ?? 0,
-            result.Type == StarWinSearchResultType.Colony ? result.WorldId ?? 0 : 0,
+            result.ColonyId ?? 0,
             result.SpaceHabitatId ?? 0,
             result.RaceId ?? 0,
             result.EmpireId ?? 0);
@@ -290,7 +288,15 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
 
     private async Task EnsureEntityImagesLoadedAsync(bool backgroundLoad = false)
     {
-        if (entityImagesLoaded || entityImagesLoading)
+        var raceId = selectedRaceDetail?.Race.Id ?? 0;
+        if (raceId <= 0)
+        {
+            entityImages = [];
+            lastLoadedRaceImageTargetId = 0;
+            return;
+        }
+
+        if (entityImagesLoading || lastLoadedRaceImageTargetId == raceId)
         {
             return;
         }
@@ -298,8 +304,9 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         entityImagesLoading = true;
         try
         {
-            entityImages = await ImageService.GetImagesAsync();
-            entityImagesLoaded = true;
+            entityImages = await ImageService.GetImagesAsync(
+                [new EntityImageTarget(EntityImageTargetKind.AlienRace, raceId)]);
+            lastLoadedRaceImageTargetId = raceId;
             explorerRenderError = string.Empty;
             if (backgroundLoad)
             {
@@ -319,16 +326,15 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     private async Task RefreshExplorerDataAsync(CancellationToken cancellationToken = default)
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
+            preferredSectorId: RequestedSectorId ?? selectedSectorId,
             includeSavedRoutes: false,
             includeReferenceData: false,
             cancellationToken: cancellationToken);
     }
 
-    private void RunSearch()
+    private async Task RunSearchAsync()
     {
-        searchResults = SearchService.Search(searchQuery)
-            .Where(result => result.SectorId is null || result.SectorId == selectedSectorId)
-            .ToList();
+        searchResults = await ExplorerQueryService.SearchSectorAsync(selectedSectorId, searchQuery);
     }
 
     private async Task RestoreExplorerSessionAsync()
@@ -480,6 +486,7 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         raceDetailLoading = true;
         try
         {
+            var previousRaceId = selectedRaceDetail?.Race.Id ?? 0;
             var detail = await ExplorerQueryService.LoadAlienRaceDetailAsync(selectedSectorId, targetRaceId, cancellationToken);
             if (detail is null && loadedRaceSummaries.Count > 0)
             {
@@ -489,6 +496,11 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
 
             selectedRaceDetail = detail;
             selectedRaceId = detail?.Race.Id ?? 0;
+            if (previousRaceId != selectedRaceId)
+            {
+                entityImages = [];
+                lastLoadedRaceImageTargetId = 0;
+            }
         }
         finally
         {
@@ -516,8 +528,8 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         {
             await using var stream = file.OpenReadStream(10 * 1024 * 1024);
             await ImageService.UploadImageAsync(targetKind, targetId, file.Name, file.ContentType, stream);
-            entityImages = await ImageService.GetImagesAsync();
-            entityImagesLoaded = true;
+            lastLoadedRaceImageTargetId = 0;
+            await EnsureEntityImagesLoadedAsync();
             imageUploadStatus = $"{file.Name} uploaded.";
         }
         catch (Exception exception)

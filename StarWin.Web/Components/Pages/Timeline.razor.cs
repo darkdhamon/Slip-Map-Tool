@@ -20,7 +20,6 @@ public partial class Timeline : ComponentBase
 
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
-    [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
     [Inject] protected NavigationManager NavigationManager { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
 
@@ -163,7 +162,7 @@ public partial class Timeline : ComponentBase
             result.SectorId ?? selectedSectorId,
             result.SystemId ?? 0,
             result.WorldId ?? 0,
-            result.Type == StarWinSearchResultType.Colony ? result.WorldId ?? 0 : 0,
+            result.ColonyId ?? 0,
             result.SpaceHabitatId ?? 0,
             result.RaceId ?? 0,
             result.EmpireId ?? 0);
@@ -274,6 +273,7 @@ public partial class Timeline : ComponentBase
     private async Task RefreshExplorerDataAsync(CancellationToken cancellationToken = default)
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
+            preferredSectorId: RequestedSectorId ?? selectedSectorId,
             includeSavedRoutes: false,
             includeReferenceData: true,
             cancellationToken: cancellationToken);
@@ -298,20 +298,7 @@ public partial class Timeline : ComponentBase
 
     private async Task RunSearchAsync()
     {
-        var sector = GetSelectedSector();
-        await EnsureSectorEntityUsageLoadedAsync(sector.Id);
-        var sectorEntityUsage = sectorEntityUsageById.GetValueOrDefault(sector.Id);
-        var sectorRaceIds = sectorEntityUsage?.RaceIds.ToHashSet() ?? [];
-        var sectorEmpireIds = sectorEntityUsage?.EmpireIds.ToHashSet() ?? [];
-
-        searchResults = SearchService.Search(searchQuery)
-            .Where(result => result.Type switch
-            {
-                StarWinSearchResultType.AlienRace => result.RaceId is int raceId && sectorRaceIds.Contains(raceId),
-                StarWinSearchResultType.Empire => result.EmpireId is int empireId && sectorEmpireIds.Contains(empireId),
-                _ => result.SectorId is null || result.SectorId == sector.Id
-            })
-            .ToList();
+        searchResults = await ExplorerQueryService.SearchSectorAsync(selectedSectorId, searchQuery);
     }
 
     private async Task RestoreExplorerSessionAsync()

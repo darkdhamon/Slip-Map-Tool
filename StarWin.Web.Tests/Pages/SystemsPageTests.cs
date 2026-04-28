@@ -125,6 +125,7 @@ public sealed class SystemsPageTests : BunitContext
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
+        Services.AddSingleton<IStarWinExplorerQueryService>(new ContextBackedExplorerQueryService(context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinImageService>(new FakeImageService());
         Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());

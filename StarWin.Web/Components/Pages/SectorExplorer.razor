@@ -4,7 +4,6 @@
 @inject IStarWinWorkspace Workspace
 @inject IStarWinExplorerContextService ExplorerContextService
 @inject IStarWinExplorerQueryService ExplorerQueryService
-@inject IStarWinSearchService SearchService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JS
 @using Microsoft.AspNetCore.WebUtilities
@@ -24,11 +23,7 @@
         selectedSystemText,
         EventCallback.Factory.Create<string>(this, HandleSelectedSystemTextChanged),
         searchQuery,
-        EventCallback.Factory.Create<string>(this, value =>
-        {
-            searchQuery = value;
-            RunSearch();
-        }),
+        EventCallback.Factory.Create<string>(this, HandleSearchQueryChangedAsync),
         searchResults,
         EventCallback.Factory.Create<StarWinSearchResult>(this, NavigateToSearchResult),
         sections,
@@ -149,12 +144,12 @@ else
     {
         await RefreshExplorerDataAsync();
         var initialSector = GetSelectedSector();
-        ApplyRequestedSelection(initialSector);
+        await ApplyRequestedSelectionAsync(initialSector);
         await EnsureSectorSelectionAsync(selectedSectorId, selectedSystemId);
         lastAppliedRequest = GetCurrentRequest();
     }
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         var currentRequest = GetCurrentRequest();
         if (currentRequest == lastAppliedRequest)
@@ -170,7 +165,7 @@ else
                 selectedSectorId = requestedSectorId;
             }
 
-            ApplyRequestedSelection(GetSelectedSector());
+            await ApplyRequestedSelectionAsync(GetSelectedSector());
         }
 
         lastAppliedRequest = currentRequest;
@@ -181,7 +176,9 @@ else
         var previousSectorId = selectedSectorId;
         var previousSystemId = selectedSystemId;
 
-        explorerContext = await ExplorerContextService.LoadShellAsync(cancellationToken: cancellationToken);
+        explorerContext = await ExplorerContextService.LoadShellAsync(
+            preferredSectorId: RequestedSectorId ?? selectedSectorId,
+            cancellationToken: cancellationToken);
 
         if (ExplorerSectors.Count == 0)
         {
@@ -198,7 +195,7 @@ else
 
         if (!string.IsNullOrWhiteSpace(searchQuery))
         {
-            RunSearch();
+            await RunSearchAsync();
         }
     }
 
@@ -371,49 +368,34 @@ else
         }
     }
 
-    private void RunSearch()
+    private Task HandleSearchQueryChangedAsync(string value)
     {
-        var sector = GetSelectedSector();
-        var raceIds = sector.Systems
-            .SelectMany(system => system.Worlds)
-            .Select(world => world.Colony?.RaceId)
-            .Where(raceId => raceId is not null)
-            .Select(raceId => (int)raceId!.Value)
-            .ToHashSet();
-        var empireIds = sector.Systems
-            .SelectMany(system => system.Worlds)
-            .Select(world => world.Colony?.AllegianceId)
-            .Where(empireId => empireId is not null && empireId != ushort.MaxValue)
-            .Select(empireId => (int)empireId!.Value)
-            .ToHashSet();
+        searchQuery = value;
+        return RunSearchAsync();
+    }
 
-        searchResults = SearchService.Search(searchQuery)
-            .Where(result => result.Type switch
-            {
-                StarWinSearchResultType.AlienRace => result.RaceId is int raceId && raceIds.Contains(raceId),
-                StarWinSearchResultType.Empire => result.EmpireId is int empireId && empireIds.Contains(empireId),
-                _ => true
-            })
-            .ToList();
+    private async Task RunSearchAsync()
+    {
+        searchResults = await ExplorerQueryService.SearchSectorAsync(selectedSectorId, searchQuery);
     }
 
     private void NavigateToSearchResult(StarWinSearchResult result)
     {
         var sectionName = sections.Contains(result.Tab) ? result.Tab : OverviewSectionName;
         var sectorId = result.SectorId ?? selectedSectorId;
-        var systemId = result.SystemId ?? ResolveSystemIdFromSearchResult(result, sectorId);
+        var systemId = result.SystemId ?? 0;
 
         searchQuery = result.Title;
         searchResults = [];
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri(
-            sectionName,
-            sectorId,
-            systemId,
-            result.WorldId ?? 0,
-            0,
-            result.SpaceHabitatId ?? 0,
-            result.RaceId ?? 0,
-            result.EmpireId ?? 0));
+             sectionName,
+             sectorId,
+             systemId,
+             result.WorldId ?? 0,
+             result.ColonyId ?? 0,
+             result.SpaceHabitatId ?? 0,
+             result.RaceId ?? 0,
+             result.EmpireId ?? 0));
     }
 
     private void SyncCurrentExplorerRoute(bool replaceHistory = false)
@@ -450,7 +432,7 @@ else
             RequestedEmpireId);
     }
 
-    private void ApplyRequestedSelection(StarWinSector sector)
+    private async Task ApplyRequestedSelectionAsync(StarWinSector sector, CancellationToken cancellationToken = default)
     {
         if (RequestedSystemId is int requestedSystemId
             && sector.Systems.Any(system => system.Id == requestedSystemId))
@@ -458,33 +440,11 @@ else
             selectedSystemId = requestedSystemId;
         }
 
-        if (RequestedWorldId is int requestedWorldId)
+        var resolvedSystemId = await ResolveRequestedSystemIdAsync(sector.Id, cancellationToken);
+        if (resolvedSystemId is int requestedSelectionSystemId
+            && sector.Systems.Any(system => system.Id == requestedSelectionSystemId))
         {
-            var worldSystem = sector.Systems.FirstOrDefault(system => system.Worlds.Any(world => world.Id == requestedWorldId));
-            if (worldSystem is not null)
-            {
-                selectedSystemId = worldSystem.Id;
-            }
-        }
-
-        if (RequestedColonyId is int requestedColonyId)
-        {
-            var colonyListing = sector.Systems
-                .SelectMany(system => system.Worlds.Select(world => new { system, world }))
-                .FirstOrDefault(item => item.world.Colony?.Id == requestedColonyId);
-            if (colonyListing is not null)
-            {
-                selectedSystemId = colonyListing.system.Id;
-            }
-        }
-
-        if (RequestedHabitatId is int requestedHabitatId)
-        {
-            var habitatSystem = sector.Systems.FirstOrDefault(system => system.SpaceHabitats.Any(habitat => habitat.Id == requestedHabitatId));
-            if (habitatSystem is not null)
-            {
-                selectedSystemId = habitatSystem.Id;
-            }
+            selectedSystemId = requestedSelectionSystemId;
         }
 
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
@@ -565,24 +525,33 @@ else
         }
     }
 
-    private int ResolveSystemIdFromSearchResult(StarWinSearchResult result, int sectorId)
+    private Task<int?> ResolveRequestedSystemIdAsync(int sectorId, CancellationToken cancellationToken = default)
     {
-        var sector = ExplorerSectors.FirstOrDefault(item => item.Id == sectorId) ?? GetSelectedSector();
-        if (result.WorldId is int worldId
-            && sector.Systems.FirstOrDefault(system => system.Worlds.Any(world => world.Id == worldId)) is { } worldSystem)
+        if (RequestedColonyId is int requestedColonyId)
         {
-            return worldSystem.Id;
+            return ExplorerQueryService.ResolveSystemIdAsync(
+                sectorId,
+                colonyId: requestedColonyId,
+                cancellationToken: cancellationToken);
         }
 
-        if (result.SpaceHabitatId is int habitatId
-            && sector.Systems.FirstOrDefault(system => system.SpaceHabitats.Any(habitat => habitat.Id == habitatId)) is { } habitatSystem)
+        if (RequestedHabitatId is int requestedHabitatId)
         {
-            return habitatSystem.Id;
+            return ExplorerQueryService.ResolveSystemIdAsync(
+                sectorId,
+                habitatId: requestedHabitatId,
+                cancellationToken: cancellationToken);
         }
 
-        return result.SystemId
-            ?? sector.Systems.FirstOrDefault()?.Id
-            ?? 0;
+        if (RequestedWorldId is int requestedWorldId)
+        {
+            return ExplorerQueryService.ResolveSystemIdAsync(
+                sectorId,
+                worldId: requestedWorldId,
+                cancellationToken: cancellationToken);
+        }
+
+        return Task.FromResult<int?>(null);
     }
 
     private sealed record ExplorerSessionSelection(int SectorId, int SystemId);

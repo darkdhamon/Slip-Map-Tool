@@ -16,6 +16,8 @@ public sealed class StarWinSearchResult
 
     public int? WorldId { get; init; }
 
+    public int? ColonyId { get; init; }
+
     public int? SpaceHabitatId { get; init; }
 
     public int? RaceId { get; init; }

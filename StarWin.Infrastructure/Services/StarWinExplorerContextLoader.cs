@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using StarWin.Application.Services;
+using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.StarMap;
 using StarWin.Infrastructure.Data;
 
@@ -55,58 +56,115 @@ internal static class StarWinExplorerContextLoader
 
     public static async Task<StarWinExplorerContext> LoadShellAsync(
         StarWinDbContext dbContext,
-        bool includeSavedRoutes = true,
-        bool includeReferenceData = true,
-        int? detailedSectorId = null,
-        ExplorerSectorLoadSections detailedSectorSections = ExplorerSectorLoadSections.None,
+        int? preferredSectorId = null,
+        bool includeSavedRoutes = false,
+        bool includeReferenceData = false,
         CancellationToken cancellationToken = default)
     {
-        IQueryable<StarWinSector> sectorsQuery = dbContext.Sectors
+        var sectorRows = await dbContext.Sectors
             .AsNoTracking()
-            .AsSplitQuery()
-            .Include(sector => sector.Configuration)
-            .Include(sector => sector.Systems)
-            .OrderBy(sector => sector.Name);
+            .OrderBy(sector => sector.Name)
+            .Select(sector => new
+            {
+                sector.Id,
+                sector.Name
+            })
+            .ToListAsync(cancellationToken);
 
-        if (includeSavedRoutes)
+        var systemRows = await dbContext.StarSystems
+            .AsNoTracking()
+            .OrderBy(system => system.Name)
+            .ThenBy(system => system.Id)
+            .Select(system => new
+            {
+                system.Id,
+                system.SectorId,
+                system.Name
+            })
+            .ToListAsync(cancellationToken);
+
+        var sectors = sectorRows
+            .Select(row => new StarWinSector
+            {
+                Id = row.Id,
+                Name = row.Name
+            })
+            .ToList();
+
+        var sectorsById = sectors.ToDictionary(sector => sector.Id);
+        foreach (var systemRow in systemRows)
         {
-            sectorsQuery = sectorsQuery.Include(sector => sector.SavedRoutes);
+            if (!sectorsById.TryGetValue(systemRow.SectorId, out var sector))
+            {
+                continue;
+            }
+
+            sector.Systems.Add(new StarSystem
+            {
+                Id = systemRow.Id,
+                SectorId = systemRow.SectorId,
+                Name = systemRow.Name
+            });
         }
 
-        var sectors = await sectorsQuery.ToListAsync(cancellationToken);
+        if (includeSavedRoutes && preferredSectorId is int selectedSectorId && sectorsById.TryGetValue(selectedSectorId, out var preferredSector))
+        {
+            var savedRoutes = await dbContext.SectorSavedRoutes
+                .AsNoTracking()
+                .Where(route => route.SectorId == selectedSectorId)
+                .OrderBy(route => route.SourceSystemId)
+                .ThenBy(route => route.TargetSystemId)
+                .Select(route => new SectorSavedRoute
+                {
+                    Id = route.Id,
+                    SectorId = route.SectorId,
+                    SourceSystemId = route.SourceSystemId,
+                    TargetSystemId = route.TargetSystemId,
+                    DistanceParsecs = route.DistanceParsecs,
+                    TravelTimeYears = route.TravelTimeYears,
+                    TechnologyLevel = route.TechnologyLevel,
+                    TierName = route.TierName,
+                    PrimaryOwnerEmpireId = route.PrimaryOwnerEmpireId,
+                    PrimaryOwnerEmpireName = route.PrimaryOwnerEmpireName,
+                    SecondaryOwnerEmpireId = route.SecondaryOwnerEmpireId,
+                    SecondaryOwnerEmpireName = route.SecondaryOwnerEmpireName,
+                    IsUserPersisted = route.IsUserPersisted,
+                    GeneratedAtUtc = route.GeneratedAtUtc
+                })
+                .ToListAsync(cancellationToken);
+
+            foreach (var savedRoute in savedRoutes)
+            {
+                preferredSector.SavedRoutes.Add(savedRoute);
+            }
+        }
 
         var alienRaces = includeReferenceData
             ? await dbContext.AlienRaces
                 .AsNoTracking()
                 .OrderBy(race => race.Name)
+                .Select(race => new AlienRace
+                {
+                    Id = race.Id,
+                    Name = race.Name
+                })
                 .ToListAsync(cancellationToken)
             : [];
 
         var empires = includeReferenceData
             ? await dbContext.Empires
                 .AsNoTracking()
-                .AsSplitQuery()
-                .Include(empire => empire.RaceMemberships)
-                .Include(empire => empire.Contacts)
-                .Include(empire => empire.Religions)
                 .OrderBy(empire => empire.Name)
+                .Select(empire => new Empire
+                {
+                    Id = empire.Id,
+                    Name = empire.Name
+                })
                 .ToListAsync(cancellationToken)
             : [];
 
-        if (detailedSectorId is int selectedSectorId
-            && selectedSectorId > 0
-            && detailedSectorSections != ExplorerSectorLoadSections.None
-            && await LoadSectorDetailAsync(dbContext, selectedSectorId, detailedSectorSections, cancellationToken) is { } detailedSector)
-        {
-            var sectorIndex = sectors.FindIndex(sector => sector.Id == detailedSector.Id);
-            if (sectorIndex >= 0)
-            {
-                sectors[sectorIndex] = detailedSector;
-            }
-        }
-
-        var currentSector = detailedSectorId is int preferredSectorId && preferredSectorId > 0
-            ? sectors.FirstOrDefault(sector => sector.Id == preferredSectorId)
+        var currentSector = preferredSectorId is int requestedSectorId && requestedSectorId > 0
+            ? sectors.FirstOrDefault(sector => sector.Id == requestedSectorId)
             : null;
 
         return new StarWinExplorerContext(
@@ -114,77 +172,6 @@ internal static class StarWinExplorerContextLoader
             currentSector ?? sectors.FirstOrDefault() ?? StarWinExplorerContext.Empty.CurrentSector,
             alienRaces,
             empires,
-            includeReferenceData ? empires.SelectMany(empire => empire.Contacts).ToList() : []);
-    }
-
-    private static async Task<StarWinSector?> LoadSectorDetailAsync(
-        StarWinDbContext dbContext,
-        int sectorId,
-        ExplorerSectorLoadSections loadSections,
-        CancellationToken cancellationToken = default)
-    {
-        IQueryable<StarWinSector> sectorQuery = dbContext.Sectors
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(sector => sector.Configuration)
-            .Include(sector => sector.Systems);
-
-        if (loadSections.HasFlag(ExplorerSectorLoadSections.AstralBodies))
-        {
-            sectorQuery = sectorQuery
-                .Include(sector => sector.Systems)
-                    .ThenInclude(system => system.AstralBodies);
-        }
-
-        if (loadSections.HasFlag(ExplorerSectorLoadSections.Worlds))
-        {
-            sectorQuery = sectorQuery
-                .Include(sector => sector.Systems)
-                    .ThenInclude(system => system.Worlds);
-        }
-
-        if (loadSections.HasFlag(ExplorerSectorLoadSections.WorldCharacteristics))
-        {
-            sectorQuery = sectorQuery
-                .Include(sector => sector.Systems)
-                    .ThenInclude(system => system.Worlds)
-                        .ThenInclude(world => world.UnusualCharacteristics);
-        }
-
-        if (loadSections.HasFlag(ExplorerSectorLoadSections.Colonies))
-        {
-            sectorQuery = sectorQuery
-                .Include(sector => sector.Systems)
-                    .ThenInclude(system => system.Worlds)
-                        .ThenInclude(world => world.Colony);
-        }
-
-        if (loadSections.HasFlag(ExplorerSectorLoadSections.ColonyDemographics))
-        {
-            sectorQuery = sectorQuery
-                .Include(sector => sector.Systems)
-                    .ThenInclude(system => system.Worlds)
-                        .ThenInclude(world => world.Colony)
-                            .ThenInclude(colony => colony!.Demographics);
-        }
-
-        if (loadSections.HasFlag(ExplorerSectorLoadSections.SpaceHabitats))
-        {
-            sectorQuery = sectorQuery
-                .Include(sector => sector.Systems)
-                    .ThenInclude(system => system.SpaceHabitats);
-        }
-
-        if (loadSections.HasFlag(ExplorerSectorLoadSections.SavedRoutes))
-        {
-            sectorQuery = sectorQuery.Include(sector => sector.SavedRoutes);
-        }
-
-        if (loadSections.HasFlag(ExplorerSectorLoadSections.History))
-        {
-            sectorQuery = sectorQuery.Include(sector => sector.History);
-        }
-
-        return await sectorQuery.FirstOrDefaultAsync(sector => sector.Id == sectorId, cancellationToken);
+            []);
     }
 }
