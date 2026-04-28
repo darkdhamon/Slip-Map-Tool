@@ -373,6 +373,8 @@ public sealed class EmpiresPageTests : BunitContext
             Assert.Contains("Searching empires with the current filters...", cut.Markup);
             Assert.Null(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("disabled"));
             Assert.NotNull(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("checked"));
+            Assert.Null(cut.Find("input[placeholder='Name, summary, or notes...']").GetAttribute("disabled"));
+            Assert.Null(cut.Find("input[placeholder='All races']").GetAttribute("disabled"));
         });
 
         cut.WaitForAssertion(() =>

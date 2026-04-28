@@ -73,8 +73,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
     protected IReadOnlyList<ExplorerEmpireListItem> LoadedEmpireSummaries => loadedEmpireSummaries;
-    protected bool IsEmpireFilterBusy => empireFilterPending || empireListLoading;
-
     protected override async Task OnInitializedAsync()
     {
         await RefreshExplorerDataAsync();
