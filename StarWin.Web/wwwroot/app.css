@@ -2662,6 +2662,46 @@ dd {
     gap: 2px;
 }
 
+.empire-modifier-card {
+    gap: 10px;
+}
+
+.empire-modifier-pill-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin: 0;
+}
+
+.empire-modifier-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(4, 17, 38, 0.82), rgba(3, 12, 28, 0.72));
+}
+
+.empire-modifier-pill dt,
+.empire-modifier-pill dd {
+    margin: 0;
+}
+
+.empire-modifier-pill dt {
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.empire-modifier-pill dd {
+    color: #f8fbff;
+    font-size: 1rem;
+    font-weight: 900;
+    letter-spacing: 0.01em;
+}
+
 .alien-modifier-detail-card small {
     color: var(--muted);
     font-size: 0.74rem;

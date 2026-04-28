@@ -248,10 +248,10 @@
                                 </div>
                             </div>
                             <p class="alien-empty-state">These civilization modifiers apply empire-wide across all member races.</p>
-                            <dl class="field-grid alien-field-grid">
+                            <dl class="empire-modifier-pill-grid">
                                 @foreach (var trait in selectedEmpireModifierDetail.Traits)
                                 {
-                                    <div>
+                                    <div class="empire-modifier-pill">
                                         <dt>@trait.Name</dt>
                                         <dd>@DisplayModifier(trait.Modifier)</dd>
                                     </div>
