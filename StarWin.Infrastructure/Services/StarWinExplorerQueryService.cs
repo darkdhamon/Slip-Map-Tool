@@ -10,6 +10,9 @@ namespace StarWin.Infrastructure.Services;
 
 public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbContext> dbContextFactory) : IStarWinExplorerQueryService
 {
+    private const int StarWindTraitMinimum = 0;
+    private const int StarWindTraitMaximum = 20;
+
     public async Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -532,6 +535,40 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                 controlledDemographicRows.Concat(inferredControlledPopulationRows))
             .ToList();
 
+        var modifierBaselineRaceId = empire.RaceMemberships
+            .Where(membership => membership.IsPrimary)
+            .Select(membership => membership.RaceId)
+            .FirstOrDefault();
+        if (modifierBaselineRaceId <= 0)
+        {
+            modifierBaselineRaceId = empire.Founding.FoundingRaceId
+                ?? empire.RaceMemberships
+                    .OrderByDescending(membership => membership.PopulationMillions)
+                    .Select(membership => membership.RaceId)
+                    .FirstOrDefault();
+        }
+
+        var modifierBaselineRace = modifierBaselineRaceId <= 0
+            ? null
+            : await (
+                from race in dbContext.AlienRaces.AsNoTracking()
+                join raceHomeWorld in dbContext.Worlds.AsNoTracking() on race.HomePlanetId equals raceHomeWorld.Id into raceHomeWorlds
+                from raceHomeWorld in raceHomeWorlds.DefaultIfEmpty()
+                where race.Id == modifierBaselineRaceId
+                select new EmpireModifierBaselineRaceProjection(
+                    race.Id,
+                    race.Name,
+                    raceHomeWorld != null ? raceHomeWorld.Name : null,
+                    race.CivilizationProfile.Militancy,
+                    race.CivilizationProfile.Determination,
+                    race.CivilizationProfile.RacialTolerance,
+                    race.CivilizationProfile.Progressiveness,
+                    race.CivilizationProfile.Loyalty,
+                    race.CivilizationProfile.SocialCohesion,
+                    race.CivilizationProfile.Art,
+                    race.CivilizationProfile.Individualism))
+                .FirstOrDefaultAsync(cancellationToken);
+
         var colonies = await (
             from colony in dbContext.Colonies.AsNoTracking()
             join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
@@ -571,7 +608,8 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             memberRaces,
             colonies,
             controlledColonyCount,
-            empire.IsFallen);
+            empire.IsFallen,
+            BuildEmpireCivilizationModifierDetail(empire, modifierBaselineRace));
     }
 
     public async Task<ExplorerReligionFilterOptions> LoadReligionFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
@@ -1407,6 +1445,56 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             .ToList();
     }
 
+    private static ExplorerEmpireCivilizationModifierDetail? BuildEmpireCivilizationModifierDetail(
+        Empire empire,
+        EmpireModifierBaselineRaceProjection? baselineRace)
+    {
+        if (baselineRace is null)
+        {
+            return null;
+        }
+
+        return new ExplorerEmpireCivilizationModifierDetail(
+            baselineRace.RaceId,
+            ResolveRaceDisplayName(baselineRace.RaceId, baselineRace.RaceName, baselineRace.HomeWorldName),
+            [
+                BuildCivilizationTraitModifier("Militancy", baselineRace.Militancy, empire.CivilizationProfile.Militancy, empire.CivilizationModifiers.Militancy),
+                BuildCivilizationTraitModifier("Determination", baselineRace.Determination, empire.CivilizationProfile.Determination, empire.CivilizationModifiers.Determination),
+                BuildCivilizationTraitModifier("Racial tolerance", baselineRace.RacialTolerance, empire.CivilizationProfile.RacialTolerance, empire.CivilizationModifiers.RacialTolerance),
+                BuildCivilizationTraitModifier("Progressiveness", baselineRace.Progressiveness, empire.CivilizationProfile.Progressiveness, empire.CivilizationModifiers.Progressiveness),
+                BuildCivilizationTraitModifier("Loyalty", baselineRace.Loyalty, empire.CivilizationProfile.Loyalty, empire.CivilizationModifiers.Loyalty),
+                BuildCivilizationTraitModifier("Social cohesion", baselineRace.SocialCohesion, empire.CivilizationProfile.SocialCohesion, empire.CivilizationModifiers.SocialCohesion),
+                BuildCivilizationTraitModifier("Art", baselineRace.Art, empire.CivilizationProfile.Art, empire.CivilizationModifiers.Art),
+                BuildCivilizationTraitModifier("Individualism", baselineRace.Individualism, empire.CivilizationProfile.Individualism, empire.CivilizationModifiers.Individualism)
+            ]);
+    }
+
+    private static ExplorerCivilizationTraitModifier BuildCivilizationTraitModifier(
+        string name,
+        byte baseline,
+        byte currentValue,
+        int explicitModifier)
+    {
+        var modifier = ResolveCivilizationModifier(baseline, currentValue, explicitModifier);
+        var computed = Math.Clamp(baseline + modifier, StarWindTraitMinimum, StarWindTraitMaximum);
+        return new ExplorerCivilizationTraitModifier(name, baseline, currentValue, modifier, computed);
+    }
+
+    private static int ResolveCivilizationModifier(byte baseline, byte currentValue, int explicitModifier)
+    {
+        if (explicitModifier != 0)
+        {
+            return explicitModifier;
+        }
+
+        if (currentValue > 0 && currentValue != baseline)
+        {
+            return currentValue - baseline;
+        }
+
+        return 0;
+    }
+
     private static EmpireRaceRole DeriveEmpireRaceRole(EmpireControlledRaceAggregate aggregate)
     {
         if (aggregate.ForeignFounded)
@@ -1472,6 +1560,19 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         long Population,
         bool FoundedByEmpire,
         bool ForeignFounded);
+
+    private sealed record EmpireModifierBaselineRaceProjection(
+        int RaceId,
+        string RaceName,
+        string? HomeWorldName,
+        byte Militancy,
+        byte Determination,
+        byte RacialTolerance,
+        byte Progressiveness,
+        byte Loyalty,
+        byte SocialCohesion,
+        byte Art,
+        byte Individualism);
 
     private sealed record EmpireControlledRaceAggregate(
         int RaceId,

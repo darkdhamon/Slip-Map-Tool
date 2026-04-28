@@ -784,6 +784,13 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             : $"{populationPercent:0.#}%";
     }
 
+    protected static string DisplayModifier(int modifier)
+    {
+        return modifier > 0
+            ? $"+{modifier}"
+            : modifier.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     protected static IReadOnlyList<ExplorerEmpireRaceMembershipDetail> FilterMemberRaces(
         IReadOnlyList<ExplorerEmpireRaceMembershipDetail> memberRaces,
         string query)

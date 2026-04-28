@@ -276,6 +276,53 @@ public sealed class EmpiresPageTests : BunitContext
     }
 
     [Fact]
+    public void RendersEmpireRacialModifiersAgainstPrimaryRaceBaseline()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var context = CreateContext();
+        var primaryRace = context.AlienRaces.Single(race => race.Id == 1);
+        primaryRace.CivilizationProfile.Militancy = 11;
+        primaryRace.CivilizationProfile.Determination = 12;
+        primaryRace.CivilizationProfile.RacialTolerance = 9;
+        primaryRace.CivilizationProfile.Progressiveness = 8;
+        primaryRace.CivilizationProfile.Loyalty = 17;
+        primaryRace.CivilizationProfile.SocialCohesion = 16;
+        primaryRace.CivilizationProfile.Art = 10;
+        primaryRace.CivilizationProfile.Individualism = 7;
+
+        var empire = context.Empires.Single(item => item.Id == 2);
+        empire.CivilizationProfile.Militancy = 13;
+        empire.CivilizationProfile.Determination = 11;
+        empire.CivilizationProfile.RacialTolerance = 9;
+        empire.CivilizationProfile.Progressiveness = 8;
+        empire.CivilizationProfile.Loyalty = 15;
+        empire.CivilizationProfile.SocialCohesion = 16;
+        empire.CivilizationProfile.Art = 10;
+        empire.CivilizationProfile.Individualism = 7;
+        empire.CivilizationModifiers.Militancy = 2;
+        empire.CivilizationModifiers.Determination = -1;
+
+        ConfigureServices(context);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/empires?sectorId=7&empireId=2");
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var modifierCard = cut.Find(".empire-modifier-card");
+            Assert.Contains("Racial modifiers", modifierCard.TextContent);
+            Assert.Contains("Human", modifierCard.TextContent);
+            Assert.Contains("Militancy", modifierCard.TextContent);
+            Assert.Contains("Base 11, mod +2", modifierCard.TextContent);
+            Assert.Contains("Base 12, mod -1", modifierCard.TextContent);
+            Assert.Contains("Base 17, mod -2", modifierCard.TextContent);
+        });
+    }
+
+    [Fact]
     public void RendersFallenEmpireStatusWhenEmpireHasNoControlledColonies()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -689,6 +736,7 @@ public sealed class EmpiresPageTests : BunitContext
         };
         empire.CivilizationProfile.TechLevel = 9;
         empire.Founding.FoundingWorldId = foundingWorldId;
+        empire.Founding.FoundingRaceId = primaryRaceId;
         empire.RaceMemberships.Add(new EmpireRaceMembership
         {
             RaceId = primaryRaceId,
@@ -717,6 +765,9 @@ public sealed class EmpiresPageTests : BunitContext
         StarWinExplorerContext context,
         IReadOnlyDictionary<(EntityNoteTargetKind TargetKind, int TargetId), EntityNote> notes) : IStarWinExplorerQueryService
     {
+        private const int StarWindTraitMinimum = 0;
+        private const int StarWindTraitMaximum = 20;
+
         public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
@@ -820,6 +871,7 @@ public sealed class EmpiresPageTests : BunitContext
                 .ToList();
 
             var memberRaces = BuildEmpireRaceDetails(sector, empire, empireId);
+            var modifierDetail = BuildEmpireCivilizationModifierDetail(empire);
 
             return Task.FromResult<ExplorerEmpireDetail?>(new ExplorerEmpireDetail(
                 sectorId,
@@ -828,7 +880,8 @@ public sealed class EmpiresPageTests : BunitContext
                 memberRaces,
                 colonies,
                 colonies.Count(item => item.IsControlled),
-                empire.IsFallen));
+                empire.IsFallen,
+                modifierDetail));
         }
 
         public Task<ExplorerReligionFilterOptions> LoadReligionFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
@@ -1036,6 +1089,73 @@ public sealed class EmpiresPageTests : BunitContext
             return string.IsNullOrWhiteSpace(race?.Name)
                 ? (string.IsNullOrWhiteSpace(fallbackName) ? $"Race {raceId}" : fallbackName)
                 : race.Name;
+        }
+
+        private ExplorerEmpireCivilizationModifierDetail? BuildEmpireCivilizationModifierDetail(Empire empire)
+        {
+            var baselineRaceId = empire.RaceMemberships
+                .Where(membership => membership.IsPrimary)
+                .Select(membership => membership.RaceId)
+                .FirstOrDefault();
+            if (baselineRaceId <= 0)
+            {
+                baselineRaceId = empire.Founding.FoundingRaceId
+                    ?? empire.RaceMemberships
+                        .OrderByDescending(membership => membership.PopulationMillions)
+                        .Select(membership => membership.RaceId)
+                        .FirstOrDefault();
+            }
+
+            if (baselineRaceId <= 0)
+            {
+                return null;
+            }
+
+            var baselineRace = context.AlienRaces.FirstOrDefault(race => race.Id == baselineRaceId);
+            if (baselineRace is null)
+            {
+                return null;
+            }
+
+            return new ExplorerEmpireCivilizationModifierDetail(
+                baselineRace.Id,
+                ResolveRaceName(baselineRace.Id),
+                [
+                    BuildCivilizationTraitModifier("Militancy", baselineRace.CivilizationProfile.Militancy, empire.CivilizationProfile.Militancy, empire.CivilizationModifiers.Militancy),
+                    BuildCivilizationTraitModifier("Determination", baselineRace.CivilizationProfile.Determination, empire.CivilizationProfile.Determination, empire.CivilizationModifiers.Determination),
+                    BuildCivilizationTraitModifier("Racial tolerance", baselineRace.CivilizationProfile.RacialTolerance, empire.CivilizationProfile.RacialTolerance, empire.CivilizationModifiers.RacialTolerance),
+                    BuildCivilizationTraitModifier("Progressiveness", baselineRace.CivilizationProfile.Progressiveness, empire.CivilizationProfile.Progressiveness, empire.CivilizationModifiers.Progressiveness),
+                    BuildCivilizationTraitModifier("Loyalty", baselineRace.CivilizationProfile.Loyalty, empire.CivilizationProfile.Loyalty, empire.CivilizationModifiers.Loyalty),
+                    BuildCivilizationTraitModifier("Social cohesion", baselineRace.CivilizationProfile.SocialCohesion, empire.CivilizationProfile.SocialCohesion, empire.CivilizationModifiers.SocialCohesion),
+                    BuildCivilizationTraitModifier("Art", baselineRace.CivilizationProfile.Art, empire.CivilizationProfile.Art, empire.CivilizationModifiers.Art),
+                    BuildCivilizationTraitModifier("Individualism", baselineRace.CivilizationProfile.Individualism, empire.CivilizationProfile.Individualism, empire.CivilizationModifiers.Individualism)
+                ]);
+        }
+
+        private static ExplorerCivilizationTraitModifier BuildCivilizationTraitModifier(
+            string name,
+            byte baseline,
+            byte currentValue,
+            int explicitModifier)
+        {
+            var modifier = ResolveCivilizationModifier(baseline, currentValue, explicitModifier);
+            var computed = Math.Clamp(baseline + modifier, StarWindTraitMinimum, StarWindTraitMaximum);
+            return new ExplorerCivilizationTraitModifier(name, baseline, currentValue, modifier, computed);
+        }
+
+        private static int ResolveCivilizationModifier(byte baseline, byte currentValue, int explicitModifier)
+        {
+            if (explicitModifier != 0)
+            {
+                return explicitModifier;
+            }
+
+            if (currentValue > 0 && currentValue != baseline)
+            {
+                return currentValue - baseline;
+            }
+
+            return 0;
         }
 
         private static long ToPopulationMillions(long population)

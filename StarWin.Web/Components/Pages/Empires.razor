@@ -164,6 +164,7 @@
                         var capitalColony = selectedEmpireDetail is null ? null : GetCapitalColony(selectedEmpireDetail);
                         var empireColonies = selectedEmpireDetail?.Colonies ?? [];
                         var controlledColonyCount = selectedEmpireDetail?.ControlledColonyCount ?? 0;
+                        var selectedEmpireModifierDetail = selectedEmpireDetail?.CivilizationModifierDetail;
                         var filteredEmpireMemberRaces = FilterMemberRaces(empireMemberRaces, empireMemberRaceSearch);
                         var filteredEmpireColonies = FilterColonies(empireColonies, empireColonySearch);
                         var selectedEmpireIsFallen = selectedEmpireDetail?.IsFallen ?? false;
@@ -235,6 +236,30 @@
                             }
                         </section>
                     </div>
+
+                    @if (selectedEmpireModifierDetail is not null)
+                    {
+                        <section class="alien-summary-card alien-modifier-detail-card empire-modifier-card">
+                            <div class="alien-modifier-detail-header">
+                                <div>
+                                    <span class="timeline-century">@selectedEmpireModifierDetail.RaceName</span>
+                                    <h3>Racial modifiers</h3>
+                                </div>
+                                <button type="button" class="timeline-secondary-button" @onclick="() => NavigateToRace(selectedEmpireModifierDetail.RaceId)">Open race</button>
+                            </div>
+                            <p class="alien-empty-state">Computed as species baseline plus this empire's civilization modifiers.</p>
+                            <dl class="field-grid alien-field-grid">
+                                @foreach (var trait in selectedEmpireModifierDetail.Traits)
+                                {
+                                    <div>
+                                        <dt>@trait.Name</dt>
+                                        <dd>@trait.Computed</dd>
+                                        <small>Base @trait.Baseline, mod @DisplayModifier(trait.Modifier)</small>
+                                    </div>
+                                }
+                            </dl>
+                        </section>
+                    }
 
                     <section class="alien-summary-card alien-summary-editor-card empire-notes-card">
                         <EntityNotesPanel TargetKind="EntityNoteTargetKind.Empire"

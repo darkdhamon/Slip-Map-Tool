@@ -184,6 +184,20 @@ public sealed class StarWinExplorerQueryServiceTests
             Assert.Equal("Far Aurel", detail.Colonies[0].WorldName);
             Assert.Equal(1, detail.ControlledColonyCount);
             Assert.False(detail.IsFallen);
+            Assert.NotNull(detail.CivilizationModifierDetail);
+            Assert.Equal("Aurelian", detail.CivilizationModifierDetail!.RaceName);
+            Assert.Contains(
+                detail.CivilizationModifierDetail.Traits,
+                trait => trait.Name == "Militancy"
+                    && trait.Baseline == 11
+                    && trait.Modifier == 2
+                    && trait.Computed == 13);
+            Assert.Contains(
+                detail.CivilizationModifierDetail.Traits,
+                trait => trait.Name == "Loyalty"
+                    && trait.Baseline == 17
+                    && trait.Modifier == -2
+                    && trait.Computed == 15);
         }
         finally
         {
@@ -486,6 +500,14 @@ public sealed class StarWinExplorerQueryServiceTests
         aurelian.BiologyProfile.Lifespan = 40;
         aurelian.BiologyProfile.PsiPower = 2;
         aurelian.BiologyProfile.PsiRating = PsiPowerRating.Good;
+        aurelian.CivilizationProfile.Militancy = 11;
+        aurelian.CivilizationProfile.Determination = 12;
+        aurelian.CivilizationProfile.RacialTolerance = 9;
+        aurelian.CivilizationProfile.Progressiveness = 8;
+        aurelian.CivilizationProfile.Loyalty = 17;
+        aurelian.CivilizationProfile.SocialCohesion = 16;
+        aurelian.CivilizationProfile.Art = 10;
+        aurelian.CivilizationProfile.Individualism = 7;
 
         var krell = new AlienRace
         {
@@ -508,6 +530,14 @@ public sealed class StarWinExplorerQueryServiceTests
         krell.BiologyProfile.Lifespan = 20;
         krell.BiologyProfile.PsiPower = 0;
         krell.BiologyProfile.PsiRating = PsiPowerRating.None;
+        krell.CivilizationProfile.Militancy = 14;
+        krell.CivilizationProfile.Determination = 11;
+        krell.CivilizationProfile.RacialTolerance = 6;
+        krell.CivilizationProfile.Progressiveness = 5;
+        krell.CivilizationProfile.Loyalty = 12;
+        krell.CivilizationProfile.SocialCohesion = 10;
+        krell.CivilizationProfile.Art = 4;
+        krell.CivilizationProfile.Individualism = 8;
 
         var aurelianEmpire = new Empire
         {
@@ -517,7 +547,18 @@ public sealed class StarWinExplorerQueryServiceTests
             NativePopulationMillions = 1200
         };
         aurelianEmpire.CivilizationProfile.TechLevel = 6;
+        aurelianEmpire.CivilizationProfile.Militancy = 13;
+        aurelianEmpire.CivilizationProfile.Determination = 11;
+        aurelianEmpire.CivilizationProfile.RacialTolerance = 9;
+        aurelianEmpire.CivilizationProfile.Progressiveness = 8;
+        aurelianEmpire.CivilizationProfile.Loyalty = 15;
+        aurelianEmpire.CivilizationProfile.SocialCohesion = 16;
+        aurelianEmpire.CivilizationProfile.Art = 10;
+        aurelianEmpire.CivilizationProfile.Individualism = 7;
+        aurelianEmpire.CivilizationModifiers.Militancy = 2;
+        aurelianEmpire.CivilizationModifiers.Determination = -1;
         aurelianEmpire.Founding.FoundingWorldId = 101;
+        aurelianEmpire.Founding.FoundingRaceId = 1;
         aurelianEmpire.RaceMemberships.Add(new EmpireRaceMembership
         {
             RaceId = 1,
@@ -534,6 +575,15 @@ public sealed class StarWinExplorerQueryServiceTests
             NativePopulationMillions = 450
         };
         krellEmpire.CivilizationProfile.TechLevel = 8;
+        krellEmpire.CivilizationProfile.Militancy = 14;
+        krellEmpire.CivilizationProfile.Determination = 11;
+        krellEmpire.CivilizationProfile.RacialTolerance = 6;
+        krellEmpire.CivilizationProfile.Progressiveness = 5;
+        krellEmpire.CivilizationProfile.Loyalty = 12;
+        krellEmpire.CivilizationProfile.SocialCohesion = 10;
+        krellEmpire.CivilizationProfile.Art = 4;
+        krellEmpire.CivilizationProfile.Individualism = 8;
+        krellEmpire.Founding.FoundingRaceId = 2;
         krellEmpire.RaceMemberships.Add(new EmpireRaceMembership
         {
             RaceId = 2,
@@ -552,7 +602,16 @@ public sealed class StarWinExplorerQueryServiceTests
             IsFallen = true
         };
         fallenEmpire.CivilizationProfile.TechLevel = 7;
+        fallenEmpire.CivilizationProfile.Militancy = 9;
+        fallenEmpire.CivilizationProfile.Determination = 10;
+        fallenEmpire.CivilizationProfile.RacialTolerance = 9;
+        fallenEmpire.CivilizationProfile.Progressiveness = 8;
+        fallenEmpire.CivilizationProfile.Loyalty = 17;
+        fallenEmpire.CivilizationProfile.SocialCohesion = 16;
+        fallenEmpire.CivilizationProfile.Art = 10;
+        fallenEmpire.CivilizationProfile.Individualism = 7;
         fallenEmpire.Founding.FoundingWorldId = 104;
+        fallenEmpire.Founding.FoundingRaceId = 1;
         fallenEmpire.RaceMemberships.Add(new EmpireRaceMembership
         {
             RaceId = 1,

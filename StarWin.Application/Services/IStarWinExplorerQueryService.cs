@@ -95,7 +95,8 @@ public sealed record ExplorerEmpireDetail(
     IReadOnlyList<ExplorerEmpireRaceMembershipDetail> MemberRaces,
     IReadOnlyList<ExplorerEmpireColonyListing> Colonies,
     int ControlledColonyCount,
-    bool IsFallen);
+    bool IsFallen,
+    ExplorerEmpireCivilizationModifierDetail? CivilizationModifierDetail);
 
 public sealed record ExplorerReligionFilterOptions(
     IReadOnlyList<string> Types);
@@ -153,6 +154,18 @@ public sealed record ExplorerEmpireColonyListing(
     string WorldName,
     int SystemId,
     string SystemName);
+
+public sealed record ExplorerEmpireCivilizationModifierDetail(
+    int RaceId,
+    string RaceName,
+    IReadOnlyList<ExplorerCivilizationTraitModifier> Traits);
+
+public sealed record ExplorerCivilizationTraitModifier(
+    string Name,
+    int Baseline,
+    int CurrentValue,
+    int Modifier,
+    int Computed);
 
 public sealed record ExplorerTimelinePageRequest(
     int SectorId,
