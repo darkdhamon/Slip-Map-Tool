@@ -242,19 +242,16 @@
                         <section class="alien-summary-card alien-modifier-detail-card empire-modifier-card">
                             <div class="alien-modifier-detail-header">
                                 <div>
-                                    <span class="timeline-century">@selectedEmpireModifierDetail.RaceName</span>
-                                    <h3>Racial modifiers</h3>
+                                    <h3>Empire modifiers</h3>
                                 </div>
-                                <button type="button" class="timeline-secondary-button" @onclick="() => NavigateToRace(selectedEmpireModifierDetail.RaceId)">Open race</button>
                             </div>
-                            <p class="alien-empty-state">Computed as species baseline plus this empire's civilization modifiers.</p>
+                            <p class="alien-empty-state">These civilization modifiers apply empire-wide across all member races.</p>
                             <dl class="field-grid alien-field-grid">
                                 @foreach (var trait in selectedEmpireModifierDetail.Traits)
                                 {
                                     <div>
                                         <dt>@trait.Name</dt>
-                                        <dd>@trait.Computed</dd>
-                                        <small>Base @trait.Baseline, mod @DisplayModifier(trait.Modifier)</small>
+                                        <dd>@DisplayModifier(trait.Modifier)</dd>
                                     </div>
                                 }
                             </dl>

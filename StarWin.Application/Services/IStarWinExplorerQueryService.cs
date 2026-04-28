@@ -156,16 +156,11 @@ public sealed record ExplorerEmpireColonyListing(
     string SystemName);
 
 public sealed record ExplorerEmpireCivilizationModifierDetail(
-    int RaceId,
-    string RaceName,
     IReadOnlyList<ExplorerCivilizationTraitModifier> Traits);
 
 public sealed record ExplorerCivilizationTraitModifier(
     string Name,
-    int Baseline,
-    int CurrentValue,
-    int Modifier,
-    int Computed);
+    int Modifier);
 
 public sealed record ExplorerTimelinePageRequest(
     int SectorId,

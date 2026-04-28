@@ -185,19 +185,14 @@ public sealed class StarWinExplorerQueryServiceTests
             Assert.Equal(1, detail.ControlledColonyCount);
             Assert.False(detail.IsFallen);
             Assert.NotNull(detail.CivilizationModifierDetail);
-            Assert.Equal("Aurelian", detail.CivilizationModifierDetail!.RaceName);
             Assert.Contains(
                 detail.CivilizationModifierDetail.Traits,
                 trait => trait.Name == "Militancy"
-                    && trait.Baseline == 11
-                    && trait.Modifier == 2
-                    && trait.Computed == 13);
+                    && trait.Modifier == 2);
             Assert.Contains(
                 detail.CivilizationModifierDetail.Traits,
                 trait => trait.Name == "Loyalty"
-                    && trait.Baseline == 17
-                    && trait.Modifier == -2
-                    && trait.Computed == 15);
+                    && trait.Modifier == 0);
         }
         finally
         {
