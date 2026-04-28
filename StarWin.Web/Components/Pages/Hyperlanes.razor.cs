@@ -28,8 +28,6 @@ public partial class Hyperlanes : ComponentBase
     public int? RequestedHyperlaneId { get; set; }
 
     protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
-    private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
-
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     protected string explorerRenderError = string.Empty;
     protected int selectedSectorId;
@@ -68,8 +66,6 @@ public partial class Hyperlanes : ComponentBase
             : explorerContext.CurrentSector;
 
         selectedSectorId = initialSector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        initialSector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
         LoadHyperlaneForm(initialSector, ResolveSelectedHyperlane(initialSector));
@@ -86,7 +82,6 @@ public partial class Hyperlanes : ComponentBase
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
-            await EnsureSectorDataLoadedAsync(selectedSectorId);
         }
 
         var sector = GetSelectedSector();
@@ -133,7 +128,6 @@ public partial class Hyperlanes : ComponentBase
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
@@ -378,7 +372,6 @@ public partial class Hyperlanes : ComponentBase
                 hyperlaneIsUserPersisted));
 
             await RefreshExplorerDataAsync();
-            await EnsureSectorDataLoadedAsync(sector.Id);
 
             var reloadedSector = GetSelectedSector();
             selectedSystemText = FormatSelectedSystem(reloadedSector, selectedSystemId);
@@ -410,7 +403,6 @@ public partial class Hyperlanes : ComponentBase
         {
             await SectorRouteService.DeleteSavedRouteAsync(sector.Id, selectedHyperlaneId);
             await RefreshExplorerDataAsync();
-            await EnsureSectorDataLoadedAsync(sector.Id);
 
             var reloadedSector = GetSelectedSector();
             selectedSystemText = FormatSelectedSystem(reloadedSector, selectedSystemId);
@@ -455,45 +447,6 @@ public partial class Hyperlanes : ComponentBase
             includeSavedRoutes: true,
             includeReferenceData: true,
             cancellationToken: cancellationToken);
-
-        loadedSectorSectionsById.Clear();
-    }
-
-    private async Task EnsureSectorDataLoadedAsync(int sectorId, CancellationToken cancellationToken = default)
-    {
-        if (sectorId <= 0)
-        {
-            return;
-        }
-
-        const ExplorerSectorLoadSections requiredSections = ExplorerSectorLoadSections.SavedRoutes;
-
-        loadedSectorSectionsById.TryGetValue(sectorId, out var loadedSections);
-        if ((loadedSections & requiredSections) == requiredSections)
-        {
-            return;
-        }
-
-        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiredSections, cancellationToken);
-        if (detailedSector is null)
-        {
-            return;
-        }
-
-        var sectors = ExplorerSectors.ToList();
-        var sectorIndex = sectors.FindIndex(item => item.Id == detailedSector.Id);
-        if (sectorIndex >= 0)
-        {
-            sectors[sectorIndex] = detailedSector;
-        }
-
-        explorerContext = explorerContext with
-        {
-            Sectors = sectors,
-            CurrentSector = explorerContext.CurrentSector.Id == detailedSector.Id ? detailedSector : explorerContext.CurrentSector
-        };
-
-        loadedSectorSectionsById[sectorId] = loadedSections | requiredSections;
     }
 
     private SectorSavedRoute? ResolveSelectedHyperlane(StarWinSector sector)
@@ -539,8 +492,6 @@ public partial class Hyperlanes : ComponentBase
         }
 
         selectedSectorId = sector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        sector = GetSelectedSector();
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;

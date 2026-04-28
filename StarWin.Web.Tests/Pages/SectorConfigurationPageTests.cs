@@ -18,7 +18,8 @@ public sealed class SectorConfigurationPageTests : BunitContext
     public void RendersDedicatedConfigurationPage()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
-        ConfigureServices(CreateContext());
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService);
 
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("http://localhost/sector-explorer/configuration?sectorId=7&systemId=11");
@@ -31,6 +32,7 @@ public sealed class SectorConfigurationPageTests : BunitContext
             Assert.Contains("Del Corra", cut.Markup);
             Assert.Contains("Save configuration", cut.Markup);
             Assert.Contains("Saved route report", cut.Markup);
+            Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
         });
     }
 
@@ -39,7 +41,8 @@ public sealed class SectorConfigurationPageTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         var configService = new FakeSectorConfigurationService();
-        ConfigureServices(CreateContext(), configService: configService);
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService, configService: configService);
 
         var cut = Render<SectorConfigurationPage>();
         cut.Find("input[maxlength='160']").Change("Del Corra Prime");
@@ -50,6 +53,7 @@ public sealed class SectorConfigurationPageTests : BunitContext
             Assert.Equal("Del Corra Prime", configService.SavedSectorName);
             Assert.NotNull(configService.SavedConfiguration);
             Assert.Contains("Del Corra Prime saved.", cut.Markup);
+            Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
         });
     }
 
@@ -58,7 +62,8 @@ public sealed class SectorConfigurationPageTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         var routeService = new FakeSectorRouteService();
-        ConfigureServices(CreateContext(), routeService: routeService);
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService, routeService: routeService);
 
         var cut = Render<SectorConfigurationPage>();
         cut.FindAll("button").Single(button => button.TextContent.Trim() == "Update Current Routes").Click();
@@ -67,6 +72,7 @@ public sealed class SectorConfigurationPageTests : BunitContext
         {
             Assert.True(routeService.SaveCalled);
             Assert.Contains("Updated 3 saved hyperlane segments", cut.Markup);
+            Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
         });
     }
 
@@ -75,7 +81,8 @@ public sealed class SectorConfigurationPageTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         var colonyService = new FakeIndependentColonyService();
-        ConfigureServices(CreateContext(), colonyService: colonyService);
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService, colonyService: colonyService);
 
         var cut = Render<SectorConfigurationPage>();
         cut.FindAll("button").Single(button => button.TextContent.Trim() == "Convert independent colonies").Click();
@@ -84,17 +91,18 @@ public sealed class SectorConfigurationPageTests : BunitContext
         {
             Assert.True(colonyService.ConvertCalled);
             Assert.Contains("Created 1 empire and assigned 2 colonies.", cut.Markup);
+            Assert.Equal(0, explorerContextService.LoadSectorAsyncCallCount);
         });
     }
 
     private void ConfigureServices(
-        StarWinExplorerContext context,
+        FakeExplorerContextService explorerContextService,
         FakeSectorConfigurationService? configService = null,
         FakeSectorRouteService? routeService = null,
         FakeIndependentColonyService? colonyService = null)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
-        Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
+        Services.AddSingleton<IStarWinExplorerContextService>(explorerContextService);
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinSectorConfigurationService>(configService ?? new FakeSectorConfigurationService());
         Services.AddSingleton<IStarWinSectorRouteService>(routeService ?? new FakeSectorRouteService());
@@ -140,6 +148,8 @@ public sealed class SectorConfigurationPageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
+        public int LoadSectorAsyncCallCount { get; private set; }
+
         public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
@@ -147,6 +157,7 @@ public sealed class SectorConfigurationPageTests : BunitContext
 
         public Task<StarWinSector?> LoadSectorAsync(int sectorId, ExplorerSectorLoadSections loadSections, CancellationToken cancellationToken = default)
         {
+            LoadSectorAsyncCallCount++;
             return Task.FromResult<StarWinSector?>(context.Sectors.FirstOrDefault(sector => sector.Id == sectorId));
         }
     }

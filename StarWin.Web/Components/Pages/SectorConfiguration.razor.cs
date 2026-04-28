@@ -34,7 +34,6 @@ public partial class SectorConfiguration : ComponentBase
 
     protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
     protected readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
-    private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
 
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     protected string explorerRenderError = string.Empty;
@@ -93,8 +92,6 @@ public partial class SectorConfiguration : ComponentBase
             : explorerContext.CurrentSector;
 
         selectedSectorId = initialSector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        initialSector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
         LoadSectorConfigurationForm(initialSector);
@@ -111,7 +108,6 @@ public partial class SectorConfiguration : ComponentBase
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
-            await EnsureSectorDataLoadedAsync(selectedSectorId);
             LoadSectorConfigurationForm(GetSelectedSector());
         }
 
@@ -162,7 +158,6 @@ public partial class SectorConfiguration : ComponentBase
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
@@ -322,7 +317,6 @@ public partial class SectorConfiguration : ComponentBase
             });
 
         await RefreshExplorerDataAsync();
-        await EnsureSectorDataLoadedAsync(sector.Id);
         var reloadedSector = GetSelectedSector();
         LoadSectorConfigurationForm(reloadedSector);
         sectorConfigurationStatus = $"{savedSectorName} saved. Off-lane distance is {configuration.OffLaneMaximumDistanceParsecs:0.###} parsecs, and TL6-TL10 travel tiers now use the current sector configuration.";
@@ -364,7 +358,6 @@ public partial class SectorConfiguration : ComponentBase
             routeSaveProcessedItems = null;
             routeSaveTotalItems = null;
             await RefreshExplorerDataAsync();
-            await EnsureSectorDataLoadedAsync(sector.Id);
             LoadSectorConfigurationForm(GetSelectedSector());
             sectorConfigurationStatus = result.ReplacedExistingRoutes
                 ? $"Updated {result.RouteCount:N0} saved hyperlane segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sector.Name}. {result.GeneratedRouteCount:N0} regenerated, {result.PreservedUserRouteCount:N0} user-persisted kept, {result.NetworkReport.DistinctNetworkCount:N0} network{(result.NetworkReport.DistinctNetworkCount == 1 ? string.Empty : "s")}, {result.NetworkReport.StrandedSystemCount:N0} stranded system{(result.NetworkReport.StrandedSystemCount == 1 ? string.Empty : "s")}."
@@ -393,7 +386,6 @@ public partial class SectorConfiguration : ComponentBase
         {
             var result = await IndependentColonyService.ConvertIndependentColoniesAsync(sectorId);
             await RefreshExplorerDataAsync();
-            await EnsureSectorDataLoadedAsync(sectorId);
             sectorConfigurationStatus = result.Assignments.Count == 0
                 ? "No independent colonies needed conversion."
                 : $"Created {result.CreatedEmpires.Count:N0} empire{(result.CreatedEmpires.Count == 1 ? string.Empty : "s")} and assigned {result.Assignments.Count:N0} colon{(result.Assignments.Count == 1 ? "y" : "ies")}.";
@@ -410,50 +402,10 @@ public partial class SectorConfiguration : ComponentBase
             includeSavedRoutes: true,
             includeReferenceData: false,
             cancellationToken: cancellationToken);
-
-        loadedSectorSectionsById.Clear();
         foreach (var sectorId in ExplorerSectors.Select(sector => sector.Id))
         {
             sectorCacheBuilder.Invalidate(sectorId);
         }
-    }
-
-    private async Task EnsureSectorDataLoadedAsync(int sectorId, CancellationToken cancellationToken = default)
-    {
-        if (sectorId <= 0)
-        {
-            return;
-        }
-
-        const ExplorerSectorLoadSections requiredSections = ExplorerSectorLoadSections.SavedRoutes;
-
-        loadedSectorSectionsById.TryGetValue(sectorId, out var loadedSections);
-        if ((loadedSections & requiredSections) == requiredSections)
-        {
-            return;
-        }
-
-        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiredSections, cancellationToken);
-        if (detailedSector is null)
-        {
-            return;
-        }
-
-        var sectors = ExplorerSectors.ToList();
-        var sectorIndex = sectors.FindIndex(item => item.Id == detailedSector.Id);
-        if (sectorIndex >= 0)
-        {
-            sectors[sectorIndex] = detailedSector;
-        }
-
-        explorerContext = explorerContext with
-        {
-            Sectors = sectors,
-            CurrentSector = explorerContext.CurrentSector.Id == detailedSector.Id ? detailedSector : explorerContext.CurrentSector
-        };
-
-        loadedSectorSectionsById[sectorId] = loadedSections | requiredSections;
-        sectorCacheBuilder.Invalidate(sectorId);
     }
 
     private void RunSearch()
@@ -484,8 +436,6 @@ public partial class SectorConfiguration : ComponentBase
         }
 
         selectedSectorId = sector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        sector = GetSelectedSector();
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;
