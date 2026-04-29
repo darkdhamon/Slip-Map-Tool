@@ -1,0 +1,30 @@
+<section class="explorer-page">
+    <SectorExplorerShell HeroContent="State.HeroContent"
+                         Sectors="State.Sectors"
+                         Systems="State.Systems"
+                         SelectedSectorId="@State.SelectedSectorId"
+                         SelectedSectorChanged="State.SelectedSectorChanged"
+                         SelectedSystemText="@State.SelectedSystemText"
+                         SelectedSystemTextChanged="State.SelectedSystemTextChanged"
+                         SearchQuery="@State.SearchQuery"
+                         SearchQueryChanged="State.SearchQueryChanged"
+                         SearchResults="State.SearchResults"
+                         SearchResultSelected="State.SearchResultSelected"
+                         Sections="State.Sections"
+                         ActiveSection="@State.ActiveSection"
+                         ErrorMessage="@State.ErrorMessage"
+                         ResultTypeDisplayFactory="State.ResultTypeDisplayFactory"
+                         SectionHrefFactory="State.SectionHrefFactory"
+                         HeaderContent="State.HeaderContent"
+                         FooterContent="State.FooterContent">
+        @ChildContent
+    </SectorExplorerShell>
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public SectorExplorerLayoutState State { get; set; } = default!;
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

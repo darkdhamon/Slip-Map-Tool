@@ -1,4 +1,4 @@
-@layout SectorExplorerLayout
+@layout MainLayout
 @page "/sector-explorer/colonies"
 @rendermode InteractiveServer
 
@@ -27,7 +27,7 @@
 }
 
 <PageTitle>Colonies | Starforged Atlas</PageTitle>
-<SectorExplorerLayoutSync State="layoutState" />
+<SectorExplorerFrame State="layoutState">
 
 <section class="content-grid">
     <div class="record-list colony-record-list">
@@ -212,3 +212,4 @@
         </article>
     }
 </section>
+</SectorExplorerFrame>

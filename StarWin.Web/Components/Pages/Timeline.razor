@@ -1,4 +1,4 @@
-@layout SectorExplorerLayout
+@layout MainLayout
 @page "/sector-explorer/timeline"
 @rendermode InteractiveServer
 
@@ -24,7 +24,7 @@
 }
 
 <PageTitle>Timeline | Starforged Atlas</PageTitle>
-<SectorExplorerLayoutSync State="layoutState" />
+<SectorExplorerFrame State="layoutState">
 
 <ExplorerTimelineSection SectorId="@sector.Id"
                          SectorName="@sector.Name"
@@ -42,3 +42,4 @@
               Detail="The page will stay visible until the first chronology batch is ready."
               StartedAtUnixMs="@timelinePageLoadingStartedAtUnixMs"
               Steps="@timelineLoadingSteps" />
+</SectorExplorerFrame>

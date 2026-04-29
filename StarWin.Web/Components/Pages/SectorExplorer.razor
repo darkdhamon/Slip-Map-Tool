@@ -1,4 +1,4 @@
-@layout SectorExplorerLayout
+@layout MainLayout
 @page "/sector-explorer"
 @rendermode InteractiveServer
 @inject IStarWinWorkspace Workspace
@@ -34,7 +34,7 @@
 }
 
 <PageTitle>Sector Explorer | Starforged Atlas</PageTitle>
-<SectorExplorerLayoutSync State="layoutState" />
+<SectorExplorerFrame State="layoutState">
 
 @if (overviewData is not null)
 {
@@ -98,6 +98,7 @@ else
                                     SystemId="selectedSystemId" />
     }
 </section>
+</SectorExplorerFrame>
 @code {
     private const string OverviewSectionName = "Overview";
     private const int ComboAllFilterId = -1;

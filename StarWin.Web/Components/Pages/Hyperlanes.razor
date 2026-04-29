@@ -1,4 +1,4 @@
-@layout SectorExplorerLayout
+@layout MainLayout
 @page "/sector-explorer/hyperlanes"
 @rendermode InteractiveServer
 
@@ -31,7 +31,7 @@
 }
 
 <PageTitle>Hyperlanes | Starforged Atlas</PageTitle>
-<SectorExplorerLayoutSync State="layoutState" />
+<SectorExplorerFrame State="layoutState">
 
 <section class="hyperlane-layout">
             <article class="feature-panel hyperlane-list-panel">
@@ -179,3 +179,4 @@
                 }
             </article>
         </section>
+</SectorExplorerFrame>

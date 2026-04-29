@@ -1,4 +1,4 @@
-@layout SectorExplorerLayout
+@layout MainLayout
 @page "/sector-explorer/religions"
 @rendermode InteractiveServer
 
@@ -25,7 +25,7 @@
 }
 
 <PageTitle>Religions | Starforged Atlas</PageTitle>
-<SectorExplorerLayoutSync State="layoutState" />
+<SectorExplorerFrame State="layoutState">
 
 <section class="content-grid">
     <div class="record-list">
@@ -146,3 +146,4 @@
         </article>
     }
 </section>
+</SectorExplorerFrame>

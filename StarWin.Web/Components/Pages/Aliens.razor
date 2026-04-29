@@ -1,4 +1,4 @@
-@layout SectorExplorerLayout
+@layout MainLayout
 @page "/sector-explorer/aliens"
 @rendermode InteractiveServer
 
@@ -27,7 +27,7 @@
 }
 
 <PageTitle>Aliens | Starforged Atlas</PageTitle>
-<SectorExplorerLayoutSync State="layoutState" />
+<SectorExplorerFrame State="layoutState">
 
 <section class="content-grid">
             <div class="record-list">
@@ -163,3 +163,4 @@
                                   WorldSelected="NavigateToWorld"
                                   EmpireSelected="NavigateToEmpire" />
         </section>
+</SectorExplorerFrame>

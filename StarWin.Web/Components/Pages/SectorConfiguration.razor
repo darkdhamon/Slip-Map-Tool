@@ -1,4 +1,4 @@
-@layout SectorExplorerLayout
+@layout MainLayout
 @page "/sector-explorer/configuration"
 @rendermode InteractiveServer
 @using StarWin.Domain.Services
@@ -27,7 +27,7 @@
 }
 
 <PageTitle>Sector Configuration | Starforged Atlas</PageTitle>
-<SectorExplorerLayoutSync State="layoutState" />
+<SectorExplorerFrame State="layoutState">
 
 <section class="detail-panel">
             <span class="panel-kicker">Sector Configuration</span>
@@ -278,3 +278,4 @@
         <strong class="loading-progress-value">@routeSaveLoadingPercent%</strong>
     </AfterMeterContent>
 </LoadingModal>
+</SectorExplorerFrame>
