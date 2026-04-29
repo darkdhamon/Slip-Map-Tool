@@ -215,7 +215,7 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
-    public void MapWorkspaceNavigatesDirectlyToSystemsPage()
+    public async Task MapWorkspaceNavigatesDirectlyToSystemsPage()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -231,19 +231,16 @@ public sealed class SectorExplorerPageTests : BunitContext
             .Add(component => component.SystemId, 12));
 
         cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
-        cut.FindAll("button.overlay-action")
-            .First(button => button.TextContent.Contains("Load 3D map", StringComparison.Ordinal))
-            .Click();
-        cut.WaitForAssertion(() => Assert.Contains("Open system record", cut.Markup));
-        cut.FindAll("button.overlay-action")
-            .First(button => button.TextContent.Contains("Open system record", StringComparison.Ordinal))
-            .Click();
+        var openRecordMethod = typeof(SectorExplorerMapWorkspace).GetMethod("OpenSelectedSystemRecordAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(openRecordMethod);
+
+        await cut.InvokeAsync(() => (Task)openRecordMethod!.Invoke(cut.Instance, [])!);
 
         Assert.EndsWith("/sector-explorer/systems?sectorId=7&systemId=12", navigationManager.Uri, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void MapWorkspacePromptsToPreGenerateRoutesWhenSavedRoutesAreMissing()
+    public void MapWorkspaceSkipsPersistentDynamicRouteFallbackPromptWhenSavedRoutesAreMissing()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -255,29 +252,28 @@ public sealed class SectorExplorerPageTests : BunitContext
             .Add(component => component.SectorId, 7)
             .Add(component => component.SystemId, 11));
 
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("does not have saved hyperlane routes yet", cut.Markup);
-            Assert.Contains("Open sector configuration", cut.Markup);
-        });
-
-        var configurationLink = cut.FindAll("a")
-            .Single(link => link.TextContent.Contains("Open sector configuration", StringComparison.Ordinal));
-        Assert.Equal("/sector-explorer/configuration?sectorId=7&systemId=11", configurationLink.GetAttribute("href"));
-
-        cut.FindAll("button.overlay-action")
-            .First(button => button.TextContent.Contains("Load 3D map", StringComparison.Ordinal))
-            .Click();
-
-        cut.WaitForAssertion(() => Assert.Contains("using dynamically generated hyperlane routes", cut.Markup));
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+        Assert.DoesNotContain("Open sector configuration", cut.Markup);
+        Assert.DoesNotContain("No saved routes yet. The map is generating them dynamically.", cut.Markup);
     }
 
     [Fact]
-    public void MapWorkspaceSkipsPreGenerationPromptWhenSavedRoutesExist()
+    public void MapWorkspaceUsesShortDynamicRouteFallbackOverlayCopy()
+    {
+        var noteMethod = typeof(SectorExplorerMapWorkspace).GetMethod("GetSavedRouteGenerationLoadingNote", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(noteMethod);
+
+        var note = noteMethod!.Invoke(null, []) as string;
+
+        Assert.Equal("No saved routes yet. The map is generating them dynamically. Use Save Current Routes in Sector Configuration to speed up future loads.", note);
+    }
+
+    [Fact]
+    public async Task MapWorkspaceHidesDynamicRouteFallbackHintAfterMapRenderCompletes()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
-        var sector = CreateSector();
+        var sector = CreateSector(includeSavedRoutes: false);
         var workspace = new FakeWorkspace(sector);
         ConfigureServices(sector, workspace);
 
@@ -287,8 +283,36 @@ public sealed class SectorExplorerPageTests : BunitContext
 
         cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
 
-        Assert.DoesNotContain("Open sector configuration", cut.Markup);
-        Assert.DoesNotContain("saved hyperlane routes yet", cut.Markup);
+        var sectorMapRequestedField = typeof(SectorExplorerMapWorkspace).GetField("sectorMapRequested", BindingFlags.Instance | BindingFlags.NonPublic);
+        var renderedOverviewField = typeof(SectorExplorerMapWorkspace).GetField("renderedOverview", BindingFlags.Instance | BindingFlags.NonPublic);
+        var stateHasChangedMethod = typeof(ComponentBase).GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(sectorMapRequestedField);
+        Assert.NotNull(renderedOverviewField);
+        Assert.NotNull(stateHasChangedMethod);
+
+        await cut.InvokeAsync(() =>
+        {
+            sectorMapRequestedField!.SetValue(cut.Instance, true);
+            renderedOverviewField!.SetValue(cut.Instance, false);
+            stateHasChangedMethod!.Invoke(cut.Instance, []);
+        });
+
+        cut.WaitForAssertion(() => Assert.Contains("No saved routes yet. The map is generating them dynamically. Use Save Current Routes in Sector Configuration to speed up future loads.", cut.Markup));
+
+        await cut.InvokeAsync(() =>
+        {
+            sectorMapRequestedField!.SetValue(cut.Instance, true);
+            renderedOverviewField!.SetValue(cut.Instance, true);
+            stateHasChangedMethod!.Invoke(cut.Instance, []);
+        });
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Open system record", cut.Markup);
+            Assert.DoesNotContain("No saved routes yet. The map is generating them dynamically. Use Save Current Routes in Sector Configuration to speed up future loads.", cut.Markup);
+            Assert.DoesNotContain("Open sector configuration", cut.Markup);
+        });
     }
 
     [Fact]

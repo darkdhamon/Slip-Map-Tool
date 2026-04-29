@@ -63,16 +63,6 @@ else
                 <span class="panel-kicker">3D Sector Map</span>
                 <h2>@mapPanelTitle</h2>
                 <p>The interactive map is available on request so large imported sectors do not slow down the explorer while you browse records.</p>
-                @if (ShouldRecommendSavedRouteGeneration(mapSector))
-                {
-                    <div class="route-cache-note">
-                        <p>@GetSavedRouteGenerationRecommendation(mapSector, isDynamicFallbackActive: false)</p>
-                        <a class="overlay-action route-cache-action"
-                           href="@BuildSectorConfigurationRoute()">
-                            Open sector configuration
-                        </a>
-                    </div>
-                }
                 <label class="switch-field">
                     <input type="checkbox"
                            checked="@autoLoadRequested"
@@ -88,63 +78,83 @@ else
         }
         else
         {
-            <div class="map-hud">
-                <span>3D Sector Map</span>
-                <strong>@mapSector.Name</strong>
-                <small>@GetSectorMapSystemCount(mapSector, selectedMapSystem) of @mapSector.Systems.Count systems within @sectorMapViewDistanceParsecs parsecs@(IsSectorMapCapped(mapSector, selectedMapSystem) ? $" (closest {sectorMapRenderLimit:N0} shown)" : string.Empty)</small>
-                <small>@GetSectorMapRouteCount(mapSector, selectedMapSystem) visible hyperlanes</small>
-                @if (!string.IsNullOrWhiteSpace(sectorMapPerformanceStatus))
-                {
-                    <small class="map-performance-status">@sectorMapPerformanceStatus</small>
-                }
-                @if (ShouldRecommendSavedRouteGeneration(mapSector))
-                {
-                    <div class="route-cache-note route-cache-note-compact">
-                        <p>@GetSavedRouteGenerationRecommendation(mapSector, isDynamicFallbackActive: true)</p>
-                        <a class="overlay-action route-cache-action"
-                           href="@BuildSectorConfigurationRoute()">
-                            Open sector configuration
-                        </a>
-                    </div>
-                }
-                @if (selectedRoutePlan is { } hudRoutePlan)
-                {
-                    <small>@hudRoutePlan.Legs.Count route legs from @hudRoutePlan.Origin.Name to @hudRoutePlan.Destination.Name; @hudRoutePlan.OffHyperlaneLegCount off-lane</small>
-                }
-                <label class="switch-field compact">
-                    <input type="checkbox"
-                           checked="@autoLoadRequested"
-                           @onchange="ToggleAutoLoadSectorMap" />
-                    <span>Auto-load</span>
-                </label>
-                <label class="map-distance-control">
-                    <span>View distance</span>
-                    <input type="range"
-                           min="@DefaultSectorMapViewDistanceParsecs"
-                           max="@GetSectorMapMaximumViewDistance(mapSector)"
-                           step="1"
-                           @bind="sectorMapViewDistanceParsecs"
-                           @bind:event="oninput" />
-                    <strong>@sectorMapViewDistanceParsecs pc</strong>
-                </label>
-                <button type="button" class="overlay-action" @onclick="RefreshSectorMapContextAsync" disabled="@mapContextRefreshing">@mapContextActionLabel</button>
-                @if (!string.IsNullOrWhiteSpace(mapContextStatus))
-                {
-                    <small>@mapContextStatus</small>
-                }
-            </div>
-            <button type="button" class="map-fullscreen-button" @onclick="ToggleSectorMapFullscreen">
-                <span class="enter-fullscreen">Full screen</span>
-                <span class="exit-fullscreen">Exit full screen</span>
-            </button>
-            <div class="map-controls-hint">
-                <span>Drag rotate</span>
-                <span>WASD/QE rotate</span>
-                <span>Wheel zoom</span>
-                <span>Right-drag pan</span>
+            if (!renderedOverview)
+            {
+                <article class="map-request-panel workspace-loading-copy">
+                    <span class="panel-kicker">3D Sector Map</span>
+                    <h2>Preparing map workspace</h2>
+                    <p>The interactive map and route planner are loading for the selected sector.</p>
+                </article>
+            }
+            else
+            {
+                <div class="map-hud">
+                    <span>3D Sector Map</span>
+                    <strong>@mapSector.Name</strong>
+                    <small>@GetSectorMapSystemCount(mapSector, selectedMapSystem) of @mapSector.Systems.Count systems within @sectorMapViewDistanceParsecs parsecs@(IsSectorMapCapped(mapSector, selectedMapSystem) ? $" (closest {sectorMapRenderLimit:N0} shown)" : string.Empty)</small>
+                    <small>@GetSectorMapRouteCount(mapSector, selectedMapSystem) visible hyperlanes</small>
+                    @if (!string.IsNullOrWhiteSpace(sectorMapPerformanceStatus))
+                    {
+                        <small class="map-performance-status">@sectorMapPerformanceStatus</small>
+                    }
+                    @if (selectedRoutePlan is { } hudRoutePlan)
+                    {
+                        <small>@hudRoutePlan.Legs.Count route legs from @hudRoutePlan.Origin.Name to @hudRoutePlan.Destination.Name; @hudRoutePlan.OffHyperlaneLegCount off-lane</small>
+                    }
+                    <label class="switch-field compact">
+                        <input type="checkbox"
+                               checked="@autoLoadRequested"
+                               @onchange="ToggleAutoLoadSectorMap" />
+                        <span>Auto-load</span>
+                    </label>
+                    <label class="map-distance-control">
+                        <span>View distance</span>
+                        <input type="range"
+                               min="@DefaultSectorMapViewDistanceParsecs"
+                               max="@GetSectorMapMaximumViewDistance(mapSector)"
+                               step="1"
+                               @bind="sectorMapViewDistanceParsecs"
+                               @bind:event="oninput" />
+                        <strong>@sectorMapViewDistanceParsecs pc</strong>
+                    </label>
+                    <button type="button" class="overlay-action" @onclick="RefreshSectorMapContextAsync" disabled="@mapContextRefreshing">@mapContextActionLabel</button>
+                    @if (!string.IsNullOrWhiteSpace(mapContextStatus))
+                    {
+                        <small>@mapContextStatus</small>
+                    }
+                </div>
+                <button type="button" class="map-fullscreen-button" @onclick="ToggleSectorMapFullscreen">
+                    <span class="enter-fullscreen">Full screen</span>
+                    <span class="exit-fullscreen">Exit full screen</span>
+                </button>
+                <div class="map-controls-hint">
+                    <span>Drag rotate</span>
+                    <span>WASD/QE rotate</span>
+                    <span>Wheel zoom</span>
+                    <span>Right-drag pan</span>
+                </div>
+            }
+        }
+        @if (sectorMapRequested && !renderedOverview)
+        {
+            <div class="workspace-loading-modal-host">
+                <LoadingModal IsVisible="true"
+                              BackdropClass="inline-loading-modal-backdrop workspace-loading-backdrop workspace-loading-shared-backdrop"
+                              AriaLabel="Loading 3D sector map"
+                              Kicker="3D sector map"
+                              Title="Loading 3D sector map"
+                              Detail="Preparing the selected sector for the interactive map and route planner."
+                              Steps="@mapContextLoadingSteps">
+                    <AfterMeterContent>
+                        @if (ShouldRecommendSavedRouteGeneration(mapSector))
+                        {
+                            <p class="workspace-loading-note">@GetSavedRouteGenerationLoadingNote()</p>
+                        }
+                    </AfterMeterContent>
+                </LoadingModal>
             </div>
         }
-        @if (sectorMapRequested && selectedMapSystem is not null)
+        @if (sectorMapRequested && renderedOverview && selectedMapSystem is not null)
         {
             <article class="fullscreen-system-overlay">
                 <span class="panel-kicker">Current system</span>
@@ -159,7 +169,7 @@ else
                 <button type="button" class="overlay-action" @onclick="OpenSelectedSystemRecordAsync">Open system record</button>
             </article>
         }
-        @if (sectorMapRequested)
+        @if (sectorMapRequested && renderedOverview)
         {
             <article class="fullscreen-route-planner route-planner-panel">
                 <span class="panel-kicker">Route planner</span>
@@ -554,21 +564,14 @@ else
         return GetMapSector();
     }
 
-    private string BuildSectorConfigurationRoute()
-    {
-        return SectorExplorerRoutes.BuildSectionUri("Configuration", SectorId, selectedSystemId);
-    }
-
-    private static string GetSavedRouteGenerationRecommendation(StarWinSector sector, bool isDynamicFallbackActive)
-    {
-        return isDynamicFallbackActive
-            ? $"{sector.Name} is using dynamically generated hyperlane routes because this sector does not have saved routes yet. Run Save Current Routes in Sector Configuration to make future map loads much faster."
-            : $"{sector.Name} does not have saved hyperlane routes yet. The map can generate them dynamically, but running Save Current Routes in Sector Configuration will make future map loads much faster.";
-    }
-
     private static bool ShouldRecommendSavedRouteGeneration(StarWinSector sector)
     {
         return sector.SavedRoutes.Count == 0;
+    }
+
+    private static string GetSavedRouteGenerationLoadingNote()
+    {
+        return "No saved routes yet. The map is generating them dynamically. Use Save Current Routes in Sector Configuration to speed up future loads.";
     }
 
     private static int ResolveSelectedSystemId(StarWinSector sector, int requestedSystemId)
