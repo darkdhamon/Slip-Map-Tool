@@ -551,6 +551,7 @@ else
             renderedRouteConfigurationStamp = GetRouteConfigurationStamp(sector);
             renderedOverview = true;
             renderError = string.Empty;
+            await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {

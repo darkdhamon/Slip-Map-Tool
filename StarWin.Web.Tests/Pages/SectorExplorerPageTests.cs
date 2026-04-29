@@ -320,6 +320,9 @@ public sealed class SectorExplorerPageTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
+        var mapModule = JSInterop.SetupModule("./js/sectorMap3d.js");
+        var renderHandler = mapModule.SetupVoid("renderSectorMap", _ => true);
+
         var sector = CreateSector(includeSavedRoutes: false);
         var workspace = new FakeWorkspace(sector);
         ConfigureServices(sector, workspace);
@@ -347,6 +350,8 @@ public sealed class SectorExplorerPageTests : BunitContext
 
         cut.WaitForAssertion(() => Assert.Contains("No saved routes yet. The map is generating them dynamically. Use Save Current Routes in Sector Configuration to speed up future loads.", cut.Markup));
 
+        renderHandler.SetVoidResult();
+
         await cut.InvokeAsync(() =>
         {
             sectorMapRequestedField!.SetValue(cut.Instance, true);
@@ -359,6 +364,44 @@ public sealed class SectorExplorerPageTests : BunitContext
             Assert.Contains("Open system record", cut.Markup);
             Assert.DoesNotContain("No saved routes yet. The map is generating them dynamically. Use Save Current Routes in Sector Configuration to speed up future loads.", cut.Markup);
             Assert.DoesNotContain("Open sector configuration", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public async Task MapWorkspaceHidesLoadingModalAfterRenderCompletes()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var mapModule = JSInterop.SetupModule("./js/sectorMap3d.js");
+        var renderHandler = mapModule.SetupVoid("renderSectorMap", _ => true);
+        renderHandler.SetVoidResult();
+
+        var sector = CreateSector(includeSavedRoutes: false);
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11));
+
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+
+        var sectorMapRequestedField = typeof(SectorExplorerMapWorkspace).GetField("sectorMapRequested", BindingFlags.Instance | BindingFlags.NonPublic);
+        var stateHasChangedMethod = typeof(ComponentBase).GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(sectorMapRequestedField);
+        Assert.NotNull(stateHasChangedMethod);
+
+        await cut.InvokeAsync(() =>
+        {
+            sectorMapRequestedField!.SetValue(cut.Instance, true);
+            stateHasChangedMethod!.Invoke(cut.Instance, []);
+        });
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.DoesNotContain("Loading 3D sector map", cut.Markup);
+            Assert.Contains("Open system record", cut.Markup);
         });
     }
 

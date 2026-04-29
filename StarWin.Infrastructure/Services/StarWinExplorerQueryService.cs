@@ -22,7 +22,7 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         }
 
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var overviewRow = await dbContext.Database
+        var overviewRows = await dbContext.Database
             .SqlQuery<ExplorerSectorOverviewRow>($"""
                 WITH SectorSystems AS (
                     SELECT Id, AllegianceId
@@ -84,7 +84,8 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                     (SELECT COUNT(*) FROM SectorEmpireIds) AS EmpireCount,
                     (SELECT COUNT(*) FROM SectorRaceIds) AS RaceCount
                 """)
-            .SingleAsync(cancellationToken);
+            .ToListAsync(cancellationToken);
+        var overviewRow = overviewRows.Single();
 
         return new ExplorerSectorOverviewData(
             overviewRow.SectorId,
