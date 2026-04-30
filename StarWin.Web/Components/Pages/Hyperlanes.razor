@@ -4,13 +4,16 @@
 
 @{
     var sector = GetSelectedSector();
-    var savedHyperlanes = GetOrderedRoutes(sector);
+    var hasSavedHyperlanes = HasSavedHyperlanes;
+    var savedHyperlanes = hasSavedHyperlanes ? GetOrderedRoutes(sector) : Array.Empty<SectorSavedRoute>();
     var hyperlaneWindow = savedHyperlanes.Take(hyperlaneVisibleCount + 1).ToList();
     var hasMoreHyperlanes = hyperlaneWindow.Count > hyperlaneVisibleCount;
     var visibleHyperlanes = hyperlaneWindow.Take(hyperlaneVisibleCount).ToList();
-    var selectedHyperlane = GetSelectedRoute(sector, savedHyperlanes);
-    var savedHyperlaneReport = GetSavedHyperlaneReport(sector);
-    var sectorEmpires = ExplorerEmpires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList();
+    var selectedHyperlane = hasSavedHyperlanes ? GetSelectedRoute(sector, savedHyperlanes) : null;
+    var savedHyperlaneReport = hasSavedHyperlanes ? GetSavedHyperlaneReport(sector) : global::StarWin.Domain.Services.SectorHyperlaneNetworkReport.Empty;
+    IReadOnlyList<ExplorerLookupOption> sectorEmpires = hasSavedHyperlanes
+        ? ExplorerEmpires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList()
+        : [];
     var layoutState = new SectorExplorerLayoutState(
         null,
         ExplorerSectors,
@@ -34,6 +37,34 @@
 <SectorExplorerFrame State="layoutState">
 
 <section class="hyperlane-layout">
+        @if (!hasSavedHyperlanes)
+        {
+            <article class="feature-panel hyperlane-list-panel">
+                <span class="panel-kicker">Saved Hyperlanes</span>
+                <h2>@(hyperlaneSetupState?.SectorName ?? sector.Name)</h2>
+                <p>This page unlocks after you generate the saved hyperlane cache for this sector. Until then, use the generation controls below to build the initial route network.</p>
+                <div class="parent-actions">
+                    <button type="button" @onclick="GenerateHyperlanesAsync" disabled="@routeSaveLoadingVisible">Generate hyperlanes</button>
+                    <button type="button" @onclick="NavigateToConfiguration" disabled="@routeSaveLoadingVisible">Open sector configuration</button>
+                </div>
+                <p class="panel-note">If you need different generation behavior, update the sector route settings in Sector Configuration before you start.</p>
+                @if (!string.IsNullOrWhiteSpace(hyperlaneStatus))
+                {
+                    <p class="search-empty">@hyperlaneStatus</p>
+                }
+                <dl class="field-grid compact-field-grid hyperlane-network-summary">
+                    <div><dt>Connection cap</dt><dd>@HyperlaneConfiguration.Tl9AndBelowMaximumConnectionsPerSystem standard links plus @HyperlaneConfiguration.AdditionalCrossEmpireConnectionsPerSystem cross-empire bonus</dd></div>
+                    <div><dt>Off-lane distance</dt><dd>@($"{HyperlaneConfiguration.OffLaneMaximumDistanceParsecs:0.###} parsecs")</dd></div>
+                    <div><dt>TL6</dt><dd>@($"{HyperlaneConfiguration.Tl6HyperlaneName} up to {HyperlaneConfiguration.Tl6MaximumDistanceParsecs:0.###} pc")</dd></div>
+                    <div><dt>TL7</dt><dd>@($"{HyperlaneConfiguration.Tl7HyperlaneName} up to {HyperlaneConfiguration.Tl7MaximumDistanceParsecs:0.###} pc")</dd></div>
+                    <div><dt>TL8</dt><dd>@($"{HyperlaneConfiguration.Tl8HyperlaneName} up to {HyperlaneConfiguration.Tl8MaximumDistanceParsecs:0.###} pc")</dd></div>
+                    <div><dt>TL9</dt><dd>@($"{HyperlaneConfiguration.Tl9HyperlaneName} up to {HyperlaneConfiguration.Tl9MaximumDistanceParsecs:0.###} pc")</dd></div>
+                    <div><dt>TL10</dt><dd>@HyperlaneConfiguration.Tl10HyperlaneName @(HyperlaneConfiguration.Tl10MaximumDistanceParsecs < 0 ? "with uncapped distance" : $"up to {HyperlaneConfiguration.Tl10MaximumDistanceParsecs:0.###} pc")</dd></div>
+                </dl>
+            </article>
+        }
+        else
+        {
             <article class="feature-panel hyperlane-list-panel">
                 <span class="panel-kicker">Saved Hyperlanes</span>
                 <h2>@sector.Name</h2>
@@ -178,5 +209,25 @@
                     <p class="notes-empty">Save the hyperlane first if you want to attach notes to it.</p>
                 }
             </article>
-        </section>
+        }
+</section>
+
+<LoadingModal IsVisible="@routeSaveLoadingVisible"
+              AriaLabel="Generating hyperlanes"
+              Kicker="Generating hyperlanes"
+              Title="@routeSaveLoadingStatus"
+              Detail="@routeSaveLoadingDetail"
+              MeterClass="loading-meter import-progress-meter"
+              ProgressPercent="@routeSaveLoadingPercent"
+              Steps="@routeSaveLoadingSteps">
+    <BeforeMeterContent>
+        @if (routeSaveProcessedItems is int processedItems && routeSaveTotalItems is int totalItems && totalItems > 0)
+        {
+            <strong class="loading-progress-value">@processedItems / @totalItems systems processed</strong>
+        }
+    </BeforeMeterContent>
+    <AfterMeterContent>
+        <strong class="loading-progress-value">@routeSaveLoadingPercent%</strong>
+    </AfterMeterContent>
+</LoadingModal>
 </SectorExplorerFrame>

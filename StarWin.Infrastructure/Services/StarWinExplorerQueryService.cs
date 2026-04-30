@@ -668,6 +668,33 @@ public sealed class StarWinExplorerQueryService(
         return new ExplorerColonyDetail(sectorId, colony, world);
     }
 
+    public async Task<ExplorerHyperlaneSetupState?> LoadHyperlaneSetupAsync(int sectorId, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var setupRow = await dbContext.Sectors
+            .AsNoTracking()
+            .Where(sector => sector.Id == sectorId)
+            .Select(sector => new
+            {
+                sector.Id,
+                sector.Name,
+                sector.Configuration,
+                SavedRouteCount = sector.SavedRoutes.Count
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (setupRow is null)
+        {
+            return null;
+        }
+
+        return new ExplorerHyperlaneSetupState(
+            setupRow.Id,
+            setupRow.Name,
+            CloneSectorConfiguration(setupRow.Configuration),
+            setupRow.SavedRouteCount);
+    }
+
     public async Task<ExplorerHyperlaneWorkspace?> LoadHyperlaneWorkspaceAsync(int sectorId, CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);

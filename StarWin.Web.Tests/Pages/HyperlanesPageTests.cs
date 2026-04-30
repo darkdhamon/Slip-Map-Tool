@@ -158,6 +158,50 @@ public sealed class HyperlanesPageTests : BunitContext
     }
 
     [Fact]
+    public void ShowsGenerationGateWhenSectorHasNoSavedHyperlanes()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var explorerContextService = new FakeExplorerContextService(CreateContext(routeCount: 0));
+        ConfigureServices(explorerContextService);
+
+        var cut = Render<Hyperlanes>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("This page unlocks after you generate the saved hyperlane cache for this sector.", cut.Markup);
+            Assert.Contains("Generate hyperlanes", cut.Markup);
+            Assert.Contains("Open sector configuration", cut.Markup);
+            Assert.Contains("Basic Hyperlane up to 1 pc", cut.Markup);
+            Assert.DoesNotContain("Add hyperlane", cut.Markup);
+            Assert.DoesNotContain("Create saved hyperlane", cut.Markup);
+            Assert.Empty(cut.FindAll(".hyperlane-record"));
+        });
+    }
+
+    [Fact]
+    public void GenerateHyperlanesUnlocksPageWhenNoSavedHyperlanesExist()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var routeService = new FakeSectorRouteService();
+        var context = CreateContext(routeCount: 0);
+        var explorerContextService = new FakeExplorerContextService(context);
+        ConfigureServices(explorerContextService, routeService);
+
+        var cut = Render<Hyperlanes>();
+        cut.WaitForAssertion(() => Assert.Contains("Generate hyperlanes", cut.Markup));
+
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Generate hyperlanes").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.True(routeService.SaveCurrentRoutesCalled);
+            Assert.Contains("Showing 1 saved hyperlane", cut.Markup);
+            Assert.Contains("Create saved hyperlane", cut.Markup);
+            Assert.Contains("Saved 1 hyperlane segment for Del Corra.", cut.Markup);
+        });
+    }
+
+    [Fact]
     public void NewDraftClearsExplicitHyperlaneSelectionFromRoute()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -197,7 +241,8 @@ public sealed class HyperlanesPageTests : BunitContext
     private static StarWinExplorerContext CreateContext(int routeCount = 2)
     {
         var systems = new List<StarSystem>();
-        for (var index = 0; index <= routeCount; index++)
+        var systemCount = Math.Max(routeCount + 1, 2);
+        for (var index = 0; index < systemCount; index++)
         {
             systems.Add(new StarSystem
             {
@@ -214,7 +259,28 @@ public sealed class HyperlanesPageTests : BunitContext
             });
         }
 
-        var sector = new StarWinSector { Id = 7, Name = "Del Corra" };
+        var sector = new StarWinSector
+        {
+            Id = 7,
+            Name = "Del Corra",
+            Configuration = new StarWin.Domain.Model.Entity.StarMap.SectorConfiguration
+            {
+                SectorId = 7,
+                OffLaneMaximumDistanceParsecs = 2.5m,
+                Tl9AndBelowMaximumConnectionsPerSystem = 4,
+                AdditionalCrossEmpireConnectionsPerSystem = 1,
+                Tl6HyperlaneName = "Basic Hyperlane",
+                Tl6MaximumDistanceParsecs = 1.0m,
+                Tl7HyperlaneName = "Enhanced Hyperlane",
+                Tl7MaximumDistanceParsecs = 1.2m,
+                Tl8HyperlaneName = "Advanced Hyperlane",
+                Tl8MaximumDistanceParsecs = 1.4m,
+                Tl9HyperlaneName = "Prime Hyperlane",
+                Tl9MaximumDistanceParsecs = 1.6m,
+                Tl10HyperlaneName = "Ascendant Hyperlane",
+                Tl10MaximumDistanceParsecs = -1m
+            }
+        };
         foreach (var system in systems)
         {
             sector.Systems.Add(system);
@@ -286,12 +352,62 @@ public sealed class HyperlanesPageTests : BunitContext
     {
         public StarWinExplorerContext Context { get; set; } = StarWinExplorerContext.Empty;
         public bool SaveCalled { get; private set; }
+        public bool SaveCurrentRoutesCalled { get; private set; }
         public SectorManualRouteSaveRequest? LastSaveRequest { get; private set; }
         public int DeletedRouteId { get; private set; }
 
         public Task<SectorRouteSaveResult> SaveCurrentRoutesAsync(int sectorId, IProgress<SectorRouteSaveProgress>? progress = null, CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            SaveCurrentRoutesCalled = true;
+            var sector = Context.Sectors.First(item => item.Id == sectorId);
+            var replacedExistingRoutes = sector.SavedRoutes.Count > 0;
+
+            progress?.Report(new SectorRouteSaveProgress("Loading sector", "Reading the active sector and travel configuration.", 10));
+            progress?.Report(new SectorRouteSaveProgress("Generating routes", $"Scanning {sector.Systems.Count:N0} systems for TL6+ colony hyperlane endpoints.", 35, 0, sector.Systems.Count));
+
+            if (sector.SavedRoutes.Count == 0 && sector.Systems.Count >= 2)
+            {
+                sector.SavedRoutes.Add(new SectorSavedRoute
+                {
+                    Id = 1,
+                    SectorId = sectorId,
+                    SourceSystemId = sector.Systems[0].Id,
+                    TargetSystemId = sector.Systems[1].Id,
+                    DistanceParsecs = 1.0m,
+                    TravelTimeYears = 0.4m,
+                    TechnologyLevel = 6,
+                    TierName = sector.Configuration.Tl6HyperlaneName,
+                    GeneratedAtUtc = DateTime.UtcNow
+                });
+            }
+
+            progress?.Report(new SectorRouteSaveProgress("Writing database", "Saving the updated route cache to the database.", 90));
+            var finalRoutes = sector.SavedRoutes
+                .Select(route => new SectorHyperlaneRouteDefinition(
+                    route.SourceSystemId,
+                    route.TargetSystemId,
+                    (double)route.DistanceParsecs,
+                    (double)route.TravelTimeYears,
+                    route.TechnologyLevel,
+                    route.TierName,
+                    route.PrimaryOwnerEmpireId,
+                    route.PrimaryOwnerEmpireName,
+                    route.SecondaryOwnerEmpireId,
+                    route.SecondaryOwnerEmpireName))
+                .ToList();
+            var networkReport = SectorRoutePlanner.BuildHyperlaneNetworkReport(
+                sector.Systems.Select(system => system.Id),
+                finalRoutes);
+
+            progress?.Report(new SectorRouteSaveProgress("Routes saved", $"Stored {sector.SavedRoutes.Count:N0} cached hyperlane segment{(sector.SavedRoutes.Count == 1 ? string.Empty : "s")} for this sector.", 100));
+            return Task.FromResult(new SectorRouteSaveResult(
+                sectorId,
+                sector.SavedRoutes.Count,
+                sector.SavedRoutes.Count,
+                sector.SavedRoutes.Count(route => route.IsUserPersisted),
+                replacedExistingRoutes,
+                DateTime.UtcNow,
+                networkReport));
         }
 
         public Task<SectorSavedRoute> SaveManualRouteAsync(SectorManualRouteSaveRequest request, CancellationToken cancellationToken = default)

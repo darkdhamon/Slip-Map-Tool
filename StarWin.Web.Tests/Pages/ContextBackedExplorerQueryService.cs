@@ -431,6 +431,18 @@ internal sealed class ContextBackedExplorerQueryService(StarWinExplorerContext c
         return Task.FromResult(match is null ? null : new ExplorerColonyDetail(sectorId, match.Colony, match.World));
     }
 
+    public Task<ExplorerHyperlaneSetupState?> LoadHyperlaneSetupAsync(int sectorId, CancellationToken cancellationToken = default)
+    {
+        var sector = GetSector(sectorId);
+        return Task.FromResult(sector is null
+            ? null
+            : new ExplorerHyperlaneSetupState(
+                sector.Id,
+                sector.Name,
+                CloneConfiguration(sector.Configuration ?? new SectorConfiguration { SectorId = sector.Id }),
+                sector.SavedRoutes.Count));
+    }
+
     public Task<ExplorerHyperlaneWorkspace?> LoadHyperlaneWorkspaceAsync(int sectorId, CancellationToken cancellationToken = default)
     {
         var sector = GetSector(sectorId);
@@ -564,6 +576,38 @@ internal sealed class ContextBackedExplorerQueryService(StarWinExplorerContext c
             SecondaryOwnerEmpireName = route.SecondaryOwnerEmpireName,
             IsUserPersisted = route.IsUserPersisted,
             GeneratedAtUtc = route.GeneratedAtUtc
+        };
+    }
+
+    private static SectorConfiguration CloneConfiguration(SectorConfiguration configuration)
+    {
+        return new SectorConfiguration
+        {
+            SectorId = configuration.SectorId,
+            OffLaneMaximumDistanceParsecs = configuration.OffLaneMaximumDistanceParsecs,
+            Tl9AndBelowMaximumConnectionsPerSystem = configuration.Tl9AndBelowMaximumConnectionsPerSystem,
+            AdditionalCrossEmpireConnectionsPerSystem = configuration.AdditionalCrossEmpireConnectionsPerSystem,
+            Tl6HyperlaneName = configuration.Tl6HyperlaneName,
+            Tl6MaximumDistanceParsecs = configuration.Tl6MaximumDistanceParsecs,
+            Tl6OffLaneSpeedMultiplier = configuration.Tl6OffLaneSpeedMultiplier,
+            Tl6HyperlaneSpeedModifier = configuration.Tl6HyperlaneSpeedModifier,
+            Tl7HyperlaneName = configuration.Tl7HyperlaneName,
+            Tl7MaximumDistanceParsecs = configuration.Tl7MaximumDistanceParsecs,
+            Tl7OffLaneSpeedMultiplier = configuration.Tl7OffLaneSpeedMultiplier,
+            Tl7HyperlaneSpeedModifier = configuration.Tl7HyperlaneSpeedModifier,
+            Tl8HyperlaneName = configuration.Tl8HyperlaneName,
+            Tl8MaximumDistanceParsecs = configuration.Tl8MaximumDistanceParsecs,
+            Tl8OffLaneSpeedMultiplier = configuration.Tl8OffLaneSpeedMultiplier,
+            Tl8HyperlaneSpeedModifier = configuration.Tl8HyperlaneSpeedModifier,
+            Tl9HyperlaneName = configuration.Tl9HyperlaneName,
+            Tl9MaximumDistanceParsecs = configuration.Tl9MaximumDistanceParsecs,
+            Tl9OffLaneSpeedMultiplier = configuration.Tl9OffLaneSpeedMultiplier,
+            Tl9HyperlaneSpeedModifier = configuration.Tl9HyperlaneSpeedModifier,
+            Tl10HyperlaneName = configuration.Tl10HyperlaneName,
+            Tl10MaximumDistanceParsecs = configuration.Tl10MaximumDistanceParsecs,
+            Tl10OffLaneSpeedMultiplier = configuration.Tl10OffLaneSpeedMultiplier,
+            Tl10HyperlaneSpeedModifier = configuration.Tl10HyperlaneSpeedModifier,
+            UpdatedAtUtc = configuration.UpdatedAtUtc
         };
     }
 

@@ -37,6 +37,8 @@ public interface IStarWinExplorerQueryService
         => Task.FromResult<ExplorerColonyListItem?>(null);
     Task<ExplorerColonyDetail?> LoadColonyDetailAsync(int sectorId, int colonyId, CancellationToken cancellationToken = default)
         => Task.FromResult<ExplorerColonyDetail?>(null);
+    Task<ExplorerHyperlaneSetupState?> LoadHyperlaneSetupAsync(int sectorId, CancellationToken cancellationToken = default)
+        => Task.FromResult<ExplorerHyperlaneSetupState?>(null);
     Task<ExplorerHyperlaneWorkspace?> LoadHyperlaneWorkspaceAsync(int sectorId, CancellationToken cancellationToken = default)
         => Task.FromResult<ExplorerHyperlaneWorkspace?>(null);
     Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default);
@@ -130,6 +132,12 @@ public sealed record ExplorerColonyDetail(
     int SectorId,
     StarWin.Domain.Model.Entity.Civilization.Colony Colony,
     StarWin.Domain.Model.Entity.StarMap.World World);
+
+public sealed record ExplorerHyperlaneSetupState(
+    int SectorId,
+    string SectorName,
+    StarWin.Domain.Model.Entity.StarMap.SectorConfiguration Configuration,
+    int SavedRouteCount);
 
 public sealed record ExplorerHyperlaneWorkspace(
     int SectorId,
