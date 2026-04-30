@@ -37,6 +37,48 @@ public sealed class ExplorerTimelineSectionTests : BunitContext
     }
 
     [Fact]
+    public void KeepsEventDetailUnloadedUntilAnEventIsExplicitlySelected()
+    {
+        var queryService = new FakeExplorerQueryService
+        {
+            TimelineDetail = new ExplorerTimelineEventDetail(
+                1,
+                "Border war begins",
+                "War",
+                "Century 1",
+                1,
+                "Border war begins",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null)
+        };
+
+        Services.AddSingleton<IStarWinExplorerQueryService>(queryService);
+
+        var cut = Render<ExplorerTimelineSection>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SectorName, "Del Corra"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Select an event", cut.Markup);
+            Assert.Equal(0, queryService.LoadTimelineEventDetailCallCount);
+        });
+
+        cut.Find(".timeline-event-card-button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Border war begins", cut.Markup);
+            Assert.Equal(1, queryService.LoadTimelineEventDetailCallCount);
+        });
+    }
+
+    [Fact]
     public void TogglesImportDataForSelectedEvent()
     {
         var queryService = new FakeExplorerQueryService
@@ -93,6 +135,7 @@ public sealed class ExplorerTimelineSectionTests : BunitContext
     private sealed class FakeExplorerQueryService : IStarWinExplorerQueryService
     {
         public int LoadTimelineEventTypesCallCount { get; private set; }
+        public int LoadTimelineEventDetailCallCount { get; private set; }
 
         public List<ExplorerTimelinePageRequest> PageRequests { get; } = [];
 
@@ -100,7 +143,12 @@ public sealed class ExplorerTimelineSectionTests : BunitContext
 
         public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(new ExplorerSectorOverviewData(sectorId, 0, 0, 0, 0, 0, [], []));
+            return Task.FromResult(new ExplorerSectorOverviewData(sectorId, 0, 0, 0, 0, 0));
+        }
+
+        public Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerSectorEntityUsage(sectorId, [], []));
         }
 
         public Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
@@ -194,6 +242,7 @@ public sealed class ExplorerTimelineSectionTests : BunitContext
 
         public Task<ExplorerTimelineEventDetail?> LoadTimelineEventDetailAsync(int eventId, CancellationToken cancellationToken = default)
         {
+            LoadTimelineEventDetailCallCount++;
             return Task.FromResult(TimelineDetail);
         }
     }

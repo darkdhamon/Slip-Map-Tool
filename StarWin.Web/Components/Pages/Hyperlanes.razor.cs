@@ -1,19 +1,25 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using StarWin.Application.Services;
-using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.StarMap;
 using StarWin.Domain.Services;
 using StarWin.Web.Components.Explorer;
+using SectorConfigModel = StarWin.Domain.Model.Entity.StarMap.SectorConfiguration;
 
 namespace StarWin.Web.Components.Pages;
 
 public partial class Hyperlanes : ComponentBase
 {
     private const int ExplorerListBatchSize = 120;
+    private static readonly IReadOnlyList<string> routeSaveLoadingSteps =
+    [
+        "Load the current sector and empire data.",
+        "Generate exactly one route per system pair.",
+        "Write the refreshed route cache to the database."
+    ];
 
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
-    [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
+    [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
     [Inject] protected IStarWinSectorRouteService SectorRouteService { get; set; } = default!;
     [Inject] protected NavigationManager NavigationManager { get; set; } = default!;
     [Inject] protected IJSRuntime JS { get; set; } = default!;
@@ -28,9 +34,9 @@ public partial class Hyperlanes : ComponentBase
     public int? RequestedHyperlaneId { get; set; }
 
     protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
-    private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
-
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
+    protected ExplorerHyperlaneSetupState? hyperlaneSetupState;
+    protected ExplorerHyperlanePageState? selectedHyperlaneState;
     protected string explorerRenderError = string.Empty;
     protected int selectedSectorId;
     protected int selectedSystemId;
@@ -49,16 +55,30 @@ public partial class Hyperlanes : ComponentBase
     protected int hyperlaneSecondaryOwnerEmpireId;
     protected bool hyperlaneIsUserPersisted;
     protected string hyperlaneStatus = string.Empty;
+    protected bool routeSaveLoadingVisible;
+    protected string routeSaveLoadingStatus = string.Empty;
+    protected string routeSaveLoadingDetail = string.Empty;
+    protected int routeSaveLoadingPercent;
+    protected int? routeSaveProcessedItems;
+    protected int? routeSaveTotalItems;
 
     private bool browserSessionReady;
     private bool browserSessionRestored;
+    private string pendingHyperlaneStatus = string.Empty;
+    private IReadOnlyList<SectorSavedRoute> orderedSavedRoutes = [];
+    private IReadOnlyDictionary<int, ExplorerHyperlaneSystem> hyperlaneSystemsById = new Dictionary<int, ExplorerHyperlaneSystem>();
+    private IReadOnlyDictionary<int, string> hyperlaneSystemNamesById = new Dictionary<int, string>();
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
-    protected IReadOnlyList<Empire> ExplorerEmpires => explorerContext.Empires;
-    protected IReadOnlySet<int> sectorEmpireIds => GetSelectedSector().Systems.Select(system => (int)system.AllegianceId).Where(id => id > 0).ToHashSet();
+    protected IReadOnlyList<ExplorerLookupOption> ExplorerEmpires => selectedHyperlaneState?.Empires ?? [];
+    protected IReadOnlyList<ExplorerHyperlaneSystem> ExplorerHyperlaneSystems => selectedHyperlaneState?.Systems ?? [];
+    protected IReadOnlyList<SectorSavedRoute> SavedHyperlanes => selectedHyperlaneState?.SavedRoutes ?? [];
+    protected SectorHyperlaneNetworkReport SavedHyperlaneReport => selectedHyperlaneState?.SavedRouteReport ?? SectorHyperlaneNetworkReport.Empty;
+    protected bool HasSavedHyperlanes => (hyperlaneSetupState?.SavedRouteCount ?? 0) > 0;
+    protected SectorConfigModel HyperlaneConfiguration => hyperlaneSetupState?.Configuration ?? new SectorConfigModel();
 
-    private IReadOnlyDictionary<int, Empire> EmpiresById =>
-        ExplorerEmpires.ToDictionary(empire => empire.Id);
+    private IReadOnlyDictionary<int, string> EmpireNamesById =>
+        ExplorerEmpires.ToDictionary(empire => empire.Id, empire => empire.Name);
 
     protected override async Task OnInitializedAsync()
     {
@@ -68,11 +88,17 @@ public partial class Hyperlanes : ComponentBase
             : explorerContext.CurrentSector;
 
         selectedSectorId = initialSector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        initialSector = GetSelectedSector();
-        selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
-        selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
-        LoadHyperlaneForm(initialSector, ResolveSelectedHyperlane(initialSector));
+        var sector = GetSelectedSector();
+        selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        if (HasSavedHyperlanes)
+        {
+            LoadHyperlaneForm(ResolveSelectedHyperlane());
+        }
+        else
+        {
+            ClearSelectedHyperlane();
+        }
     }
 
     protected override async Task OnParametersSetAsync()
@@ -86,13 +112,23 @@ public partial class Hyperlanes : ComponentBase
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
-            await EnsureSectorDataLoadedAsync(selectedSectorId);
+            selectedHyperlaneId = 0;
+            await LoadSelectedHyperlaneDataAsync(selectedSectorId);
         }
 
         var sector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        LoadHyperlaneForm(sector, ResolveSelectedHyperlane(sector));
+        if (HasSavedHyperlanes)
+        {
+            LoadHyperlaneForm(ResolveSelectedHyperlane());
+        }
+        else
+        {
+            ClearSelectedHyperlane();
+        }
+
+        ApplyPendingHyperlaneStatus();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -133,12 +169,21 @@ public partial class Hyperlanes : ComponentBase
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
+        selectedHyperlaneId = 0;
+        await LoadSelectedHyperlaneDataAsync(selectedSectorId);
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         hyperlaneVisibleCount = ExplorerListBatchSize;
-        LoadHyperlaneForm(sector);
+        if (HasSavedHyperlanes)
+        {
+            LoadHyperlaneForm(ResolveSelectedHyperlane());
+        }
+        else
+        {
+            ClearSelectedHyperlane();
+        }
+
         await PersistExplorerSessionAsync();
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Hyperlanes", selectedSectorId, selectedSystemId));
     }
@@ -152,12 +197,18 @@ public partial class Hyperlanes : ComponentBase
         {
             selectedSystemId = systemId;
             selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-            if (selectedHyperlaneId == 0)
+            if (HasSavedHyperlanes && selectedHyperlaneId == 0)
             {
-                StartNewHyperlane(sector);
+                StartNewHyperlane();
             }
 
-            NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Hyperlanes", selectedSectorId, selectedSystemId), replace: true);
+            NavigationManager.NavigateTo(
+                SectorExplorerRoutes.BuildSectionUri(
+                    "Hyperlanes",
+                    selectedSectorId,
+                    selectedSystemId,
+                    hyperlaneId: selectedHyperlaneId),
+                replace: true);
         }
 
         return PersistExplorerSessionAsync();
@@ -166,8 +217,7 @@ public partial class Hyperlanes : ComponentBase
     protected Task HandleSearchQueryChangedAsync(string value)
     {
         searchQuery = value;
-        RunSearch();
-        return Task.CompletedTask;
+        return RunSearchAsync();
     }
 
     protected void NavigateToSearchResult(StarWinSearchResult result)
@@ -177,7 +227,7 @@ public partial class Hyperlanes : ComponentBase
             result.SectorId ?? selectedSectorId,
             result.SystemId ?? 0,
             result.WorldId ?? 0,
-            result.Type == StarWinSearchResultType.Colony ? result.WorldId ?? 0 : 0,
+            result.ColonyId ?? 0,
             result.SpaceHabitatId ?? 0,
             result.RaceId ?? 0,
             result.EmpireId ?? 0);
@@ -185,39 +235,15 @@ public partial class Hyperlanes : ComponentBase
         NavigationManager.NavigateTo(targetUri);
     }
 
-    protected IReadOnlyList<SectorSavedRoute> GetOrderedRoutes(StarWinSector sector)
+    protected IReadOnlyList<SectorSavedRoute> GetOrderedRoutes()
     {
-        var systemsById = sector.Systems.ToDictionary(system => system.Id);
-        return sector.SavedRoutes
-            .OrderBy(route => systemsById.TryGetValue(route.SourceSystemId, out var sourceSystem) ? sourceSystem.Name : string.Empty)
-            .ThenBy(route => systemsById.TryGetValue(route.TargetSystemId, out var targetSystem) ? targetSystem.Name : string.Empty)
-            .ThenBy(route => route.SourceSystemId)
-            .ThenBy(route => route.TargetSystemId)
-            .ToList();
+        return orderedSavedRoutes;
     }
 
-    protected SectorSavedRoute? GetSelectedRoute(StarWinSector sector, IReadOnlyList<SectorSavedRoute>? orderedRoutes = null)
+    protected SectorSavedRoute? GetSelectedRoute(IReadOnlyList<SectorSavedRoute>? orderedRoutes = null)
     {
-        orderedRoutes ??= GetOrderedRoutes(sector);
+        orderedRoutes ??= GetOrderedRoutes();
         return orderedRoutes.FirstOrDefault(route => route.Id == selectedHyperlaneId);
-    }
-
-    protected SectorHyperlaneNetworkReport GetSavedHyperlaneReport(StarWinSector sector)
-    {
-        return SectorRoutePlanner.BuildHyperlaneNetworkReport(
-            sector,
-            EmpiresById,
-            sector.SavedRoutes.Select(route => new SectorHyperlaneRouteDefinition(
-                route.SourceSystemId,
-                route.TargetSystemId,
-                (double)route.DistanceParsecs,
-                (double)route.TravelTimeYears,
-                route.TechnologyLevel,
-                route.TierName,
-                route.PrimaryOwnerEmpireId,
-                route.PrimaryOwnerEmpireName,
-                route.SecondaryOwnerEmpireId,
-                route.SecondaryOwnerEmpireName)));
     }
 
     protected string FormatHyperlaneOwnerSummary(SectorSavedRoute route)
@@ -290,67 +316,157 @@ public partial class Hyperlanes : ComponentBase
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Configuration", selectedSectorId, selectedSystemId));
     }
 
-    protected void SelectHyperlane(StarWinSector sector, int routeId)
+    protected void SelectHyperlane(int routeId)
     {
         if (routeId <= 0)
         {
             return;
         }
 
-        var route = sector.SavedRoutes.FirstOrDefault(item => item.Id == routeId);
+        if (!HasSavedHyperlanes)
+        {
+            return;
+        }
+
+        var route = SavedHyperlanes.FirstOrDefault(item => item.Id == routeId);
         if (route is null)
         {
             return;
         }
 
-        LoadHyperlaneForm(sector, route);
+        LoadHyperlaneForm(route);
+        NavigationManager.NavigateTo(
+            SectorExplorerRoutes.BuildSectionUri(
+                "Hyperlanes",
+                selectedSectorId,
+                selectedSystemId,
+                hyperlaneId: route.Id),
+            replace: true);
     }
 
-    protected void StartNewHyperlane(StarWinSector sector)
+    protected void StartNewHyperlane()
     {
+        var systems = ExplorerHyperlaneSystems;
         selectedHyperlaneId = 0;
         hyperlaneStatus = string.Empty;
-        hyperlaneSourceSystemId = sector.Systems.Any(system => system.Id == selectedSystemId)
+        hyperlaneSourceSystemId = systems.Any(system => system.SystemId == selectedSystemId)
             ? selectedSystemId
-            : sector.Systems.FirstOrDefault()?.Id ?? 0;
-        hyperlaneTargetSystemId = sector.Systems
-            .Where(system => system.Id != hyperlaneSourceSystemId)
+            : systems.FirstOrDefault()?.SystemId ?? 0;
+        hyperlaneTargetSystemId = systems
+            .Where(system => system.SystemId != hyperlaneSourceSystemId)
             .OrderBy(system => system.Name)
-            .ThenBy(system => system.Id)
-            .Select(system => system.Id)
+            .ThenBy(system => system.SystemId)
+            .Select(system => system.SystemId)
             .FirstOrDefault();
         hyperlaneTechnologyLevel = 6;
-        hyperlaneTierName = SectorRoutePlanner.GetTierName(sector.Configuration, hyperlaneTechnologyLevel);
+        hyperlaneTierName = SectorRoutePlanner.GetTierName(HyperlaneConfiguration, hyperlaneTechnologyLevel);
         hyperlanePrimaryOwnerEmpireId = 0;
         hyperlaneSecondaryOwnerEmpireId = 0;
         hyperlaneIsUserPersisted = true;
-        RecalculateHyperlaneTravelDefaults(sector);
+        RecalculateHyperlaneTravelDefaults();
+    }
+
+    protected void BeginNewHyperlane()
+    {
+        StartNewHyperlane();
+        NavigationManager.NavigateTo(
+            SectorExplorerRoutes.BuildSectionUri("Hyperlanes", selectedSectorId, selectedSystemId),
+            replace: true);
+    }
+
+    protected async Task GenerateHyperlanesAsync()
+    {
+        if (routeSaveLoadingVisible)
+        {
+            return;
+        }
+
+        routeSaveLoadingVisible = true;
+        routeSaveLoadingStatus = "Loading sector";
+        routeSaveLoadingDetail = "Preparing to generate the saved hyperlane cache for this sector.";
+        routeSaveLoadingPercent = 5;
+        routeSaveProcessedItems = null;
+        routeSaveTotalItems = null;
+        hyperlaneStatus = string.Empty;
+        StateHasChanged();
+        await Task.Yield();
+
+        var progress = new Progress<SectorRouteSaveProgress>(update =>
+        {
+            routeSaveLoadingStatus = update.Status;
+            routeSaveLoadingDetail = update.Detail;
+            routeSaveLoadingPercent = Math.Clamp(update.Percent, 0, 100);
+            routeSaveProcessedItems = update.ProcessedItems;
+            routeSaveTotalItems = update.TotalItems;
+            InvokeAsync(StateHasChanged);
+        });
+
+        try
+        {
+            var sectorId = selectedSectorId > 0
+                ? selectedSectorId
+                : hyperlaneSetupState?.SectorId ?? explorerContext.CurrentSector.Id;
+            var sectorName = hyperlaneSetupState?.SectorName ?? GetSelectedSector().Name;
+            var result = await SectorRouteService.SaveCurrentRoutesAsync(sectorId, progress);
+            routeSaveLoadingStatus = "Refreshing explorer";
+            routeSaveLoadingDetail = "Reloading the current sector so the generated hyperlanes are ready to use.";
+            routeSaveLoadingPercent = 100;
+            routeSaveProcessedItems = null;
+            routeSaveTotalItems = null;
+
+            await RefreshExplorerDataAsync();
+
+            var sector = GetSelectedSector();
+            selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
+            selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+            hyperlaneVisibleCount = ExplorerListBatchSize;
+            if (HasSavedHyperlanes)
+            {
+                LoadHyperlaneForm(ResolveSelectedHyperlane());
+            }
+
+            hyperlaneStatus = result.ReplacedExistingRoutes
+                ? $"Updated {result.RouteCount:N0} saved hyperlane segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sectorName}. {result.GeneratedRouteCount:N0} regenerated, {result.PreservedUserRouteCount:N0} user-persisted kept, {result.NetworkReport.DistinctNetworkCount:N0} network{(result.NetworkReport.DistinctNetworkCount == 1 ? string.Empty : "s")}, {result.NetworkReport.StrandedSystemCount:N0} stranded system{(result.NetworkReport.StrandedSystemCount == 1 ? string.Empty : "s")}."
+                : $"Saved {result.RouteCount:N0} hyperlane segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sectorName}. {result.NetworkReport.DistinctNetworkCount:N0} network{(result.NetworkReport.DistinctNetworkCount == 1 ? string.Empty : "s")} and {result.NetworkReport.StrandedSystemCount:N0} stranded system{(result.NetworkReport.StrandedSystemCount == 1 ? string.Empty : "s")}.";
+        }
+        catch (Exception ex)
+        {
+            hyperlaneStatus = $"Hyperlane generation failed: {ex.GetBaseException().Message}";
+        }
+        finally
+        {
+            routeSaveLoadingVisible = false;
+            routeSaveLoadingStatus = string.Empty;
+            routeSaveLoadingDetail = string.Empty;
+            routeSaveLoadingPercent = 0;
+            routeSaveProcessedItems = null;
+            routeSaveTotalItems = null;
+            StateHasChanged();
+        }
     }
 
     protected void RecalculateHyperlaneTravelDefaults()
-    {
-        var sector = GetSelectedSector();
-        RecalculateHyperlaneTravelDefaults(sector);
-    }
-
-    protected void RecalculateHyperlaneTravelDefaults(StarWinSector sector)
     {
         if (hyperlaneSourceSystemId <= 0 || hyperlaneTargetSystemId <= 0)
         {
             return;
         }
 
-        var source = sector.Systems.FirstOrDefault(system => system.Id == hyperlaneSourceSystemId);
-        var target = sector.Systems.FirstOrDefault(system => system.Id == hyperlaneTargetSystemId);
+        if (!hyperlaneSystemsById.TryGetValue(hyperlaneSourceSystemId, out var source)
+            || !hyperlaneSystemsById.TryGetValue(hyperlaneTargetSystemId, out var target))
+        {
+            return;
+        }
+
         if (source is null || target is null)
         {
             return;
         }
 
-        hyperlaneTierName = SectorRoutePlanner.GetTierName(sector.Configuration, hyperlaneTechnologyLevel);
+        hyperlaneTierName = SectorRoutePlanner.GetTierName(HyperlaneConfiguration, hyperlaneTechnologyLevel);
         hyperlaneDistanceParsecs = decimal.Round((decimal)SectorRoutePlanner.CalculateParsecDistance(source.Coordinates, target.Coordinates), 3);
         hyperlaneTravelTimeYears = decimal.Round((decimal)SectorRoutePlanner.CalculateHyperlaneTravelTimeYears(
-            sector.Configuration,
+            HyperlaneConfiguration,
             hyperlaneTechnologyLevel,
             (double)hyperlaneDistanceParsecs), 6);
     }
@@ -372,25 +488,31 @@ public partial class Hyperlanes : ComponentBase
                 (byte)hyperlaneTechnologyLevel,
                 hyperlaneTierName,
                 hyperlanePrimaryOwnerEmpireId > 0 ? hyperlanePrimaryOwnerEmpireId : null,
-                hyperlanePrimaryOwnerEmpireId > 0 && EmpiresById.TryGetValue(hyperlanePrimaryOwnerEmpireId, out var primaryOwner) ? primaryOwner.Name : string.Empty,
+                hyperlanePrimaryOwnerEmpireId > 0 && EmpireNamesById.TryGetValue(hyperlanePrimaryOwnerEmpireId, out var primaryOwnerName) ? primaryOwnerName : string.Empty,
                 hyperlaneSecondaryOwnerEmpireId > 0 ? hyperlaneSecondaryOwnerEmpireId : null,
-                hyperlaneSecondaryOwnerEmpireId > 0 && EmpiresById.TryGetValue(hyperlaneSecondaryOwnerEmpireId, out var secondaryOwner) ? secondaryOwner.Name : string.Empty,
+                hyperlaneSecondaryOwnerEmpireId > 0 && EmpireNamesById.TryGetValue(hyperlaneSecondaryOwnerEmpireId, out var secondaryOwnerName) ? secondaryOwnerName : string.Empty,
                 hyperlaneIsUserPersisted));
 
             await RefreshExplorerDataAsync();
-            await EnsureSectorDataLoadedAsync(sector.Id);
 
             var reloadedSector = GetSelectedSector();
             selectedSystemText = FormatSelectedSystem(reloadedSector, selectedSystemId);
-            var reloadedRoute = reloadedSector.SavedRoutes.FirstOrDefault(route => route.Id == savedRoute.Id)
-                ?? reloadedSector.SavedRoutes.FirstOrDefault(route =>
+            var reloadedRoute = SavedHyperlanes.FirstOrDefault(route => route.Id == savedRoute.Id)
+                ?? SavedHyperlanes.FirstOrDefault(route =>
                     GetRouteKey(route.SourceSystemId, route.TargetSystemId)
                     == GetRouteKey(savedRoute.SourceSystemId, savedRoute.TargetSystemId));
 
-            LoadHyperlaneForm(reloadedSector, reloadedRoute);
-            hyperlaneStatus = isUpdate
+            LoadHyperlaneForm(reloadedRoute);
+            pendingHyperlaneStatus = isUpdate
                 ? "Saved hyperlane changes."
                 : "Created saved hyperlane.";
+            NavigationManager.NavigateTo(
+                SectorExplorerRoutes.BuildSectionUri(
+                    "Hyperlanes",
+                    selectedSectorId,
+                    selectedSystemId,
+                    hyperlaneId: selectedHyperlaneId),
+                replace: true);
         }
         catch (Exception ex)
         {
@@ -410,12 +532,14 @@ public partial class Hyperlanes : ComponentBase
         {
             await SectorRouteService.DeleteSavedRouteAsync(sector.Id, selectedHyperlaneId);
             await RefreshExplorerDataAsync();
-            await EnsureSectorDataLoadedAsync(sector.Id);
 
             var reloadedSector = GetSelectedSector();
             selectedSystemText = FormatSelectedSystem(reloadedSector, selectedSystemId);
-            LoadHyperlaneForm(reloadedSector);
-            hyperlaneStatus = "Deleted saved hyperlane.";
+            LoadHyperlaneForm();
+            pendingHyperlaneStatus = "Deleted saved hyperlane.";
+            NavigationManager.NavigateTo(
+                SectorExplorerRoutes.BuildSectionUri("Hyperlanes", selectedSectorId, selectedSystemId),
+                replace: true);
         }
         catch (Exception ex)
         {
@@ -423,16 +547,15 @@ public partial class Hyperlanes : ComponentBase
         }
     }
 
-    protected void LoadHyperlaneForm(StarWinSector sector, SectorSavedRoute? route = null)
+    protected void LoadHyperlaneForm(SectorSavedRoute? route = null)
     {
-        var orderedRoutes = GetOrderedRoutes(sector);
+        var orderedRoutes = GetOrderedRoutes();
         var routeToLoad = route
             ?? orderedRoutes.FirstOrDefault(item => item.Id == RequestedHyperlaneId)
-            ?? orderedRoutes.FirstOrDefault(item => item.Id == selectedHyperlaneId)
-            ?? orderedRoutes.FirstOrDefault();
+            ?? orderedRoutes.FirstOrDefault(item => item.Id == selectedHyperlaneId);
         if (routeToLoad is null)
         {
-            StartNewHyperlane(sector);
+            StartNewHyperlane();
             return;
         }
 
@@ -452,70 +575,36 @@ public partial class Hyperlanes : ComponentBase
     private async Task RefreshExplorerDataAsync(CancellationToken cancellationToken = default)
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
-            includeSavedRoutes: true,
-            includeReferenceData: true,
+            preferredSectorId: RequestedSectorId ?? selectedSectorId,
             cancellationToken: cancellationToken);
 
-        loadedSectorSectionsById.Clear();
+        var workspaceSectorId = RequestedSectorId ?? selectedSectorId;
+        if (workspaceSectorId <= 0)
+        {
+            workspaceSectorId = explorerContext.CurrentSector.Id;
+        }
+
+        await LoadSelectedHyperlaneDataAsync(workspaceSectorId, cancellationToken);
     }
 
-    private async Task EnsureSectorDataLoadedAsync(int sectorId, CancellationToken cancellationToken = default)
-    {
-        if (sectorId <= 0)
-        {
-            return;
-        }
-
-        const ExplorerSectorLoadSections requiredSections = ExplorerSectorLoadSections.SavedRoutes;
-
-        loadedSectorSectionsById.TryGetValue(sectorId, out var loadedSections);
-        if ((loadedSections & requiredSections) == requiredSections)
-        {
-            return;
-        }
-
-        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiredSections, cancellationToken);
-        if (detailedSector is null)
-        {
-            return;
-        }
-
-        var sectors = ExplorerSectors.ToList();
-        var sectorIndex = sectors.FindIndex(item => item.Id == detailedSector.Id);
-        if (sectorIndex >= 0)
-        {
-            sectors[sectorIndex] = detailedSector;
-        }
-
-        explorerContext = explorerContext with
-        {
-            Sectors = sectors,
-            CurrentSector = explorerContext.CurrentSector.Id == detailedSector.Id ? detailedSector : explorerContext.CurrentSector
-        };
-
-        loadedSectorSectionsById[sectorId] = loadedSections | requiredSections;
-    }
-
-    private SectorSavedRoute? ResolveSelectedHyperlane(StarWinSector sector)
+    private SectorSavedRoute? ResolveSelectedHyperlane()
     {
         if (RequestedHyperlaneId is int requestedHyperlaneId)
         {
-            return sector.SavedRoutes.FirstOrDefault(route => route.Id == requestedHyperlaneId);
+            return SavedHyperlanes.FirstOrDefault(route => route.Id == requestedHyperlaneId);
         }
 
         if (selectedHyperlaneId > 0)
         {
-            return sector.SavedRoutes.FirstOrDefault(route => route.Id == selectedHyperlaneId);
+            return SavedHyperlanes.FirstOrDefault(route => route.Id == selectedHyperlaneId);
         }
 
-        return sector.SavedRoutes.FirstOrDefault();
+        return null;
     }
 
-    private void RunSearch()
+    private async Task RunSearchAsync()
     {
-        searchResults = SearchService.Search(searchQuery)
-            .Where(result => result.SectorId is null || result.SectorId == selectedSectorId)
-            .ToList();
+        searchResults = await ExplorerQueryService.SearchSectorAsync(selectedSectorId, searchQuery);
     }
 
     private async Task RestoreExplorerSessionAsync()
@@ -539,13 +628,15 @@ public partial class Hyperlanes : ComponentBase
         }
 
         selectedSectorId = sector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        sector = GetSelectedSector();
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        LoadHyperlaneForm(sector);
+        if (HasSavedHyperlanes)
+        {
+            LoadHyperlaneForm(ResolveSelectedHyperlane());
+        }
+
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Hyperlanes", selectedSectorId, selectedSystemId), replace: true);
     }
 
@@ -560,6 +651,28 @@ public partial class Hyperlanes : ComponentBase
             JS,
             browserSessionReady,
             new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Hyperlanes")));
+    }
+
+    private async Task LoadSelectedHyperlaneDataAsync(int sectorId, CancellationToken cancellationToken = default)
+    {
+        if (sectorId <= 0)
+        {
+            hyperlaneSetupState = null;
+            selectedHyperlaneState = null;
+            ApplyHyperlanePageState(null);
+            return;
+        }
+
+        hyperlaneSetupState = await ExplorerQueryService.LoadHyperlaneSetupAsync(sectorId, cancellationToken);
+        if (hyperlaneSetupState is null || hyperlaneSetupState.SavedRouteCount == 0)
+        {
+            selectedHyperlaneState = null;
+            ApplyHyperlanePageState(null);
+            return;
+        }
+
+        selectedHyperlaneState = await ExplorerQueryService.LoadHyperlanePageStateAsync(sectorId, cancellationToken);
+        ApplyHyperlanePageState(selectedHyperlaneState);
     }
 
     private static string FormatSelectedSystem(StarWinSector sector, int systemId)
@@ -585,5 +698,54 @@ public partial class Hyperlanes : ComponentBase
         return sourceSystemId <= targetSystemId
             ? (sourceSystemId, targetSystemId)
             : (targetSystemId, sourceSystemId);
+    }
+
+    private void ApplyPendingHyperlaneStatus()
+    {
+        if (string.IsNullOrWhiteSpace(pendingHyperlaneStatus))
+        {
+            return;
+        }
+
+        hyperlaneStatus = pendingHyperlaneStatus;
+        pendingHyperlaneStatus = string.Empty;
+    }
+
+    private void ClearSelectedHyperlane()
+    {
+        selectedHyperlaneId = 0;
+        hyperlaneStatus = string.Empty;
+        pendingHyperlaneStatus = string.Empty;
+    }
+
+    private void ApplyHyperlanePageState(ExplorerHyperlanePageState? state)
+    {
+        if (state is null)
+        {
+            orderedSavedRoutes = [];
+            hyperlaneSystemsById = new Dictionary<int, ExplorerHyperlaneSystem>();
+            hyperlaneSystemNamesById = new Dictionary<int, string>();
+            return;
+        }
+
+        hyperlaneSystemsById = state.Systems.ToDictionary(system => system.SystemId);
+        hyperlaneSystemNamesById = state.Systems.ToDictionary(system => system.SystemId, system => system.Name);
+        orderedSavedRoutes = state.SavedRoutes
+            .OrderBy(route => hyperlaneSystemNamesById.TryGetValue(route.SourceSystemId, out var sourceName) ? sourceName : string.Empty)
+            .ThenBy(route => hyperlaneSystemNamesById.TryGetValue(route.TargetSystemId, out var targetName) ? targetName : string.Empty)
+            .ThenBy(route => route.SourceSystemId)
+            .ThenBy(route => route.TargetSystemId)
+            .ToList();
+    }
+
+    private string GetSystemDisplayName(int systemId)
+    {
+        if (hyperlaneSystemNamesById.TryGetValue(systemId, out var systemName))
+        {
+            return systemName;
+        }
+
+        var fallbackSystem = GetSelectedSector().Systems.FirstOrDefault(system => system.Id == systemId);
+        return fallbackSystem?.Name ?? $"System {systemId}";
     }
 }

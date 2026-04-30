@@ -34,6 +34,57 @@ public sealed class SystemsPageTests : BunitContext
     }
 
     [Fact]
+    public void ShowsSelectionPromptUntilSystemIsExplicitlyChosen()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        ConfigureServices(CreateContext());
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/systems?sectorId=7");
+
+        var cut = Render<Systems>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Select a system to load its details.", cut.Markup);
+            Assert.Empty(cut.FindAll(".record-row.active"));
+            Assert.DoesNotContain("System survey", cut.Markup);
+        });
+
+        cut.FindAll(".record-row")
+            .Single(button => button.TextContent.Contains("Helios", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("System survey", cut.Markup);
+            Assert.Contains("Helios", cut.Markup);
+            Assert.Single(cut.FindAll(".record-row.active"));
+            Assert.EndsWith("/sector-explorer/systems?sectorId=7&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void LoadsRequestedSystemDetailOnlyOnceOnInitialRender()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var context = CreateContext();
+        var queryService = new CountingSystemQueryService(context);
+        ConfigureServices(context, queryService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/systems?sectorId=7&systemId=11");
+
+        var cut = Render<Systems>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("System survey", cut.Markup);
+            Assert.Equal(1, queryService.SystemDetailLoadCount);
+        });
+    }
+
+    [Fact]
     public void FiltersSystemsBySearchQueryAndClearsFilters()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -121,10 +172,11 @@ public sealed class SystemsPageTests : BunitContext
         Assert.EndsWith("/sector-explorer/worlds?sectorId=7&systemId=11&worldId=111", navigationManager.Uri, StringComparison.Ordinal);
     }
 
-    private void ConfigureServices(StarWinExplorerContext context)
+    private void ConfigureServices(StarWinExplorerContext context, IStarWinExplorerQueryService? queryService = null)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
+        Services.AddSingleton<IStarWinExplorerQueryService>(queryService ?? new ContextBackedExplorerQueryService(context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinImageService>(new FakeImageService());
         Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());
@@ -156,7 +208,7 @@ public sealed class SystemsPageTests : BunitContext
             new Empire { Id = 3, Name = "Zephyr League" }
         };
 
-        return new StarWinExplorerContext([sector], sector, [], empires, []);
+        return new StarWinExplorerContext([sector], sector, [], empires);
     }
 
     private static StarSystem CreateSystem(int systemId, string name, ushort allegianceId, string worldName = "Eos")
@@ -207,14 +259,9 @@ public sealed class SystemsPageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(int? preferredSectorId = null, bool includeReferenceData = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
-        }
-
-        public Task<StarWinSector?> LoadSectorAsync(int sectorId, ExplorerSectorLoadSections loadSections, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<StarWinSector?>(context.Sectors.FirstOrDefault(sector => sector.Id == sectorId));
         }
     }
 
@@ -286,5 +333,49 @@ public sealed class SystemsPageTests : BunitContext
                 ControlledByEmpireId = empireId
             });
         }
+    }
+
+    private sealed class CountingSystemQueryService(StarWinExplorerContext context) : IStarWinExplorerQueryService
+    {
+        private readonly ContextBackedExplorerQueryService inner = new(context);
+
+        public int SystemDetailLoadCount { get; private set; }
+
+        public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadSectorOverviewAsync(sectorId, cancellationToken);
+        public Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadSectorEntityUsageAsync(sectorId, cancellationToken);
+        public Task<IReadOnlyList<StarWinSearchResult>> SearchSectorAsync(int sectorId, string query, int maxResults = 30, CancellationToken cancellationToken = default) => inner.SearchSectorAsync(sectorId, query, maxResults, cancellationToken);
+        public Task<int?> ResolveSystemIdAsync(int sectorId, int? worldId = null, int? colonyId = null, int? habitatId = null, CancellationToken cancellationToken = default) => inner.ResolveSystemIdAsync(sectorId, worldId, colonyId, habitatId, cancellationToken);
+        public Task<IReadOnlyList<ExplorerLookupOption>> LoadSectorEmpireOptionsAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadSectorEmpireOptionsAsync(sectorId, cancellationToken);
+        public Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadAlienRaceFilterOptionsAsync(sectorId, cancellationToken);
+        public Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default) => inner.LoadAlienRaceListPageAsync(request, cancellationToken);
+        public Task<ExplorerAlienRaceListItem?> LoadAlienRaceListItemAsync(int sectorId, int raceId, CancellationToken cancellationToken = default) => inner.LoadAlienRaceListItemAsync(sectorId, raceId, cancellationToken);
+        public Task<ExplorerAlienRaceDetail?> LoadAlienRaceDetailAsync(int sectorId, int raceId, CancellationToken cancellationToken = default) => inner.LoadAlienRaceDetailAsync(sectorId, raceId, cancellationToken);
+        public Task<ExplorerSystemFilterOptions> LoadSystemFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadSystemFilterOptionsAsync(sectorId, cancellationToken);
+        public Task<ExplorerSystemListPage> LoadSystemListPageAsync(ExplorerSystemListPageRequest request, CancellationToken cancellationToken = default) => inner.LoadSystemListPageAsync(request, cancellationToken);
+        public Task<ExplorerSystemListItem?> LoadSystemListItemAsync(int sectorId, int systemId, CancellationToken cancellationToken = default) => inner.LoadSystemListItemAsync(sectorId, systemId, cancellationToken);
+
+        public Task<ExplorerSystemDetail?> LoadSystemDetailAsync(int sectorId, int systemId, CancellationToken cancellationToken = default)
+        {
+            SystemDetailLoadCount++;
+            return inner.LoadSystemDetailAsync(sectorId, systemId, cancellationToken);
+        }
+
+        public Task<ExplorerWorldsWorkspace?> LoadWorldsWorkspaceAsync(int sectorId, int systemId, CancellationToken cancellationToken = default) => inner.LoadWorldsWorkspaceAsync(sectorId, systemId, cancellationToken);
+        public Task<ExplorerColonyFilterOptions> LoadColonyFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadColonyFilterOptionsAsync(sectorId, cancellationToken);
+        public Task<ExplorerColonyListPage> LoadColonyListPageAsync(ExplorerColonyListPageRequest request, CancellationToken cancellationToken = default) => inner.LoadColonyListPageAsync(request, cancellationToken);
+        public Task<ExplorerColonyListItem?> LoadColonyListItemAsync(int sectorId, int colonyId, CancellationToken cancellationToken = default) => inner.LoadColonyListItemAsync(sectorId, colonyId, cancellationToken);
+        public Task<ExplorerColonyDetail?> LoadColonyDetailAsync(int sectorId, int colonyId, CancellationToken cancellationToken = default) => inner.LoadColonyDetailAsync(sectorId, colonyId, cancellationToken);
+        public Task<ExplorerReligionFilterOptions> LoadReligionFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadReligionFilterOptionsAsync(sectorId, cancellationToken);
+        public Task<ExplorerReligionListPage> LoadReligionListPageAsync(ExplorerReligionListPageRequest request, CancellationToken cancellationToken = default) => inner.LoadReligionListPageAsync(request, cancellationToken);
+        public Task<ExplorerReligionListItem?> LoadReligionListItemAsync(int sectorId, int religionId, CancellationToken cancellationToken = default) => inner.LoadReligionListItemAsync(sectorId, religionId, cancellationToken);
+        public Task<ExplorerReligionDetail?> LoadReligionDetailAsync(int sectorId, int religionId, CancellationToken cancellationToken = default) => inner.LoadReligionDetailAsync(sectorId, religionId, cancellationToken);
+        public Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadEmpireFilterOptionsAsync(sectorId, cancellationToken);
+        public Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default) => inner.LoadEmpireListPageAsync(request, cancellationToken);
+        public Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default) => inner.LoadEmpireListItemAsync(sectorId, empireId, cancellationToken);
+        public Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default) => inner.LoadEmpireDetailAsync(sectorId, empireId, cancellationToken);
+        public Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadTimelineEventTypesAsync(sectorId, cancellationToken);
+        public Task<ExplorerTimelinePage> LoadTimelinePageAsync(ExplorerTimelinePageRequest request, CancellationToken cancellationToken = default) => inner.LoadTimelinePageAsync(request, cancellationToken);
+        public Task<ExplorerTimelineEventDetail?> LoadTimelineEventDetailAsync(int eventId, CancellationToken cancellationToken = default) => inner.LoadTimelineEventDetailAsync(eventId, cancellationToken);
+        public Task<ExplorerHyperlanePageState?> LoadHyperlanePageStateAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadHyperlanePageStateAsync(sectorId, cancellationToken);
     }
 }

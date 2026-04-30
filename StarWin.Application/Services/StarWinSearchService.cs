@@ -71,6 +71,7 @@ public sealed class StarWinSearchService(IStarWinWorkspace workspace) : IStarWin
                             SectorId = sector.Id,
                             SystemId = system.Id,
                             WorldId = world.Id,
+                            ColonyId = world.Colony.Id,
                             RaceId = world.Colony.RaceId,
                             EmpireId = world.Colony.ControllingEmpireId
                         });

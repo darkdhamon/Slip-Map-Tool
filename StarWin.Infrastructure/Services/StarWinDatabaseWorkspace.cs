@@ -28,8 +28,6 @@ public sealed class StarWinDatabaseWorkspace : IStarWinWorkspace
 
     public IReadOnlyList<Empire> Empires { get; private set; } = [];
 
-    public IReadOnlyList<EmpireContact> EmpireContacts { get; private set; } = [];
-
     public CivilizationGeneratorSettings CivilizationSettings { get; private set; } = BuildCivilizationSettings(EmptySector);
 
     public ArmyGeneratorSettings ArmySettings { get; private set; } = new();
@@ -47,7 +45,6 @@ public sealed class StarWinDatabaseWorkspace : IStarWinWorkspace
             Sectors = explorerContext.Sectors;
             AlienRaces = explorerContext.AlienRaces;
             Empires = explorerContext.Empires;
-            EmpireContacts = explorerContext.EmpireContacts;
             CurrentSector = explorerContext.CurrentSector;
             CivilizationSettings = BuildCivilizationSettings(CurrentSector);
             ArmySettings = new ArmyGeneratorSettings();

@@ -8,28 +8,15 @@ namespace StarWin.Infrastructure.Services;
 public sealed class StarWinExplorerContextService(IDbContextFactory<StarWinDbContext> dbContextFactory) : IStarWinExplorerContextService
 {
     public async Task<StarWinExplorerContext> LoadShellAsync(
-        bool includeSavedRoutes = true,
-        bool includeReferenceData = true,
+        int? preferredSectorId = null,
+        bool includeReferenceData = false,
         CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         return await StarWinExplorerContextLoader.LoadShellAsync(
             dbContext,
-            includeSavedRoutes,
+            preferredSectorId,
             includeReferenceData,
-            cancellationToken);
-    }
-
-    public async Task<StarWinSector?> LoadSectorAsync(
-        int sectorId,
-        ExplorerSectorLoadSections loadSections,
-        CancellationToken cancellationToken = default)
-    {
-        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await StarWinExplorerContextLoader.LoadSectorAsync(
-            dbContext,
-            sectorId,
-            loadSections,
             cancellationToken);
     }
 }

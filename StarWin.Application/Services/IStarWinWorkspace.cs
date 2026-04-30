@@ -16,8 +16,6 @@ public interface IStarWinWorkspace
 
     IReadOnlyList<Empire> Empires { get; }
 
-    IReadOnlyList<EmpireContact> EmpireContacts { get; }
-
     CivilizationGeneratorSettings CivilizationSettings { get; }
 
     ArmyGeneratorSettings ArmySettings { get; }

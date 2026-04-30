@@ -19,7 +19,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     private const int EmpireFilterDebounceMilliseconds = 250;
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
-    [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
     [Inject] protected IStarWinImageService ImageService { get; set; } = default!;
     [Inject] protected IStarWinEntityNameService EntityNameService { get; set; } = default!;
     [Inject] protected NavigationManager NavigationManager { get; set; } = default!;
@@ -60,8 +59,8 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected ExplorerEmpireFilterOptions empireFilterOptions = new([]);
 
     private IReadOnlyList<EntityImage> entityImages = [];
-    private bool entityImagesLoaded;
     private bool entityImagesLoading;
+    private int lastLoadedEmpireImageTargetId;
     private string imageUploadStatus = string.Empty;
     private ElementReference empireLoadMoreElement;
     private DotNetObjectReference<Empires>? dotNetReference;
@@ -108,6 +107,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         var sector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        await EnsureSelectedEmpireSummaryVisibleAsync();
         await EnsureSelectedEmpireDetailAsync();
     }
 
@@ -180,8 +180,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected Task HandleSearchQueryChangedAsync(string value)
     {
         searchQuery = value;
-        RunSearch();
-        return Task.CompletedTask;
+        return RunSearchAsync();
     }
 
     protected void NavigateToSearchResult(StarWinSearchResult result)
@@ -191,7 +190,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             result.SectorId ?? selectedSectorId,
             result.SystemId ?? 0,
             result.WorldId ?? 0,
-            result.Type == StarWinSearchResultType.Colony ? result.WorldId ?? 0 : 0,
+            result.ColonyId ?? 0,
             result.SpaceHabitatId ?? 0,
             result.RaceId ?? 0,
             result.EmpireId ?? 0);
@@ -307,7 +306,15 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     private async Task EnsureEntityImagesLoadedAsync(bool backgroundLoad = false)
     {
-        if (entityImagesLoaded || entityImagesLoading)
+        var empireId = selectedEmpireDetail?.Empire.Id ?? 0;
+        if (empireId <= 0)
+        {
+            entityImages = [];
+            lastLoadedEmpireImageTargetId = 0;
+            return;
+        }
+
+        if (entityImagesLoading || lastLoadedEmpireImageTargetId == empireId)
         {
             return;
         }
@@ -315,8 +322,9 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         entityImagesLoading = true;
         try
         {
-            entityImages = await ImageService.GetImagesAsync();
-            entityImagesLoaded = true;
+            entityImages = await ImageService.GetImagesAsync(
+                [new EntityImageTarget(EntityImageTargetKind.Empire, empireId)]);
+            lastLoadedEmpireImageTargetId = empireId;
             explorerRenderError = string.Empty;
             if (backgroundLoad)
             {
@@ -336,16 +344,13 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     private async Task RefreshExplorerDataAsync(CancellationToken cancellationToken = default)
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
-            includeSavedRoutes: false,
-            includeReferenceData: false,
+            preferredSectorId: RequestedSectorId ?? selectedSectorId,
             cancellationToken: cancellationToken);
     }
 
-    private void RunSearch()
+    private async Task RunSearchAsync()
     {
-        searchResults = SearchService.Search(searchQuery)
-            .Where(result => result.SectorId is null || result.SectorId == selectedSectorId)
-            .ToList();
+        searchResults = await ExplorerQueryService.SearchSectorAsync(selectedSectorId, searchQuery);
     }
 
     private async Task RestoreExplorerSessionAsync()
@@ -396,8 +401,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         {
             loadedEmpireSummaries.Clear();
             empireHasMoreRecords = false;
-            selectedEmpireId = 0;
-            selectedEmpireDetail = null;
+            ClearSelectedEmpireDetail();
             empireFilterOptions = new([]);
             return;
         }
@@ -409,6 +413,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             loadedEmpireSectorId = selectedSectorId;
             empireHasMoreRecords = false;
             empireObserverConfigured = false;
+            ClearSelectedEmpireDetail();
             if (sectorChanged || empireFilterOptions.Races.Count == 0)
             {
                 empireFilterOptions = await ExplorerQueryService.LoadEmpireFilterOptionsAsync(selectedSectorId, cancellationToken);
@@ -420,7 +425,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             }
 
             await LoadMoreEmpireSummariesAsync(cancellationToken, requestVersion);
-            return;
         }
 
         await EnsureSelectedEmpireSummaryVisibleAsync(cancellationToken, requestVersion);
@@ -574,17 +578,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             }
 
             empireHasMoreRecords = page.HasMore;
-            if (selectedEmpireId == 0 && loadedEmpireSummaries.Count > 0)
-            {
-                selectedEmpireId = loadedEmpireSummaries[0].EmpireId;
-            }
-            else if (selectedEmpireId > 0 && loadedEmpireSummaries.All(item => item.EmpireId != selectedEmpireId))
-            {
-                selectedEmpireId = loadedEmpireSummaries.FirstOrDefault()?.EmpireId ?? 0;
-            }
-
-            await EnsureSelectedEmpireSummaryVisibleAsync(cancellationToken, requestVersion);
-            await EnsureSelectedEmpireDetailAsync(cancellationToken, requestVersion);
             await InvokeAsync(StateHasChanged);
         }
         finally
@@ -630,15 +623,16 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         var targetEmpireId = HasActiveEmpireFilters()
             ? selectedEmpireId
             : RequestedEmpireId ?? selectedEmpireId;
-        if (targetEmpireId <= 0)
-        {
-            targetEmpireId = loadedEmpireSummaries.FirstOrDefault()?.EmpireId ?? 0;
-        }
 
         if (targetEmpireId <= 0)
         {
-            selectedEmpireId = 0;
-            selectedEmpireDetail = null;
+            ClearSelectedEmpireDetail();
+            return;
+        }
+
+        if (selectedEmpireDetail?.Empire.Id == targetEmpireId && loadedEmpireDetailId == targetEmpireId)
+        {
+            selectedEmpireId = targetEmpireId;
             return;
         }
 
@@ -650,12 +644,8 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         empireDetailLoading = true;
         try
         {
+            var previousEmpireId = selectedEmpireDetail?.Empire.Id ?? 0;
             var detail = await ExplorerQueryService.LoadEmpireDetailAsync(selectedSectorId, targetEmpireId, cancellationToken);
-            if (detail is null && loadedEmpireSummaries.Count > 0)
-            {
-                targetEmpireId = loadedEmpireSummaries[0].EmpireId;
-                detail = await ExplorerQueryService.LoadEmpireDetailAsync(selectedSectorId, targetEmpireId, cancellationToken);
-            }
 
             if (IsStaleEmpireFilterRequest(requestVersion))
             {
@@ -671,11 +661,25 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
             selectedEmpireDetail = detail;
             selectedEmpireId = detail?.Empire.Id ?? 0;
+            if (previousEmpireId != selectedEmpireId)
+            {
+                entityImages = [];
+                lastLoadedEmpireImageTargetId = 0;
+            }
         }
         finally
         {
             empireDetailLoading = false;
         }
+    }
+
+    private void ClearSelectedEmpireDetail()
+    {
+        selectedEmpireId = 0;
+        selectedEmpireDetail = null;
+        loadedEmpireDetailId = 0;
+        entityImages = [];
+        lastLoadedEmpireImageTargetId = 0;
     }
 
     protected ExplorerEmpireColonyListing? GetCapitalColony(ExplorerEmpireDetail detail)
@@ -718,8 +722,8 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         {
             await using var stream = file.OpenReadStream(10 * 1024 * 1024);
             await ImageService.UploadImageAsync(targetKind, targetId, file.Name, file.ContentType, stream);
-            entityImages = await ImageService.GetImagesAsync();
-            entityImagesLoaded = true;
+            lastLoadedEmpireImageTargetId = 0;
+            await EnsureEntityImagesLoadedAsync();
             imageUploadStatus = $"{file.Name} uploaded.";
         }
         catch (Exception exception)

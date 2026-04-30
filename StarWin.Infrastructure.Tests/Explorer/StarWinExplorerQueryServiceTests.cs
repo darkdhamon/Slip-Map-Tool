@@ -14,6 +14,34 @@ namespace StarWin.Infrastructure.Tests.Explorer;
 public sealed class StarWinExplorerQueryServiceTests
 {
     [Fact]
+    public async Task LoadSectorOverviewAsync_returns_expected_sector_counts()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var overview = await service.LoadSectorOverviewAsync(1);
+
+            Assert.Equal(1, overview.SectorId);
+            Assert.Equal(2, overview.SystemCount);
+            Assert.Equal(4, overview.WorldCount);
+            Assert.Equal(3, overview.ColonyCount);
+            Assert.Equal(3, overview.EmpireCount);
+            Assert.Equal(2, overview.RaceCount);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task LoadAlienRaceFilterOptionsAsync_returns_distinct_database_backed_filter_values()
     {
         var databasePath = CreateTempFilePath(".db");
@@ -75,6 +103,63 @@ public sealed class StarWinExplorerQueryServiceTests
             var costSearch = await service.LoadAlienRaceListPageAsync(new ExplorerAlienRaceListPageRequest(1, 0, 30, MaxTotalPointCost: 5));
             Assert.Single(costSearch.Items);
             Assert.Equal("Krell", costSearch.Items[0].Name);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task LoadAlienRaceDetailAsync_returns_homeworld_memberships_religions_and_civilization_traits()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var detail = await service.LoadAlienRaceDetailAsync(1, 1);
+
+            Assert.NotNull(detail);
+            Assert.Equal("Aurelian", detail!.Race.Name);
+            Assert.Equal("Aurel Prime", detail.HomeWorld?.Name);
+            Assert.Collection(
+                detail.Empires,
+                empire =>
+                {
+                    Assert.Equal(201, empire.Id);
+                    Assert.Equal("Aurelian Concord", empire.Name);
+                    Assert.Equal("Council", empire.GovernmentType);
+                    Assert.Equal((byte)6, empire.CivilizationProfile.TechLevel);
+                    Assert.Equal(2, empire.CivilizationModifiers.Militancy);
+                    var membership = Assert.Single(empire.RaceMemberships);
+                    Assert.Equal(1, membership.RaceId);
+                    Assert.True(membership.IsPrimary);
+                    Assert.Equal(1200, membership.PopulationMillions);
+                    var religion = Assert.Single(empire.Religions);
+                    Assert.Equal("Solar Doctrine", religion.ReligionName);
+                    Assert.Equal(100m, religion.PopulationPercent);
+                },
+                empire =>
+                {
+                    Assert.Equal(203, empire.Id);
+                    Assert.Equal("Watcher Remnant", empire.Name);
+                    Assert.Equal("Council", empire.GovernmentType);
+                    Assert.Equal((byte)7, empire.CivilizationProfile.TechLevel);
+                    Assert.Equal(0, empire.CivilizationModifiers.Militancy);
+                    var membership = Assert.Single(empire.RaceMemberships);
+                    Assert.Equal(1, membership.RaceId);
+                    Assert.False(membership.IsPrimary);
+                    Assert.Equal(30, membership.PopulationMillions);
+                    var religion = Assert.Single(empire.Religions);
+                    Assert.Equal("Solar Doctrine", religion.ReligionName);
+                    Assert.Equal(40m, religion.PopulationPercent);
+                });
         }
         finally
         {

@@ -53,7 +53,8 @@ public static class SectorExplorerRoutes
         int habitatId = 0,
         int raceId = 0,
         int empireId = 0,
-        int religionId = 0)
+        int religionId = 0,
+        int hyperlaneId = 0)
     {
         var slug = GetSectionSlug(sectionName);
         var path = slug == "overview"
@@ -69,6 +70,7 @@ public static class SectorExplorerRoutes
         AddIfPositive(query, "raceId", raceId);
         AddIfPositive(query, "empireId", empireId);
         AddIfPositive(query, "religionId", religionId);
+        AddIfPositive(query, "hyperlaneId", hyperlaneId);
 
         return query.Count == 0 ? path : QueryHelpers.AddQueryString(path, query);
     }
