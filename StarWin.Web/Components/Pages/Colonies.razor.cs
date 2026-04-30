@@ -69,6 +69,7 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
     private bool browserSessionReady;
     private bool browserSessionRestored;
     private int loadedColonySectorId;
+    private int loadedColonyDetailId;
     private string lastLoadedImageKey = string.Empty;
     private ElementReference colonyLoadMoreElement;
     private DotNetObjectReference<Colonies>? dotNetReference;
@@ -107,6 +108,7 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
         var sector = GetSelectedSector();
         selectedSystemId = await ResolveRequestedSystemIdAsync(sector);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        await EnsureSelectedColonySummaryVisibleAsync();
         await EnsureSelectedColonyDetailAsync();
     }
 
@@ -334,11 +336,8 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
         {
             loadedColonySummaries.Clear();
             colonyHasMoreRecords = false;
-            selectedColonyId = 0;
-            selectedColonyDetail = null;
+            ClearSelectedColonyDetail();
             colonyFilterOptions = new([], [], []);
-            entityImages = [];
-            lastLoadedImageKey = string.Empty;
             return;
         }
 
@@ -348,6 +347,7 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
             loadedColonySectorId = selectedSectorId;
             colonyHasMoreRecords = false;
             colonyObserverConfigured = false;
+            ClearSelectedColonyDetail();
             colonyFilterOptions = await ExplorerQueryService.LoadColonyFilterOptionsAsync(selectedSectorId, cancellationToken);
             await LoadMoreColoniesAsync(cancellationToken);
         }
@@ -387,17 +387,6 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
             }
 
             colonyHasMoreRecords = page.HasMore;
-            if (selectedColonyId == 0 && loadedColonySummaries.Count > 0)
-            {
-                selectedColonyId = loadedColonySummaries[0].ColonyId;
-            }
-            else if (selectedColonyId > 0 && loadedColonySummaries.All(item => item.ColonyId != selectedColonyId))
-            {
-                selectedColonyId = loadedColonySummaries.FirstOrDefault()?.ColonyId ?? 0;
-            }
-
-            await EnsureSelectedColonySummaryVisibleAsync(cancellationToken);
-            await EnsureSelectedColonyDetailAsync(cancellationToken);
             await InvokeAsync(StateHasChanged);
         }
         finally
@@ -444,19 +433,21 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
         var targetColonyId = HasActiveColonyFilters()
             ? selectedColonyId
             : RequestedColonyId ?? selectedColonyId;
+
         if (targetColonyId <= 0)
         {
-            targetColonyId = loadedColonySummaries.FirstOrDefault()?.ColonyId ?? 0;
+            ClearSelectedColonyDetail();
+            return;
         }
 
-        if (targetColonyId <= 0 || colonyDetailLoading)
+        if (selectedColonyDetail?.Colony.Id == targetColonyId && loadedColonyDetailId == targetColonyId)
         {
-            if (targetColonyId <= 0)
-            {
-                selectedColonyId = 0;
-                selectedColonyDetail = null;
-            }
+            selectedColonyId = targetColonyId;
+            return;
+        }
 
+        if (colonyDetailLoading)
+        {
             return;
         }
 
@@ -464,14 +455,9 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
         try
         {
             var detail = await ExplorerQueryService.LoadColonyDetailAsync(selectedSectorId, targetColonyId, cancellationToken);
-            if (detail is null && loadedColonySummaries.Count > 0)
-            {
-                targetColonyId = loadedColonySummaries[0].ColonyId;
-                detail = await ExplorerQueryService.LoadColonyDetailAsync(selectedSectorId, targetColonyId, cancellationToken);
-            }
-
             selectedColonyDetail = detail;
             selectedColonyId = detail?.Colony.Id ?? 0;
+            loadedColonyDetailId = selectedColonyId;
             if (detail?.World.StarSystemId is int systemId && systemId > 0)
             {
                 selectedSystemId = systemId;
@@ -484,6 +470,15 @@ public partial class Colonies : ComponentBase, IAsyncDisposable
         {
             colonyDetailLoading = false;
         }
+    }
+
+    private void ClearSelectedColonyDetail()
+    {
+        selectedColonyId = 0;
+        selectedColonyDetail = null;
+        loadedColonyDetailId = 0;
+        entityImages = [];
+        lastLoadedImageKey = string.Empty;
     }
 
     private async Task EnsureEntityImagesLoadedAsync(CancellationToken cancellationToken = default)
