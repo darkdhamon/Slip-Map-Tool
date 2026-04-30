@@ -49,6 +49,58 @@ public sealed class AliensPageTests : BunitContext
     }
 
     [Fact]
+    public void ShowsSelectionPromptUntilRaceIsExplicitlyChosen()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext());
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/aliens?sectorId=7");
+
+        var cut = Render<Aliens>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Select a race to load its details.", cut.Markup);
+            Assert.Empty(cut.FindAll(".record-row.active"));
+            Assert.DoesNotContain("Homeworld: Helios", cut.Markup);
+        });
+
+        cut.FindAll(".record-row")
+            .Single(button => button.TextContent.Contains("Aurelian", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Homeworld: Helios", cut.Markup);
+            Assert.Single(cut.FindAll(".record-row.active"));
+            Assert.EndsWith("/sector-explorer/aliens?sectorId=7&systemId=11&raceId=1", navigationManager.Uri, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void LoadsRequestedRaceDetailOnlyOnceOnInitialRender()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var context = CreateContext();
+        var queryService = new CountingAlienRaceQueryService(context);
+        ConfigureServices(context, queryService: queryService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/aliens?sectorId=7&raceId=1");
+
+        var cut = Render<Aliens>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Homeworld: Helios", cut.Markup);
+            Assert.Equal(1, queryService.AlienRaceDetailLoadCount);
+        });
+    }
+
+    [Fact]
     public void FiltersRacesBySearchQueryAndClearsFilters()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -934,6 +986,17 @@ public sealed class AliensPageTests : BunitContext
                 TargetId = targetId,
                 Markdown = markdown
             });
+        }
+    }
+
+    private sealed class CountingAlienRaceQueryService(StarWinExplorerContext context) : FakeExplorerQueryService(context)
+    {
+        public int AlienRaceDetailLoadCount { get; private set; }
+
+        public override Task<ExplorerAlienRaceDetail?> LoadAlienRaceDetailAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
+        {
+            AlienRaceDetailLoadCount++;
+            return base.LoadAlienRaceDetailAsync(sectorId, raceId, cancellationToken);
         }
     }
 }

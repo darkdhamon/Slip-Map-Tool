@@ -71,6 +71,7 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
     private bool browserSessionReady;
     private bool browserSessionRestored;
     private int loadedRaceSectorId;
+    private int loadedRaceDetailId;
     private readonly List<ExplorerAlienRaceListItem> loadedRaceSummaries = [];
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
@@ -131,6 +132,7 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         var sector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        await EnsureSelectedRaceSummaryVisibleAsync();
         await EnsureSelectedRaceDetailAsync();
 
         Logger.LogInformation(
@@ -431,8 +433,7 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         {
             loadedRaceSummaries.Clear();
             raceHasMoreRecords = false;
-            selectedRaceId = 0;
-            selectedRaceDetail = null;
+            ClearSelectedRaceDetail();
             raceFilterOptions = new([], [], [], []);
             Logger.LogInformation("Aliens page LoadRacePageAsync reset to empty state because selectedSectorId <= 0.");
             return;
@@ -444,6 +445,7 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             loadedRaceSectorId = selectedSectorId;
             raceHasMoreRecords = false;
             raceObserverConfigured = false;
+            ClearSelectedRaceDetail();
             raceFilterOptions = await ExplorerQueryService.LoadAlienRaceFilterOptionsAsync(selectedSectorId, cancellationToken);
             await LoadMoreRaceSummariesAsync(cancellationToken);
         }
@@ -495,17 +497,6 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             }
 
             raceHasMoreRecords = page.HasMore;
-            if (selectedRaceId == 0 && loadedRaceSummaries.Count > 0)
-            {
-                selectedRaceId = loadedRaceSummaries[0].RaceId;
-            }
-            else if (selectedRaceId > 0 && loadedRaceSummaries.All(item => item.RaceId != selectedRaceId))
-            {
-                selectedRaceId = loadedRaceSummaries.FirstOrDefault()?.RaceId ?? 0;
-            }
-
-            await EnsureSelectedRaceSummaryVisibleAsync(cancellationToken);
-            await EnsureSelectedRaceDetailAsync(cancellationToken);
             await InvokeAsync(StateHasChanged);
 
             Logger.LogInformation(
@@ -574,14 +565,18 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
             : RequestedRaceId ?? selectedRaceId;
         if (targetRaceId <= 0)
         {
-            targetRaceId = loadedRaceSummaries.FirstOrDefault()?.RaceId ?? 0;
+            ClearSelectedRaceDetail();
+            Logger.LogDebug("Aliens page EnsureSelectedRaceDetailAsync cleared detail because no race target is available.");
+            return;
         }
 
-        if (targetRaceId <= 0)
+        if (selectedRaceDetail?.Race.Id == targetRaceId && loadedRaceDetailId == targetRaceId)
         {
-            selectedRaceId = 0;
-            selectedRaceDetail = null;
-            Logger.LogDebug("Aliens page EnsureSelectedRaceDetailAsync cleared detail because no race target is available.");
+            selectedRaceId = targetRaceId;
+            Logger.LogDebug(
+                "Aliens page EnsureSelectedRaceDetailAsync skipped because target race detail is already loaded. selectedSectorId={SelectedSectorId} targetRaceId={TargetRaceId}",
+                selectedSectorId,
+                targetRaceId);
             return;
         }
 
@@ -607,14 +602,9 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         {
             var previousRaceId = selectedRaceDetail?.Race.Id ?? 0;
             var detail = await ExplorerQueryService.LoadAlienRaceDetailAsync(selectedSectorId, targetRaceId, cancellationToken);
-            if (detail is null && loadedRaceSummaries.Count > 0)
-            {
-                targetRaceId = loadedRaceSummaries[0].RaceId;
-                detail = await ExplorerQueryService.LoadAlienRaceDetailAsync(selectedSectorId, targetRaceId, cancellationToken);
-            }
-
             selectedRaceDetail = detail;
             selectedRaceId = detail?.Race.Id ?? 0;
+            loadedRaceDetailId = selectedRaceId;
             if (previousRaceId != selectedRaceId)
             {
                 entityImages = [];
@@ -632,6 +622,15 @@ public partial class Aliens : ComponentBase, IAsyncDisposable
         {
             raceDetailLoading = false;
         }
+    }
+
+    private void ClearSelectedRaceDetail()
+    {
+        selectedRaceId = 0;
+        selectedRaceDetail = null;
+        loadedRaceDetailId = 0;
+        entityImages = [];
+        lastLoadedRaceImageTargetId = 0;
     }
 
     private async Task PersistExplorerSessionAsync()

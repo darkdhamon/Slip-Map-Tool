@@ -111,6 +111,63 @@ public sealed class StarWinExplorerQueryServiceTests
     }
 
     [Fact]
+    public async Task LoadAlienRaceDetailAsync_returns_homeworld_memberships_religions_and_civilization_traits()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var detail = await service.LoadAlienRaceDetailAsync(1, 1);
+
+            Assert.NotNull(detail);
+            Assert.Equal("Aurelian", detail!.Race.Name);
+            Assert.Equal("Aurel Prime", detail.HomeWorld?.Name);
+            Assert.Collection(
+                detail.Empires,
+                empire =>
+                {
+                    Assert.Equal(201, empire.Id);
+                    Assert.Equal("Aurelian Concord", empire.Name);
+                    Assert.Equal("Council", empire.GovernmentType);
+                    Assert.Equal((byte)6, empire.CivilizationProfile.TechLevel);
+                    Assert.Equal(2, empire.CivilizationModifiers.Militancy);
+                    var membership = Assert.Single(empire.RaceMemberships);
+                    Assert.Equal(1, membership.RaceId);
+                    Assert.True(membership.IsPrimary);
+                    Assert.Equal(1200, membership.PopulationMillions);
+                    var religion = Assert.Single(empire.Religions);
+                    Assert.Equal("Solar Doctrine", religion.ReligionName);
+                    Assert.Equal(100m, religion.PopulationPercent);
+                },
+                empire =>
+                {
+                    Assert.Equal(203, empire.Id);
+                    Assert.Equal("Watcher Remnant", empire.Name);
+                    Assert.Equal("Council", empire.GovernmentType);
+                    Assert.Equal((byte)7, empire.CivilizationProfile.TechLevel);
+                    Assert.Equal(0, empire.CivilizationModifiers.Militancy);
+                    var membership = Assert.Single(empire.RaceMemberships);
+                    Assert.Equal(1, membership.RaceId);
+                    Assert.False(membership.IsPrimary);
+                    Assert.Equal(30, membership.PopulationMillions);
+                    var religion = Assert.Single(empire.Religions);
+                    Assert.Equal("Solar Doctrine", religion.ReligionName);
+                    Assert.Equal(40m, religion.PopulationPercent);
+                });
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task LoadEmpireFilterOptionsAsync_returns_distinct_race_options_for_sector_empires()
     {
         var databasePath = CreateTempFilePath(".db");

@@ -983,18 +983,86 @@ public sealed class StarWinExplorerQueryService(
                 .FirstOrDefaultAsync(cancellationToken)
             : null;
 
-        var sectorEmpireIds = sectorEntityUsage.EmpireIds;
-        var empires = sectorEmpireIds.Count == 0
+        var sectorEmpireIdSet = sectorEntityUsage.EmpireIds.ToHashSet();
+        var matchingMemberships = sectorEmpireIdSet.Count == 0
+            ? []
+            : (await dbContext.Set<EmpireRaceMembership>()
+                .AsNoTracking()
+                .Where(membership => membership.RaceId == raceId)
+                .Select(membership => new EmpireRaceMembership
+                {
+                    EmpireId = membership.EmpireId,
+                    RaceId = membership.RaceId,
+                    Role = membership.Role,
+                    PopulationMillions = membership.PopulationMillions,
+                    IsPrimary = membership.IsPrimary
+                })
+                .ToListAsync(cancellationToken))
+                .Where(membership => sectorEmpireIdSet.Contains(membership.EmpireId))
+                .OrderByDescending(membership => membership.IsPrimary)
+                .ThenBy(membership => membership.EmpireId)
+                .ToList();
+
+        var matchingEmpireIds = matchingMemberships
+            .Select(membership => membership.EmpireId)
+            .Distinct()
+            .ToList();
+        var empireRows = matchingEmpireIds.Count == 0
             ? []
             : await dbContext.Empires
                 .AsNoTracking()
-                .AsSplitQuery()
-                .Where(empire => sectorEmpireIds.Contains(empire.Id) && empire.RaceMemberships.Any(membership => membership.RaceId == raceId))
-                .Include(empire => empire.RaceMemberships)
-                .Include(empire => empire.Religions)
+                .Where(empire => matchingEmpireIds.Contains(empire.Id))
                 .OrderBy(empire => empire.Name)
                 .ThenBy(empire => empire.Id)
+                .Select(empire => new AlienRaceEmpireDetailProjection(
+                    empire.Id,
+                    empire.Name,
+                    empire.GovernmentType,
+                    empire.CivilizationProfile.Militancy,
+                    empire.CivilizationProfile.Determination,
+                    empire.CivilizationProfile.RacialTolerance,
+                    empire.CivilizationProfile.Progressiveness,
+                    empire.CivilizationProfile.Loyalty,
+                    empire.CivilizationProfile.SocialCohesion,
+                    empire.CivilizationProfile.TechLevel,
+                    empire.CivilizationProfile.Art,
+                    empire.CivilizationProfile.Individualism,
+                    empire.CivilizationProfile.SpatialAge,
+                    empire.CivilizationModifiers.Militancy,
+                    empire.CivilizationModifiers.Determination,
+                    empire.CivilizationModifiers.RacialTolerance,
+                    empire.CivilizationModifiers.Progressiveness,
+                    empire.CivilizationModifiers.Loyalty,
+                    empire.CivilizationModifiers.SocialCohesion,
+                    empire.CivilizationModifiers.Art,
+                    empire.CivilizationModifiers.Individualism))
                 .ToListAsync(cancellationToken);
+        var religionRows = matchingEmpireIds.Count == 0
+            ? []
+            : await dbContext.Set<EmpireReligion>()
+                .AsNoTracking()
+                .Where(religion => matchingEmpireIds.Contains(religion.EmpireId))
+                .OrderBy(religion => religion.EmpireId)
+                .ThenByDescending(religion => religion.PopulationPercent)
+                .ThenBy(religion => religion.ReligionName)
+                .Select(religion => new EmpireReligion
+                {
+                    EmpireId = religion.EmpireId,
+                    ReligionId = religion.ReligionId,
+                    ReligionName = religion.ReligionName,
+                    PopulationPercent = religion.PopulationPercent
+                })
+                .ToListAsync(cancellationToken);
+
+        var membershipsByEmpireId = matchingMemberships
+            .GroupBy(membership => membership.EmpireId)
+            .ToDictionary(group => group.Key, group => (IReadOnlyList<EmpireRaceMembership>)group.ToList());
+        var religionsByEmpireId = religionRows
+            .GroupBy(religion => religion.EmpireId)
+            .ToDictionary(group => group.Key, group => (IReadOnlyList<EmpireReligion>)group.ToList());
+        var empires = empireRows
+            .Select(row => BuildAlienRaceDetailEmpire(row, membershipsByEmpireId, religionsByEmpireId))
+            .ToList();
 
         var detail = new ExplorerAlienRaceDetail(sectorId, race, homeWorld, empires);
         logger.LogInformation(
@@ -1007,6 +1075,61 @@ public sealed class StarWinExplorerQueryService(
             homeWorld?.Id ?? 0);
 
         return detail;
+    }
+
+    private static Empire BuildAlienRaceDetailEmpire(
+        AlienRaceEmpireDetailProjection projection,
+        IReadOnlyDictionary<int, IReadOnlyList<EmpireRaceMembership>> membershipsByEmpireId,
+        IReadOnlyDictionary<int, IReadOnlyList<EmpireReligion>> religionsByEmpireId)
+    {
+        var empire = new Empire
+        {
+            Id = projection.EmpireId,
+            Name = projection.Name,
+            GovernmentType = projection.GovernmentType,
+            CivilizationProfile = new CivilizationProfile
+            {
+                Militancy = projection.Militancy,
+                Determination = projection.Determination,
+                RacialTolerance = projection.RacialTolerance,
+                Progressiveness = projection.Progressiveness,
+                Loyalty = projection.Loyalty,
+                SocialCohesion = projection.SocialCohesion,
+                TechLevel = projection.TechLevel,
+                Art = projection.Art,
+                Individualism = projection.Individualism,
+                SpatialAge = projection.SpatialAge
+            },
+            CivilizationModifiers = new CivilizationModifierProfile
+            {
+                Militancy = projection.MilitancyModifier,
+                Determination = projection.DeterminationModifier,
+                RacialTolerance = projection.RacialToleranceModifier,
+                Progressiveness = projection.ProgressivenessModifier,
+                Loyalty = projection.LoyaltyModifier,
+                SocialCohesion = projection.SocialCohesionModifier,
+                Art = projection.ArtModifier,
+                Individualism = projection.IndividualismModifier
+            }
+        };
+
+        if (membershipsByEmpireId.TryGetValue(projection.EmpireId, out var memberships))
+        {
+            foreach (var membership in memberships)
+            {
+                empire.RaceMemberships.Add(membership);
+            }
+        }
+
+        if (religionsByEmpireId.TryGetValue(projection.EmpireId, out var religions))
+        {
+            foreach (var religion in religions)
+            {
+                empire.Religions.Add(religion);
+            }
+        }
+
+        return empire;
     }
 
     public async Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
@@ -2770,4 +2893,27 @@ public sealed class StarWinExplorerQueryService(
         long Population,
         bool FoundedByEmpire,
         bool ForeignFounded);
+
+    private sealed record AlienRaceEmpireDetailProjection(
+        int EmpireId,
+        string Name,
+        string GovernmentType,
+        byte Militancy,
+        byte Determination,
+        byte RacialTolerance,
+        byte Progressiveness,
+        byte Loyalty,
+        byte SocialCohesion,
+        byte TechLevel,
+        byte Art,
+        byte Individualism,
+        byte SpatialAge,
+        int MilitancyModifier,
+        int DeterminationModifier,
+        int RacialToleranceModifier,
+        int ProgressivenessModifier,
+        int LoyaltyModifier,
+        int SocialCohesionModifier,
+        int ArtModifier,
+        int IndividualismModifier);
 }
