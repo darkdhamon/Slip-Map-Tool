@@ -3,29 +3,11 @@ using StarWin.Domain.Model.Entity.StarMap;
 
 namespace StarWin.Application.Services;
 
-[Flags]
-public enum ExplorerSectorLoadSections
-{
-    None = 0,
-    AstralBodies = 1 << 0,
-    Worlds = 1 << 1,
-    WorldCharacteristics = 1 << 2,
-    Colonies = 1 << 3,
-    ColonyDemographics = 1 << 4,
-    SpaceHabitats = 1 << 5,
-    SavedRoutes = 1 << 6,
-    History = 1 << 7
-}
-
 public interface IStarWinExplorerContextService
 {
     Task<StarWinExplorerContext> LoadShellAsync(
-        bool includeSavedRoutes = true,
-        bool includeReferenceData = true,
-        CancellationToken cancellationToken = default);
-    Task<StarWinSector?> LoadSectorAsync(
-        int sectorId,
-        ExplorerSectorLoadSections loadSections,
+        int? preferredSectorId = null,
+        bool includeReferenceData = false,
         CancellationToken cancellationToken = default);
 }
 
@@ -33,13 +15,11 @@ public sealed record StarWinExplorerContext(
     IReadOnlyList<StarWinSector> Sectors,
     StarWinSector CurrentSector,
     IReadOnlyList<AlienRace> AlienRaces,
-    IReadOnlyList<Empire> Empires,
-    IReadOnlyList<EmpireContact> EmpireContacts)
+    IReadOnlyList<Empire> Empires)
 {
     public static StarWinExplorerContext Empty { get; } = new(
         [],
         new StarWinSector { Id = 0, Name = "No sectors loaded" },
-        [],
         [],
         []);
 }

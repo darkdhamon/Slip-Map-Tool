@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using StarWin.Application.Services;
-using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.StarMap;
 using StarWin.Domain.Services;
 using StarWin.Web.Components.Explorer;
@@ -19,7 +18,7 @@ public partial class SectorConfiguration : ComponentBase
     ];
 
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
-    [Inject] protected IStarWinSearchService SearchService { get; set; } = default!;
+    [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
     [Inject] protected IStarWinSectorConfigurationService SectorConfigurationService { get; set; } = default!;
     [Inject] protected IStarWinSectorRouteService SectorRouteService { get; set; } = default!;
     [Inject] protected IStarWinIndependentColonyService IndependentColonyService { get; set; } = default!;
@@ -33,10 +32,8 @@ public partial class SectorConfiguration : ComponentBase
     public int? RequestedSystemId { get; set; }
 
     protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
-    protected readonly ExplorerSectorCacheBuilder sectorCacheBuilder = new();
-    private readonly Dictionary<int, ExplorerSectorLoadSections> loadedSectorSectionsById = [];
-
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
+    protected ExplorerSectorConfigurationState? selectedConfigurationState;
     protected string explorerRenderError = string.Empty;
     protected int selectedSectorId;
     protected int selectedSystemId;
@@ -80,24 +77,21 @@ public partial class SectorConfiguration : ComponentBase
     private bool browserSessionRestored;
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
-    protected IReadOnlyList<Empire> ExplorerEmpires => explorerContext.Empires;
-
-    private IReadOnlyDictionary<int, Empire> EmpiresById =>
-        ExplorerEmpires.ToDictionary(empire => empire.Id);
+    protected int SavedRouteCount => selectedConfigurationState?.SavedRouteCount ?? 0;
+    protected SectorHyperlaneNetworkReport SavedRouteReport => selectedConfigurationState?.SavedRouteReport ?? SectorHyperlaneNetworkReport.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        await RefreshExplorerDataAsync();
+        await RefreshExplorerShellAsync();
         var initialSector = RequestedSectorId is int requestedSectorId
             ? ExplorerSectors.FirstOrDefault(sector => sector.Id == requestedSectorId) ?? explorerContext.CurrentSector
             : explorerContext.CurrentSector;
 
         selectedSectorId = initialSector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        initialSector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
-        LoadSectorConfigurationForm(initialSector);
+        await LoadSelectedConfigurationStateAsync(selectedSectorId, selectedSystemId);
+        LoadSectorConfigurationForm(selectedConfigurationState);
     }
 
     protected override async Task OnParametersSetAsync()
@@ -107,17 +101,35 @@ public partial class SectorConfiguration : ComponentBase
             return;
         }
 
+        var sectorChanged = false;
+        var systemChanged = false;
+
         var requestedSectorId = RequestedSectorId ?? selectedSectorId;
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
-            await EnsureSectorDataLoadedAsync(selectedSectorId);
-            LoadSectorConfigurationForm(GetSelectedSector());
+            sectorChanged = true;
         }
 
         var sector = GetSelectedSector();
-        selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
+        var resolvedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
+        if (resolvedSystemId != selectedSystemId)
+        {
+            selectedSystemId = resolvedSystemId;
+            systemChanged = true;
+        }
+
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+
+        if (sectorChanged)
+        {
+            await LoadSelectedConfigurationStateAsync(selectedSectorId, selectedSystemId);
+            LoadSectorConfigurationForm(selectedConfigurationState);
+        }
+        else if (systemChanged)
+        {
+            await LoadSelectedConfigurationStateAsync(selectedSectorId, selectedSystemId);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -131,8 +143,6 @@ public partial class SectorConfiguration : ComponentBase
         browserSessionReady = true;
         StateHasChanged();
     }
-
-    protected ExplorerSectorCache GetSectorCache(StarWinSector sector) => sectorCacheBuilder.Get(sector);
 
     protected string BuildSectionRoute(string sectionName)
     {
@@ -162,16 +172,16 @@ public partial class SectorConfiguration : ComponentBase
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        LoadSectorConfigurationForm(sector);
+        await LoadSelectedConfigurationStateAsync(selectedSectorId, selectedSystemId);
+        LoadSectorConfigurationForm(selectedConfigurationState);
         await PersistExplorerSessionAsync();
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Configuration", selectedSectorId, selectedSystemId));
     }
 
-    protected Task HandleSelectedSystemTextChangedAsync(string value)
+    protected async Task HandleSelectedSystemTextChangedAsync(string value)
     {
         selectedSystemText = value;
         var sector = GetSelectedSector();
@@ -180,17 +190,17 @@ public partial class SectorConfiguration : ComponentBase
         {
             selectedSystemId = systemId;
             selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+            await LoadSelectedConfigurationStateAsync(selectedSectorId, selectedSystemId);
             NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Configuration", selectedSectorId, selectedSystemId), replace: true);
         }
 
-        return PersistExplorerSessionAsync();
+        await PersistExplorerSessionAsync();
     }
 
     protected Task HandleSearchQueryChangedAsync(string value)
     {
         searchQuery = value;
-        RunSearch();
-        return Task.CompletedTask;
+        return RunSearchAsync();
     }
 
     protected void NavigateToSearchResult(StarWinSearchResult result)
@@ -200,7 +210,7 @@ public partial class SectorConfiguration : ComponentBase
             result.SectorId ?? selectedSectorId,
             result.SystemId ?? 0,
             result.WorldId ?? 0,
-            result.Type == StarWinSearchResultType.Colony ? result.WorldId ?? 0 : 0,
+            result.ColonyId ?? 0,
             result.SpaceHabitatId ?? 0,
             result.RaceId ?? 0,
             result.EmpireId ?? 0);
@@ -208,72 +218,60 @@ public partial class SectorConfiguration : ComponentBase
         NavigationManager.NavigateTo(targetUri);
     }
 
-    protected SectorHyperlaneNetworkReport GetSavedHyperlaneReport(StarWinSector sector)
-    {
-        return SectorRoutePlanner.BuildHyperlaneNetworkReport(
-            sector,
-            EmpiresById,
-            sector.SavedRoutes.Select(route => new SectorHyperlaneRouteDefinition(
-                route.SourceSystemId,
-                route.TargetSystemId,
-                (double)route.DistanceParsecs,
-                (double)route.TravelTimeYears,
-                route.TechnologyLevel,
-                route.TierName,
-                route.PrimaryOwnerEmpireId,
-                route.PrimaryOwnerEmpireName,
-                route.SecondaryOwnerEmpireId,
-                route.SecondaryOwnerEmpireName)));
-    }
-
-    protected string GetConfigurationRouteSummary(StarWinSector sector, StarSystem? focusedSystem)
+    protected string GetConfigurationRouteSummary(StarSystem? focusedSystem)
     {
         if (focusedSystem is null)
         {
             return "Select a system to preview connected hyperlanes.";
         }
 
-        if (sector.SavedRoutes.Count == 0)
+        if (SavedRouteCount == 0)
         {
             return "Preview available after saving routes for this sector.";
         }
 
-        var touchingRoutes = sector.SavedRoutes.Count(route =>
-            route.SourceSystemId == focusedSystem.Id || route.TargetSystemId == focusedSystem.Id);
+        var touchingRoutes = selectedConfigurationState?.SelectedSystemRouteCount ?? 0;
         return $"{touchingRoutes} saved hyperlane segment{(touchingRoutes == 1 ? string.Empty : "s")} touch the selected system.";
     }
 
-    protected static string DisplayDateTime(DateTime value)
+    protected static string DisplayDateTime(DateTime? value)
     {
-        return value.ToLocalTime().ToString("MMM d, yyyy h:mm tt");
+        return value is DateTime timestamp && timestamp != default
+            ? timestamp.ToLocalTime().ToString("MMM d, yyyy h:mm tt")
+            : "Not recorded";
     }
 
-    private void LoadSectorConfigurationForm(StarWinSector sector)
+    private void LoadSectorConfigurationForm(ExplorerSectorConfigurationState? state)
     {
-        sectorName = sector.Name;
-        offLaneMaximumDistanceParsecs = Math.Round(sector.Configuration.OffLaneMaximumDistanceParsecs, 3);
-        tl9AndBelowMaximumConnectionsPerSystem = sector.Configuration.Tl9AndBelowMaximumConnectionsPerSystem;
-        additionalCrossEmpireConnectionsPerSystem = sector.Configuration.AdditionalCrossEmpireConnectionsPerSystem;
-        tl6HyperlaneName = sector.Configuration.Tl6HyperlaneName;
-        tl6MaximumDistanceParsecs = Math.Round(sector.Configuration.Tl6MaximumDistanceParsecs, 3);
-        tl6OffLaneSpeedMultiplier = Math.Round(sector.Configuration.Tl6OffLaneSpeedMultiplier, 3);
-        tl6HyperlaneSpeedModifier = Math.Round(sector.Configuration.Tl6HyperlaneSpeedModifier, 3);
-        tl7HyperlaneName = sector.Configuration.Tl7HyperlaneName;
-        tl7MaximumDistanceParsecs = Math.Round(sector.Configuration.Tl7MaximumDistanceParsecs, 3);
-        tl7OffLaneSpeedMultiplier = Math.Round(sector.Configuration.Tl7OffLaneSpeedMultiplier, 3);
-        tl7HyperlaneSpeedModifier = Math.Round(sector.Configuration.Tl7HyperlaneSpeedModifier, 3);
-        tl8HyperlaneName = sector.Configuration.Tl8HyperlaneName;
-        tl8MaximumDistanceParsecs = Math.Round(sector.Configuration.Tl8MaximumDistanceParsecs, 3);
-        tl8OffLaneSpeedMultiplier = Math.Round(sector.Configuration.Tl8OffLaneSpeedMultiplier, 3);
-        tl8HyperlaneSpeedModifier = Math.Round(sector.Configuration.Tl8HyperlaneSpeedModifier, 3);
-        tl9HyperlaneName = sector.Configuration.Tl9HyperlaneName;
-        tl9MaximumDistanceParsecs = Math.Round(sector.Configuration.Tl9MaximumDistanceParsecs, 3);
-        tl9OffLaneSpeedMultiplier = Math.Round(sector.Configuration.Tl9OffLaneSpeedMultiplier, 3);
-        tl9HyperlaneSpeedModifier = Math.Round(sector.Configuration.Tl9HyperlaneSpeedModifier, 3);
-        tl10HyperlaneName = sector.Configuration.Tl10HyperlaneName;
-        tl10MaximumDistanceParsecs = Math.Round(sector.Configuration.Tl10MaximumDistanceParsecs, 3);
-        tl10OffLaneSpeedMultiplier = Math.Round(sector.Configuration.Tl10OffLaneSpeedMultiplier, 3);
-        tl10HyperlaneSpeedModifier = Math.Round(sector.Configuration.Tl10HyperlaneSpeedModifier, 3);
+        if (state is null)
+        {
+            return;
+        }
+
+        sectorName = state.SectorName;
+        offLaneMaximumDistanceParsecs = Math.Round(state.Configuration.OffLaneMaximumDistanceParsecs, 3);
+        tl9AndBelowMaximumConnectionsPerSystem = state.Configuration.Tl9AndBelowMaximumConnectionsPerSystem;
+        additionalCrossEmpireConnectionsPerSystem = state.Configuration.AdditionalCrossEmpireConnectionsPerSystem;
+        tl6HyperlaneName = state.Configuration.Tl6HyperlaneName;
+        tl6MaximumDistanceParsecs = Math.Round(state.Configuration.Tl6MaximumDistanceParsecs, 3);
+        tl6OffLaneSpeedMultiplier = Math.Round(state.Configuration.Tl6OffLaneSpeedMultiplier, 3);
+        tl6HyperlaneSpeedModifier = Math.Round(state.Configuration.Tl6HyperlaneSpeedModifier, 3);
+        tl7HyperlaneName = state.Configuration.Tl7HyperlaneName;
+        tl7MaximumDistanceParsecs = Math.Round(state.Configuration.Tl7MaximumDistanceParsecs, 3);
+        tl7OffLaneSpeedMultiplier = Math.Round(state.Configuration.Tl7OffLaneSpeedMultiplier, 3);
+        tl7HyperlaneSpeedModifier = Math.Round(state.Configuration.Tl7HyperlaneSpeedModifier, 3);
+        tl8HyperlaneName = state.Configuration.Tl8HyperlaneName;
+        tl8MaximumDistanceParsecs = Math.Round(state.Configuration.Tl8MaximumDistanceParsecs, 3);
+        tl8OffLaneSpeedMultiplier = Math.Round(state.Configuration.Tl8OffLaneSpeedMultiplier, 3);
+        tl8HyperlaneSpeedModifier = Math.Round(state.Configuration.Tl8HyperlaneSpeedModifier, 3);
+        tl9HyperlaneName = state.Configuration.Tl9HyperlaneName;
+        tl9MaximumDistanceParsecs = Math.Round(state.Configuration.Tl9MaximumDistanceParsecs, 3);
+        tl9OffLaneSpeedMultiplier = Math.Round(state.Configuration.Tl9OffLaneSpeedMultiplier, 3);
+        tl9HyperlaneSpeedModifier = Math.Round(state.Configuration.Tl9HyperlaneSpeedModifier, 3);
+        tl10HyperlaneName = state.Configuration.Tl10HyperlaneName;
+        tl10MaximumDistanceParsecs = Math.Round(state.Configuration.Tl10MaximumDistanceParsecs, 3);
+        tl10OffLaneSpeedMultiplier = Math.Round(state.Configuration.Tl10OffLaneSpeedMultiplier, 3);
+        tl10HyperlaneSpeedModifier = Math.Round(state.Configuration.Tl10HyperlaneSpeedModifier, 3);
         sectorConfigurationStatus = string.Empty;
     }
 
@@ -321,10 +319,9 @@ public partial class SectorConfiguration : ComponentBase
                 Tl10HyperlaneSpeedModifier = tl10HyperlaneSpeedModifier
             });
 
-        await RefreshExplorerDataAsync();
-        await EnsureSectorDataLoadedAsync(sector.Id);
-        var reloadedSector = GetSelectedSector();
-        LoadSectorConfigurationForm(reloadedSector);
+        await RefreshExplorerShellAsync();
+        await LoadSelectedConfigurationStateAsync(selectedSectorId, selectedSystemId);
+        LoadSectorConfigurationForm(selectedConfigurationState);
         sectorConfigurationStatus = $"{savedSectorName} saved. Off-lane distance is {configuration.OffLaneMaximumDistanceParsecs:0.###} parsecs, and TL6-TL10 travel tiers now use the current sector configuration.";
     }
 
@@ -363,9 +360,9 @@ public partial class SectorConfiguration : ComponentBase
             routeSaveLoadingPercent = 100;
             routeSaveProcessedItems = null;
             routeSaveTotalItems = null;
-            await RefreshExplorerDataAsync();
-            await EnsureSectorDataLoadedAsync(sector.Id);
-            LoadSectorConfigurationForm(GetSelectedSector());
+            await RefreshExplorerShellAsync();
+            await LoadSelectedConfigurationStateAsync(selectedSectorId, selectedSystemId);
+            LoadSectorConfigurationForm(selectedConfigurationState);
             sectorConfigurationStatus = result.ReplacedExistingRoutes
                 ? $"Updated {result.RouteCount:N0} saved hyperlane segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sector.Name}. {result.GeneratedRouteCount:N0} regenerated, {result.PreservedUserRouteCount:N0} user-persisted kept, {result.NetworkReport.DistinctNetworkCount:N0} network{(result.NetworkReport.DistinctNetworkCount == 1 ? string.Empty : "s")}, {result.NetworkReport.StrandedSystemCount:N0} stranded system{(result.NetworkReport.StrandedSystemCount == 1 ? string.Empty : "s")}."
                 : $"Saved {result.RouteCount:N0} hyperlane segment{(result.RouteCount == 1 ? string.Empty : "s")} for {sector.Name}. {result.NetworkReport.DistinctNetworkCount:N0} network{(result.NetworkReport.DistinctNetworkCount == 1 ? string.Empty : "s")} and {result.NetworkReport.StrandedSystemCount:N0} stranded system{(result.NetworkReport.StrandedSystemCount == 1 ? string.Empty : "s")}.";
@@ -392,8 +389,8 @@ public partial class SectorConfiguration : ComponentBase
         try
         {
             var result = await IndependentColonyService.ConvertIndependentColoniesAsync(sectorId);
-            await RefreshExplorerDataAsync();
-            await EnsureSectorDataLoadedAsync(sectorId);
+            await RefreshExplorerShellAsync();
+            await LoadSelectedConfigurationStateAsync(selectedSectorId, selectedSystemId);
             sectorConfigurationStatus = result.Assignments.Count == 0
                 ? "No independent colonies needed conversion."
                 : $"Created {result.CreatedEmpires.Count:N0} empire{(result.CreatedEmpires.Count == 1 ? string.Empty : "s")} and assigned {result.Assignments.Count:N0} colon{(result.Assignments.Count == 1 ? "y" : "ies")}.";
@@ -404,63 +401,16 @@ public partial class SectorConfiguration : ComponentBase
         }
     }
 
-    private async Task RefreshExplorerDataAsync(CancellationToken cancellationToken = default)
+    private async Task RefreshExplorerShellAsync(CancellationToken cancellationToken = default)
     {
         explorerContext = await ExplorerContextService.LoadShellAsync(
-            includeSavedRoutes: true,
-            includeReferenceData: false,
+            preferredSectorId: RequestedSectorId ?? selectedSectorId,
             cancellationToken: cancellationToken);
-
-        loadedSectorSectionsById.Clear();
-        foreach (var sectorId in ExplorerSectors.Select(sector => sector.Id))
-        {
-            sectorCacheBuilder.Invalidate(sectorId);
-        }
     }
 
-    private async Task EnsureSectorDataLoadedAsync(int sectorId, CancellationToken cancellationToken = default)
+    private async Task RunSearchAsync()
     {
-        if (sectorId <= 0)
-        {
-            return;
-        }
-
-        const ExplorerSectorLoadSections requiredSections = ExplorerSectorLoadSections.SavedRoutes;
-
-        loadedSectorSectionsById.TryGetValue(sectorId, out var loadedSections);
-        if ((loadedSections & requiredSections) == requiredSections)
-        {
-            return;
-        }
-
-        var detailedSector = await ExplorerContextService.LoadSectorAsync(sectorId, requiredSections, cancellationToken);
-        if (detailedSector is null)
-        {
-            return;
-        }
-
-        var sectors = ExplorerSectors.ToList();
-        var sectorIndex = sectors.FindIndex(item => item.Id == detailedSector.Id);
-        if (sectorIndex >= 0)
-        {
-            sectors[sectorIndex] = detailedSector;
-        }
-
-        explorerContext = explorerContext with
-        {
-            Sectors = sectors,
-            CurrentSector = explorerContext.CurrentSector.Id == detailedSector.Id ? detailedSector : explorerContext.CurrentSector
-        };
-
-        loadedSectorSectionsById[sectorId] = loadedSections | requiredSections;
-        sectorCacheBuilder.Invalidate(sectorId);
-    }
-
-    private void RunSearch()
-    {
-        searchResults = SearchService.Search(searchQuery)
-            .Where(result => result.SectorId is null || result.SectorId == selectedSectorId)
-            .ToList();
+        searchResults = await ExplorerQueryService.SearchSectorAsync(selectedSectorId, searchQuery);
     }
 
     private async Task RestoreExplorerSessionAsync()
@@ -484,13 +434,12 @@ public partial class SectorConfiguration : ComponentBase
         }
 
         selectedSectorId = sector.Id;
-        await EnsureSectorDataLoadedAsync(selectedSectorId);
-        sector = GetSelectedSector();
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
-        LoadSectorConfigurationForm(sector);
+        await LoadSelectedConfigurationStateAsync(selectedSectorId, selectedSystemId);
+        LoadSectorConfigurationForm(selectedConfigurationState);
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Configuration", selectedSectorId, selectedSystemId), replace: true);
     }
 
@@ -505,6 +454,20 @@ public partial class SectorConfiguration : ComponentBase
             JS,
             browserSessionReady,
             new ExplorerSessionSelection(selectedSectorId, selectedSystemId, false, SectorExplorerRoutes.GetSectionSlug("Configuration")));
+    }
+
+    private async Task LoadSelectedConfigurationStateAsync(int sectorId, int? systemId = null, CancellationToken cancellationToken = default)
+    {
+        if (sectorId <= 0)
+        {
+            selectedConfigurationState = null;
+            return;
+        }
+
+        selectedConfigurationState = await ExplorerQueryService.LoadSectorConfigurationStateAsync(
+            sectorId,
+            systemId,
+            cancellationToken);
     }
 
     private static string FormatSelectedSystem(StarWinSector sector, int systemId)
@@ -524,4 +487,5 @@ public partial class SectorConfiguration : ComponentBase
         var idText = separatorIndex < 0 ? value : value[..separatorIndex];
         return int.TryParse(idText, out var id) ? id : 0;
     }
+
 }

@@ -6,6 +6,12 @@
     min-height: calc(100vh - 72px);
 }
 
+.site-main:focus,
+.site-main:focus-visible {
+    outline: none;
+    box-shadow: none;
+}
+
 #blazor-error-ui {
     color-scheme: dark;
     background: #7f1d1d;

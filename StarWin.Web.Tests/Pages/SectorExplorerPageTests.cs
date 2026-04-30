@@ -76,6 +76,36 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
+    public async Task OverviewMetricsLoadOncePerSectorWhileSameSectorRequestsAreInFlight()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        var queryService = new FakeExplorerQueryService(sector);
+        ConfigureServices(sector, workspace, queryService);
+
+        var cut = Render<SectorExplorer>();
+        cut.WaitForAssertion(() => Assert.Contains("<strong>2</strong>", cut.Markup));
+
+        var baselineCallCount = queryService.LoadSectorOverviewCallCount;
+        queryService.DelayOverviewLoads = true;
+
+        var loadMethod = typeof(SectorExplorer).GetMethod("LoadSectorOverviewDataAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(loadMethod);
+
+        var loadOne = cut.InvokeAsync(() => (Task)loadMethod!.Invoke(cut.Instance, [99, CancellationToken.None])!);
+        var loadTwo = cut.InvokeAsync(() => (Task)loadMethod!.Invoke(cut.Instance, [99, CancellationToken.None])!);
+
+        cut.WaitForAssertion(() => Assert.Equal(baselineCallCount + 1, queryService.LoadSectorOverviewCallCount));
+
+        queryService.ReleaseOverviewLoad();
+        await Task.WhenAll(loadOne, loadTwo);
+
+        Assert.Equal(baselineCallCount + 1, queryService.LoadSectorOverviewCallCount);
+    }
+
+    [Fact]
     public void MapWorkspaceShowsSingleSharedLoadingModalWhileDeferredWorkspaceLoads()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -105,7 +135,7 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
-    public void MapWorkspaceUpdatesOverviewQueryWithoutParentCallback()
+    public async Task MapWorkspaceUpdatesOverviewQueryWithoutParentCallback()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -121,7 +151,7 @@ public sealed class SectorExplorerPageTests : BunitContext
             .Add(component => component.SystemId, 11));
 
         cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
-        cut.InvokeAsync(() => cut.Instance.SelectSystemFromMap(12));
+        await cut.InvokeAsync(() => cut.Instance.SelectSystemFromMap(12));
 
         Assert.EndsWith("/sector-explorer?sectorId=7&systemId=12", navigationManager.Uri, StringComparison.Ordinal);
     }
@@ -185,7 +215,54 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
-    public void MapWorkspaceNavigatesDirectlyToSystemsPage()
+    public void OverviewSectorSelectorChangeUpdatesRouteAndMapWorkspace()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var delcora = CreateSector(
+            sectorId: 1,
+            sectorName: "Delcora Sector",
+            primarySystemId: 224157,
+            primarySystemName: "A'Hearn",
+            secondarySystemId: 224158,
+            secondarySystemName: "Bastion");
+        var testImport = CreateSector(
+            sectorId: 2,
+            sectorName: "test import",
+            primarySystemId: 11,
+            primarySystemName: "Helios",
+            secondarySystemId: 12,
+            secondarySystemName: "Selene",
+            includeSavedRoutes: false);
+
+        var workspace = new FakeWorkspace([delcora, testImport], currentSectorId: delcora.Id);
+        var queryService = new FakeExplorerQueryService([delcora, testImport]);
+        ConfigureServices([delcora, testImport], workspace, queryService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer?sectorId=1&systemId=224157");
+
+        var cut = Render<SectorExplorer>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Delcora Sector", cut.Markup);
+            Assert.Contains("224157 - A'Hearn", cut.Markup);
+            Assert.Contains("<strong>2</strong>", cut.Markup);
+        });
+
+        cut.Find("select").Change("2");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.EndsWith("/sector-explorer?sectorId=2&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
+            Assert.Contains("test import", cut.Markup);
+            Assert.Contains("11 - Helios", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public async Task MapWorkspaceNavigatesDirectlyToSystemsPage()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -201,15 +278,131 @@ public sealed class SectorExplorerPageTests : BunitContext
             .Add(component => component.SystemId, 12));
 
         cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
-        cut.FindAll("button.overlay-action")
-            .First(button => button.TextContent.Contains("Load 3D map", StringComparison.Ordinal))
-            .Click();
-        cut.WaitForAssertion(() => Assert.Contains("Open system record", cut.Markup));
-        cut.FindAll("button.overlay-action")
-            .First(button => button.TextContent.Contains("Open system record", StringComparison.Ordinal))
-            .Click();
+        var openRecordMethod = typeof(SectorExplorerMapWorkspace).GetMethod("OpenSelectedSystemRecordAsync", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(openRecordMethod);
+
+        await cut.InvokeAsync(() => (Task)openRecordMethod!.Invoke(cut.Instance, [])!);
 
         Assert.EndsWith("/sector-explorer/systems?sectorId=7&systemId=12", navigationManager.Uri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MapWorkspaceSkipsPersistentDynamicRouteFallbackPromptWhenSavedRoutesAreMissing()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector(includeSavedRoutes: false);
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11));
+
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+        Assert.DoesNotContain("Open sector configuration", cut.Markup);
+        Assert.DoesNotContain("No saved routes yet. The map is generating them dynamically.", cut.Markup);
+    }
+
+    [Fact]
+    public void MapWorkspaceUsesShortDynamicRouteFallbackOverlayCopy()
+    {
+        var noteMethod = typeof(SectorExplorerMapWorkspace).GetMethod("GetSavedRouteGenerationLoadingNote", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(noteMethod);
+
+        var note = noteMethod!.Invoke(null, []) as string;
+
+        Assert.Equal("No saved routes yet. The map is generating them dynamically. Use Save Current Routes in Sector Configuration to speed up future loads.", note);
+    }
+
+    [Fact]
+    public async Task MapWorkspaceHidesDynamicRouteFallbackHintAfterMapRenderCompletes()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var mapModule = JSInterop.SetupModule("./js/sectorMap3d.js");
+        var renderHandler = mapModule.SetupVoid("renderSectorMap", _ => true);
+
+        var sector = CreateSector(includeSavedRoutes: false);
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11));
+
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+
+        var sectorMapRequestedField = typeof(SectorExplorerMapWorkspace).GetField("sectorMapRequested", BindingFlags.Instance | BindingFlags.NonPublic);
+        var renderedOverviewField = typeof(SectorExplorerMapWorkspace).GetField("renderedOverview", BindingFlags.Instance | BindingFlags.NonPublic);
+        var stateHasChangedMethod = typeof(ComponentBase).GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(sectorMapRequestedField);
+        Assert.NotNull(renderedOverviewField);
+        Assert.NotNull(stateHasChangedMethod);
+
+        await cut.InvokeAsync(() =>
+        {
+            sectorMapRequestedField!.SetValue(cut.Instance, true);
+            renderedOverviewField!.SetValue(cut.Instance, false);
+            stateHasChangedMethod!.Invoke(cut.Instance, []);
+        });
+
+        cut.WaitForAssertion(() => Assert.Contains("No saved routes yet. The map is generating them dynamically. Use Save Current Routes in Sector Configuration to speed up future loads.", cut.Markup));
+
+        renderHandler.SetVoidResult();
+
+        await cut.InvokeAsync(() =>
+        {
+            sectorMapRequestedField!.SetValue(cut.Instance, true);
+            renderedOverviewField!.SetValue(cut.Instance, true);
+            stateHasChangedMethod!.Invoke(cut.Instance, []);
+        });
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Open system record", cut.Markup);
+            Assert.DoesNotContain("No saved routes yet. The map is generating them dynamically. Use Save Current Routes in Sector Configuration to speed up future loads.", cut.Markup);
+            Assert.DoesNotContain("Open sector configuration", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public async Task MapWorkspaceHidesLoadingModalAfterRenderCompletes()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var mapModule = JSInterop.SetupModule("./js/sectorMap3d.js");
+        var renderHandler = mapModule.SetupVoid("renderSectorMap", _ => true);
+        renderHandler.SetVoidResult();
+
+        var sector = CreateSector(includeSavedRoutes: false);
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11));
+
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+
+        var sectorMapRequestedField = typeof(SectorExplorerMapWorkspace).GetField("sectorMapRequested", BindingFlags.Instance | BindingFlags.NonPublic);
+        var stateHasChangedMethod = typeof(ComponentBase).GetMethod("StateHasChanged", BindingFlags.Instance | BindingFlags.NonPublic);
+
+        Assert.NotNull(sectorMapRequestedField);
+        Assert.NotNull(stateHasChangedMethod);
+
+        await cut.InvokeAsync(() =>
+        {
+            sectorMapRequestedField!.SetValue(cut.Instance, true);
+            stateHasChangedMethod!.Invoke(cut.Instance, []);
+        });
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.DoesNotContain("Loading 3D sector map", cut.Markup);
+            Assert.Contains("Open system record", cut.Markup);
+        });
     }
 
     [Fact]
@@ -248,35 +441,47 @@ public sealed class SectorExplorerPageTests : BunitContext
         Assert.Contains("\"solarMasses\":1.01", json);
     }
 
-    private void ConfigureServices(StarWinSector sector, FakeWorkspace workspace)
+    private void ConfigureServices(StarWinSector sector, FakeWorkspace workspace, FakeExplorerQueryService? queryService = null)
+    {
+        ConfigureServices([sector], workspace, queryService);
+    }
+
+    private void ConfigureServices(IReadOnlyList<StarWinSector> sectors, FakeWorkspace workspace, FakeExplorerQueryService? queryService = null)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinWorkspace>(workspace);
-        Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(sector));
-        Services.AddSingleton<IStarWinExplorerQueryService>(new FakeExplorerQueryService(sector));
+        Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(sectors));
+        Services.AddSingleton<IStarWinExplorerQueryService>(queryService ?? new FakeExplorerQueryService(sectors));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinImageService>(new FakeImageService());
         Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());
     }
 
-    private static StarWinSector CreateSector()
+    private static StarWinSector CreateSector(
+        int sectorId = 7,
+        string sectorName = "Del Corra",
+        int primarySystemId = 11,
+        string primarySystemName = "Helios",
+        int secondarySystemId = 12,
+        string secondarySystemName = "Selene",
+        bool includeSavedRoutes = true)
     {
         var sector = new StarWinSector
         {
-            Id = 7,
-            Name = "Del Corra",
+            Id = sectorId,
+            Name = sectorName,
             Configuration = new StarWin.Domain.Model.Entity.StarMap.SectorConfiguration
             {
-                SectorId = 7,
+                SectorId = sectorId,
                 OffLaneMaximumDistanceParsecs = 2m
             }
         };
 
         var system = new StarSystem
         {
-            Id = 11,
-            SectorId = 7,
-            Name = "Helios",
+            Id = primarySystemId,
+            SectorId = sectorId,
+            Name = primarySystemName,
             Coordinates = new Coordinates(0, 0, 0),
             AllegianceId = 8
         };
@@ -309,51 +514,57 @@ public sealed class SectorExplorerPageTests : BunitContext
         sector.Systems.Add(system);
         sector.Systems.Add(new StarSystem
         {
-            Id = 12,
-            SectorId = 7,
-            Name = "Selene",
+            Id = secondarySystemId,
+            SectorId = sectorId,
+            Name = secondarySystemName,
             Coordinates = new Coordinates(1, 0, 0),
             AllegianceId = 8
         });
-        sector.SavedRoutes.Add(new SectorSavedRoute
+        if (includeSavedRoutes)
         {
-            Id = 1,
-            SectorId = 7,
-            SourceSystemId = 11,
-            TargetSystemId = 12,
-            DistanceParsecs = 1m,
-            TravelTimeYears = 0.01m,
-            TechnologyLevel = 6,
-            TierName = "Basic Hyperlane"
-        });
+            sector.SavedRoutes.Add(new SectorSavedRoute
+            {
+                Id = 1,
+                SectorId = sectorId,
+                SourceSystemId = primarySystemId,
+                TargetSystemId = secondarySystemId,
+                DistanceParsecs = 1m,
+                TravelTimeYears = 0.01m,
+                TechnologyLevel = 6,
+                TierName = "Basic Hyperlane"
+            });
+        }
 
         return sector;
     }
 
     private sealed class FakeWorkspace : IStarWinWorkspace
     {
-        private readonly StarWinSector sector;
+        private readonly IReadOnlyList<StarWinSector> sectors;
         private readonly TaskCompletionSource reloadTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public FakeWorkspace(StarWinSector sector)
+            : this([sector], sector.Id)
         {
-            this.sector = sector;
-            CurrentSector = sector;
+        }
+
+        public FakeWorkspace(IReadOnlyList<StarWinSector> sectors, int? currentSectorId = null)
+        {
+            this.sectors = sectors;
+            CurrentSector = ResolveCurrentSector(currentSectorId);
         }
 
         public bool DelayReload { get; set; }
 
         public bool IsLoaded { get; private set; }
 
-        public IReadOnlyList<StarWinSector> Sectors => IsLoaded ? [sector] : [];
+        public IReadOnlyList<StarWinSector> Sectors => IsLoaded ? sectors : [];
 
         public StarWinSector CurrentSector { get; private set; }
 
         public IReadOnlyList<AlienRace> AlienRaces => [new AlienRace { Id = 3, Name = "Krell" }];
 
         public IReadOnlyList<Empire> Empires => [new Empire { Id = 8, Name = "Orion Compact" }];
-
-        public IReadOnlyList<EmpireContact> EmpireContacts => [];
 
         public CivilizationGeneratorSettings CivilizationSettings { get; } = new();
 
@@ -370,12 +581,18 @@ public sealed class SectorExplorerPageTests : BunitContext
             }
 
             IsLoaded = true;
-            CurrentSector = sector;
+            CurrentSector = ResolveCurrentSector(CurrentSector.Id);
         }
 
         public void ReleaseReload()
         {
             reloadTcs.TrySetResult();
+        }
+
+        private StarWinSector ResolveCurrentSector(int? currentSectorId)
+        {
+            return sectors.FirstOrDefault(item => item.Id == currentSectorId)
+                ?? sectors.First();
         }
     }
 
@@ -383,47 +600,74 @@ public sealed class SectorExplorerPageTests : BunitContext
     {
         private readonly StarWinExplorerContext context;
 
-        public FakeExplorerContextService(StarWinSector sector)
+        public FakeExplorerContextService(IReadOnlyList<StarWinSector> sectors)
         {
+            var currentSector = sectors.First();
             context = new StarWinExplorerContext(
-                [sector],
-                sector,
+                sectors,
+                currentSector,
                 [new AlienRace { Id = 3, Name = "Krell" }],
-                [new Empire { Id = 8, Name = "Orion Compact" }],
-                []);
+                [new Empire { Id = 8, Name = "Orion Compact" }]);
         }
 
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(int? preferredSectorId = null, bool includeReferenceData = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
-        }
-
-        public Task<StarWinSector?> LoadSectorAsync(int sectorId, ExplorerSectorLoadSections loadSections, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<StarWinSector?>(context.Sectors.FirstOrDefault(sector => sector.Id == sectorId));
         }
     }
 
     private sealed class FakeExplorerQueryService : IStarWinExplorerQueryService
     {
-        private readonly ExplorerSectorOverviewData overviewData;
+        private readonly Dictionary<int, ExplorerSectorOverviewData> overviewDataBySectorId;
+        private readonly TaskCompletionSource overviewLoadTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public FakeExplorerQueryService(StarWinSector sector)
+            : this([sector])
         {
-            overviewData = new ExplorerSectorOverviewData(
-                sector.Id,
-                sector.Systems.Count,
-                sector.Systems.SelectMany(system => system.Worlds).Count(),
-                sector.Systems.SelectMany(system => system.Worlds).Count(world => world.Colony is not null),
-                1,
-                1,
-                [new ExplorerLookupOption(11, "Helios")],
-                [new ExplorerLookupOption(8, "Orion Compact")]);
         }
 
-        public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
+        public FakeExplorerQueryService(IReadOnlyList<StarWinSector> sectors)
         {
-            return Task.FromResult(overviewData);
+            overviewDataBySectorId = sectors.ToDictionary(
+                sector => sector.Id,
+                sector => new ExplorerSectorOverviewData(
+                    sector.Id,
+                    sector.Systems.Count,
+                    sector.Systems.SelectMany(system => system.Worlds).Count(),
+                    sector.Systems.SelectMany(system => system.Worlds).Count(world => world.Colony is not null),
+                    1,
+                    1));
+        }
+
+        public bool DelayOverviewLoads { get; set; }
+
+        public int LoadSectorOverviewCallCount { get; private set; }
+
+        public async Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            LoadSectorOverviewCallCount++;
+
+            if (DelayOverviewLoads)
+            {
+                using var registration = cancellationToken.Register(() => overviewLoadTcs.TrySetCanceled(cancellationToken));
+                await overviewLoadTcs.Task;
+            }
+
+            var overviewData = overviewDataBySectorId.TryGetValue(sectorId, out var requestedOverviewData)
+                ? requestedOverviewData
+                : overviewDataBySectorId.Values.First();
+
+            return overviewData with { SectorId = sectorId };
+        }
+
+        public void ReleaseOverviewLoad()
+        {
+            overviewLoadTcs.TrySetResult();
+        }
+
+        public Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerSectorEntityUsage(sectorId, [], []));
         }
 
         public Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)

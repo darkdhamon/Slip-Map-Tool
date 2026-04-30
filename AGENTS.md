@@ -10,6 +10,8 @@ The first workflow step for an issue-driven conversation is:
 
 If `dev` does not exist yet, create it from `master`, then create the feature or bug-fix branch from `dev`.
 
+When I ask for a fix without giving an issue number, check the `Starforged Atlas Task Board` and the repository issues for an existing issue that matches the requested work. If a likely matching issue exists, confirm with me that it is the correct issue before proceeding. If the matching issue is not the one we are working on, or if no matching issue exists, create a new issue for the work and create the branch from that issue.
+
 Do not start coding for an issue-driven conversation until I explicitly ask you to begin the coding process.
 
 GitHub project workflow uses the `Starforged Atlas Task Board`.
@@ -43,6 +45,8 @@ GitHub release workflow:
 When I explicitly tell you to implement the changes, move the issue from `Ready` to `In progress`.
 
 When I tell you to promote the work to `dev`, move the issue from `In progress` to `In review`.
+
+All code changes promoted into `dev` must go through a pull request. Do not merge or commit changes directly into `dev`.
 
 When a pull request that promotes work to `main` is completed, move all issues connected to that pull request from `In review` to `Done`.
 

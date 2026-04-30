@@ -52,6 +52,59 @@ public sealed class WorldsPageTests : BunitContext
     }
 
     [Fact]
+    public void ShowsSelectionPromptUntilWorldOrHabitatIsExplicitlyChosen()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var imageService = new CountingImageService();
+        ConfigureServices(CreateContext(), imageService: imageService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/worlds?sectorId=7");
+
+        var cut = Render<Worlds>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Select a world or habitat to load its details.", cut.Markup);
+            Assert.Empty(cut.FindAll(".record-row.active"));
+            Assert.DoesNotContain("Planet survey", cut.Markup);
+            Assert.Equal(0, imageService.ImageLoadCount);
+        });
+
+        cut.FindAll(".record-row")
+            .Single(button => button.TextContent.Contains("Eos", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Planet survey", cut.Markup);
+            Assert.Contains("Eos", cut.Markup);
+            Assert.Single(cut.FindAll(".record-row.active"));
+            Assert.Equal(1, imageService.ImageLoadCount);
+            Assert.EndsWith("/sector-explorer/worlds?sectorId=7&systemId=11&worldId=101", navigationManager.Uri, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void LoadsRequestedWorldImagesOnlyOnceOnInitialRender()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var imageService = new CountingImageService();
+        ConfigureServices(CreateContext(), imageService: imageService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/worlds?sectorId=7&systemId=11&worldId=101");
+
+        var cut = Render<Worlds>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Planet survey", cut.Markup);
+            Assert.Equal(1, imageService.ImageLoadCount);
+        });
+    }
+
+    [Fact]
     public void FiltersWorldsBySearchQueryAndClearsFilters()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -148,12 +201,16 @@ public sealed class WorldsPageTests : BunitContext
         Assert.EndsWith("/sector-explorer/colonies?sectorId=7&systemId=11&worldId=101&colonyId=501", navigationManager.Uri, StringComparison.Ordinal);
     }
 
-    private void ConfigureServices(StarWinExplorerContext context, FakeSpaceHabitatService? habitatService = null)
+    private void ConfigureServices(
+        StarWinExplorerContext context,
+        FakeSpaceHabitatService? habitatService = null,
+        IStarWinImageService? imageService = null)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
+        Services.AddSingleton<IStarWinExplorerQueryService>(new ContextBackedExplorerQueryService(context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
-        Services.AddSingleton<IStarWinImageService>(new FakeImageService());
+        Services.AddSingleton(imageService ?? new FakeImageService());
         Services.AddSingleton<IStarWinEntityNameService>(new FakeEntityNameService());
         Services.AddSingleton<IStarWinEntityNoteService>(new FakeEntityNoteService());
         Services.AddSingleton<IStarWinSpaceHabitatService>(habitatService ?? new FakeSpaceHabitatService());
@@ -230,8 +287,7 @@ public sealed class WorldsPageTests : BunitContext
             [sector],
             sector,
             [],
-            [new Empire { Id = 2, Name = "Orion Compact" }, new Empire { Id = 3, Name = "Zephyr League" }],
-            []);
+            [new Empire { Id = 2, Name = "Orion Compact" }, new Empire { Id = 3, Name = "Zephyr League" }]);
     }
 
     private static World CreateWorld(int id, string name, string worldType)
@@ -258,14 +314,9 @@ public sealed class WorldsPageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(int? preferredSectorId = null, bool includeReferenceData = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
-        }
-
-        public Task<StarWinSector?> LoadSectorAsync(int sectorId, ExplorerSectorLoadSections loadSections, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<StarWinSector?>(context.Sectors.FirstOrDefault(sector => sector.Id == sectorId));
         }
     }
 
@@ -278,6 +329,38 @@ public sealed class WorldsPageTests : BunitContext
     {
         public Task<IReadOnlyList<EntityImage>> GetImagesAsync(CancellationToken cancellationToken = default)
         {
+            return Task.FromResult<IReadOnlyList<EntityImage>>([]);
+        }
+
+        public Task<EntityImage> UploadImageAsync(EntityImageTargetKind targetKind, int targetId, string fileName, string contentType, Stream content, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new EntityImage
+            {
+                TargetKind = targetKind,
+                TargetId = targetId,
+                FileName = fileName
+            });
+        }
+    }
+
+    private sealed class CountingImageService : IStarWinImageService
+    {
+        public int ImageLoadCount { get; private set; }
+
+        public Task<IReadOnlyList<EntityImage>> GetImagesAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<EntityImage>>([]);
+        }
+
+        public Task<IReadOnlyList<EntityImage>> GetImagesAsync(
+            IReadOnlyCollection<EntityImageTarget> targets,
+            CancellationToken cancellationToken = default)
+        {
+            if (targets.Count > 0)
+            {
+                ImageLoadCount++;
+            }
+
             return Task.FromResult<IReadOnlyList<EntityImage>>([]);
         }
 

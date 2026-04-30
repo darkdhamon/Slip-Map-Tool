@@ -36,6 +36,58 @@ public sealed class EmpiresPageTests : BunitContext
     }
 
     [Fact]
+    public void ShowsSelectionPromptUntilEmpireIsExplicitlyChosen()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext());
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/empires?sectorId=7");
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Select an empire to load its details.", cut.Markup);
+            Assert.Empty(cut.FindAll(".record-row.active"));
+            Assert.DoesNotContain("Homeworld: Helios", cut.Markup);
+        });
+
+        cut.FindAll(".record-row")
+            .Single(button => button.TextContent.Contains("Orion Compact", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Homeworld: Helios", cut.Markup);
+            Assert.Single(cut.FindAll(".record-row.active"));
+            Assert.EndsWith("/sector-explorer/empires?sectorId=7&systemId=11&empireId=2", navigationManager.Uri, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void LoadsRequestedEmpireDetailOnlyOnceOnInitialRender()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var context = CreateContext();
+        var queryService = new CountingEmpireQueryService(context, new Dictionary<(EntityNoteTargetKind, int), EntityNote>());
+        ConfigureServices(context, queryService: queryService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/empires?sectorId=7&empireId=2");
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Homeworld: Helios", cut.Markup);
+            Assert.Equal(1, queryService.EmpireDetailLoadCount);
+        });
+    }
+
+    [Fact]
     public void FiltersEmpiresBySummarySearchAndClearsFilters()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -854,7 +906,7 @@ public sealed class EmpiresPageTests : BunitContext
             empires.AddRange(additionalEmpires);
         }
 
-        return new StarWinExplorerContext([sector], sector, races, empires, []);
+        return new StarWinExplorerContext([sector], sector, races, empires);
     }
 
     private static World CreateWorld(
@@ -938,14 +990,9 @@ public sealed class EmpiresPageTests : BunitContext
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(int? preferredSectorId = null, bool includeReferenceData = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(context);
-        }
-
-        public Task<StarWinSector?> LoadSectorAsync(int sectorId, ExplorerSectorLoadSections loadSections, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<StarWinSector?>(context.Sectors.FirstOrDefault(sector => sector.Id == sectorId));
         }
     }
 
@@ -956,6 +1003,11 @@ public sealed class EmpiresPageTests : BunitContext
         public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
+        }
+
+        public Task<ExplorerSectorEntityUsage> LoadSectorEntityUsageAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new ExplorerSectorEntityUsage(sectorId, [], []));
         }
 
         public Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
@@ -1441,6 +1493,20 @@ public sealed class EmpiresPageTests : BunitContext
                 TargetId = targetId,
                 Markdown = markdown
             });
+        }
+    }
+
+    private sealed class CountingEmpireQueryService(
+        StarWinExplorerContext context,
+        IReadOnlyDictionary<(EntityNoteTargetKind TargetKind, int TargetId), EntityNote> notes)
+        : FakeExplorerQueryService(context, notes)
+    {
+        public int EmpireDetailLoadCount { get; private set; }
+
+        public override Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+        {
+            EmpireDetailLoadCount++;
+            return base.LoadEmpireDetailAsync(sectorId, empireId, cancellationToken);
         }
     }
 }

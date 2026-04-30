@@ -17,7 +17,8 @@ public sealed class HyperlanesPageTests : BunitContext
     public void RendersRequestedHyperlaneInDedicatedPage()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
-        ConfigureServices(CreateContext());
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService);
 
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("http://localhost/sector-explorer/hyperlanes?sectorId=7&systemId=11&hyperlaneId=2");
@@ -36,10 +37,60 @@ public sealed class HyperlanesPageTests : BunitContext
     }
 
     [Fact]
+    public void ShowsNewDraftUntilSavedHyperlaneIsExplicitlyChosen()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/hyperlanes?sectorId=7&systemId=11");
+
+        var cut = Render<Hyperlanes>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Create saved hyperlane", cut.Markup);
+            Assert.Empty(cut.FindAll(".hyperlane-record.active"));
+            Assert.DoesNotContain("Delete hyperlane", cut.Markup);
+        });
+
+        cut.FindAll(".hyperlane-record")
+            .Single(button => button.TextContent.Contains("Advanced Hyperlane", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Edit saved hyperlane", cut.Markup);
+            Assert.Single(cut.FindAll(".hyperlane-record.active"));
+            Assert.Contains("Delete hyperlane", cut.Markup);
+            Assert.EndsWith("/sector-explorer/hyperlanes?sectorId=7&systemId=11&hyperlaneId=2", navigationManager.Uri, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void SavedRouteFlowUsesPageStateWithoutLoadingLegacyWorkspace()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        var queryService = ConfigureServices(explorerContextService);
+
+        var cut = Render<Hyperlanes>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Showing 2 saved hyperlanes", cut.Markup);
+            Assert.Equal(0, queryService.HyperlaneWorkspaceLoadCount);
+            Assert.True(queryService.HyperlanePageStateLoadCount > 0);
+        });
+    }
+
+    [Fact]
     public void LoadMoreRevealsAdditionalHyperlanes()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
-        ConfigureServices(CreateContext(routeCount: 121));
+        var explorerContextService = new FakeExplorerContextService(CreateContext(routeCount: 121));
+        ConfigureServices(explorerContextService);
 
         var cut = Render<Hyperlanes>();
 
@@ -64,7 +115,8 @@ public sealed class HyperlanesPageTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         var routeService = new FakeSectorRouteService();
         var context = CreateContext();
-        ConfigureServices(context, routeService);
+        var explorerContextService = new FakeExplorerContextService(context);
+        ConfigureServices(explorerContextService, routeService);
 
         var cut = Render<Hyperlanes>();
         cut.FindAll("button").Single(button => button.TextContent.Trim() == "New draft").Click();
@@ -77,6 +129,7 @@ public sealed class HyperlanesPageTests : BunitContext
             Assert.Equal("Manual Lane", routeService.LastSaveRequest?.TierName);
             Assert.Contains("Created saved hyperlane.", cut.Markup);
             Assert.Contains("Manual Lane", cut.Markup);
+            Assert.EndsWith("/sector-explorer/hyperlanes?sectorId=7&systemId=11&hyperlaneId=3", Services.GetRequiredService<NavigationManager>().Uri, StringComparison.Ordinal);
         });
     }
 
@@ -86,7 +139,8 @@ public sealed class HyperlanesPageTests : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         var routeService = new FakeSectorRouteService();
         var context = CreateContext();
-        ConfigureServices(context, routeService);
+        var explorerContextService = new FakeExplorerContextService(context);
+        ConfigureServices(explorerContextService, routeService);
 
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("http://localhost/sector-explorer/hyperlanes?sectorId=7&systemId=11&hyperlaneId=2");
@@ -108,7 +162,8 @@ public sealed class HyperlanesPageTests : BunitContext
     public void OpensSectorConfigurationFromHyperlanesPage()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
-        ConfigureServices(CreateContext());
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService);
 
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("http://localhost/sector-explorer/hyperlanes?sectorId=7&systemId=11");
@@ -119,22 +174,94 @@ public sealed class HyperlanesPageTests : BunitContext
         Assert.EndsWith("/sector-explorer/configuration?sectorId=7&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
     }
 
-    private void ConfigureServices(StarWinExplorerContext context, FakeSectorRouteService? routeService = null)
+    [Fact]
+    public void ShowsGenerationGateWhenSectorHasNoSavedHyperlanes()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var explorerContextService = new FakeExplorerContextService(CreateContext(routeCount: 0));
+        ConfigureServices(explorerContextService);
+
+        var cut = Render<Hyperlanes>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("This page unlocks after you generate the saved hyperlane cache for this sector.", cut.Markup);
+            Assert.Contains("Generate hyperlanes", cut.Markup);
+            Assert.Contains("Open sector configuration", cut.Markup);
+            Assert.Contains("Basic Hyperlane up to 1 pc", cut.Markup);
+            Assert.DoesNotContain("Add hyperlane", cut.Markup);
+            Assert.DoesNotContain("Create saved hyperlane", cut.Markup);
+            Assert.Empty(cut.FindAll(".hyperlane-record"));
+        });
+    }
+
+    [Fact]
+    public void GenerateHyperlanesUnlocksPageWhenNoSavedHyperlanesExist()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var routeService = new FakeSectorRouteService();
+        var context = CreateContext(routeCount: 0);
+        var explorerContextService = new FakeExplorerContextService(context);
+        ConfigureServices(explorerContextService, routeService);
+
+        var cut = Render<Hyperlanes>();
+        cut.WaitForAssertion(() => Assert.Contains("Generate hyperlanes", cut.Markup));
+
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Generate hyperlanes").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.True(routeService.SaveCurrentRoutesCalled);
+            Assert.Contains("Showing 1 saved hyperlane", cut.Markup);
+            Assert.Contains("Create saved hyperlane", cut.Markup);
+            Assert.Contains("Saved 1 hyperlane segment for Del Corra.", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void NewDraftClearsExplicitHyperlaneSelectionFromRoute()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/hyperlanes?sectorId=7&systemId=11&hyperlaneId=2");
+
+        var cut = Render<Hyperlanes>();
+        cut.WaitForAssertion(() => Assert.Contains("Edit saved hyperlane", cut.Markup));
+
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "New draft").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Create saved hyperlane", cut.Markup);
+            Assert.Empty(cut.FindAll(".hyperlane-record.active"));
+            Assert.DoesNotContain("Delete hyperlane", cut.Markup);
+            Assert.EndsWith("/sector-explorer/hyperlanes?sectorId=7&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
+        });
+    }
+
+    private ContextBackedExplorerQueryService ConfigureServices(FakeExplorerContextService explorerContextService, FakeSectorRouteService? routeService = null)
     {
         var activeRouteService = routeService ?? new FakeSectorRouteService();
-        activeRouteService.Context = context;
+        activeRouteService.Context = explorerContextService.Context;
+        var queryService = new ContextBackedExplorerQueryService(explorerContextService.Context);
 
         Services.AddScoped<SectorExplorerLayoutStateStore>();
-        Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
+        Services.AddSingleton<IStarWinExplorerContextService>(explorerContextService);
+        Services.AddSingleton<IStarWinExplorerQueryService>(queryService);
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinSectorRouteService>(activeRouteService);
         Services.AddSingleton<IStarWinEntityNoteService>(new FakeEntityNoteService());
+        return queryService;
     }
 
     private static StarWinExplorerContext CreateContext(int routeCount = 2)
     {
         var systems = new List<StarSystem>();
-        for (var index = 0; index <= routeCount; index++)
+        var systemCount = Math.Max(routeCount + 1, 2);
+        for (var index = 0; index < systemCount; index++)
         {
             systems.Add(new StarSystem
             {
@@ -151,7 +278,28 @@ public sealed class HyperlanesPageTests : BunitContext
             });
         }
 
-        var sector = new StarWinSector { Id = 7, Name = "Del Corra" };
+        var sector = new StarWinSector
+        {
+            Id = 7,
+            Name = "Del Corra",
+            Configuration = new StarWin.Domain.Model.Entity.StarMap.SectorConfiguration
+            {
+                SectorId = 7,
+                OffLaneMaximumDistanceParsecs = 2.5m,
+                Tl9AndBelowMaximumConnectionsPerSystem = 4,
+                AdditionalCrossEmpireConnectionsPerSystem = 1,
+                Tl6HyperlaneName = "Basic Hyperlane",
+                Tl6MaximumDistanceParsecs = 1.0m,
+                Tl7HyperlaneName = "Enhanced Hyperlane",
+                Tl7MaximumDistanceParsecs = 1.2m,
+                Tl8HyperlaneName = "Advanced Hyperlane",
+                Tl8MaximumDistanceParsecs = 1.4m,
+                Tl9HyperlaneName = "Prime Hyperlane",
+                Tl9MaximumDistanceParsecs = 1.6m,
+                Tl10HyperlaneName = "Ascendant Hyperlane",
+                Tl10MaximumDistanceParsecs = -1m
+            }
+        };
         foreach (var system in systems)
         {
             sector.Systems.Add(system);
@@ -183,19 +331,16 @@ public sealed class HyperlanesPageTests : BunitContext
             new Empire { Id = 3, Name = "Zephyr League" }
         };
 
-        return new StarWinExplorerContext([sector], sector, [], empires, []);
+        return new StarWinExplorerContext([sector], sector, [], empires);
     }
 
     private sealed class FakeExplorerContextService(StarWinExplorerContext context) : IStarWinExplorerContextService
     {
-        public Task<StarWinExplorerContext> LoadShellAsync(bool includeSavedRoutes = true, bool includeReferenceData = true, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(context);
-        }
+        public StarWinExplorerContext Context { get; } = context;
 
-        public Task<StarWinSector?> LoadSectorAsync(int sectorId, ExplorerSectorLoadSections loadSections, CancellationToken cancellationToken = default)
+        public Task<StarWinExplorerContext> LoadShellAsync(int? preferredSectorId = null, bool includeReferenceData = false, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult<StarWinSector?>(context.Sectors.FirstOrDefault(sector => sector.Id == sectorId));
+            return Task.FromResult(Context);
         }
     }
 
@@ -226,12 +371,62 @@ public sealed class HyperlanesPageTests : BunitContext
     {
         public StarWinExplorerContext Context { get; set; } = StarWinExplorerContext.Empty;
         public bool SaveCalled { get; private set; }
+        public bool SaveCurrentRoutesCalled { get; private set; }
         public SectorManualRouteSaveRequest? LastSaveRequest { get; private set; }
         public int DeletedRouteId { get; private set; }
 
         public Task<SectorRouteSaveResult> SaveCurrentRoutesAsync(int sectorId, IProgress<SectorRouteSaveProgress>? progress = null, CancellationToken cancellationToken = default)
         {
-            throw new NotSupportedException();
+            SaveCurrentRoutesCalled = true;
+            var sector = Context.Sectors.First(item => item.Id == sectorId);
+            var replacedExistingRoutes = sector.SavedRoutes.Count > 0;
+
+            progress?.Report(new SectorRouteSaveProgress("Loading sector", "Reading the active sector and travel configuration.", 10));
+            progress?.Report(new SectorRouteSaveProgress("Generating routes", $"Scanning {sector.Systems.Count:N0} systems for TL6+ colony hyperlane endpoints.", 35, 0, sector.Systems.Count));
+
+            if (sector.SavedRoutes.Count == 0 && sector.Systems.Count >= 2)
+            {
+                sector.SavedRoutes.Add(new SectorSavedRoute
+                {
+                    Id = 1,
+                    SectorId = sectorId,
+                    SourceSystemId = sector.Systems[0].Id,
+                    TargetSystemId = sector.Systems[1].Id,
+                    DistanceParsecs = 1.0m,
+                    TravelTimeYears = 0.4m,
+                    TechnologyLevel = 6,
+                    TierName = sector.Configuration.Tl6HyperlaneName,
+                    GeneratedAtUtc = DateTime.UtcNow
+                });
+            }
+
+            progress?.Report(new SectorRouteSaveProgress("Writing database", "Saving the updated route cache to the database.", 90));
+            var finalRoutes = sector.SavedRoutes
+                .Select(route => new SectorHyperlaneRouteDefinition(
+                    route.SourceSystemId,
+                    route.TargetSystemId,
+                    (double)route.DistanceParsecs,
+                    (double)route.TravelTimeYears,
+                    route.TechnologyLevel,
+                    route.TierName,
+                    route.PrimaryOwnerEmpireId,
+                    route.PrimaryOwnerEmpireName,
+                    route.SecondaryOwnerEmpireId,
+                    route.SecondaryOwnerEmpireName))
+                .ToList();
+            var networkReport = SectorRoutePlanner.BuildHyperlaneNetworkReport(
+                sector.Systems.Select(system => system.Id),
+                finalRoutes);
+
+            progress?.Report(new SectorRouteSaveProgress("Routes saved", $"Stored {sector.SavedRoutes.Count:N0} cached hyperlane segment{(sector.SavedRoutes.Count == 1 ? string.Empty : "s")} for this sector.", 100));
+            return Task.FromResult(new SectorRouteSaveResult(
+                sectorId,
+                sector.SavedRoutes.Count,
+                sector.SavedRoutes.Count,
+                sector.SavedRoutes.Count(route => route.IsUserPersisted),
+                replacedExistingRoutes,
+                DateTime.UtcNow,
+                networkReport));
         }
 
         public Task<SectorSavedRoute> SaveManualRouteAsync(SectorManualRouteSaveRequest request, CancellationToken cancellationToken = default)
