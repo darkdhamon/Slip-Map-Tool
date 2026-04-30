@@ -10,6 +10,8 @@ The first workflow step for an issue-driven conversation is:
 
 If `dev` does not exist yet, create it from `master`, then create the feature or bug-fix branch from `dev`.
 
+When I ask for a fix without giving an issue number, check the `Starforged Atlas Task Board` and the repository issues for an existing issue that matches the requested work. If a likely matching issue exists, confirm with me that it is the correct issue before proceeding. If the matching issue is not the one we are working on, or if no matching issue exists, create a new issue for the work and create the branch from that issue.
+
 Do not start coding for an issue-driven conversation until I explicitly ask you to begin the coding process.
 
 GitHub project workflow uses the `Starforged Atlas Task Board`.
