@@ -7,7 +7,7 @@
     var selectedSystem = GetSelectedSystemRecord();
     var selectedHabitat = selectedSystem?.SpaceHabitats.FirstOrDefault(habitat => habitat.Id == selectedHabitatId);
     var selectedWorld = selectedHabitat is null
-        ? selectedSystem?.Worlds.FirstOrDefault(world => world.Id == selectedWorldId) ?? selectedSystem?.Worlds.FirstOrDefault()
+        ? selectedSystem?.Worlds.FirstOrDefault(world => world.Id == selectedWorldId)
         : null;
     var layoutState = new SectorExplorerLayoutState(
         null,
@@ -328,6 +328,14 @@
                             }
                         </div>
                     </div>
+                </article>
+            }
+            else
+            {
+                <article class="detail-panel world-detail">
+                    <span class="panel-kicker">World record</span>
+                    <h2>Select a world or habitat to load its details.</h2>
+                    <p>Choose a world or orbital habitat from the list to inspect survey data, images, and linked colony records.</p>
                 </article>
             }
         </section>

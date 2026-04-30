@@ -154,8 +154,8 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         ClearWorldFilters();
+        ClearSelectedRecord();
         await LoadSelectedWorkspaceAsync();
-        SelectDefaultRecord(GetSelectedSystemRecord());
         await PersistExplorerSessionAsync();
         NavigateToCurrentSelection();
     }
@@ -169,8 +169,8 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
         {
             selectedSystemId = systemId;
             selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+            ClearSelectedRecord();
             await LoadSelectedWorkspaceAsync();
-            SelectDefaultRecord(GetSelectedSystemRecord());
             NavigateToCurrentSelection(replace: true);
         }
 
@@ -447,13 +447,11 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
         if (selectedSectorId <= 0 || selectedSystemId <= 0)
         {
             selectedWorldsWorkspace = null;
-            entityImages = [];
-            lastLoadedImageKey = string.Empty;
+            ClearSelectedRecord();
             return;
         }
 
         selectedWorldsWorkspace = await ExplorerQueryService.LoadWorldsWorkspaceAsync(selectedSectorId, selectedSystemId, cancellationToken);
-        await EnsureEntityImagesLoadedAsync(cancellationToken);
     }
 
     private async Task<int> ResolveRequestedSystemIdAsync(StarWinSector sector, CancellationToken cancellationToken = default)
@@ -501,8 +499,7 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
         var system = GetSelectedSystemRecord();
         if (system is null)
         {
-            selectedWorldId = 0;
-            selectedHabitatId = 0;
+            ClearSelectedRecord();
             return;
         }
 
@@ -550,8 +547,7 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
             return;
         }
 
-        SelectDefaultRecord(system);
-        await EnsureEntityImagesLoadedAsync();
+        ClearSelectedRecord();
     }
 
     private async Task EnsureEntityImagesLoadedAsync(CancellationToken cancellationToken = default)
@@ -694,13 +690,12 @@ public partial class Worlds : ComponentBase, IAsyncDisposable
         return selectedWorldsWorkspace?.System;
     }
 
-    private void SelectDefaultRecord(StarSystem? system)
+    private void ClearSelectedRecord()
     {
-        selectedSystemId = system?.Id ?? 0;
-        selectedWorldId = system?.Worlds.FirstOrDefault()?.Id ?? 0;
-        selectedHabitatId = selectedWorldId == 0
-            ? system?.SpaceHabitats.FirstOrDefault()?.Id ?? 0
-            : 0;
+        selectedWorldId = 0;
+        selectedHabitatId = 0;
+        entityImages = [];
+        lastLoadedImageKey = string.Empty;
     }
 
     private static IEnumerable<ExplorerWorldRecord> GetExplorerWorldRecords(StarSystem system)
