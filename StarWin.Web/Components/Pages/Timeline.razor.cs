@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using StarWin.Application.Services;
-using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.StarMap;
 using StarWin.Web.Components.Explorer;
 
@@ -30,7 +29,6 @@ public partial class Timeline : ComponentBase
     public int? RequestedSystemId { get; set; }
 
     protected static readonly IReadOnlyList<string> sections = SectorExplorerSections.All;
-    private readonly Dictionary<int, ExplorerSectorEntityUsage> sectorEntityUsageById = [];
 
     protected StarWinExplorerContext explorerContext = StarWinExplorerContext.Empty;
     protected string explorerRenderError = string.Empty;
@@ -47,8 +45,6 @@ public partial class Timeline : ComponentBase
     private long timelinePageLoadingStartedAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
-    protected IReadOnlyList<AlienRace> ExplorerAlienRaces => explorerContext.AlienRaces;
-    protected IReadOnlyList<Empire> ExplorerEmpires => explorerContext.Empires;
 
     protected override async Task OnInitializedAsync()
     {
@@ -58,7 +54,6 @@ public partial class Timeline : ComponentBase
             : explorerContext.CurrentSector;
 
         selectedSectorId = initialSector.Id;
-        await EnsureSectorEntityUsageLoadedAsync(selectedSectorId);
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
         timelinePageLoadingVisible = true;
@@ -77,7 +72,6 @@ public partial class Timeline : ComponentBase
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
-            await EnsureSectorEntityUsageLoadedAsync(selectedSectorId);
         }
 
         var sector = GetSelectedSector();
@@ -126,7 +120,6 @@ public partial class Timeline : ComponentBase
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
-        await EnsureSectorEntityUsageLoadedAsync(selectedSectorId);
         var sector = GetSelectedSector();
         selectedSystemId = sector.Systems.FirstOrDefault()?.Id ?? 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
@@ -276,23 +269,6 @@ public partial class Timeline : ComponentBase
             preferredSectorId: RequestedSectorId ?? selectedSectorId,
             includeReferenceData: true,
             cancellationToken: cancellationToken);
-
-        sectorEntityUsageById.Clear();
-    }
-
-    private async Task EnsureSectorEntityUsageLoadedAsync(int sectorId, CancellationToken cancellationToken = default)
-    {
-        if (sectorId <= 0)
-        {
-            return;
-        }
-
-        if (sectorEntityUsageById.ContainsKey(sectorId))
-        {
-            return;
-        }
-
-        sectorEntityUsageById[sectorId] = await ExplorerQueryService.LoadSectorEntityUsageAsync(sectorId, cancellationToken);
     }
 
     private async Task RunSearchAsync()
@@ -321,7 +297,6 @@ public partial class Timeline : ComponentBase
         }
 
         selectedSectorId = sector.Id;
-        await EnsureSectorEntityUsageLoadedAsync(selectedSectorId);
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
             : sector.Systems.FirstOrDefault()?.Id ?? 0;

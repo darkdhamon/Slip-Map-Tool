@@ -30,7 +30,7 @@ public sealed class TimelinePageTests : BunitContext
             Assert.Contains("Border war begins", cut.Markup);
             Assert.Equal(1, queryService.LoadTimelineEventTypesCallCount);
             Assert.Single(queryService.PageRequests);
-            Assert.Equal(1, queryService.LoadSectorEntityUsageCallCount);
+            Assert.Equal(0, queryService.LoadSectorEntityUsageCallCount);
         });
 
         cut.Find(".timeline-filter-panel select").Change("War");
