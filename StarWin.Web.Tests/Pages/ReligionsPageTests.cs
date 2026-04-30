@@ -35,6 +35,58 @@ public sealed class ReligionsPageTests : BunitContext
     }
 
     [Fact]
+    public void ShowsSelectionPromptUntilReligionIsExplicitlyChosen()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(), CreateReligionDetails());
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/religions?sectorId=7");
+
+        var cut = Render<Religions>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Select a religion to load its details.", cut.Markup);
+            Assert.Empty(cut.FindAll(".record-row.active"));
+            Assert.DoesNotContain("Solar Doctrine", cut.FindAll(".detail-panel").Last().TextContent);
+        });
+
+        cut.FindAll(".record-row")
+            .Single(button => button.TextContent.Contains("Solar Doctrine", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Religion profile", cut.Markup);
+            Assert.Contains("Solar Doctrine", cut.Markup);
+            Assert.Single(cut.FindAll(".record-row.active"));
+            Assert.EndsWith("/sector-explorer/religions?sectorId=7&systemId=11&religionId=10", navigationManager.Uri, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
+    public void LoadsRequestedReligionDetailOnlyOnceOnInitialRender()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var queryService = new CountingReligionQueryService(CreateReligionDetails());
+        ConfigureServices(CreateContext(), queryService.ReligionDetails, queryService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/religions?sectorId=7&religionId=10");
+
+        var cut = Render<Religions>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Solar Doctrine", cut.Markup);
+            Assert.Equal(1, queryService.ReligionDetailLoadCount);
+        });
+    }
+
+    [Fact]
     public void FiltersReligionsBySearchAndType()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -93,11 +145,14 @@ public sealed class ReligionsPageTests : BunitContext
         Assert.EndsWith("/sector-explorer/empires?sectorId=7&systemId=11&empireId=2&religionId=10", navigationManager.Uri, StringComparison.Ordinal);
     }
 
-    private void ConfigureServices(StarWinExplorerContext context, IReadOnlyList<ExplorerReligionDetail> religionDetails)
+    private void ConfigureServices(
+        StarWinExplorerContext context,
+        IReadOnlyList<ExplorerReligionDetail> religionDetails,
+        IStarWinExplorerQueryService? queryService = null)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
-        Services.AddSingleton<IStarWinExplorerQueryService>(new FakeExplorerQueryService(religionDetails));
+        Services.AddSingleton<IStarWinExplorerQueryService>(queryService ?? new FakeExplorerQueryService(religionDetails));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
     }
 
@@ -199,7 +254,25 @@ public sealed class ReligionsPageTests : BunitContext
         }
     }
 
-    private sealed class FakeExplorerQueryService(IReadOnlyList<ExplorerReligionDetail> religionDetails) : IStarWinExplorerQueryService
+    private sealed class CountingReligionQueryService : FakeExplorerQueryService
+    {
+        public CountingReligionQueryService(IReadOnlyList<ExplorerReligionDetail> religionDetails)
+            : base(religionDetails)
+        {
+            ReligionDetails = religionDetails;
+        }
+
+        public IReadOnlyList<ExplorerReligionDetail> ReligionDetails { get; }
+        public int ReligionDetailLoadCount { get; private set; }
+
+        public override Task<ExplorerReligionDetail?> LoadReligionDetailAsync(int sectorId, int religionId, CancellationToken cancellationToken = default)
+        {
+            ReligionDetailLoadCount++;
+            return base.LoadReligionDetailAsync(sectorId, religionId, cancellationToken);
+        }
+    }
+
+    private class FakeExplorerQueryService(IReadOnlyList<ExplorerReligionDetail> religionDetails) : IStarWinExplorerQueryService
     {
         public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
         {
@@ -290,7 +363,7 @@ public sealed class ReligionsPageTests : BunitContext
                     detail.Empires.Count));
         }
 
-        public Task<ExplorerReligionDetail?> LoadReligionDetailAsync(int sectorId, int religionId, CancellationToken cancellationToken = default)
+        public virtual Task<ExplorerReligionDetail?> LoadReligionDetailAsync(int sectorId, int religionId, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(religionDetails.FirstOrDefault(item => item.Religion.Id == religionId));
         }

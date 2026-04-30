@@ -49,6 +49,7 @@ public partial class Religions : ComponentBase, IAsyncDisposable
     private bool browserSessionReady;
     private bool browserSessionRestored;
     private int loadedReligionSectorId;
+    private int loadedReligionDetailId;
     private readonly List<ExplorerReligionListItem> loadedReligionSummaries = [];
 
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
@@ -84,6 +85,7 @@ public partial class Religions : ComponentBase, IAsyncDisposable
         var sector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        await EnsureSelectedReligionSummaryVisibleAsync();
         await EnsureSelectedReligionDetailAsync();
     }
 
@@ -322,8 +324,7 @@ public partial class Religions : ComponentBase, IAsyncDisposable
         {
             loadedReligionSummaries.Clear();
             religionHasMoreRecords = false;
-            selectedReligionId = 0;
-            selectedReligionDetail = null;
+            ClearSelectedReligionDetail();
             religionFilterOptions = new([]);
             return;
         }
@@ -334,6 +335,7 @@ public partial class Religions : ComponentBase, IAsyncDisposable
             loadedReligionSectorId = selectedSectorId;
             religionHasMoreRecords = false;
             religionObserverConfigured = false;
+            ClearSelectedReligionDetail();
             religionFilterOptions = await ExplorerQueryService.LoadReligionFilterOptionsAsync(selectedSectorId, cancellationToken);
             await LoadMoreReligionSummariesAsync(cancellationToken);
         }
@@ -370,17 +372,6 @@ public partial class Religions : ComponentBase, IAsyncDisposable
             }
 
             religionHasMoreRecords = page.HasMore;
-            if (selectedReligionId == 0 && loadedReligionSummaries.Count > 0)
-            {
-                selectedReligionId = loadedReligionSummaries[0].ReligionId;
-            }
-            else if (selectedReligionId > 0 && loadedReligionSummaries.All(item => item.ReligionId != selectedReligionId))
-            {
-                selectedReligionId = loadedReligionSummaries.FirstOrDefault()?.ReligionId ?? 0;
-            }
-
-            await EnsureSelectedReligionSummaryVisibleAsync(cancellationToken);
-            await EnsureSelectedReligionDetailAsync(cancellationToken);
             await InvokeAsync(StateHasChanged);
         }
         finally
@@ -421,15 +412,16 @@ public partial class Religions : ComponentBase, IAsyncDisposable
         var targetReligionId = HasActiveReligionFilters()
             ? selectedReligionId
             : RequestedReligionId ?? selectedReligionId;
-        if (targetReligionId <= 0)
-        {
-            targetReligionId = loadedReligionSummaries.FirstOrDefault()?.ReligionId ?? 0;
-        }
 
         if (targetReligionId <= 0)
         {
-            selectedReligionId = 0;
-            selectedReligionDetail = null;
+            ClearSelectedReligionDetail();
+            return;
+        }
+
+        if (selectedReligionDetail?.Religion.Id == targetReligionId && loadedReligionDetailId == targetReligionId)
+        {
+            selectedReligionId = targetReligionId;
             return;
         }
 
@@ -442,19 +434,21 @@ public partial class Religions : ComponentBase, IAsyncDisposable
         try
         {
             var detail = await ExplorerQueryService.LoadReligionDetailAsync(selectedSectorId, targetReligionId, cancellationToken);
-            if (detail is null && loadedReligionSummaries.Count > 0)
-            {
-                targetReligionId = loadedReligionSummaries[0].ReligionId;
-                detail = await ExplorerQueryService.LoadReligionDetailAsync(selectedSectorId, targetReligionId, cancellationToken);
-            }
-
             selectedReligionDetail = detail;
             selectedReligionId = detail?.Religion.Id ?? 0;
+            loadedReligionDetailId = selectedReligionId;
         }
         finally
         {
             religionDetailLoading = false;
         }
+    }
+
+    private void ClearSelectedReligionDetail()
+    {
+        selectedReligionId = 0;
+        selectedReligionDetail = null;
+        loadedReligionDetailId = 0;
     }
 
     private bool HasActiveReligionFilters()
