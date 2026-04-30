@@ -59,6 +59,7 @@ public partial class Systems : ComponentBase, IAsyncDisposable
     private bool browserSessionRestored;
     private int systemEmpireId = ComboAllFilterId;
     private int loadedSystemSectorId;
+    private int loadedSystemDetailId;
     private string lastLoadedImageKey = string.Empty;
     private ElementReference systemLoadMoreElement;
     private DotNetObjectReference<Systems>? dotNetReference;
@@ -72,7 +73,7 @@ public partial class Systems : ComponentBase, IAsyncDisposable
         await RefreshExplorerShellAsync(RequestedSectorId);
         var initialSector = GetInitialSector();
         selectedSectorId = initialSector.Id;
-        selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
+        selectedSystemId = ResolveExplicitSelectedSystemId(initialSector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(initialSector, selectedSystemId);
         await LoadSystemPageAsync(resetList: true);
     }
@@ -88,13 +89,14 @@ public partial class Systems : ComponentBase, IAsyncDisposable
         if (requestedSectorId != selectedSectorId && ExplorerSectors.Any(sector => sector.Id == requestedSectorId))
         {
             selectedSectorId = requestedSectorId;
-            selectedSystemId = 0;
+            ClearSelectedSystem();
             await LoadSystemPageAsync(resetList: true);
         }
 
         var sector = GetSelectedSector();
-        selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
+        selectedSystemId = ResolveExplicitSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        await EnsureSelectedSystemSummaryVisibleAsync();
         await EnsureSelectedSystemDetailAsync();
     }
 
@@ -139,8 +141,7 @@ public partial class Systems : ComponentBase, IAsyncDisposable
     protected async Task HandleSectorChangedAsync(int sectorId)
     {
         selectedSectorId = sectorId;
-        selectedSystemId = 0;
-        selectedSystemText = string.Empty;
+        ClearSelectedSystem();
         ClearSystemFilters();
         await PersistExplorerSessionAsync();
         await LoadSystemPageAsync(resetList: true);
@@ -316,9 +317,7 @@ public partial class Systems : ComponentBase, IAsyncDisposable
         {
             loadedSystemSummaries.Clear();
             systemHasMoreRecords = false;
-            selectedSystemDetail = null;
-            selectedSystemId = 0;
-            entityImages = [];
+            ClearSelectedSystem();
             systemFilterOptions = new([]);
             return;
         }
@@ -365,17 +364,13 @@ public partial class Systems : ComponentBase, IAsyncDisposable
             }
 
             systemHasMoreRecords = page.HasMore;
-            if (selectedSystemId == 0 && loadedSystemSummaries.Count > 0)
+            if (HasActiveSystemFilters()
+                && selectedSystemId > 0
+                && loadedSystemSummaries.All(item => item.SystemId != selectedSystemId))
             {
-                selectedSystemId = loadedSystemSummaries[0].SystemId;
-            }
-            else if (selectedSystemId > 0 && loadedSystemSummaries.All(item => item.SystemId != selectedSystemId))
-            {
-                selectedSystemId = loadedSystemSummaries.FirstOrDefault()?.SystemId ?? 0;
+                ClearSelectedSystem();
             }
 
-            await EnsureSelectedSystemSummaryVisibleAsync(cancellationToken);
-            await EnsureSelectedSystemDetailAsync(cancellationToken);
             await InvokeAsync(StateHasChanged);
         }
         finally
@@ -416,19 +411,18 @@ public partial class Systems : ComponentBase, IAsyncDisposable
         var targetSystemId = HasActiveSystemFilters()
             ? selectedSystemId
             : RequestedSystemId ?? selectedSystemId;
-        if (targetSystemId <= 0)
-        {
-            targetSystemId = loadedSystemSummaries.FirstOrDefault()?.SystemId ?? 0;
-        }
-
         if (targetSystemId <= 0 || systemDetailLoading)
         {
             if (targetSystemId <= 0)
             {
-                selectedSystemId = 0;
-                selectedSystemDetail = null;
+                ClearSelectedSystem();
             }
 
+            return;
+        }
+
+        if (selectedSystemDetail?.System.Id == targetSystemId && loadedSystemDetailId == targetSystemId)
+        {
             return;
         }
 
@@ -436,14 +430,15 @@ public partial class Systems : ComponentBase, IAsyncDisposable
         try
         {
             var detail = await ExplorerQueryService.LoadSystemDetailAsync(selectedSectorId, targetSystemId, cancellationToken);
-            if (detail is null && loadedSystemSummaries.Count > 0)
+            if (detail is null)
             {
-                targetSystemId = loadedSystemSummaries[0].SystemId;
-                detail = await ExplorerQueryService.LoadSystemDetailAsync(selectedSectorId, targetSystemId, cancellationToken);
+                ClearSelectedSystem();
+                return;
             }
 
             selectedSystemDetail = detail;
-            selectedSystemId = detail?.System.Id ?? 0;
+            selectedSystemId = detail.System.Id;
+            loadedSystemDetailId = detail.System.Id;
             selectedSystemText = FormatSelectedSystem(GetSelectedSector(), selectedSystemId);
             await EnsureEntityImagesLoadedAsync(cancellationToken);
         }
@@ -457,12 +452,14 @@ public partial class Systems : ComponentBase, IAsyncDisposable
     {
         if (systemId <= 0)
         {
-            selectedSystemDetail = null;
-            entityImages = [];
+            ClearSelectedSystem();
             return;
         }
 
         selectedSystemDetail = await ExplorerQueryService.LoadSystemDetailAsync(selectedSectorId, systemId, cancellationToken);
+        selectedSystemId = selectedSystemDetail?.System.Id ?? 0;
+        loadedSystemDetailId = selectedSystemDetail?.System.Id ?? 0;
+        selectedSystemText = FormatSelectedSystem(GetSelectedSector(), selectedSystemId);
         await EnsureEntityImagesLoadedAsync(cancellationToken);
     }
 
@@ -539,7 +536,7 @@ public partial class Systems : ComponentBase, IAsyncDisposable
         selectedSectorId = sector.Id;
         selectedSystemId = sector.Systems.Any(system => system.Id == storedSelection.SystemId)
             ? storedSelection.SystemId
-            : sector.Systems.FirstOrDefault()?.Id ?? 0;
+            : 0;
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
         await LoadSystemPageAsync(resetList: true);
         NavigationManager.NavigateTo(SectorExplorerRoutes.BuildSectionUri("Systems", selectedSectorId, selectedSystemId), replace: true);
@@ -609,6 +606,21 @@ public partial class Systems : ComponentBase, IAsyncDisposable
             : explorerContext.CurrentSector;
     }
 
+    private static int ResolveExplicitSelectedSystemId(StarWinSector sector, int? requestedSystemId, int currentSelectedSystemId)
+    {
+        if (requestedSystemId is int requestedId && sector.Systems.Any(system => system.Id == requestedId))
+        {
+            return requestedId;
+        }
+
+        if (currentSelectedSystemId > 0 && sector.Systems.Any(system => system.Id == currentSelectedSystemId))
+        {
+            return currentSelectedSystemId;
+        }
+
+        return 0;
+    }
+
     private static string FormatSelectedSystem(StarWinSector sector, int systemId)
     {
         var system = sector.Systems.FirstOrDefault(item => item.Id == systemId);
@@ -625,6 +637,16 @@ public partial class Systems : ComponentBase, IAsyncDisposable
         var separatorIndex = value.IndexOf(" - ", StringComparison.Ordinal);
         var idText = separatorIndex < 0 ? value : value[..separatorIndex];
         return int.TryParse(idText, out var id) ? id : ComboAllFilterId;
+    }
+
+    private void ClearSelectedSystem()
+    {
+        selectedSystemId = 0;
+        selectedSystemText = string.Empty;
+        selectedSystemDetail = null;
+        loadedSystemDetailId = 0;
+        entityImages = [];
+        lastLoadedImageKey = string.Empty;
     }
 
     private static IEnumerable<OrbitalSatellite> GetAstralBodySatellites(StarSystem system, int astralBodySequence)
