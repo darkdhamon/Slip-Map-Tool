@@ -46,10 +46,14 @@ public sealed class AppCssTests
         var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var routesPath = Path.Combine(repoRoot, "StarWin.Web", "Components", "Routes.razor");
         var layoutPath = Path.Combine(repoRoot, "StarWin.Web", "Components", "Layout", "MainLayout.razor");
+        var layoutCssPath = Path.Combine(repoRoot, "StarWin.Web", "Components", "Layout", "MainLayout.razor.css");
         var routesMarkup = File.ReadAllText(routesPath);
         var layoutMarkup = File.ReadAllText(layoutPath);
+        var layoutCss = File.ReadAllText(layoutCssPath);
 
         Assert.Contains("FocusOnNavigate RouteData=\"routeData\" Selector=\".site-main\"", routesMarkup);
         Assert.Contains("<main class=\"site-main\" tabindex=\"-1\">", layoutMarkup);
+        Assert.Contains(".site-main:focus,", layoutCss);
+        Assert.Contains("outline: none;", layoutCss);
     }
 }
