@@ -69,6 +69,23 @@ public sealed class HyperlanesPageTests : BunitContext
     }
 
     [Fact]
+    public void SavedRouteFlowUsesPageStateWithoutLoadingLegacyWorkspace()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        var queryService = ConfigureServices(explorerContextService);
+
+        var cut = Render<Hyperlanes>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Showing 2 saved hyperlanes", cut.Markup);
+            Assert.Equal(0, queryService.HyperlaneWorkspaceLoadCount);
+            Assert.True(queryService.HyperlanePageStateLoadCount > 0);
+        });
+    }
+
+    [Fact]
     public void LoadMoreRevealsAdditionalHyperlanes()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -225,17 +242,19 @@ public sealed class HyperlanesPageTests : BunitContext
         });
     }
 
-    private void ConfigureServices(FakeExplorerContextService explorerContextService, FakeSectorRouteService? routeService = null)
+    private ContextBackedExplorerQueryService ConfigureServices(FakeExplorerContextService explorerContextService, FakeSectorRouteService? routeService = null)
     {
         var activeRouteService = routeService ?? new FakeSectorRouteService();
         activeRouteService.Context = explorerContextService.Context;
+        var queryService = new ContextBackedExplorerQueryService(explorerContextService.Context);
 
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(explorerContextService);
-        Services.AddSingleton<IStarWinExplorerQueryService>(new ContextBackedExplorerQueryService(explorerContextService.Context));
+        Services.AddSingleton<IStarWinExplorerQueryService>(queryService);
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinSectorRouteService>(activeRouteService);
         Services.AddSingleton<IStarWinEntityNoteService>(new FakeEntityNoteService());
+        return queryService;
     }
 
     private static StarWinExplorerContext CreateContext(int routeCount = 2)

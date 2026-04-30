@@ -294,7 +294,7 @@ public sealed class ColoniesPageTests : BunitContext
         public Task<ExplorerColonyFilterOptions> LoadColonyFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadColonyFilterOptionsAsync(sectorId, cancellationToken);
         public Task<ExplorerColonyListPage> LoadColonyListPageAsync(ExplorerColonyListPageRequest request, CancellationToken cancellationToken = default) => inner.LoadColonyListPageAsync(request, cancellationToken);
         public Task<ExplorerColonyListItem?> LoadColonyListItemAsync(int sectorId, int colonyId, CancellationToken cancellationToken = default) => inner.LoadColonyListItemAsync(sectorId, colonyId, cancellationToken);
-        public Task<ExplorerHyperlaneWorkspace?> LoadHyperlaneWorkspaceAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadHyperlaneWorkspaceAsync(sectorId, cancellationToken);
+        public Task<ExplorerHyperlanePageState?> LoadHyperlanePageStateAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadHyperlanePageStateAsync(sectorId, cancellationToken);
         public Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadEmpireFilterOptionsAsync(sectorId, cancellationToken);
         public Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default) => inner.LoadEmpireListPageAsync(request, cancellationToken);
         public Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default) => inner.LoadEmpireListItemAsync(sectorId, empireId, cancellationToken);

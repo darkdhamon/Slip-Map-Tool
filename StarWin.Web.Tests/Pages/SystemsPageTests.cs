@@ -376,6 +376,6 @@ public sealed class SystemsPageTests : BunitContext
         public Task<IReadOnlyList<string>> LoadTimelineEventTypesAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadTimelineEventTypesAsync(sectorId, cancellationToken);
         public Task<ExplorerTimelinePage> LoadTimelinePageAsync(ExplorerTimelinePageRequest request, CancellationToken cancellationToken = default) => inner.LoadTimelinePageAsync(request, cancellationToken);
         public Task<ExplorerTimelineEventDetail?> LoadTimelineEventDetailAsync(int eventId, CancellationToken cancellationToken = default) => inner.LoadTimelineEventDetailAsync(eventId, cancellationToken);
-        public Task<ExplorerHyperlaneWorkspace?> LoadHyperlaneWorkspaceAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadHyperlaneWorkspaceAsync(sectorId, cancellationToken);
+        public Task<ExplorerHyperlanePageState?> LoadHyperlanePageStateAsync(int sectorId, CancellationToken cancellationToken = default) => inner.LoadHyperlanePageStateAsync(sectorId, cancellationToken);
     }
 }

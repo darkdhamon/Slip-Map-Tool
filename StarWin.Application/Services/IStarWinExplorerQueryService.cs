@@ -41,8 +41,8 @@ public interface IStarWinExplorerQueryService
         => Task.FromResult<ExplorerHyperlaneSetupState?>(null);
     Task<ExplorerSectorConfigurationState?> LoadSectorConfigurationStateAsync(int sectorId, int? systemId = null, CancellationToken cancellationToken = default)
         => Task.FromResult<ExplorerSectorConfigurationState?>(null);
-    Task<ExplorerHyperlaneWorkspace?> LoadHyperlaneWorkspaceAsync(int sectorId, CancellationToken cancellationToken = default)
-        => Task.FromResult<ExplorerHyperlaneWorkspace?>(null);
+    Task<ExplorerHyperlanePageState?> LoadHyperlanePageStateAsync(int sectorId, CancellationToken cancellationToken = default)
+        => Task.FromResult<ExplorerHyperlanePageState?>(null);
     Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default);
     Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default);
     Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default);
@@ -149,13 +149,13 @@ public sealed record ExplorerSectorConfigurationState(
     StarWin.Domain.Services.SectorHyperlaneNetworkReport SavedRouteReport,
     int SelectedSystemRouteCount);
 
-public sealed record ExplorerHyperlaneWorkspace(
+public sealed record ExplorerHyperlanePageState(
     int SectorId,
     string SectorName,
     StarWin.Domain.Model.Entity.StarMap.SectorConfiguration Configuration,
     IReadOnlyList<ExplorerHyperlaneSystem> Systems,
     IReadOnlyList<StarWin.Domain.Model.Entity.StarMap.SectorSavedRoute> SavedRoutes,
-    IReadOnlyList<int> EligibleSystemIds,
+    StarWin.Domain.Services.SectorHyperlaneNetworkReport SavedRouteReport,
     IReadOnlyList<ExplorerLookupOption> Empires);
 
 public sealed record ExplorerHyperlaneSystem(

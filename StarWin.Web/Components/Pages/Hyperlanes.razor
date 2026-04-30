@@ -5,15 +5,14 @@
 @{
     var sector = GetSelectedSector();
     var hasSavedHyperlanes = HasSavedHyperlanes;
-    var savedHyperlanes = hasSavedHyperlanes ? GetOrderedRoutes(sector) : Array.Empty<SectorSavedRoute>();
+    var savedHyperlanes = hasSavedHyperlanes ? GetOrderedRoutes() : Array.Empty<SectorSavedRoute>();
     var hyperlaneWindow = savedHyperlanes.Take(hyperlaneVisibleCount + 1).ToList();
     var hasMoreHyperlanes = hyperlaneWindow.Count > hyperlaneVisibleCount;
     var visibleHyperlanes = hyperlaneWindow.Take(hyperlaneVisibleCount).ToList();
-    var selectedHyperlane = hasSavedHyperlanes ? GetSelectedRoute(sector, savedHyperlanes) : null;
-    var savedHyperlaneReport = hasSavedHyperlanes ? GetSavedHyperlaneReport(sector) : global::StarWin.Domain.Services.SectorHyperlaneNetworkReport.Empty;
-    IReadOnlyList<ExplorerLookupOption> sectorEmpires = hasSavedHyperlanes
-        ? ExplorerEmpires.Where(empire => sectorEmpireIds.Contains(empire.Id)).OrderBy(empire => empire.Name).ToList()
-        : [];
+    var selectedHyperlane = hasSavedHyperlanes ? GetSelectedRoute(savedHyperlanes) : null;
+    var savedHyperlaneReport = hasSavedHyperlanes ? SavedHyperlaneReport : global::StarWin.Domain.Services.SectorHyperlaneNetworkReport.Empty;
+    IReadOnlyList<ExplorerLookupOption> sectorEmpires = hasSavedHyperlanes ? ExplorerEmpires : [];
+    IReadOnlyList<ExplorerHyperlaneSystem> editableSystems = hasSavedHyperlanes ? ExplorerHyperlaneSystems : [];
     var layoutState = new SectorExplorerLayoutState(
         null,
         ExplorerSectors,
@@ -78,7 +77,7 @@
                     <div><dt>Manual preserve</dt><dd>@savedHyperlanes.Count(route => route.IsUserPersisted) user-persisted route@(savedHyperlanes.Count(route => route.IsUserPersisted) == 1 ? string.Empty : "s")</dd></div>
                 </dl>
                 <div class="parent-actions">
-                    <button type="button" @onclick="() => BeginNewHyperlane(sector)">Add hyperlane</button>
+                    <button type="button" @onclick="BeginNewHyperlane">Add hyperlane</button>
                     <button type="button" @onclick="NavigateToConfiguration">Open sector configuration</button>
                 </div>
                 <p class="panel-note">Use Sector Configuration to regenerate the saved route cache and show the route-save progress window.</p>
@@ -92,12 +91,10 @@
                         <div class="timeline-count">Showing @visibleHyperlanes.Count saved hyperlane@(visibleHyperlanes.Count == 1 ? string.Empty : "s")@(hasMoreHyperlanes ? "+" : string.Empty)</div>
                         @foreach (var route in visibleHyperlanes)
                         {
-                            var sourceSystem = sector.Systems.FirstOrDefault(system => system.Id == route.SourceSystemId);
-                            var targetSystem = sector.Systems.FirstOrDefault(system => system.Id == route.TargetSystemId);
                             <button type="button"
                                     class="hyperlane-record @(route.Id == selectedHyperlaneId ? "active" : null)"
-                                    @onclick="() => SelectHyperlane(sector, route.Id)">
-                                <strong>@(sourceSystem?.Name ?? $"System {route.SourceSystemId}") <span aria-hidden="true">&#8596;</span> @(targetSystem?.Name ?? $"System {route.TargetSystemId}")</strong>
+                                    @onclick="() => SelectHyperlane(route.Id)">
+                                <strong>@GetSystemDisplayName(route.SourceSystemId) <span aria-hidden="true">&#8596;</span> @GetSystemDisplayName(route.TargetSystemId)</strong>
                                 <small>@($"TL{route.TechnologyLevel} {route.TierName} - {route.DistanceParsecs:0.###} pc - {FormatTravelTimeBreakdown(route.TravelTimeYears)}")</small>
                                 <small>@FormatHyperlaneOwnerSummary(route)</small>
                                 @if (route.IsUserPersisted)
@@ -124,18 +121,18 @@
                     <label>
                         Source system
                         <select @bind="hyperlaneSourceSystemId">
-                            @foreach (var system in sector.Systems.OrderBy(system => system.Name).ThenBy(system => system.Id))
+                            @foreach (var system in editableSystems)
                             {
-                                <option value="@system.Id">@system.Name (@system.Id)</option>
+                                <option value="@system.SystemId">@system.Name (@system.SystemId)</option>
                             }
                         </select>
                     </label>
                     <label>
                         Target system
                         <select @bind="hyperlaneTargetSystemId">
-                            @foreach (var system in sector.Systems.OrderBy(system => system.Name).ThenBy(system => system.Id))
+                            @foreach (var system in editableSystems)
                             {
-                                <option value="@system.Id">@system.Name (@system.Id)</option>
+                                <option value="@system.SystemId">@system.Name (@system.SystemId)</option>
                             }
                         </select>
                     </label>
@@ -187,7 +184,7 @@
                 </label>
                 <div class="parent-actions">
                     <button type="button" @onclick="SaveHyperlaneAsync">Save hyperlane</button>
-                    <button type="button" @onclick="() => BeginNewHyperlane(sector)">New draft</button>
+                    <button type="button" @onclick="BeginNewHyperlane">New draft</button>
                     <button type="button" @onclick="RecalculateHyperlaneTravelDefaults" disabled="@(hyperlaneSourceSystemId <= 0 || hyperlaneTargetSystemId <= 0)">Use sector travel defaults</button>
                     @if (selectedHyperlaneId > 0)
                     {

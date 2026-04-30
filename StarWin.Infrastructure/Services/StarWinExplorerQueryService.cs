@@ -355,20 +355,7 @@ public sealed class StarWinExplorerQueryService(
     public async Task<IReadOnlyList<ExplorerLookupOption>> LoadSectorEmpireOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var sectorEntityUsage = await GetCachedSectorEntityUsageAsync(dbContext, sectorId, cancellationToken);
-        if (sectorEntityUsage.EmpireIds.Count == 0)
-        {
-            return [];
-        }
-
-        var sectorEmpireIds = sectorEntityUsage.EmpireIds;
-        return await dbContext.Empires
-            .AsNoTracking()
-            .Where(empire => sectorEmpireIds.Contains(empire.Id))
-            .OrderBy(empire => empire.Name)
-            .ThenBy(empire => empire.Id)
-            .Select(empire => new ExplorerLookupOption(empire.Id, empire.Name))
-            .ToListAsync(cancellationToken);
+        return await LoadSectorEmpireOptionsAsync(dbContext, sectorId, cancellationToken);
     }
 
     public async Task<ExplorerSystemFilterOptions> LoadSystemFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
@@ -765,7 +752,7 @@ public sealed class StarWinExplorerQueryService(
             selectedSystemRouteCount);
     }
 
-    public async Task<ExplorerHyperlaneWorkspace?> LoadHyperlaneWorkspaceAsync(int sectorId, CancellationToken cancellationToken = default)
+    public async Task<ExplorerHyperlanePageState?> LoadHyperlanePageStateAsync(int sectorId, CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
 
@@ -821,16 +808,36 @@ public sealed class StarWinExplorerQueryService(
             })
             .ToListAsync(cancellationToken);
 
-        var eligibleSystemIds = await LoadEligibleHyperlaneSystemIdsAsync(dbContext, sectorId, cancellationToken);
-        var empires = await LoadSectorEmpireOptionsAsync(sectorId, cancellationToken);
-        return new ExplorerHyperlaneWorkspace(
+        var savedRouteReport = SectorHyperlaneNetworkReport.Empty;
+        if (savedRoutes.Count > 0)
+        {
+            var eligibleSystemIds = await LoadEligibleHyperlaneSystemIdsAsync(dbContext, sectorId, cancellationToken);
+            if (eligibleSystemIds.Count > 0)
+            {
+                savedRouteReport = SectorRoutePlanner.BuildHyperlaneNetworkReport(
+                    eligibleSystemIds,
+                    savedRoutes.Select(route => new SectorHyperlaneRouteDefinition(
+                        route.SourceSystemId,
+                        route.TargetSystemId,
+                        (double)route.DistanceParsecs,
+                        (double)route.TravelTimeYears,
+                        route.TechnologyLevel,
+                        route.TierName,
+                        route.PrimaryOwnerEmpireId,
+                        route.PrimaryOwnerEmpireName,
+                        route.SecondaryOwnerEmpireId,
+                        route.SecondaryOwnerEmpireName)));
+            }
+        }
+
+        return new ExplorerHyperlanePageState(
             sectorRow.Id,
             sectorRow.Name,
             CloneSectorConfiguration(sectorRow.Configuration),
             systems,
             savedRoutes,
-            eligibleSystemIds,
-            empires);
+            savedRouteReport,
+            await LoadSectorEmpireOptionsAsync(dbContext, sectorId, cancellationToken));
     }
 
     public async Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
@@ -2038,6 +2045,27 @@ public sealed class StarWinExplorerQueryService(
                 select system.Id))
             .Distinct()
             .OrderBy(id => id)
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<ExplorerLookupOption>> LoadSectorEmpireOptionsAsync(
+        StarWinDbContext dbContext,
+        int sectorId,
+        CancellationToken cancellationToken)
+    {
+        var sectorEntityUsage = await GetCachedSectorEntityUsageAsync(dbContext, sectorId, cancellationToken);
+        if (sectorEntityUsage.EmpireIds.Count == 0)
+        {
+            return [];
+        }
+
+        var sectorEmpireIds = sectorEntityUsage.EmpireIds;
+        return await dbContext.Empires
+            .AsNoTracking()
+            .Where(empire => sectorEmpireIds.Contains(empire.Id))
+            .OrderBy(empire => empire.Name)
+            .ThenBy(empire => empire.Id)
+            .Select(empire => new ExplorerLookupOption(empire.Id, empire.Name))
             .ToListAsync(cancellationToken);
     }
 

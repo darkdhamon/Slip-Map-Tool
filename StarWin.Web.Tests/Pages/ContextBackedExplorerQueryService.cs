@@ -8,6 +8,7 @@ namespace StarWin.Web.Tests.Pages;
 internal sealed class ContextBackedExplorerQueryService(StarWinExplorerContext context) : IStarWinExplorerQueryService
 {
     public int HyperlaneWorkspaceLoadCount { get; private set; }
+    public int HyperlanePageStateLoadCount { get; private set; }
     public int SectorConfigurationStateLoadCount { get; private set; }
 
     public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
@@ -485,13 +486,13 @@ internal sealed class ContextBackedExplorerQueryService(StarWinExplorerContext c
             selectedSystemRouteCount));
     }
 
-    public Task<ExplorerHyperlaneWorkspace?> LoadHyperlaneWorkspaceAsync(int sectorId, CancellationToken cancellationToken = default)
+    public Task<ExplorerHyperlanePageState?> LoadHyperlanePageStateAsync(int sectorId, CancellationToken cancellationToken = default)
     {
-        HyperlaneWorkspaceLoadCount++;
+        HyperlanePageStateLoadCount++;
         var sector = GetSector(sectorId);
         if (sector is null)
         {
-            return Task.FromResult<ExplorerHyperlaneWorkspace?>(null);
+            return Task.FromResult<ExplorerHyperlanePageState?>(null);
         }
 
         var systems = sector.Systems
@@ -512,13 +513,27 @@ internal sealed class ContextBackedExplorerQueryService(StarWinExplorerContext c
             .Select(CloneRoute)
             .ToList();
 
-        return Task.FromResult<ExplorerHyperlaneWorkspace?>(new ExplorerHyperlaneWorkspace(
+        var routeReport = SectorRoutePlanner.BuildHyperlaneNetworkReport(
+            systems.Select(system => system.SystemId),
+            savedRoutes.Select(route => new SectorHyperlaneRouteDefinition(
+                route.SourceSystemId,
+                route.TargetSystemId,
+                (double)route.DistanceParsecs,
+                (double)route.TravelTimeYears,
+                route.TechnologyLevel,
+                route.TierName,
+                route.PrimaryOwnerEmpireId,
+                route.PrimaryOwnerEmpireName,
+                route.SecondaryOwnerEmpireId,
+                route.SecondaryOwnerEmpireName)));
+
+        return Task.FromResult<ExplorerHyperlanePageState?>(new ExplorerHyperlanePageState(
             sector.Id,
             sector.Name,
             sector.Configuration ?? new SectorConfiguration { SectorId = sector.Id },
             systems,
             savedRoutes,
-            systems.Select(system => system.SystemId).ToList(),
+            routeReport,
             context.Empires
                 .OrderBy(empire => empire.Name, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(empire => empire.Id)
