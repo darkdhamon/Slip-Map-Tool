@@ -39,4 +39,17 @@ public sealed class AppCssTests
         Assert.Contains(".explorer-hero::before,", css);
         Assert.Contains("z-index: 0;", css);
     }
+
+    [Fact]
+    public void NavigationFocusTargetsMainContentInsteadOfHeading()
+    {
+        var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var routesPath = Path.Combine(repoRoot, "StarWin.Web", "Components", "Routes.razor");
+        var layoutPath = Path.Combine(repoRoot, "StarWin.Web", "Components", "Layout", "MainLayout.razor");
+        var routesMarkup = File.ReadAllText(routesPath);
+        var layoutMarkup = File.ReadAllText(layoutPath);
+
+        Assert.Contains("FocusOnNavigate RouteData=\"routeData\" Selector=\".site-main\"", routesMarkup);
+        Assert.Contains("<main class=\"site-main\" tabindex=\"-1\">", layoutMarkup);
+    }
 }
