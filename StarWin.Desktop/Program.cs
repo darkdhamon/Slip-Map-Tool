@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.ComponentModel;
+using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -76,6 +77,7 @@ internal static class Program
     {
         var localUrl = $"http://127.0.0.1:{port}";
         var databasePath = StarWinDesktopPaths.GetDatabasePath();
+        StarWinDesktopLog.Write("desktop-backend", $"Starting backend server on {localUrl} using database '{databasePath}'.");
 
         var builder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
         {
@@ -219,9 +221,20 @@ internal static class Program
                     options);
 
                 await webView.EnsureCoreWebView2Async(environment);
+                webView.CoreWebView2.WebMessageReceived += (_, messageArgs) =>
+                {
+                    StarWinDesktopLog.Write("webview-message", messageArgs.WebMessageAsJson);
+                };
+                webView.CoreWebView2.NavigationStarting += (_, navigationArgs) =>
+                {
+                    StarWinDesktopLog.Write("webview-nav", $"Navigation starting: {navigationArgs.Uri}");
+                };
                 startupReporter.Report("Loading Starforged Atlas", "Navigating to the shared local backend.");
                 webView.CoreWebView2.NavigationCompleted += (_, navigationArgs) =>
                 {
+                    StarWinDesktopLog.Write(
+                        "webview-nav",
+                        $"Navigation completed: success={navigationArgs.IsSuccess} status={navigationArgs.HttpStatusCode} uri={webView.Source}");
                     if (navigationArgs.IsSuccess)
                     {
                         CloseSplash();
@@ -497,19 +510,49 @@ internal static class DesktopBackendCoordinator
     {
         var executablePath = Environment.ProcessPath
             ?? throw new InvalidOperationException("Unable to determine the current desktop executable path.");
+        var backendLogPath = StarWinDesktopPaths.GetBackendLogPath();
+        StarWinDesktopLog.Write("desktop-shell", $"Launching backend process on port {port}. Backend log path: {backendLogPath}");
 
         var startInfo = new ProcessStartInfo
         {
             FileName = executablePath,
             Arguments = $"{BackendServerArgument} {BackendPortArgument} {port}",
             UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
             CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden,
             WorkingDirectory = AppContext.BaseDirectory
         };
 
-        return Process.Start(startInfo)
+        startInfo.StandardOutputEncoding = Encoding.UTF8;
+        startInfo.StandardErrorEncoding = Encoding.UTF8;
+
+        var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to launch the shared desktop backend process.");
+        process.EnableRaisingEvents = true;
+        process.Exited += (_, _) =>
+        {
+            StarWinDesktopLog.Write("desktop-shell", $"Backend process exited. pid={process.Id} exitCode={process.ExitCode}");
+        };
+
+        _ = PumpProcessStreamAsync(process.StandardOutput, "backend-stdout");
+        _ = PumpProcessStreamAsync(process.StandardError, "backend-stderr");
+        return process;
+    }
+
+    private static async Task PumpProcessStreamAsync(StreamReader reader, string source)
+    {
+        while (true)
+        {
+            var line = await reader.ReadLineAsync();
+            if (line is null)
+            {
+                break;
+            }
+
+            StarWinDesktopLog.Write(source, line);
+        }
     }
 
     private static int SelectBackendPort(int preferredPort)
@@ -1234,6 +1277,23 @@ internal static class StarWinDesktopPaths
         return Path.Combine(GetApplicationDataRoot(), "desktop-backend-state.json");
     }
 
+    public static string GetLogsRoot()
+    {
+        var logsRoot = Path.Combine(GetApplicationDataRoot(), "logs");
+        Directory.CreateDirectory(logsRoot);
+        return logsRoot;
+    }
+
+    public static string GetBackendLogPath()
+    {
+        return Path.Combine(GetLogsRoot(), "desktop-backend.log");
+    }
+
+    public static string GetDesktopShellLogPath()
+    {
+        return Path.Combine(GetLogsRoot(), "desktop-shell.log");
+    }
+
     public static string GetUpdatePromptStatePath()
     {
         return Path.Combine(GetApplicationDataRoot(), "desktop-update-state.json");
@@ -1270,5 +1330,24 @@ internal static class StarWinDesktopPaths
         Directory.CreateDirectory(atlasRoot);
 
         return atlasRoot;
+    }
+}
+
+internal static class StarWinDesktopLog
+{
+    private static readonly object Sync = new();
+
+    public static void Write(string source, string message)
+    {
+        var line = $"[{DateTimeOffset.Now:O}] [{source}] {message}{Environment.NewLine}";
+        var logPath = source.StartsWith("backend", StringComparison.Ordinal)
+            || source.Equals("desktop-backend", StringComparison.Ordinal)
+            ? StarWinDesktopPaths.GetBackendLogPath()
+            : StarWinDesktopPaths.GetDesktopShellLogPath();
+
+        lock (Sync)
+        {
+            File.AppendAllText(logPath, line);
+        }
     }
 }

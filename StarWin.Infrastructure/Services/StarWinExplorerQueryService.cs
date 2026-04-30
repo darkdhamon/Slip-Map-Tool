@@ -1,5 +1,8 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using StarWin.Application.Services;
 using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.Notes;
@@ -9,10 +12,13 @@ using StarWin.Infrastructure.Data;
 
 namespace StarWin.Infrastructure.Services;
 
-public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbContext> dbContextFactory) : IStarWinExplorerQueryService
+public sealed class StarWinExplorerQueryService(
+    IDbContextFactory<StarWinDbContext> dbContextFactory,
+    ILogger<StarWinExplorerQueryService>? logger = null) : IStarWinExplorerQueryService
 {
     private static readonly TimeSpan SectorEntityUsageCacheDuration = TimeSpan.FromSeconds(20);
     private readonly Dictionary<int, CachedSectorEntityUsage> sectorEntityUsageCache = [];
+    private readonly ILogger<StarWinExplorerQueryService> logger = logger ?? NullLogger<StarWinExplorerQueryService>.Instance;
 
     public async Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
     {
@@ -761,11 +767,19 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
 
     public async Task<ExplorerAlienRaceFilterOptions> LoadAlienRaceFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
     {
+        var stopwatch = Stopwatch.StartNew();
+        logger.LogInformation("Explorer query start {Operation}. sectorId={SectorId}", nameof(LoadAlienRaceFilterOptionsAsync), sectorId);
+
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var sectorEntityUsage = await GetCachedSectorEntityUsageAsync(dbContext, sectorId, cancellationToken);
         var raceIds = sectorEntityUsage.RaceIds;
         if (raceIds.Count == 0)
         {
+            logger.LogInformation(
+                "Explorer query complete {Operation} in {ElapsedMs}ms. sectorId={SectorId} raceCount=0",
+                nameof(LoadAlienRaceFilterOptionsAsync),
+                stopwatch.ElapsedMilliseconds,
+                sectorId);
             return new ExplorerAlienRaceFilterOptions([], [], [], []);
         }
 
@@ -811,7 +825,7 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                 .Distinct()
                 .ToListAsync(cancellationToken);
 
-        return new ExplorerAlienRaceFilterOptions(
+        var options = new ExplorerAlienRaceFilterOptions(
             environmentTypes,
             appearanceTypes,
             starWinTechLevels,
@@ -820,15 +834,48 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(value => value, StringComparer.Ordinal)
                 .ToList());
+
+        logger.LogInformation(
+            "Explorer query complete {Operation} in {ElapsedMs}ms. sectorId={SectorId} raceCount={RaceCount} empireCount={EmpireCount} environmentCount={EnvironmentCount} appearanceCount={AppearanceCount} starWinTechLevelCount={StarWinTechLevelCount} gurpsTechLevelCount={GurpsTechLevelCount}",
+            nameof(LoadAlienRaceFilterOptionsAsync),
+            stopwatch.ElapsedMilliseconds,
+            sectorId,
+            raceIds.Count,
+            sectorEmpireIds.Count,
+            options.EnvironmentTypes.Count,
+            options.AppearanceTypes.Count,
+            options.StarWinTechLevels.Count,
+            options.GurpsTechLevels.Count);
+
+        return options;
     }
 
     public async Task<ExplorerAlienRaceListPage> LoadAlienRaceListPageAsync(ExplorerAlienRaceListPageRequest request, CancellationToken cancellationToken = default)
     {
+        var stopwatch = Stopwatch.StartNew();
+        logger.LogInformation(
+            "Explorer query start {Operation}. sectorId={SectorId} offset={Offset} limit={Limit} query={Query} environment={EnvironmentType} appearance={AppearanceType} starWinTechLevel={StarWinTechLevel} gurpsTechLevel={GurpsTechLevel} requireSuperscience={RequireSuperscience}",
+            nameof(LoadAlienRaceListPageAsync),
+            request.SectorId,
+            request.Offset,
+            request.Limit,
+            request.Query,
+            request.EnvironmentType,
+            request.AppearanceType,
+            request.StarWinTechLevel,
+            request.GurpsTechLevel,
+            request.RequireSuperscience);
+
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var sectorEntityUsage = await GetCachedSectorEntityUsageAsync(dbContext, request.SectorId, cancellationToken);
         var raceIds = sectorEntityUsage.RaceIds;
         if (raceIds.Count == 0)
         {
+            logger.LogInformation(
+                "Explorer query complete {Operation} in {ElapsedMs}ms. sectorId={SectorId} raceCount=0",
+                nameof(LoadAlienRaceListPageAsync),
+                stopwatch.ElapsedMilliseconds,
+                request.SectorId);
             return new ExplorerAlienRaceListPage([], false);
         }
 
@@ -852,7 +899,17 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             .ToListAsync(cancellationToken);
 
         var hasMore = races.Count > request.Limit;
-        return new ExplorerAlienRaceListPage(races.Take(request.Limit).ToList(), hasMore);
+        var page = new ExplorerAlienRaceListPage(races.Take(request.Limit).ToList(), hasMore);
+        logger.LogInformation(
+            "Explorer query complete {Operation} in {ElapsedMs}ms. sectorId={SectorId} raceCount={RaceCount} returnedCount={ReturnedCount} hasMore={HasMore}",
+            nameof(LoadAlienRaceListPageAsync),
+            stopwatch.ElapsedMilliseconds,
+            request.SectorId,
+            raceIds.Count,
+            page.Items.Count,
+            page.HasMore);
+
+        return page;
     }
 
     public async Task<ExplorerAlienRaceListItem?> LoadAlienRaceListItemAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
@@ -877,11 +934,24 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
 
     public async Task<ExplorerAlienRaceDetail?> LoadAlienRaceDetailAsync(int sectorId, int raceId, CancellationToken cancellationToken = default)
     {
+        var stopwatch = Stopwatch.StartNew();
+        logger.LogInformation(
+            "Explorer query start {Operation}. sectorId={SectorId} raceId={RaceId}",
+            nameof(LoadAlienRaceDetailAsync),
+            sectorId,
+            raceId);
+
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var sectorEntityUsage = await GetCachedSectorEntityUsageAsync(dbContext, sectorId, cancellationToken);
         var raceIds = sectorEntityUsage.RaceIds;
         if (!raceIds.Contains(raceId))
         {
+            logger.LogInformation(
+                "Explorer query complete {Operation} in {ElapsedMs}ms. sectorId={SectorId} raceId={RaceId} foundInSector=false",
+                nameof(LoadAlienRaceDetailAsync),
+                stopwatch.ElapsedMilliseconds,
+                sectorId,
+                raceId);
             return null;
         }
 
@@ -890,6 +960,12 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             .FirstOrDefaultAsync(item => item.Id == raceId, cancellationToken);
         if (race is null)
         {
+            logger.LogInformation(
+                "Explorer query complete {Operation} in {ElapsedMs}ms. sectorId={SectorId} raceId={RaceId} raceMissing=true",
+                nameof(LoadAlienRaceDetailAsync),
+                stopwatch.ElapsedMilliseconds,
+                sectorId,
+                raceId);
             return null;
         }
 
@@ -920,7 +996,17 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
                 .ThenBy(empire => empire.Id)
                 .ToListAsync(cancellationToken);
 
-        return new ExplorerAlienRaceDetail(sectorId, race, homeWorld, empires);
+        var detail = new ExplorerAlienRaceDetail(sectorId, race, homeWorld, empires);
+        logger.LogInformation(
+            "Explorer query complete {Operation} in {ElapsedMs}ms. sectorId={SectorId} raceId={RaceId} empireCount={EmpireCount} homeWorldId={HomeWorldId}",
+            nameof(LoadAlienRaceDetailAsync),
+            stopwatch.ElapsedMilliseconds,
+            sectorId,
+            raceId,
+            empires.Count,
+            homeWorld?.Id ?? 0);
+
+        return detail;
     }
 
     public async Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
@@ -2016,8 +2102,10 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         return racesQuery;
     }
 
-    private static async Task<HashSet<int>> LoadSectorRaceIdsAsync(StarWinDbContext dbContext, int sectorId, CancellationToken cancellationToken)
+    private async Task<HashSet<int>> LoadSectorRaceIdsAsync(StarWinDbContext dbContext, int sectorId, CancellationToken cancellationToken)
     {
+        var stopwatch = Stopwatch.StartNew();
+        logger.LogInformation("Explorer query start {Operation}. sectorId={SectorId}", nameof(LoadSectorRaceIdsAsync), sectorId);
         var raceIds = new HashSet<int>();
 
         raceIds.UnionWith(await (
@@ -2055,6 +2143,13 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             .Where(history => history.SectorId == sectorId && history.OtherRaceId.HasValue)
             .Select(history => history.OtherRaceId!.Value)
             .ToListAsync(cancellationToken));
+
+        logger.LogInformation(
+            "Explorer query complete {Operation} in {ElapsedMs}ms. sectorId={SectorId} raceCount={RaceCount}",
+            nameof(LoadSectorRaceIdsAsync),
+            stopwatch.ElapsedMilliseconds,
+            sectorId,
+            raceIds.Count);
 
         return raceIds;
     }
@@ -2097,8 +2192,10 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         return religionIds.ToHashSet();
     }
 
-    private static async Task<HashSet<int>> LoadSectorEmpireIdsAsync(StarWinDbContext dbContext, int sectorId, CancellationToken cancellationToken)
+    private async Task<HashSet<int>> LoadSectorEmpireIdsAsync(StarWinDbContext dbContext, int sectorId, CancellationToken cancellationToken)
     {
+        var stopwatch = Stopwatch.StartNew();
+        logger.LogInformation("Explorer query start {Operation}. sectorId={SectorId}", nameof(LoadSectorEmpireIdsAsync), sectorId);
         var empireIds = new HashSet<int>();
 
         empireIds.UnionWith(await dbContext.StarSystems
@@ -2175,6 +2272,13 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             .Select(history => history.EmpireId!.Value)
             .ToListAsync(cancellationToken));
 
+        logger.LogInformation(
+            "Explorer query complete {Operation} in {ElapsedMs}ms. sectorId={SectorId} empireCount={EmpireCount}",
+            nameof(LoadSectorEmpireIdsAsync),
+            stopwatch.ElapsedMilliseconds,
+            sectorId,
+            empireIds.Count);
+
         return empireIds;
     }
 
@@ -2191,9 +2295,17 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
         if (sectorEntityUsageCache.TryGetValue(sectorId, out var cachedUsage)
             && cachedUsage.ExpiresAtUtc > DateTime.UtcNow)
         {
+            logger.LogInformation(
+                "Explorer query cache hit {Operation}. sectorId={SectorId} raceCount={RaceCount} empireCount={EmpireCount}",
+                nameof(GetCachedSectorEntityUsageAsync),
+                sectorId,
+                cachedUsage.RaceIds.Count,
+                cachedUsage.EmpireIds.Count);
             return cachedUsage;
         }
 
+        var stopwatch = Stopwatch.StartNew();
+        logger.LogInformation("Explorer query cache miss {Operation}. sectorId={SectorId}", nameof(GetCachedSectorEntityUsageAsync), sectorId);
         var raceIds = await LoadSectorRaceIdsAsync(dbContext, sectorId, cancellationToken);
         var empireIds = await LoadSectorEmpireIdsAsync(dbContext, sectorId, cancellationToken);
         var cachedValue = new CachedSectorEntityUsage(
@@ -2206,6 +2318,13 @@ public sealed class StarWinExplorerQueryService(IDbContextFactory<StarWinDbConte
             empireIds);
 
         sectorEntityUsageCache[sectorId] = cachedValue;
+        logger.LogInformation(
+            "Explorer query cache populated {Operation} in {ElapsedMs}ms. sectorId={SectorId} raceCount={RaceCount} empireCount={EmpireCount}",
+            nameof(GetCachedSectorEntityUsageAsync),
+            stopwatch.ElapsedMilliseconds,
+            sectorId,
+            raceIds.Count,
+            empireIds.Count);
         return cachedValue;
     }
 

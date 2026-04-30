@@ -361,6 +361,7 @@ public sealed class AliensPageTests : BunitContext
         IReadOnlyList<EntityImage>? images = null,
         IStarWinExplorerQueryService? queryService = null)
     {
+        Services.AddLogging();
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(new FakeExplorerContextService(context));
         Services.AddSingleton(queryService ?? new FakeExplorerQueryService(context));

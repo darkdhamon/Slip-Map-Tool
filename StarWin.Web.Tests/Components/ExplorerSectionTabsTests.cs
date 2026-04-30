@@ -37,4 +37,21 @@ public sealed class ExplorerSectionTabsTests : BunitContext
                 Assert.Null(link.GetAttribute("aria-current"));
             });
     }
+
+    [Fact]
+    public void WiresSectionRouteLoadingHandlerIntoLinks()
+    {
+        var cut = Render<ExplorerSectionTabs>(parameters => parameters
+            .Add(component => component.Sections, ["Overview", "Aliens"])
+            .Add(component => component.ActiveSection, "Overview")
+            .Add(component => component.SectionHrefFactory, section => $"/sector-explorer/{section.ToLowerInvariant()}?sectorId=1"));
+
+        var aliensLink = cut.FindAll("a").Single(link => link.TextContent.Trim() == "Aliens");
+        var onclick = aliensLink.GetAttribute("onclick");
+
+        Assert.NotNull(onclick);
+        Assert.Contains("showSectionRouteLoading", onclick, StringComparison.Ordinal);
+        Assert.Contains("/sector-explorer/aliens?sectorId=1", onclick, StringComparison.Ordinal);
+        Assert.Contains("Aliens", onclick, StringComparison.Ordinal);
+    }
 }
