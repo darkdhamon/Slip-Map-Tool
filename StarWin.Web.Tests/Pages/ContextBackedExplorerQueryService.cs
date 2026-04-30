@@ -1,11 +1,15 @@
 using StarWin.Application.Services;
 using StarWin.Domain.Model.Entity.Civilization;
 using StarWin.Domain.Model.Entity.StarMap;
+using StarWin.Domain.Services;
 
 namespace StarWin.Web.Tests.Pages;
 
 internal sealed class ContextBackedExplorerQueryService(StarWinExplorerContext context) : IStarWinExplorerQueryService
 {
+    public int HyperlaneWorkspaceLoadCount { get; private set; }
+    public int SectorConfigurationStateLoadCount { get; private set; }
+
     public Task<ExplorerSectorOverviewData> LoadSectorOverviewAsync(int sectorId, CancellationToken cancellationToken = default)
     {
         var sector = GetSector(sectorId);
@@ -443,8 +447,47 @@ internal sealed class ContextBackedExplorerQueryService(StarWinExplorerContext c
                 sector.SavedRoutes.Count));
     }
 
+    public Task<ExplorerSectorConfigurationState?> LoadSectorConfigurationStateAsync(int sectorId, int? systemId = null, CancellationToken cancellationToken = default)
+    {
+        SectorConfigurationStateLoadCount++;
+        var sector = GetSector(sectorId);
+        if (sector is null)
+        {
+            return Task.FromResult<ExplorerSectorConfigurationState?>(null);
+        }
+
+        var routeReport = SectorRoutePlanner.BuildHyperlaneNetworkReport(
+            sector.Systems.Select(system => system.Id),
+            sector.SavedRoutes.Select(route => new SectorHyperlaneRouteDefinition(
+                route.SourceSystemId,
+                route.TargetSystemId,
+                (double)route.DistanceParsecs,
+                (double)route.TravelTimeYears,
+                route.TechnologyLevel,
+                route.TierName,
+                route.PrimaryOwnerEmpireId,
+                route.PrimaryOwnerEmpireName,
+                route.SecondaryOwnerEmpireId,
+                route.SecondaryOwnerEmpireName)));
+
+        var selectedSystemRouteCount = systemId is int requestedSystemId and > 0
+            ? sector.SavedRoutes.Count(route =>
+                route.SourceSystemId == requestedSystemId
+                || route.TargetSystemId == requestedSystemId)
+            : 0;
+
+        return Task.FromResult<ExplorerSectorConfigurationState?>(new ExplorerSectorConfigurationState(
+            sector.Id,
+            sector.Name,
+            CloneConfiguration(sector.Configuration ?? new SectorConfiguration { SectorId = sector.Id }),
+            sector.SavedRoutes.Count,
+            routeReport,
+            selectedSystemRouteCount));
+    }
+
     public Task<ExplorerHyperlaneWorkspace?> LoadHyperlaneWorkspaceAsync(int sectorId, CancellationToken cancellationToken = default)
     {
+        HyperlaneWorkspaceLoadCount++;
         var sector = GetSector(sectorId);
         if (sector is null)
         {

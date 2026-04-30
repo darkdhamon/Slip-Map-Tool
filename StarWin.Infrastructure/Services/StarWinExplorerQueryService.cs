@@ -695,6 +695,76 @@ public sealed class StarWinExplorerQueryService(
             setupRow.SavedRouteCount);
     }
 
+    public async Task<ExplorerSectorConfigurationState?> LoadSectorConfigurationStateAsync(int sectorId, int? systemId = null, CancellationToken cancellationToken = default)
+    {
+        await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+
+        var stateRow = await dbContext.Sectors
+            .AsNoTracking()
+            .Where(sector => sector.Id == sectorId)
+            .Select(sector => new
+            {
+                sector.Id,
+                sector.Name,
+                sector.Configuration,
+                SavedRouteCount = sector.SavedRoutes.Count
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (stateRow is null)
+        {
+            return null;
+        }
+
+        var selectedSystemRouteCount = systemId is int requestedSystemId and > 0
+            ? await dbContext.SectorSavedRoutes
+                .AsNoTracking()
+                .Where(route =>
+                    route.SectorId == sectorId
+                    && (route.SourceSystemId == requestedSystemId || route.TargetSystemId == requestedSystemId))
+                .CountAsync(cancellationToken)
+            : 0;
+
+        var savedRouteReport = SectorHyperlaneNetworkReport.Empty;
+        if (stateRow.SavedRouteCount > 0)
+        {
+            var eligibleSystemIds = await LoadEligibleHyperlaneSystemIdsAsync(dbContext, sectorId, cancellationToken);
+            if (eligibleSystemIds.Count > 0)
+            {
+                var routeEndpoints = await dbContext.SectorSavedRoutes
+                    .AsNoTracking()
+                    .Where(route => route.SectorId == sectorId)
+                    .Select(route => new
+                    {
+                        route.SourceSystemId,
+                        route.TargetSystemId
+                    })
+                    .ToListAsync(cancellationToken);
+
+                savedRouteReport = SectorRoutePlanner.BuildHyperlaneNetworkReport(
+                    eligibleSystemIds,
+                    routeEndpoints.Select(route => new SectorHyperlaneRouteDefinition(
+                        route.SourceSystemId,
+                        route.TargetSystemId,
+                        0d,
+                        0d,
+                        0,
+                        string.Empty,
+                        null,
+                        string.Empty,
+                        null,
+                        string.Empty)));
+            }
+        }
+
+        return new ExplorerSectorConfigurationState(
+            stateRow.Id,
+            stateRow.Name,
+            CloneSectorConfiguration(stateRow.Configuration),
+            stateRow.SavedRouteCount,
+            savedRouteReport,
+            selectedSystemRouteCount);
+    }
+
     public async Task<ExplorerHyperlaneWorkspace?> LoadHyperlaneWorkspaceAsync(int sectorId, CancellationToken cancellationToken = default)
     {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -751,36 +821,7 @@ public sealed class StarWinExplorerQueryService(
             })
             .ToListAsync(cancellationToken);
 
-        var eligibleSystemIds = new HashSet<int>();
-        eligibleSystemIds.UnionWith(await (
-            from system in dbContext.StarSystems.AsNoTracking()
-            join empire in dbContext.Empires.AsNoTracking() on (int)system.AllegianceId equals empire.Id
-            where system.SectorId == sectorId
-                && system.AllegianceId != ushort.MaxValue
-                && empire.CivilizationProfile.TechLevel >= 6
-            select system.Id)
-            .ToListAsync(cancellationToken));
-        eligibleSystemIds.UnionWith(await (
-            from colony in dbContext.Colonies.AsNoTracking()
-            join empire in dbContext.Empires.AsNoTracking() on colony.ControllingEmpireId equals empire.Id
-            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId
-                && colony.ControllingEmpireId.HasValue
-                && empire.CivilizationProfile.TechLevel >= 6
-            select system.Id)
-            .ToListAsync(cancellationToken));
-        eligibleSystemIds.UnionWith(await (
-            from colony in dbContext.Colonies.AsNoTracking()
-            join empire in dbContext.Empires.AsNoTracking() on (int)colony.AllegianceId equals empire.Id
-            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId
-                && colony.AllegianceId != ushort.MaxValue
-                && empire.CivilizationProfile.TechLevel >= 6
-            select system.Id)
-            .ToListAsync(cancellationToken));
-
+        var eligibleSystemIds = await LoadEligibleHyperlaneSystemIdsAsync(dbContext, sectorId, cancellationToken);
         var empires = await LoadSectorEmpireOptionsAsync(sectorId, cancellationToken);
         return new ExplorerHyperlaneWorkspace(
             sectorRow.Id,
@@ -788,7 +829,7 @@ public sealed class StarWinExplorerQueryService(
             CloneSectorConfiguration(sectorRow.Configuration),
             systems,
             savedRoutes,
-            eligibleSystemIds.OrderBy(id => id).ToList(),
+            eligibleSystemIds,
             empires);
     }
 
@@ -1963,6 +2004,41 @@ public sealed class StarWinExplorerQueryService(
         return population >= 1_000_000_000
             ? $"{population / 1_000_000_000m:0.#} billion"
             : $"{population / 1_000_000m:0.#} million";
+    }
+
+    private static async Task<IReadOnlyList<int>> LoadEligibleHyperlaneSystemIdsAsync(
+        StarWinDbContext dbContext,
+        int sectorId,
+        CancellationToken cancellationToken)
+    {
+        return await (
+            (from system in dbContext.StarSystems.AsNoTracking()
+             join empire in dbContext.Empires.AsNoTracking() on (int)system.AllegianceId equals empire.Id
+             where system.SectorId == sectorId
+                 && system.AllegianceId != ushort.MaxValue
+                 && empire.CivilizationProfile.TechLevel >= 6
+             select system.Id)
+            .Union(
+                from colony in dbContext.Colonies.AsNoTracking()
+                join empire in dbContext.Empires.AsNoTracking() on colony.ControllingEmpireId equals empire.Id
+                join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
+                join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
+                where system.SectorId == sectorId
+                    && colony.ControllingEmpireId.HasValue
+                    && empire.CivilizationProfile.TechLevel >= 6
+                select system.Id)
+            .Union(
+                from colony in dbContext.Colonies.AsNoTracking()
+                join empire in dbContext.Empires.AsNoTracking() on (int)colony.AllegianceId equals empire.Id
+                join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
+                join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
+                where system.SectorId == sectorId
+                    && colony.AllegianceId != ushort.MaxValue
+                    && empire.CivilizationProfile.TechLevel >= 6
+                select system.Id))
+            .Distinct()
+            .OrderBy(id => id)
+            .ToListAsync(cancellationToken);
     }
 
     private static SectorConfiguration CloneSectorConfiguration(SectorConfiguration configuration)

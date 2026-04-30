@@ -19,7 +19,8 @@ public sealed class SectorConfigurationPageTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         var explorerContextService = new FakeExplorerContextService(CreateContext());
-        ConfigureServices(explorerContextService);
+        var queryService = new ContextBackedExplorerQueryService(explorerContextService.Context);
+        ConfigureServices(explorerContextService, queryService: queryService);
 
         var navigationManager = Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("http://localhost/sector-explorer/configuration?sectorId=7&systemId=11");
@@ -33,6 +34,9 @@ public sealed class SectorConfigurationPageTests : BunitContext
             Assert.Contains("Save configuration", cut.Markup);
             Assert.Contains("Saved route report", cut.Markup);
         });
+
+        Assert.Equal(0, queryService.HyperlaneWorkspaceLoadCount);
+        Assert.True(queryService.SectorConfigurationStateLoadCount > 0);
     }
 
     [Fact]
@@ -93,13 +97,14 @@ public sealed class SectorConfigurationPageTests : BunitContext
 
     private void ConfigureServices(
         FakeExplorerContextService explorerContextService,
+        ContextBackedExplorerQueryService? queryService = null,
         FakeSectorConfigurationService? configService = null,
         FakeSectorRouteService? routeService = null,
         FakeIndependentColonyService? colonyService = null)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(explorerContextService);
-        Services.AddSingleton<IStarWinExplorerQueryService>(new ContextBackedExplorerQueryService(explorerContextService.Context));
+        Services.AddSingleton<IStarWinExplorerQueryService>(queryService ?? new ContextBackedExplorerQueryService(explorerContextService.Context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinSectorConfigurationService>(configService ?? new FakeSectorConfigurationService());
         Services.AddSingleton<IStarWinSectorRouteService>(routeService ?? new FakeSectorRouteService());

@@ -6,7 +6,7 @@
 @{
     var sector = GetSelectedSector();
     var selectedSystem = sector.Systems.FirstOrDefault(system => system.Id == selectedSystemId) ?? sector.Systems.FirstOrDefault();
-    var savedHyperlaneReport = GetSavedHyperlaneReport(sector);
+    var savedHyperlaneReport = SavedRouteReport;
     var layoutState = new SectorExplorerLayoutState(
         null,
         ExplorerSectors,
@@ -86,7 +86,7 @@
                                 <div><dt>Route rule</dt><dd>Shared empires use the highest TL present in both systems; otherwise cross-empire routes use the best lower TL between endpoint empires.</dd></div>
                                 <div><dt>Connection cap</dt><dd>@tl9AndBelowMaximumConnectionsPerSystem standard links plus @additionalCrossEmpireConnectionsPerSystem cross-empire bonus</dd></div>
                                 <div><dt>Off-lane scope</dt><dd>Sector-wide today, with ship-specific overrides planned later.</dd></div>
-                                <div><dt>Current map routes</dt><dd>@GetConfigurationRouteSummary(sector, selectedSystem)</dd></div>
+                                <div><dt>Current map routes</dt><dd>@GetConfigurationRouteSummary(selectedSystem)</dd></div>
                             </dl>
                         </section>
 
@@ -96,10 +96,10 @@
                                 <h4>Saved route report</h4>
                             </div>
                             <dl class="field-grid compact-field-grid">
-                                <div><dt>Current saved routes</dt><dd>@sector.SavedRoutes.Count persisted hyperlane segments</dd></div>
+                                <div><dt>Current saved routes</dt><dd>@SavedRouteCount persisted hyperlane segments</dd></div>
                                 <div><dt>Hyperlane networks</dt><dd>@savedHyperlaneReport.DistinctNetworkCount distinct network@(savedHyperlaneReport.DistinctNetworkCount == 1 ? string.Empty : "s")</dd></div>
                                 <div><dt>Stranded systems</dt><dd>@savedHyperlaneReport.StrandedSystemCount TL6+ eligible system@(savedHyperlaneReport.StrandedSystemCount == 1 ? string.Empty : "s") still disconnected</dd></div>
-                                <div><dt>Last saved</dt><dd>@DisplayDateTime(sector.Configuration.UpdatedAtUtc)</dd></div>
+                                <div><dt>Last saved</dt><dd>@DisplayDateTime(selectedConfigurationState?.Configuration.UpdatedAtUtc)</dd></div>
                             </dl>
                         </section>
                     </div>
@@ -249,10 +249,10 @@
             <div class="parent-actions">
                 <button type="button" @onclick="SaveSectorConfigurationAsync">Save configuration</button>
                 <button type="button" @onclick="SaveCurrentRoutesAsync" disabled="@routeSaveLoadingVisible">
-                    @(sector.SavedRoutes.Count == 0 ? "Save Current Routes" : "Update Current Routes")
+                    @(SavedRouteCount == 0 ? "Save Current Routes" : "Update Current Routes")
                 </button>
                 <button type="button" @onclick="() => ConvertIndependentColoniesAsync(sector.Id)" disabled="@routeSaveLoadingVisible">Convert independent colonies</button>
-                <button type="button" @onclick="() => LoadSectorConfigurationForm(sector)">Reset form</button>
+                <button type="button" @onclick="() => LoadSectorConfigurationForm(selectedConfigurationState)">Reset form</button>
             </div>
             @if (!string.IsNullOrWhiteSpace(sectorConfigurationStatus))
             {
