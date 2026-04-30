@@ -37,6 +37,38 @@ public sealed class HyperlanesPageTests : BunitContext
     }
 
     [Fact]
+    public void ShowsNewDraftUntilSavedHyperlaneIsExplicitlyChosen()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/hyperlanes?sectorId=7&systemId=11");
+
+        var cut = Render<Hyperlanes>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Create saved hyperlane", cut.Markup);
+            Assert.Empty(cut.FindAll(".hyperlane-record.active"));
+            Assert.DoesNotContain("Delete hyperlane", cut.Markup);
+        });
+
+        cut.FindAll(".hyperlane-record")
+            .Single(button => button.TextContent.Contains("Advanced Hyperlane", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Edit saved hyperlane", cut.Markup);
+            Assert.Single(cut.FindAll(".hyperlane-record.active"));
+            Assert.Contains("Delete hyperlane", cut.Markup);
+            Assert.EndsWith("/sector-explorer/hyperlanes?sectorId=7&systemId=11&hyperlaneId=2", navigationManager.Uri, StringComparison.Ordinal);
+        });
+    }
+
+    [Fact]
     public void LoadMoreRevealsAdditionalHyperlanes()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -80,6 +112,7 @@ public sealed class HyperlanesPageTests : BunitContext
             Assert.Equal("Manual Lane", routeService.LastSaveRequest?.TierName);
             Assert.Contains("Created saved hyperlane.", cut.Markup);
             Assert.Contains("Manual Lane", cut.Markup);
+            Assert.EndsWith("/sector-explorer/hyperlanes?sectorId=7&systemId=11&hyperlaneId=3", Services.GetRequiredService<NavigationManager>().Uri, StringComparison.Ordinal);
         });
     }
 
@@ -122,6 +155,30 @@ public sealed class HyperlanesPageTests : BunitContext
         cut.FindAll("button").Single(button => button.TextContent.Trim() == "Open sector configuration").Click();
 
         Assert.EndsWith("/sector-explorer/configuration?sectorId=7&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NewDraftClearsExplicitHyperlaneSelectionFromRoute()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/hyperlanes?sectorId=7&systemId=11&hyperlaneId=2");
+
+        var cut = Render<Hyperlanes>();
+        cut.WaitForAssertion(() => Assert.Contains("Edit saved hyperlane", cut.Markup));
+
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "New draft").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Create saved hyperlane", cut.Markup);
+            Assert.Empty(cut.FindAll(".hyperlane-record.active"));
+            Assert.DoesNotContain("Delete hyperlane", cut.Markup);
+            Assert.EndsWith("/sector-explorer/hyperlanes?sectorId=7&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
+        });
     }
 
     private void ConfigureServices(FakeExplorerContextService explorerContextService, FakeSectorRouteService? routeService = null)

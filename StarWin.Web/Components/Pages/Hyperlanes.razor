@@ -47,7 +47,7 @@
                     <div><dt>Manual preserve</dt><dd>@savedHyperlanes.Count(route => route.IsUserPersisted) user-persisted route@(savedHyperlanes.Count(route => route.IsUserPersisted) == 1 ? string.Empty : "s")</dd></div>
                 </dl>
                 <div class="parent-actions">
-                    <button type="button" @onclick="() => StartNewHyperlane(sector)">Add hyperlane</button>
+                    <button type="button" @onclick="() => BeginNewHyperlane(sector)">Add hyperlane</button>
                     <button type="button" @onclick="NavigateToConfiguration">Open sector configuration</button>
                 </div>
                 <p class="panel-note">Use Sector Configuration to regenerate the saved route cache and show the route-save progress window.</p>
@@ -156,7 +156,7 @@
                 </label>
                 <div class="parent-actions">
                     <button type="button" @onclick="SaveHyperlaneAsync">Save hyperlane</button>
-                    <button type="button" @onclick="() => StartNewHyperlane(sector)">New draft</button>
+                    <button type="button" @onclick="() => BeginNewHyperlane(sector)">New draft</button>
                     <button type="button" @onclick="RecalculateHyperlaneTravelDefaults" disabled="@(hyperlaneSourceSystemId <= 0 || hyperlaneTargetSystemId <= 0)">Use sector travel defaults</button>
                     @if (selectedHyperlaneId > 0)
                     {
