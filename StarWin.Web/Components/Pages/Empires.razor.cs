@@ -107,6 +107,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         var sector = GetSelectedSector();
         selectedSystemId = ExplorerPageState.ResolveSelectedSystemId(sector, RequestedSystemId, selectedSystemId);
         selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        await EnsureSelectedEmpireSummaryVisibleAsync();
         await EnsureSelectedEmpireDetailAsync();
     }
 
@@ -400,8 +401,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         {
             loadedEmpireSummaries.Clear();
             empireHasMoreRecords = false;
-            selectedEmpireId = 0;
-            selectedEmpireDetail = null;
+            ClearSelectedEmpireDetail();
             empireFilterOptions = new([]);
             return;
         }
@@ -413,6 +413,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             loadedEmpireSectorId = selectedSectorId;
             empireHasMoreRecords = false;
             empireObserverConfigured = false;
+            ClearSelectedEmpireDetail();
             if (sectorChanged || empireFilterOptions.Races.Count == 0)
             {
                 empireFilterOptions = await ExplorerQueryService.LoadEmpireFilterOptionsAsync(selectedSectorId, cancellationToken);
@@ -424,7 +425,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             }
 
             await LoadMoreEmpireSummariesAsync(cancellationToken, requestVersion);
-            return;
         }
 
         await EnsureSelectedEmpireSummaryVisibleAsync(cancellationToken, requestVersion);
@@ -578,17 +578,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             }
 
             empireHasMoreRecords = page.HasMore;
-            if (selectedEmpireId == 0 && loadedEmpireSummaries.Count > 0)
-            {
-                selectedEmpireId = loadedEmpireSummaries[0].EmpireId;
-            }
-            else if (selectedEmpireId > 0 && loadedEmpireSummaries.All(item => item.EmpireId != selectedEmpireId))
-            {
-                selectedEmpireId = loadedEmpireSummaries.FirstOrDefault()?.EmpireId ?? 0;
-            }
-
-            await EnsureSelectedEmpireSummaryVisibleAsync(cancellationToken, requestVersion);
-            await EnsureSelectedEmpireDetailAsync(cancellationToken, requestVersion);
             await InvokeAsync(StateHasChanged);
         }
         finally
@@ -634,15 +623,16 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         var targetEmpireId = HasActiveEmpireFilters()
             ? selectedEmpireId
             : RequestedEmpireId ?? selectedEmpireId;
-        if (targetEmpireId <= 0)
-        {
-            targetEmpireId = loadedEmpireSummaries.FirstOrDefault()?.EmpireId ?? 0;
-        }
 
         if (targetEmpireId <= 0)
         {
-            selectedEmpireId = 0;
-            selectedEmpireDetail = null;
+            ClearSelectedEmpireDetail();
+            return;
+        }
+
+        if (selectedEmpireDetail?.Empire.Id == targetEmpireId && loadedEmpireDetailId == targetEmpireId)
+        {
+            selectedEmpireId = targetEmpireId;
             return;
         }
 
@@ -656,11 +646,6 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         {
             var previousEmpireId = selectedEmpireDetail?.Empire.Id ?? 0;
             var detail = await ExplorerQueryService.LoadEmpireDetailAsync(selectedSectorId, targetEmpireId, cancellationToken);
-            if (detail is null && loadedEmpireSummaries.Count > 0)
-            {
-                targetEmpireId = loadedEmpireSummaries[0].EmpireId;
-                detail = await ExplorerQueryService.LoadEmpireDetailAsync(selectedSectorId, targetEmpireId, cancellationToken);
-            }
 
             if (IsStaleEmpireFilterRequest(requestVersion))
             {
@@ -686,6 +671,15 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         {
             empireDetailLoading = false;
         }
+    }
+
+    private void ClearSelectedEmpireDetail()
+    {
+        selectedEmpireId = 0;
+        selectedEmpireDetail = null;
+        loadedEmpireDetailId = 0;
+        entityImages = [];
+        lastLoadedEmpireImageTargetId = 0;
     }
 
     protected ExplorerEmpireColonyListing? GetCapitalColony(ExplorerEmpireDetail detail)
