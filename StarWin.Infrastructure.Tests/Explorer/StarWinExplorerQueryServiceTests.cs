@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -327,6 +328,23 @@ public sealed class StarWinExplorerQueryServiceTests
         {
             DeleteIfExists(databasePath);
         }
+    }
+
+    [Fact]
+    public void BuildEmpireListSql_uses_provider_appropriate_paging_and_sort_syntax()
+    {
+        var request = new ExplorerEmpireListPageRequest(1, 0, 30, SortOption: ExplorerEmpireSortOption.Alphabetical);
+
+        var sqliteSql = BuildEmpireListSqlForProvider(request, "Microsoft.EntityFrameworkCore.Sqlite");
+        Assert.Contains("COLLATE NOCASE", sqliteSql.Format);
+        Assert.Contains("LIMIT {15}", sqliteSql.Format);
+        Assert.Contains("OFFSET {16}", sqliteSql.Format);
+        Assert.DoesNotContain("FETCH NEXT", sqliteSql.Format);
+
+        var sqlServerSql = BuildEmpireListSqlForProvider(request, "Microsoft.EntityFrameworkCore.SqlServer");
+        Assert.DoesNotContain("COLLATE NOCASE", sqlServerSql.Format);
+        Assert.Contains("OFFSET {16} ROWS FETCH NEXT {15} ROWS ONLY", sqlServerSql.Format);
+        Assert.DoesNotContain("LIMIT {15}", sqlServerSql.Format);
     }
 
     [Fact]
@@ -930,6 +948,17 @@ public sealed class StarWinExplorerQueryServiceTests
             });
 
         await dbContext.SaveChangesAsync();
+    }
+
+    private static FormattableString BuildEmpireListSqlForProvider(ExplorerEmpireListPageRequest request, string providerName)
+    {
+        var method = typeof(StarWinExplorerQueryService).GetMethod(
+            "BuildEmpireListSql",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        return Assert.IsAssignableFrom<FormattableString>(method!.Invoke(null, [request, null, 31, 0, providerName]));
     }
 
     private static IDbContextFactory<StarWinDbContext> CreateFactory(string databasePath)

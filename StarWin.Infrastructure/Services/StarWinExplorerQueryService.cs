@@ -1251,7 +1251,12 @@ public sealed class StarWinExplorerQueryService(
 
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var pageRows = await dbContext.Database
-            .SqlQuery<EmpireListSqlRow>(BuildEmpireListSql(request, empireId: null, limit: request.Limit + 1, offset: request.Offset))
+            .SqlQuery<EmpireListSqlRow>(BuildEmpireListSql(
+                request,
+                empireId: null,
+                limit: request.Limit + 1,
+                offset: request.Offset,
+                dbContext.Database.ProviderName))
             .ToListAsync(cancellationToken);
 
         var hasMore = pageRows.Count > request.Limit;
@@ -1277,7 +1282,8 @@ public sealed class StarWinExplorerQueryService(
                 new ExplorerEmpireListPageRequest(sectorId, 0, 1),
                 empireId,
                 limit: 1,
-                offset: 0))
+                offset: 0,
+                dbContext.Database.ProviderName))
             .FirstOrDefaultAsync(cancellationToken);
 
         return item is null
@@ -2581,9 +2587,14 @@ public sealed class StarWinExplorerQueryService(
         ExplorerEmpireListPageRequest request,
         int? empireId,
         int limit,
-        int offset)
+        int offset,
+        string? providerName)
     {
-        var orderByClause = GetEmpireListOrderByClause(request.SortOption);
+        var usesSqlServerSyntax = providerName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase) == true;
+        var orderByClause = GetEmpireListOrderByClause(request.SortOption, usesSqlServerSyntax);
+        var pagingClause = usesSqlServerSyntax
+            ? "OFFSET {16} ROWS FETCH NEXT {15} ROWS ONLY"
+            : "LIMIT {15} OFFSET {16}";
         var queryPattern = string.IsNullOrWhiteSpace(request.Query)
             ? null
             : $"%{request.Query.Trim()}%";
@@ -2715,10 +2726,7 @@ public sealed class StarWinExplorerQueryService(
                     )
                   )
             ORDER BY 
-            """ + orderByClause + " " + """
-            LIMIT {15}
-            OFFSET {16}
-            """;
+            """ + orderByClause + " " + pagingClause;
 
         return FormattableStringFactory.Create(
             sqlFormat,
@@ -2741,14 +2749,18 @@ public sealed class StarWinExplorerQueryService(
             offset);
     }
 
-    private static string GetEmpireListOrderByClause(ExplorerEmpireSortOption sortOption)
+    private static string GetEmpireListOrderByClause(ExplorerEmpireSortOption sortOption, bool usesSqlServerSyntax)
     {
+        var nameOrderingClause = usesSqlServerSyntax
+            ? "Empires.Name ASC, Empires.Id ASC"
+            : "Empires.Name COLLATE NOCASE ASC, Empires.Id ASC";
+
         return sortOption switch
         {
-            ExplorerEmpireSortOption.Population => "Empires.NativePopulationMillions DESC, Empires.Name COLLATE NOCASE ASC, Empires.Id ASC",
-            ExplorerEmpireSortOption.ControlledWorlds => "ControlledWorldCount DESC, Empires.Name COLLATE NOCASE ASC, Empires.Id ASC",
-            ExplorerEmpireSortOption.EconomicPower => "Empires.EconomicPowerMcr DESC, Empires.Name COLLATE NOCASE ASC, Empires.Id ASC",
-            _ => "Empires.Name COLLATE NOCASE ASC, Empires.Id ASC"
+            ExplorerEmpireSortOption.Population => $"Empires.NativePopulationMillions DESC, {nameOrderingClause}",
+            ExplorerEmpireSortOption.ControlledWorlds => $"ControlledWorldCount DESC, {nameOrderingClause}",
+            ExplorerEmpireSortOption.EconomicPower => $"Empires.EconomicPowerMcr DESC, {nameOrderingClause}",
+            _ => nameOrderingClause
         };
     }
 
