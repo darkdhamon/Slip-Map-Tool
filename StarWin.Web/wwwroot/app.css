@@ -1896,7 +1896,7 @@ dd {
     justify-self: auto;
 }
 
-.record-filter-panel input,
+.record-filter-panel input:not([type="range"]),
 .record-filter-panel select,
 .record-list-sort-label select {
     width: 100%;
@@ -1910,11 +1910,109 @@ dd {
     outline: none;
 }
 
-.record-filter-panel input:focus,
+.record-filter-panel input:not([type="range"]):focus,
 .record-filter-panel select:focus,
 .record-list-sort-label select:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
+.record-filter-slider-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.record-filter-panel .record-filter-slider-field {
+    display: grid;
+    gap: 4px;
+    color: #cbd5e1;
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.record-filter-slider-field small {
+    color: #93c5fd;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: none;
+}
+
+.record-filter-slider-field input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    min-height: auto;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+}
+
+.record-filter-slider-field input[type="range"]::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(125, 211, 252, 0.28);
+    background:
+        linear-gradient(90deg, rgba(56, 189, 248, 0.24), rgba(14, 165, 233, 0.68)),
+        rgba(2, 6, 23, 0.94);
+    box-shadow: inset 0 1px 2px rgba(2, 6, 23, 0.55);
+}
+
+.record-filter-slider-field input[type="range"]::-moz-range-track {
+    height: 6px;
+    border-radius: 999px;
+    border: 1px solid rgba(125, 211, 252, 0.28);
+    background:
+        linear-gradient(90deg, rgba(56, 189, 248, 0.24), rgba(14, 165, 233, 0.68)),
+        rgba(2, 6, 23, 0.94);
+    box-shadow: inset 0 1px 2px rgba(2, 6, 23, 0.55);
+}
+
+.record-filter-slider-field input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    margin-top: -6px;
+    border: 1px solid rgba(186, 230, 253, 0.82);
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #e0f2fe, #38bdf8 55%, #0f172a 100%);
+    box-shadow:
+        0 0 0 2px rgba(8, 47, 73, 0.56),
+        0 0 16px rgba(56, 189, 248, 0.34);
+    cursor: pointer;
+}
+
+.record-filter-slider-field input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border: 1px solid rgba(186, 230, 253, 0.82);
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #e0f2fe, #38bdf8 55%, #0f172a 100%);
+    box-shadow:
+        0 0 0 2px rgba(8, 47, 73, 0.56),
+        0 0 16px rgba(56, 189, 248, 0.34);
+    cursor: pointer;
+}
+
+.record-filter-slider-field input[type="range"]:focus-visible {
+    outline: none;
+}
+
+.record-filter-slider-field input[type="range"]:focus-visible::-webkit-slider-runnable-track {
+    box-shadow:
+        0 0 0 3px rgba(56, 189, 248, 0.18),
+        inset 0 1px 2px rgba(2, 6, 23, 0.55);
+}
+
+.record-filter-slider-field input[type="range"]:focus-visible::-moz-range-track {
+    box-shadow:
+        0 0 0 3px rgba(56, 189, 248, 0.18),
+        inset 0 1px 2px rgba(2, 6, 23, 0.55);
 }
 
 .record-filter-toggle {

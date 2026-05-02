@@ -1232,6 +1232,33 @@ public sealed class StarWinExplorerQueryService(
             .Distinct()
             .ToListAsync(cancellationToken);
 
+        var controlledWorldCounts = await (
+            from colony in dbContext.Colonies.AsNoTracking()
+            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
+            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
+            where system.SectorId == sectorId
+                && colony.ControllingEmpireId.HasValue
+                && sectorEmpireIds.Contains(colony.ControllingEmpireId.Value)
+            group colony by colony.ControllingEmpireId into grouped
+            select grouped.Count())
+            .ToListAsync(cancellationToken);
+        var maxControlledWorldCount = controlledWorldCounts.Count > 0
+            ? controlledWorldCounts.Max()
+            : 0;
+
+        var sectorEmpires = dbContext.Empires
+            .AsNoTracking()
+            .Where(empire => sectorEmpireIds.Contains(empire.Id));
+        var maxNativePopulationMillions = await sectorEmpires
+            .MaxAsync(empire => (long?)empire.NativePopulationMillions, cancellationToken)
+            ?? 0L;
+        var maxStarWinTechLevel = await sectorEmpires
+            .MaxAsync(empire => (int?)empire.CivilizationProfile.TechLevel, cancellationToken)
+            ?? 0;
+        var maxGurpsTechLevel = await sectorEmpires
+            .MaxAsync(empire => (int?)empire.CivilizationProfile.TechLevel + 2, cancellationToken)
+            ?? 0;
+
         return new ExplorerEmpireFilterOptions(raceOptions
             .Select(race => new ExplorerLookupOption(
                 race.RaceId,
@@ -1239,7 +1266,11 @@ public sealed class StarWinExplorerQueryService(
             .DistinctBy(race => race.Id)
             .OrderBy(race => race.Name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(race => race.Id)
-            .ToList());
+            .ToList(),
+            Math.Max(1, maxControlledWorldCount),
+            Math.Max(1L, maxNativePopulationMillions),
+            Math.Max(1, maxGurpsTechLevel),
+            Math.Max(1, maxStarWinTechLevel));
     }
 
     public async Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)

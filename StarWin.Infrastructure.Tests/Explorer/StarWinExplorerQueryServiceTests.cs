@@ -183,6 +183,10 @@ public sealed class StarWinExplorerQueryServiceTests
 
             var options = await service.LoadEmpireFilterOptionsAsync(1);
 
+            Assert.Equal(2, options.MaxControlledWorldCount);
+            Assert.Equal(1200, options.MaxNativePopulationMillions);
+            Assert.Equal(10, options.MaxGurpsTechLevel);
+            Assert.Equal(8, options.MaxStarWinTechLevel);
             Assert.Collection(
                 options.Races.OrderBy(item => item.Id),
                 item =>

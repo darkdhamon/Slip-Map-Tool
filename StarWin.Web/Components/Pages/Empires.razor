@@ -134,6 +134,7 @@
                                     <input type="text"
                                            inputmode="numeric"
                                            placeholder="0"
+                                           data-testid="empire-controlled-worlds-min-input"
                                            @bind="controlledWorldCountMinText"
                                            @bind:event="oninput"
                                            @bind:after="HandleEmpireFiltersChangedAsync" />
@@ -143,9 +144,36 @@
                                     <input type="text"
                                            inputmode="numeric"
                                            placeholder="Any"
+                                           data-testid="empire-controlled-worlds-max-input"
                                            @bind="controlledWorldCountMaxText"
                                            @bind:event="oninput"
                                            @bind:after="HandleEmpireFiltersChangedAsync" />
+                                </label>
+                            </div>
+                            <div class="record-filter-slider-group">
+                                <label class="record-filter-slider-field">
+                                    <span>Min slider</span>
+                                    <input type="range"
+                                           min="@GetControlledWorldSliderMinimum()"
+                                           max="@GetControlledWorldSliderMaximum()"
+                                           step="1"
+                                           value="@GetControlledWorldMinSliderValue()"
+                                           data-testid="empire-controlled-worlds-min-slider"
+                                           aria-label="Minimum controlled worlds slider"
+                                           @oninput="HandleControlledWorldMinSliderChanged" />
+                                    <small>@GetControlledWorldSliderValueLabel(minimum: true)</small>
+                                </label>
+                                <label class="record-filter-slider-field">
+                                    <span>Max slider</span>
+                                    <input type="range"
+                                           min="@GetControlledWorldSliderMinimum()"
+                                           max="@GetControlledWorldSliderMaximum()"
+                                           step="1"
+                                           value="@GetControlledWorldMaxSliderValue()"
+                                           data-testid="empire-controlled-worlds-max-slider"
+                                           aria-label="Maximum controlled worlds slider"
+                                           @oninput="HandleControlledWorldMaxSliderChanged" />
+                                    <small>@GetControlledWorldSliderValueLabel(minimum: false)</small>
                                 </label>
                             </div>
                         </div>
@@ -156,6 +184,7 @@
                                     <span>Min</span>
                                     <input type="text"
                                            placeholder="e.g. 500M"
+                                           data-testid="empire-population-min-input"
                                            title="@GetPopulationFilterInputTitle(nativePopulationMinText)"
                                            @bind="nativePopulationMinText"
                                            @bind:event="oninput"
@@ -165,10 +194,37 @@
                                     <span>Max</span>
                                     <input type="text"
                                            placeholder="e.g. 12B"
+                                           data-testid="empire-population-max-input"
                                            title="@GetPopulationFilterInputTitle(nativePopulationMaxText)"
                                            @bind="nativePopulationMaxText"
                                            @bind:event="oninput"
                                            @bind:after="HandleEmpireFiltersChangedAsync" />
+                                </label>
+                            </div>
+                            <div class="record-filter-slider-group">
+                                <label class="record-filter-slider-field">
+                                    <span>Min slider</span>
+                                    <input type="range"
+                                           min="@GetPopulationSliderMinimum()"
+                                           max="@GetPopulationSliderMaximum()"
+                                           step="1"
+                                           value="@GetPopulationMinSliderValue()"
+                                           data-testid="empire-population-min-slider"
+                                           aria-label="Minimum population slider"
+                                           @oninput="HandlePopulationMinSliderChanged" />
+                                    <small>@GetPopulationSliderValueLabel(minimum: true)</small>
+                                </label>
+                                <label class="record-filter-slider-field">
+                                    <span>Max slider</span>
+                                    <input type="range"
+                                           min="@GetPopulationSliderMinimum()"
+                                           max="@GetPopulationSliderMaximum()"
+                                           step="1"
+                                           value="@GetPopulationMaxSliderValue()"
+                                           data-testid="empire-population-max-slider"
+                                           aria-label="Maximum population slider"
+                                           @oninput="HandlePopulationMaxSliderChanged" />
+                                    <small>@GetPopulationSliderValueLabel(minimum: false)</small>
                                 </label>
                             </div>
                         </div>
@@ -192,6 +248,7 @@
                                     <input type="text"
                                            inputmode="numeric"
                                            placeholder="Any"
+                                           data-testid="empire-tech-level-min-input"
                                            @bind="techLevelMinText"
                                            @bind:event="oninput"
                                            @bind:after="HandleEmpireFiltersChangedAsync" />
@@ -201,9 +258,36 @@
                                     <input type="text"
                                            inputmode="numeric"
                                            placeholder="Any"
+                                           data-testid="empire-tech-level-max-input"
                                            @bind="techLevelMaxText"
                                            @bind:event="oninput"
                                            @bind:after="HandleEmpireFiltersChangedAsync" />
+                                </label>
+                            </div>
+                            <div class="record-filter-slider-group">
+                                <label class="record-filter-slider-field">
+                                    <span>Min slider</span>
+                                    <input type="range"
+                                           min="@GetTechLevelSliderMinimum()"
+                                           max="@GetTechLevelSliderMaximum()"
+                                           step="1"
+                                           value="@GetTechLevelMinSliderValue()"
+                                           data-testid="empire-tech-level-min-slider"
+                                           aria-label="Minimum tech level slider"
+                                           @oninput="HandleTechLevelMinSliderChanged" />
+                                    <small>@GetTechLevelSliderValueLabel(minimum: true)</small>
+                                </label>
+                                <label class="record-filter-slider-field">
+                                    <span>Max slider</span>
+                                    <input type="range"
+                                           min="@GetTechLevelSliderMinimum()"
+                                           max="@GetTechLevelSliderMaximum()"
+                                           step="1"
+                                           value="@GetTechLevelMaxSliderValue()"
+                                           data-testid="empire-tech-level-max-slider"
+                                           aria-label="Maximum tech level slider"
+                                           @oninput="HandleTechLevelMaxSliderChanged" />
+                                    <small>@GetTechLevelSliderValueLabel(minimum: false)</small>
                                 </label>
                             </div>
                         </div>

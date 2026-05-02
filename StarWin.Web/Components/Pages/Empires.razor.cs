@@ -299,6 +299,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         }
 
         empireTechLevelSystem = techLevelSystem;
+        ApplyTechLevelSliderValues(GetTechLevelSliderSelection().MinValue, GetTechLevelSliderSelection().MaxValue);
         RequestEmpireFilterReload(useDebounce: false);
         return Task.CompletedTask;
     }
@@ -306,6 +307,125 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected Task HandleEmpireSortChangedAsync()
     {
         RequestEmpireFilterReload(useDebounce: false);
+        return Task.CompletedTask;
+    }
+
+    protected int GetControlledWorldSliderMinimum() => 0;
+
+    protected int GetControlledWorldSliderMaximum() => GetControlledWorldSliderUpperBound();
+
+    protected int GetControlledWorldMinSliderValue() => GetControlledWorldSliderSelection().MinValue;
+
+    protected int GetControlledWorldMaxSliderValue() => GetControlledWorldSliderSelection().MaxValue;
+
+    protected string GetControlledWorldSliderValueLabel(bool minimum)
+    {
+        var explicitValue = minimum
+            ? ParseNullableInt(controlledWorldCountMinText)
+            : ParseNullableInt(controlledWorldCountMaxText);
+        if (!explicitValue.HasValue)
+        {
+            return "Any";
+        }
+
+        return (minimum ? GetControlledWorldMinSliderValue() : GetControlledWorldMaxSliderValue())
+            .ToString(CultureInfo.InvariantCulture);
+    }
+
+    protected Task HandleControlledWorldMinSliderChanged(ChangeEventArgs args)
+    {
+        var nextMinValue = ParseSliderInt(args.Value, GetControlledWorldSliderMinimum());
+        var (_, currentMaxValue) = GetControlledWorldSliderSelection();
+        ApplyControlledWorldSliderValues(nextMinValue, Math.Max(nextMinValue, currentMaxValue));
+        RequestEmpireFilterReload(useDebounce: true);
+        return Task.CompletedTask;
+    }
+
+    protected Task HandleControlledWorldMaxSliderChanged(ChangeEventArgs args)
+    {
+        var nextMaxValue = ParseSliderInt(args.Value, GetControlledWorldSliderMaximum());
+        var (currentMinValue, _) = GetControlledWorldSliderSelection();
+        ApplyControlledWorldSliderValues(Math.Min(currentMinValue, nextMaxValue), nextMaxValue);
+        RequestEmpireFilterReload(useDebounce: true);
+        return Task.CompletedTask;
+    }
+
+    protected long GetPopulationSliderMinimum() => 0;
+
+    protected long GetPopulationSliderMaximum() => GetPopulationSliderUpperBound();
+
+    protected long GetPopulationMinSliderValue() => GetPopulationSliderSelection().MinValue;
+
+    protected long GetPopulationMaxSliderValue() => GetPopulationSliderSelection().MaxValue;
+
+    protected string GetPopulationSliderValueLabel(bool minimum)
+    {
+        var explicitValue = minimum
+            ? ParsePopulationAbsolute(nativePopulationMinText)
+            : ParsePopulationAbsolute(nativePopulationMaxText);
+        if (!explicitValue.HasValue)
+        {
+            return "Any";
+        }
+
+        return FormatPopulationFilterMillions(minimum ? GetPopulationMinSliderValue() : GetPopulationMaxSliderValue());
+    }
+
+    protected Task HandlePopulationMinSliderChanged(ChangeEventArgs args)
+    {
+        var nextMinValue = ParseSliderLong(args.Value, GetPopulationSliderMinimum());
+        var (_, currentMaxValue) = GetPopulationSliderSelection();
+        ApplyPopulationSliderValues(nextMinValue, Math.Max(nextMinValue, currentMaxValue));
+        RequestEmpireFilterReload(useDebounce: true);
+        return Task.CompletedTask;
+    }
+
+    protected Task HandlePopulationMaxSliderChanged(ChangeEventArgs args)
+    {
+        var nextMaxValue = ParseSliderLong(args.Value, GetPopulationSliderMaximum());
+        var (currentMinValue, _) = GetPopulationSliderSelection();
+        ApplyPopulationSliderValues(Math.Min(currentMinValue, nextMaxValue), nextMaxValue);
+        RequestEmpireFilterReload(useDebounce: true);
+        return Task.CompletedTask;
+    }
+
+    protected int GetTechLevelSliderMinimum() => 0;
+
+    protected int GetTechLevelSliderMaximum() => GetTechLevelSliderUpperBound();
+
+    protected int GetTechLevelMinSliderValue() => GetTechLevelSliderSelection().MinValue;
+
+    protected int GetTechLevelMaxSliderValue() => GetTechLevelSliderSelection().MaxValue;
+
+    protected string GetTechLevelSliderValueLabel(bool minimum)
+    {
+        var explicitValue = minimum
+            ? ParseNullableInt(techLevelMinText)
+            : ParseNullableInt(techLevelMaxText);
+        if (!explicitValue.HasValue)
+        {
+            return "Any";
+        }
+
+        return (minimum ? GetTechLevelMinSliderValue() : GetTechLevelMaxSliderValue())
+            .ToString(CultureInfo.InvariantCulture);
+    }
+
+    protected Task HandleTechLevelMinSliderChanged(ChangeEventArgs args)
+    {
+        var nextMinValue = ParseSliderInt(args.Value, GetTechLevelSliderMinimum());
+        var (_, currentMaxValue) = GetTechLevelSliderSelection();
+        ApplyTechLevelSliderValues(nextMinValue, Math.Max(nextMinValue, currentMaxValue));
+        RequestEmpireFilterReload(useDebounce: true);
+        return Task.CompletedTask;
+    }
+
+    protected Task HandleTechLevelMaxSliderChanged(ChangeEventArgs args)
+    {
+        var nextMaxValue = ParseSliderInt(args.Value, GetTechLevelSliderMaximum());
+        var (currentMinValue, _) = GetTechLevelSliderSelection();
+        ApplyTechLevelSliderValues(Math.Min(currentMinValue, nextMaxValue), nextMaxValue);
+        RequestEmpireFilterReload(useDebounce: true);
         return Task.CompletedTask;
     }
 
@@ -1004,6 +1124,111 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         };
     }
 
+    private int GetControlledWorldSliderUpperBound()
+    {
+        var currentSelectionMaximum = Math.Max(
+            ParseNullableInt(controlledWorldCountMinText) ?? 0,
+            ParseNullableInt(controlledWorldCountMaxText) ?? 0);
+        return Math.Max(Math.Max(1, empireFilterOptions.MaxControlledWorldCount), currentSelectionMaximum);
+    }
+
+    private (int MinValue, int MaxValue) GetControlledWorldSliderSelection()
+    {
+        var maximumBound = GetControlledWorldSliderUpperBound();
+        var (minValue, maxValue) = NormalizeRange(
+            ParseNullableInt(controlledWorldCountMinText),
+            ParseNullableInt(controlledWorldCountMaxText));
+        return (
+            Math.Clamp(minValue ?? GetControlledWorldSliderMinimum(), GetControlledWorldSliderMinimum(), maximumBound),
+            Math.Clamp(maxValue ?? maximumBound, GetControlledWorldSliderMinimum(), maximumBound));
+    }
+
+    private void ApplyControlledWorldSliderValues(int minValue, int maxValue)
+    {
+        var minimumBound = GetControlledWorldSliderMinimum();
+        var maximumBound = GetControlledWorldSliderUpperBound();
+        var clampedMinValue = Math.Clamp(minValue, minimumBound, maximumBound);
+        var clampedMaxValue = Math.Clamp(Math.Max(maxValue, clampedMinValue), minimumBound, maximumBound);
+
+        controlledWorldCountMinText = clampedMinValue <= minimumBound
+            ? string.Empty
+            : clampedMinValue.ToString(CultureInfo.InvariantCulture);
+        controlledWorldCountMaxText = clampedMaxValue >= maximumBound
+            ? string.Empty
+            : clampedMaxValue.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private long GetPopulationSliderUpperBound()
+    {
+        var currentSelectionMaximum = Math.Max(
+            ToPopulationMillions(ParsePopulationAbsolute(nativePopulationMinText), roundUp: true) ?? 0,
+            ToPopulationMillions(ParsePopulationAbsolute(nativePopulationMaxText), roundUp: false) ?? 0);
+        return Math.Max(Math.Max(1L, empireFilterOptions.MaxNativePopulationMillions), currentSelectionMaximum);
+    }
+
+    private (long MinValue, long MaxValue) GetPopulationSliderSelection()
+    {
+        var maximumBound = GetPopulationSliderUpperBound();
+        var (minValue, maxValue) = NormalizeRange(
+            ToPopulationMillions(ParsePopulationAbsolute(nativePopulationMinText), roundUp: true),
+            ToPopulationMillions(ParsePopulationAbsolute(nativePopulationMaxText), roundUp: false));
+        return (
+            Math.Clamp(minValue ?? GetPopulationSliderMinimum(), GetPopulationSliderMinimum(), maximumBound),
+            Math.Clamp(maxValue ?? maximumBound, GetPopulationSliderMinimum(), maximumBound));
+    }
+
+    private void ApplyPopulationSliderValues(long minValue, long maxValue)
+    {
+        var minimumBound = GetPopulationSliderMinimum();
+        var maximumBound = GetPopulationSliderUpperBound();
+        var clampedMinValue = Math.Clamp(minValue, minimumBound, maximumBound);
+        var clampedMaxValue = Math.Clamp(Math.Max(maxValue, clampedMinValue), minimumBound, maximumBound);
+
+        nativePopulationMinText = clampedMinValue <= minimumBound
+            ? string.Empty
+            : FormatPopulationFilterMillions(clampedMinValue);
+        nativePopulationMaxText = clampedMaxValue >= maximumBound
+            ? string.Empty
+            : FormatPopulationFilterMillions(clampedMaxValue);
+    }
+
+    private int GetTechLevelSliderUpperBound()
+    {
+        var configuredMaximum = empireTechLevelSystem == ExplorerEmpireTechLevelSystem.Gurps
+            ? empireFilterOptions.MaxGurpsTechLevel
+            : empireFilterOptions.MaxStarWinTechLevel;
+        var currentSelectionMaximum = Math.Max(
+            ParseNullableInt(techLevelMinText) ?? 0,
+            ParseNullableInt(techLevelMaxText) ?? 0);
+        return Math.Max(Math.Max(1, configuredMaximum), currentSelectionMaximum);
+    }
+
+    private (int MinValue, int MaxValue) GetTechLevelSliderSelection()
+    {
+        var maximumBound = GetTechLevelSliderUpperBound();
+        var (minValue, maxValue) = NormalizeRange(
+            ParseNullableInt(techLevelMinText),
+            ParseNullableInt(techLevelMaxText));
+        return (
+            Math.Clamp(minValue ?? GetTechLevelSliderMinimum(), GetTechLevelSliderMinimum(), maximumBound),
+            Math.Clamp(maxValue ?? maximumBound, GetTechLevelSliderMinimum(), maximumBound));
+    }
+
+    private void ApplyTechLevelSliderValues(int minValue, int maxValue)
+    {
+        var minimumBound = GetTechLevelSliderMinimum();
+        var maximumBound = GetTechLevelSliderUpperBound();
+        var clampedMinValue = Math.Clamp(minValue, minimumBound, maximumBound);
+        var clampedMaxValue = Math.Clamp(Math.Max(maxValue, clampedMinValue), minimumBound, maximumBound);
+
+        techLevelMinText = clampedMinValue <= minimumBound
+            ? string.Empty
+            : clampedMinValue.ToString(CultureInfo.InvariantCulture);
+        techLevelMaxText = clampedMaxValue >= maximumBound
+            ? string.Empty
+            : clampedMaxValue.ToString(CultureInfo.InvariantCulture);
+    }
+
     private static int CompareDescending<TValue>(TValue leftValue, TValue rightValue, ExplorerEmpireListItem left, ExplorerEmpireListItem right)
         where TValue : IComparable<TValue>
     {
@@ -1024,6 +1249,22 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedValue)
             ? parsedValue
             : null;
+    }
+
+    private static int ParseSliderInt(object? value, int fallbackValue)
+    {
+        return value is not null
+            && int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedValue)
+            ? parsedValue
+            : fallbackValue;
+    }
+
+    private static long ParseSliderLong(object? value, long fallbackValue)
+    {
+        return value is not null
+            && long.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedValue)
+            ? parsedValue
+            : fallbackValue;
     }
 
     private static decimal? ParsePopulationAbsolute(string? value)

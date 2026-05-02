@@ -200,7 +200,11 @@ public sealed record ExplorerAlienRaceDetail(
     IReadOnlyList<StarWin.Domain.Model.Entity.Civilization.Empire> Empires);
 
 public sealed record ExplorerEmpireFilterOptions(
-    IReadOnlyList<ExplorerLookupOption> Races);
+    IReadOnlyList<ExplorerLookupOption> Races,
+    int MaxControlledWorldCount = 1,
+    long MaxNativePopulationMillions = 1,
+    int MaxGurpsTechLevel = 1,
+    int MaxStarWinTechLevel = 1);
 
 public enum ExplorerEmpireStatusFilter
 {
