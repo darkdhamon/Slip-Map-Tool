@@ -1400,7 +1400,7 @@ dd {
 
 .record-filter-tristate-toggle {
     --toggle-index: 1;
-    --toggle-glow-x: 24%;
+    --toggle-glow-x: 50%;
     --toggle-track-glow: rgba(24, 174, 255, 0.18);
     --toggle-track-border: rgba(41, 183, 255, 0.4);
     --toggle-track-inner-glow: rgba(14, 165, 233, 0.14);
@@ -1449,6 +1449,36 @@ dd {
     transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
+.record-filter-tristate-toggle.state-active {
+    --toggle-glow-x: 24%;
+    --toggle-track-glow: rgba(34, 197, 94, 0.2);
+    --toggle-track-border: rgba(74, 222, 128, 0.4);
+    --toggle-track-inner-glow: rgba(34, 197, 94, 0.14);
+    --toggle-track-outline: rgba(6, 78, 59, 0.65);
+    --toggle-track-ambient-glow: rgba(34, 197, 94, 0.18);
+    --toggle-scan-soft: rgba(74, 222, 128, 0.08);
+    --toggle-scan-strong: rgba(74, 222, 128, 0.36);
+    --toggle-thumb-border: rgba(110, 231, 183, 0.58);
+    --toggle-thumb-outline: rgba(5, 150, 105, 0.44);
+    --toggle-thumb-glow: rgba(74, 222, 128, 0.42);
+    --toggle-thumb-highlight: rgba(196, 255, 232, 0.9);
+    --toggle-thumb-mid: rgba(112, 255, 196, 0.38);
+    --toggle-thumb-deep: rgba(11, 167, 101, 0.92);
+    --toggle-thumb-base: rgba(3, 59, 40, 0.98);
+    --toggle-thumb-shell-top: rgba(6, 47, 35, 0.98);
+    --toggle-thumb-shell-bottom: rgba(3, 25, 18, 0.98);
+    --toggle-thumb-core: rgba(118, 255, 208, 0.72);
+    --toggle-thumb-core-shadow: rgba(16, 255, 169, 0.36);
+    --toggle-thumb-inner-stop: rgba(168, 255, 223, 0.56);
+    --toggle-thumb-inner-shadow: rgba(83, 255, 193, 0.54);
+    --toggle-thumb-scan-accent: rgba(83, 255, 193, 0.38);
+    --toggle-particle: rgba(110, 255, 206, 0.84);
+    --toggle-particle-shadow: rgba(83, 255, 193, 0.78);
+    --toggle-holo-glow: rgba(16, 255, 169, 0.18);
+    --toggle-label-glow: rgba(83, 255, 193, 0.44);
+    --toggle-status-dot: rgba(103, 255, 194, 0.95);
+}
+
 .record-filter-tristate-toggle:hover {
     border-color: rgba(125, 211, 252, 0.3);
     box-shadow:
@@ -1458,32 +1488,32 @@ dd {
 
 .record-filter-tristate-toggle.state-both {
     --toggle-glow-x: 50%;
-    --toggle-track-glow: rgba(245, 158, 11, 0.18);
-    --toggle-track-border: rgba(251, 191, 36, 0.44);
-    --toggle-track-inner-glow: rgba(245, 158, 11, 0.16);
-    --toggle-track-outline: rgba(74, 36, 4, 0.7);
-    --toggle-track-ambient-glow: rgba(245, 158, 11, 0.22);
-    --toggle-scan-soft: rgba(251, 191, 36, 0.08);
-    --toggle-scan-strong: rgba(251, 191, 36, 0.34);
-    --toggle-thumb-border: rgba(252, 211, 77, 0.58);
-    --toggle-thumb-outline: rgba(180, 83, 9, 0.42);
-    --toggle-thumb-glow: rgba(250, 204, 21, 0.34);
-    --toggle-thumb-highlight: rgba(255, 245, 166, 0.92);
-    --toggle-thumb-mid: rgba(251, 191, 36, 0.42);
-    --toggle-thumb-deep: rgba(217, 119, 6, 0.92);
-    --toggle-thumb-base: rgba(120, 53, 15, 0.98);
-    --toggle-thumb-shell-top: rgba(67, 30, 8, 0.98);
-    --toggle-thumb-shell-bottom: rgba(37, 17, 6, 0.98);
-    --toggle-thumb-core: rgba(253, 230, 138, 0.72);
-    --toggle-thumb-core-shadow: rgba(250, 204, 21, 0.34);
-    --toggle-thumb-inner-stop: rgba(255, 237, 160, 0.56);
-    --toggle-thumb-inner-shadow: rgba(251, 191, 36, 0.52);
-    --toggle-thumb-scan-accent: rgba(251, 191, 36, 0.36);
-    --toggle-particle: rgba(253, 224, 71, 0.82);
-    --toggle-particle-shadow: rgba(251, 191, 36, 0.74);
-    --toggle-holo-glow: rgba(250, 204, 21, 0.18);
-    --toggle-label-glow: rgba(251, 191, 36, 0.44);
-    --toggle-status-dot: rgba(250, 204, 21, 0.95);
+    --toggle-track-glow: rgba(24, 174, 255, 0.18);
+    --toggle-track-border: rgba(41, 183, 255, 0.4);
+    --toggle-track-inner-glow: rgba(14, 165, 233, 0.14);
+    --toggle-track-outline: rgba(5, 21, 43, 0.65);
+    --toggle-track-ambient-glow: rgba(14, 165, 233, 0.18);
+    --toggle-scan-soft: rgba(69, 188, 255, 0.08);
+    --toggle-scan-strong: rgba(69, 188, 255, 0.36);
+    --toggle-thumb-border: rgba(81, 200, 255, 0.58);
+    --toggle-thumb-outline: rgba(9, 85, 155, 0.44);
+    --toggle-thumb-glow: rgba(38, 180, 255, 0.42);
+    --toggle-thumb-highlight: rgba(166, 231, 255, 0.88);
+    --toggle-thumb-mid: rgba(118, 203, 255, 0.35);
+    --toggle-thumb-deep: rgba(25, 121, 198, 0.94);
+    --toggle-thumb-base: rgba(5, 38, 84, 0.98);
+    --toggle-thumb-shell-top: rgba(7, 26, 54, 0.98);
+    --toggle-thumb-shell-bottom: rgba(5, 17, 35, 0.98);
+    --toggle-thumb-core: rgba(102, 216, 255, 0.7);
+    --toggle-thumb-core-shadow: rgba(56, 189, 248, 0.35);
+    --toggle-thumb-inner-stop: rgba(148, 217, 255, 0.52);
+    --toggle-thumb-inner-shadow: rgba(125, 211, 252, 0.52);
+    --toggle-thumb-scan-accent: rgba(56, 189, 248, 0.34);
+    --toggle-particle: rgba(125, 211, 252, 0.82);
+    --toggle-particle-shadow: rgba(125, 211, 252, 0.7);
+    --toggle-holo-glow: rgba(56, 189, 248, 0.16);
+    --toggle-label-glow: rgba(56, 189, 248, 0.42);
+    --toggle-status-dot: rgba(78, 196, 255, 0.94);
 }
 
 .record-filter-tristate-toggle.state-fallen {
@@ -1748,6 +1778,8 @@ dd {
 .record-filter-tristate-toggle-option span {
     position: relative;
     z-index: 1;
+    text-shadow: 0 1px 1px rgba(2, 6, 23, 0.8);
+    transition: text-shadow 180ms ease, background 180ms ease, box-shadow 180ms ease, padding 180ms ease;
 }
 
 .record-filter-tristate-toggle-option::after {
@@ -1774,7 +1806,22 @@ dd {
 
 .record-filter-tristate-toggle-option.active {
     color: var(--toggle-label-active);
-    text-shadow: 0 0 12px var(--toggle-label-glow);
+    text-shadow:
+        0 1px 2px rgba(2, 6, 23, 0.96),
+        0 0 12px var(--toggle-label-glow);
+}
+
+.record-filter-tristate-toggle-option.active span {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0.22), rgba(2, 6, 23, 0.08));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+    text-shadow:
+        0 1px 2px rgba(2, 6, 23, 0.98),
+        0 0 12px var(--toggle-label-glow);
+    -webkit-text-stroke: 0.2px rgba(2, 6, 23, 0.55);
 }
 
 .record-filter-tristate-toggle-option.active::after {
