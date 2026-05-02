@@ -1344,6 +1344,14 @@ dd {
     font-weight: 800;
 }
 
+.record-list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
 .record-filter-grid {
     display: grid;
     gap: 10px;
@@ -1859,6 +1867,21 @@ dd {
     align-self: stretch;
 }
 
+.record-list-sort-label {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.record-list-sort-label select {
+    min-width: min(240px, 100%);
+}
+
 .record-filter-actions,
 .record-filter-toggle-row {
     display: flex;
@@ -1874,7 +1897,8 @@ dd {
 }
 
 .record-filter-panel input,
-.record-filter-panel select {
+.record-filter-panel select,
+.record-list-sort-label select {
     width: 100%;
     box-sizing: border-box;
     min-height: 38px;
@@ -1887,7 +1911,8 @@ dd {
 }
 
 .record-filter-panel input:focus,
-.record-filter-panel select:focus {
+.record-filter-panel select:focus,
+.record-list-sort-label select:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
 }

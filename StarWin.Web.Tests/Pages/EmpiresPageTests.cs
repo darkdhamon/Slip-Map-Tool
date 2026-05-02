@@ -703,6 +703,24 @@ public sealed class EmpiresPageTests : BunitContext
     }
 
     [Fact]
+    public void KeepsSortControlOutsideCollapsedFilterPanel()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext());
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var filterPanel = cut.Find(".record-filter-panel");
+            Assert.Null(filterPanel.GetAttribute("open"));
+            Assert.Null(filterPanel.QuerySelector("[data-testid='empire-sort-select']"));
+            Assert.NotNull(cut.Find(".record-list-toolbar [data-testid='empire-sort-select']"));
+        });
+    }
+
+    [Fact]
     public void ShowsSearchingStateWhileEmpireFiltersReloadResults()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;

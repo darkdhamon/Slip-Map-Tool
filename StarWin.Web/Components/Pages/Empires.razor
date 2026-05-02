@@ -67,77 +67,64 @@
                                 }
                             </datalist>
                         </label>
-                        <div class="record-filter-inline-group">
-                            <div class="record-filter-fieldset">
-                                <span class="record-filter-heading">Status</span>
-                                <div class="record-filter-tristate-toggle @GetEmpireStatusToggleStateClass()"
-                                     style="--toggle-index:@GetEmpireStatusToggleIndex();"
-                                     role="radiogroup"
-                                     aria-label="Empire status filter"
-                                     data-testid="empire-status-filter">
-                                    <span class="record-filter-tristate-toggle-track" aria-hidden="true">
-                                        <span class="record-filter-tristate-toggle-track-lines">
-                                            <span class="record-filter-tristate-toggle-track-line"></span>
-                                        </span>
-                                        <span class="record-filter-tristate-toggle-reflection"></span>
-                                        <span class="record-filter-tristate-toggle-holo-glow"></span>
+                        <div class="record-filter-fieldset">
+                            <span class="record-filter-heading">Status</span>
+                            <div class="record-filter-tristate-toggle @GetEmpireStatusToggleStateClass()"
+                                 style="--toggle-index:@GetEmpireStatusToggleIndex();"
+                                 role="radiogroup"
+                                 aria-label="Empire status filter"
+                                 data-testid="empire-status-filter">
+                                <span class="record-filter-tristate-toggle-track" aria-hidden="true">
+                                    <span class="record-filter-tristate-toggle-track-lines">
+                                        <span class="record-filter-tristate-toggle-track-line"></span>
                                     </span>
-                                    <span class="record-filter-tristate-toggle-thumb" aria-hidden="true">
-                                        <span class="record-filter-tristate-toggle-energy-rings">
-                                            <span class="record-filter-tristate-toggle-energy-ring"></span>
-                                            <span class="record-filter-tristate-toggle-energy-ring"></span>
-                                            <span class="record-filter-tristate-toggle-energy-ring"></span>
-                                        </span>
-                                        <span class="record-filter-tristate-toggle-thumb-core"></span>
-                                        <span class="record-filter-tristate-toggle-thumb-inner"></span>
-                                        <span class="record-filter-tristate-toggle-thumb-scan"></span>
-                                        <span class="record-filter-tristate-toggle-thumb-particles">
-                                            <span class="record-filter-tristate-toggle-thumb-particle"></span>
-                                            <span class="record-filter-tristate-toggle-thumb-particle"></span>
-                                            <span class="record-filter-tristate-toggle-thumb-particle"></span>
-                                            <span class="record-filter-tristate-toggle-thumb-particle"></span>
-                                        </span>
+                                    <span class="record-filter-tristate-toggle-reflection"></span>
+                                    <span class="record-filter-tristate-toggle-holo-glow"></span>
+                                </span>
+                                <span class="record-filter-tristate-toggle-thumb" aria-hidden="true">
+                                    <span class="record-filter-tristate-toggle-energy-rings">
+                                        <span class="record-filter-tristate-toggle-energy-ring"></span>
+                                        <span class="record-filter-tristate-toggle-energy-ring"></span>
+                                        <span class="record-filter-tristate-toggle-energy-ring"></span>
                                     </span>
-                                    <label class="record-filter-tristate-toggle-option @(empireStatusFilter == ExplorerEmpireStatusFilter.Active ? "active" : null)"
-                                           data-testid="empire-status-active"
-                                           @onclick="() => SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter.Active)">
-                                        <input type="radio"
-                                               name="empire-status-filter"
-                                               checked="@(empireStatusFilter == ExplorerEmpireStatusFilter.Active)"
-                                               aria-label="Active empires" />
-                                        <span>Active</span>
-                                    </label>
-                                    <label class="record-filter-tristate-toggle-option @(empireStatusFilter == ExplorerEmpireStatusFilter.Both ? "active" : null)"
-                                           data-testid="empire-status-both"
-                                           @onclick="() => SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter.Both)">
-                                        <input type="radio"
-                                               name="empire-status-filter"
-                                               checked="@(empireStatusFilter == ExplorerEmpireStatusFilter.Both)"
-                                               aria-label="Active and fallen empires" />
-                                        <span>Both</span>
-                                    </label>
-                                    <label class="record-filter-tristate-toggle-option @(empireStatusFilter == ExplorerEmpireStatusFilter.Fallen ? "active" : null)"
-                                           data-testid="empire-status-fallen"
-                                           @onclick="() => SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter.Fallen)">
-                                        <input type="radio"
-                                               name="empire-status-filter"
-                                               checked="@(empireStatusFilter == ExplorerEmpireStatusFilter.Fallen)"
-                                               aria-label="Fallen empires" />
-                                        <span>Fallen</span>
-                                    </label>
-                                </div>
+                                    <span class="record-filter-tristate-toggle-thumb-core"></span>
+                                    <span class="record-filter-tristate-toggle-thumb-inner"></span>
+                                    <span class="record-filter-tristate-toggle-thumb-scan"></span>
+                                    <span class="record-filter-tristate-toggle-thumb-particles">
+                                        <span class="record-filter-tristate-toggle-thumb-particle"></span>
+                                        <span class="record-filter-tristate-toggle-thumb-particle"></span>
+                                        <span class="record-filter-tristate-toggle-thumb-particle"></span>
+                                        <span class="record-filter-tristate-toggle-thumb-particle"></span>
+                                    </span>
+                                </span>
+                                <label class="record-filter-tristate-toggle-option @(empireStatusFilter == ExplorerEmpireStatusFilter.Active ? "active" : null)"
+                                       data-testid="empire-status-active"
+                                       @onclick="() => SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter.Active)">
+                                    <input type="radio"
+                                           name="empire-status-filter"
+                                           checked="@(empireStatusFilter == ExplorerEmpireStatusFilter.Active)"
+                                           aria-label="Active empires" />
+                                    <span>Active</span>
+                                </label>
+                                <label class="record-filter-tristate-toggle-option @(empireStatusFilter == ExplorerEmpireStatusFilter.Both ? "active" : null)"
+                                       data-testid="empire-status-both"
+                                       @onclick="() => SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter.Both)">
+                                    <input type="radio"
+                                           name="empire-status-filter"
+                                           checked="@(empireStatusFilter == ExplorerEmpireStatusFilter.Both)"
+                                           aria-label="Active and fallen empires" />
+                                    <span>Both</span>
+                                </label>
+                                <label class="record-filter-tristate-toggle-option @(empireStatusFilter == ExplorerEmpireStatusFilter.Fallen ? "active" : null)"
+                                       data-testid="empire-status-fallen"
+                                       @onclick="() => SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter.Fallen)">
+                                    <input type="radio"
+                                           name="empire-status-filter"
+                                           checked="@(empireStatusFilter == ExplorerEmpireStatusFilter.Fallen)"
+                                           aria-label="Fallen empires" />
+                                    <span>Fallen</span>
+                                </label>
                             </div>
-                            <label class="record-filter-select-label">
-                                Sort
-                                <select @bind="empireSortOption"
-                                        @bind:after="HandleEmpireSortChangedAsync"
-                                        data-testid="empire-sort-select">
-                                    <option value="@ExplorerEmpireSortOption.Alphabetical">Alphabetical</option>
-                                    <option value="@ExplorerEmpireSortOption.Population">Population</option>
-                                    <option value="@ExplorerEmpireSortOption.ControlledWorlds">Controlled worlds</option>
-                                    <option value="@ExplorerEmpireSortOption.EconomicPower">Economic power</option>
-                                </select>
-                            </label>
                         </div>
                         <div class="record-filter-fieldset">
                             <span class="record-filter-heading">Controlled worlds</span>
@@ -225,7 +212,20 @@
                         </div>
                     </div>
                 </details>
-                <div class="timeline-count">Showing @LoadedEmpireSummaries.Count empire@(LoadedEmpireSummaries.Count == 1 ? string.Empty : "s")@(empireHasMoreRecords ? "+" : string.Empty)</div>
+                <div class="record-list-toolbar">
+                    <div class="timeline-count">Showing @LoadedEmpireSummaries.Count empire@(LoadedEmpireSummaries.Count == 1 ? string.Empty : "s")@(empireHasMoreRecords ? "+" : string.Empty)</div>
+                    <label class="record-list-sort-label">
+                        <span>Sort</span>
+                        <select @bind="empireSortOption"
+                                @bind:after="HandleEmpireSortChangedAsync"
+                                data-testid="empire-sort-select">
+                            <option value="@ExplorerEmpireSortOption.Alphabetical">Alphabetical</option>
+                            <option value="@ExplorerEmpireSortOption.Population">Population</option>
+                            <option value="@ExplorerEmpireSortOption.ControlledWorlds">Controlled worlds</option>
+                            <option value="@ExplorerEmpireSortOption.EconomicPower">Economic power</option>
+                        </select>
+                    </label>
+                </div>
                 @if ((empireListLoading || empireFilterPending) && LoadedEmpireSummaries.Count == 0)
                 {
                     <article class="timeline-event-card">
