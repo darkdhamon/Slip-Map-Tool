@@ -70,19 +70,39 @@
                         <div class="record-filter-inline-group">
                             <div class="record-filter-fieldset">
                                 <span class="record-filter-heading">Status</span>
-                                <div class="segmented-control record-filter-segmented-control" data-testid="empire-status-filter">
-                                    <button type="button"
-                                            class="@(empireStatusFilter == ExplorerEmpireStatusFilter.Active ? "active" : null)"
-                                            data-testid="empire-status-active"
-                                            @onclick="() => SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter.Active)">Active</button>
-                                    <button type="button"
-                                            class="@(empireStatusFilter == ExplorerEmpireStatusFilter.Both ? "active" : null)"
-                                            data-testid="empire-status-both"
-                                            @onclick="() => SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter.Both)">Both</button>
-                                    <button type="button"
-                                            class="@(empireStatusFilter == ExplorerEmpireStatusFilter.Fallen ? "active" : null)"
-                                            data-testid="empire-status-fallen"
-                                            @onclick="() => SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter.Fallen)">Fallen</button>
+                                <div class="record-filter-tristate-toggle @GetEmpireStatusToggleStateClass()"
+                                     style="--toggle-index:@GetEmpireStatusToggleIndex();"
+                                     role="radiogroup"
+                                     aria-label="Empire status filter"
+                                     data-testid="empire-status-filter">
+                                    <span class="record-filter-tristate-toggle-thumb" aria-hidden="true"></span>
+                                    <label class="record-filter-tristate-toggle-option @(empireStatusFilter == ExplorerEmpireStatusFilter.Active ? "active" : null)"
+                                           data-testid="empire-status-active"
+                                           @onclick="() => SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter.Active)">
+                                        <input type="radio"
+                                               name="empire-status-filter"
+                                               checked="@(empireStatusFilter == ExplorerEmpireStatusFilter.Active)"
+                                               aria-label="Active empires" />
+                                        <span>Active</span>
+                                    </label>
+                                    <label class="record-filter-tristate-toggle-option @(empireStatusFilter == ExplorerEmpireStatusFilter.Both ? "active" : null)"
+                                           data-testid="empire-status-both"
+                                           @onclick="() => SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter.Both)">
+                                        <input type="radio"
+                                               name="empire-status-filter"
+                                               checked="@(empireStatusFilter == ExplorerEmpireStatusFilter.Both)"
+                                               aria-label="Active and fallen empires" />
+                                        <span>Both</span>
+                                    </label>
+                                    <label class="record-filter-tristate-toggle-option @(empireStatusFilter == ExplorerEmpireStatusFilter.Fallen ? "active" : null)"
+                                           data-testid="empire-status-fallen"
+                                           @onclick="() => SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter.Fallen)">
+                                        <input type="radio"
+                                               name="empire-status-filter"
+                                               checked="@(empireStatusFilter == ExplorerEmpireStatusFilter.Fallen)"
+                                               aria-label="Fallen empires" />
+                                        <span>Fallen</span>
+                                    </label>
                                 </div>
                             </div>
                             <label class="record-filter-select-label">

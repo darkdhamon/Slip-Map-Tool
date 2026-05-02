@@ -271,6 +271,26 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         return Task.CompletedTask;
     }
 
+    protected int GetEmpireStatusToggleIndex()
+    {
+        return empireStatusFilter switch
+        {
+            ExplorerEmpireStatusFilter.Active => 0,
+            ExplorerEmpireStatusFilter.Fallen => 2,
+            _ => 1
+        };
+    }
+
+    protected string GetEmpireStatusToggleStateClass()
+    {
+        return empireStatusFilter switch
+        {
+            ExplorerEmpireStatusFilter.Active => "state-active",
+            ExplorerEmpireStatusFilter.Fallen => "state-fallen",
+            _ => "state-both"
+        };
+    }
+
     protected Task SetEmpireTechLevelSystemAsync(ExplorerEmpireTechLevelSystem techLevelSystem)
     {
         if (empireTechLevelSystem == techLevelSystem)

@@ -633,6 +633,8 @@ public sealed class EmpiresPageTests : BunitContext
 
         var cut = Render<Empires>();
 
+        Assert.Contains("record-filter-tristate-toggle", cut.Markup);
+
         cut.Find("[data-testid='empire-status-fallen']").Click();
 
         cut.WaitForAssertion(() =>
