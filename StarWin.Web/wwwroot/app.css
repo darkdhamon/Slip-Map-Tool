@@ -1290,6 +1290,13 @@ dd {
     cursor: pointer;
 }
 
+.record-filter-summary-copy {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
 .record-filter-summary::-webkit-details-marker {
     display: none;
 }
@@ -1314,6 +1321,34 @@ dd {
     content: "+";
 }
 
+.record-filter-panel[open] .record-filter-chip-list {
+    display: none;
+}
+
+.record-filter-chip-list {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.record-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    border: 1px solid rgba(125, 211, 252, 0.26);
+    border-radius: 999px;
+    background: rgba(14, 165, 233, 0.12);
+    color: #dbeafe;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.record-filter-grid {
+    display: grid;
+    gap: 10px;
+}
+
 .record-filter-panel label {
     display: grid;
     gap: 6px;
@@ -1322,10 +1357,77 @@ dd {
     font-weight: 900;
 }
 
+.record-filter-inline-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    align-items: end;
+}
+
+.record-filter-fieldset {
+    display: grid;
+    gap: 8px;
+    border: 1px solid rgba(125, 211, 252, 0.16);
+    border-radius: 8px;
+    background: rgba(8, 15, 32, 0.68);
+    padding: 10px;
+}
+
+.record-filter-fieldset-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.record-filter-heading {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.record-filter-segmented-control {
+    margin-bottom: 0;
+}
+
+.record-filter-segmented-control button {
+    min-height: 34px;
+    padding: 6px 10px;
+}
+
+.record-filter-range-inputs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.record-filter-range-inputs label {
+    gap: 4px;
+}
+
+.record-filter-range-inputs label span {
+    color: #cbd5e1;
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.record-filter-select-label {
+    align-self: stretch;
+}
+
 .record-filter-actions,
 .record-filter-toggle-row {
     display: flex;
     align-items: stretch;
+}
+
+.record-filter-actions {
+    justify-content: flex-end;
 }
 
 .record-filter-actions .timeline-clear-button {

@@ -202,7 +202,7 @@ public sealed class StarWinExplorerQueryServiceTests
     }
 
     [Fact]
-    public async Task LoadEmpireListPageAsync_applies_query_and_race_filters_and_marks_fallen_empires()
+    public async Task LoadEmpireListPageAsync_applies_query_race_and_status_filters_and_marks_fallen_empires()
     {
         var databasePath = CreateTempFilePath(".db");
 
@@ -236,12 +236,92 @@ public sealed class StarWinExplorerQueryServiceTests
             Assert.Single(fallenSearch.Items);
             Assert.True(fallenSearch.Items[0].IsFallen);
 
-            var fallenOnlySearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, FallenOnly: true));
+            var fallenOnlySearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                StatusFilter: ExplorerEmpireStatusFilter.Fallen));
             Assert.Single(fallenOnlySearch.Items);
             Assert.Equal("Watcher Remnant", fallenOnlySearch.Items[0].Name);
             Assert.Equal(0, fallenOnlySearch.Items[0].ControlledWorldCount);
             Assert.Equal(1, fallenOnlySearch.Items[0].TrackedWorldCount);
             Assert.True(fallenOnlySearch.Items[0].IsFallen);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task LoadEmpireListPageAsync_applies_world_population_tl_and_sort_filters_in_database()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var activeOnlySearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                StatusFilter: ExplorerEmpireStatusFilter.Active));
+            Assert.Equal(["Aurelian Concord", "Krell Reach"], activeOnlySearch.Items.Select(item => item.Name).ToArray());
+
+            var controlledWorldRangeSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                MinControlledWorldCount: 2));
+            Assert.Single(controlledWorldRangeSearch.Items);
+            Assert.Equal("Krell Reach", controlledWorldRangeSearch.Items[0].Name);
+
+            var populationRangeSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                MinNativePopulationMillions: 100,
+                MaxNativePopulationMillions: 800));
+            Assert.Single(populationRangeSearch.Items);
+            Assert.Equal("Krell Reach", populationRangeSearch.Items[0].Name);
+
+            var gurpsTechLevelSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                MinTechLevel: 10,
+                MaxTechLevel: 10));
+            Assert.Single(gurpsTechLevelSearch.Items);
+            Assert.Equal("Krell Reach", gurpsTechLevelSearch.Items[0].Name);
+
+            var starWinTechLevelSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                TechLevelSystem: ExplorerEmpireTechLevelSystem.StarWin,
+                MinTechLevel: 8,
+                MaxTechLevel: 8));
+            Assert.Single(starWinTechLevelSearch.Items);
+            Assert.Equal("Krell Reach", starWinTechLevelSearch.Items[0].Name);
+
+            var controlledWorldSort = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                SortOption: ExplorerEmpireSortOption.ControlledWorlds));
+            Assert.Equal("Krell Reach", controlledWorldSort.Items[0].Name);
+
+            var economicPowerSort = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                SortOption: ExplorerEmpireSortOption.EconomicPower));
+            Assert.Equal("Krell Reach", economicPowerSort.Items[0].Name);
         }
         finally
         {
@@ -694,6 +774,7 @@ public sealed class StarWinExplorerQueryServiceTests
             Id = 201,
             Name = "Aurelian Concord",
             GovernmentType = "Council",
+            EconomicPowerMcr = 2200,
             NativePopulationMillions = 1200
         };
         aurelianEmpire.CivilizationProfile.TechLevel = 6;
@@ -738,6 +819,7 @@ public sealed class StarWinExplorerQueryServiceTests
             Id = 202,
             Name = "Krell Reach",
             GovernmentType = "Council",
+            EconomicPowerMcr = 5100,
             NativePopulationMillions = 450
         };
         krellEmpire.CivilizationProfile.TechLevel = 8;
@@ -763,6 +845,7 @@ public sealed class StarWinExplorerQueryServiceTests
             Id = 203,
             Name = "Watcher Remnant",
             GovernmentType = "Council",
+            EconomicPowerMcr = 900,
             Planets = 1,
             NativePopulationMillions = 30,
             IsFallen = true
