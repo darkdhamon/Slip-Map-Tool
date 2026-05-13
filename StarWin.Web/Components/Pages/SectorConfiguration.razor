@@ -245,6 +245,30 @@
                         </section>
                     </div>
                 </section>
+
+                <section class="configuration-card-group">
+                    <div class="configuration-group-header">
+                        <div>
+                            <span class="panel-kicker">Empire Cache</span>
+                            <h3>Sector empire stats</h3>
+                        </div>
+                        <p>Rebuild the sector-scoped empire cache when colony control changes and the explorer needs fast, up-to-date world counts again.</p>
+                    </div>
+                    <div class="configuration-card-grid">
+                        <section class="configuration-card configuration-card-metrics">
+                            <div class="configuration-card-header">
+                                <span class="panel-kicker">Cache</span>
+                                <h4>Empire stats readiness</h4>
+                            </div>
+                            <dl class="field-grid compact-field-grid">
+                                <div><dt>Status</dt><dd>@GetSectorEmpireStatsStatus()</dd></div>
+                                <div><dt>Tracked empires</dt><dd>@(selectedConfigurationState?.SectorEmpireStatsEmpireCount ?? 0)</dd></div>
+                                <div><dt>Last rebuilt</dt><dd>@DisplayDateTime(selectedConfigurationState?.SectorEmpireStatsCalculatedAtUtc)</dd></div>
+                                <div><dt>Summary</dt><dd>@GetSectorEmpireStatsSummary()</dd></div>
+                            </dl>
+                        </section>
+                    </div>
+                </section>
             </div>
             <div class="parent-actions">
                 <button type="button" @onclick="SaveSectorConfigurationAsync">Save configuration</button>
@@ -252,6 +276,9 @@
                     @(SavedRouteCount == 0 ? "Save Current Routes" : "Update Current Routes")
                 </button>
                 <button type="button" @onclick="() => ConvertIndependentColoniesAsync(sector.Id)" disabled="@routeSaveLoadingVisible">Convert independent colonies</button>
+                <button type="button" @onclick="RefreshSectorEmpireStatsAsync" disabled="@sectorEmpireStatsRefreshLoading">
+                    @(sectorEmpireStatsRefreshLoading ? "Refreshing empire stats..." : "Recalculate sector empire stats")
+                </button>
                 <button type="button" @onclick="() => LoadSectorConfigurationForm(selectedConfigurationState)">Reset form</button>
             </div>
             @if (!string.IsNullOrWhiteSpace(sectorConfigurationStatus))

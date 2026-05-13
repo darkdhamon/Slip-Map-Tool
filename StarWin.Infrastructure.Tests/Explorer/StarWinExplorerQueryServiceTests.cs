@@ -466,6 +466,43 @@ public sealed class StarWinExplorerQueryServiceTests
     }
 
     [Fact]
+    public async Task LoadEmpireDetailAsync_refreshes_missing_sector_empire_stat_row_when_cache_is_stale()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var configuration = await seedContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
+            configuration.SectorEmpireStatsInvalidatedAtUtc = DateTime.UtcNow.AddMinutes(5);
+            var staleRow = await seedContext.Set<SectorEmpireStat>().SingleAsync(item => item.SectorId == 1 && item.EmpireId == 201);
+            seedContext.Remove(staleRow);
+            await seedContext.SaveChangesAsync();
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var detail = await service.LoadEmpireDetailAsync(1, 201);
+
+            Assert.NotNull(detail);
+
+            await using var verificationContext = CreateDbContext(databasePath);
+            var rebuiltRow = await verificationContext.Set<SectorEmpireStat>().SingleAsync(item => item.SectorId == 1 && item.EmpireId == 201);
+            Assert.Equal(1, rebuiltRow.ControlledWorldCount);
+            Assert.Equal(1, rebuiltRow.TrackedWorldCount);
+
+            var verificationConfiguration = await verificationContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
+            Assert.NotNull(verificationConfiguration.SectorEmpireStatsInvalidatedAtUtc);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task LoadEmpireDetailAsync_orders_member_races_by_population_descending()
     {
         var databasePath = CreateTempFilePath(".db");
@@ -654,7 +691,16 @@ public sealed class StarWinExplorerQueryServiceTests
 
     private static async Task SeedExplorerDataAsync(StarWinDbContext dbContext)
     {
-        var sector = new StarWinSector { Id = 1, Name = "Delcora" };
+        var sector = new StarWinSector
+        {
+            Id = 1,
+            Name = "Delcora",
+            Configuration = new SectorConfiguration
+            {
+                SectorId = 1,
+                SectorEmpireStatsCalculatedAtUtc = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc)
+            }
+        };
         var homeSystem = new StarSystem { Id = 10, SectorId = 1, Name = "Helios", AllegianceId = 201 };
         var remoteSystem = new StarSystem { Id = 20, SectorId = 1, Name = "Nadir", AllegianceId = 201 };
 
@@ -908,6 +954,31 @@ public sealed class StarWinExplorerQueryServiceTests
         dbContext.Sectors.Add(sector);
         dbContext.AlienRaces.AddRange(aurelian, krell);
         dbContext.Empires.AddRange(aurelianEmpire, krellEmpire, fallenEmpire);
+        dbContext.Set<SectorEmpireStat>().AddRange(
+            new SectorEmpireStat
+            {
+                SectorId = 1,
+                EmpireId = 201,
+                ControlledWorldCount = 1,
+                TrackedWorldCount = 1,
+                LastCalculatedAtUtc = sector.Configuration.SectorEmpireStatsCalculatedAtUtc!.Value
+            },
+            new SectorEmpireStat
+            {
+                SectorId = 1,
+                EmpireId = 202,
+                ControlledWorldCount = 2,
+                TrackedWorldCount = 2,
+                LastCalculatedAtUtc = sector.Configuration.SectorEmpireStatsCalculatedAtUtc!.Value
+            },
+            new SectorEmpireStat
+            {
+                SectorId = 1,
+                EmpireId = 203,
+                ControlledWorldCount = 0,
+                TrackedWorldCount = 1,
+                LastCalculatedAtUtc = sector.Configuration.SectorEmpireStatsCalculatedAtUtc!.Value
+            });
         dbContext.Religions.AddRange(solarDoctrine, dunePath);
         dbContext.Set<EmpireReligion>().AddRange(
             new EmpireReligion

@@ -147,7 +147,10 @@ public sealed record ExplorerSectorConfigurationState(
     StarWin.Domain.Model.Entity.StarMap.SectorConfiguration Configuration,
     int SavedRouteCount,
     StarWin.Domain.Services.SectorHyperlaneNetworkReport SavedRouteReport,
-    int SelectedSystemRouteCount);
+    int SelectedSystemRouteCount,
+    DateTime? SectorEmpireStatsCalculatedAtUtc = null,
+    DateTime? SectorEmpireStatsInvalidatedAtUtc = null,
+    int SectorEmpireStatsEmpireCount = 0);
 
 public sealed record ExplorerHyperlanePageState(
     int SectorId,

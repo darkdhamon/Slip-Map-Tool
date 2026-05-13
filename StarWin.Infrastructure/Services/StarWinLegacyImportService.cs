@@ -1611,6 +1611,9 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
             dbContext.ChangeTracker.AutoDetectChangesEnabled = originalAutoDetectChanges;
         }
 
+        await ReportImportProgressAsync(progress, 100, "Refreshing sector empire stats...", $"Caching current sector empire counts for {sector.Name}.");
+        await PopulateSectorEmpireStatsAsync(sector.Id, cancellationToken);
+
         return new StarWinLegacyImportResult(
             true,
             sector.Id,
@@ -1637,6 +1640,12 @@ public sealed class StarWinLegacyImportService(IDbContextFactory<StarWinDbContex
             detail));
 
         await Task.Yield();
+    }
+
+    private async Task PopulateSectorEmpireStatsAsync(int sectorId, CancellationToken cancellationToken)
+    {
+        await using var statsContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await SectorEmpireStatRefreshOperations.RebuildSectorAsync(statsContext, sectorId, cancellationToken);
     }
 
     private async Task FlushImportChangesAsync(
