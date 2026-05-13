@@ -150,10 +150,13 @@
                                            @bind:after="HandleEmpireFiltersChangedAsync" />
                                 </label>
                             </div>
-                            <div class="record-filter-slider-group">
-                                <label class="record-filter-slider-field">
-                                    <span>Min slider</span>
+                            <div class="record-filter-dual-slider">
+                                <div class="record-filter-dual-slider-readout">@GetControlledWorldSliderSummary()</div>
+                                <div class="record-filter-dual-slider-shell" style="@GetControlledWorldSliderStyle()">
+                                    <span class="record-filter-dual-slider-track" aria-hidden="true"></span>
+                                    <span class="record-filter-dual-slider-range" aria-hidden="true"></span>
                                     <input type="range"
+                                           class="record-filter-dual-slider-input min"
                                            min="@GetControlledWorldSliderMinimum()"
                                            max="@GetControlledWorldSliderMaximum()"
                                            step="1"
@@ -161,11 +164,8 @@
                                            data-testid="empire-controlled-worlds-min-slider"
                                            aria-label="Minimum controlled worlds slider"
                                            @oninput="HandleControlledWorldMinSliderChanged" />
-                                    <small>@GetControlledWorldSliderValueLabel(minimum: true)</small>
-                                </label>
-                                <label class="record-filter-slider-field">
-                                    <span>Max slider</span>
                                     <input type="range"
+                                           class="record-filter-dual-slider-input max"
                                            min="@GetControlledWorldSliderMinimum()"
                                            max="@GetControlledWorldSliderMaximum()"
                                            step="1"
@@ -173,8 +173,7 @@
                                            data-testid="empire-controlled-worlds-max-slider"
                                            aria-label="Maximum controlled worlds slider"
                                            @oninput="HandleControlledWorldMaxSliderChanged" />
-                                    <small>@GetControlledWorldSliderValueLabel(minimum: false)</small>
-                                </label>
+                                </div>
                             </div>
                         </div>
                         <div class="record-filter-fieldset">
@@ -201,10 +200,13 @@
                                            @bind:after="HandleEmpireFiltersChangedAsync" />
                                 </label>
                             </div>
-                            <div class="record-filter-slider-group">
-                                <label class="record-filter-slider-field">
-                                    <span>Min slider</span>
+                            <div class="record-filter-dual-slider">
+                                <div class="record-filter-dual-slider-readout">@GetPopulationSliderSummary()</div>
+                                <div class="record-filter-dual-slider-shell" style="@GetPopulationSliderStyle()">
+                                    <span class="record-filter-dual-slider-track" aria-hidden="true"></span>
+                                    <span class="record-filter-dual-slider-range" aria-hidden="true"></span>
                                     <input type="range"
+                                           class="record-filter-dual-slider-input min"
                                            min="@GetPopulationSliderMinimum()"
                                            max="@GetPopulationSliderMaximum()"
                                            step="1"
@@ -212,11 +214,8 @@
                                            data-testid="empire-population-min-slider"
                                            aria-label="Minimum population slider"
                                            @oninput="HandlePopulationMinSliderChanged" />
-                                    <small>@GetPopulationSliderValueLabel(minimum: true)</small>
-                                </label>
-                                <label class="record-filter-slider-field">
-                                    <span>Max slider</span>
                                     <input type="range"
+                                           class="record-filter-dual-slider-input max"
                                            min="@GetPopulationSliderMinimum()"
                                            max="@GetPopulationSliderMaximum()"
                                            step="1"
@@ -224,8 +223,7 @@
                                            data-testid="empire-population-max-slider"
                                            aria-label="Maximum population slider"
                                            @oninput="HandlePopulationMaxSliderChanged" />
-                                    <small>@GetPopulationSliderValueLabel(minimum: false)</small>
-                                </label>
+                                </div>
                             </div>
                         </div>
                         <div class="record-filter-fieldset">
@@ -264,10 +262,13 @@
                                            @bind:after="HandleEmpireFiltersChangedAsync" />
                                 </label>
                             </div>
-                            <div class="record-filter-slider-group">
-                                <label class="record-filter-slider-field">
-                                    <span>Min slider</span>
+                            <div class="record-filter-dual-slider">
+                                <div class="record-filter-dual-slider-readout">@GetTechLevelSliderSummary()</div>
+                                <div class="record-filter-dual-slider-shell" style="@GetTechLevelSliderStyle()">
+                                    <span class="record-filter-dual-slider-track" aria-hidden="true"></span>
+                                    <span class="record-filter-dual-slider-range" aria-hidden="true"></span>
                                     <input type="range"
+                                           class="record-filter-dual-slider-input min"
                                            min="@GetTechLevelSliderMinimum()"
                                            max="@GetTechLevelSliderMaximum()"
                                            step="1"
@@ -275,11 +276,8 @@
                                            data-testid="empire-tech-level-min-slider"
                                            aria-label="Minimum tech level slider"
                                            @oninput="HandleTechLevelMinSliderChanged" />
-                                    <small>@GetTechLevelSliderValueLabel(minimum: true)</small>
-                                </label>
-                                <label class="record-filter-slider-field">
-                                    <span>Max slider</span>
                                     <input type="range"
+                                           class="record-filter-dual-slider-input max"
                                            min="@GetTechLevelSliderMinimum()"
                                            max="@GetTechLevelSliderMaximum()"
                                            step="1"
@@ -287,8 +285,7 @@
                                            data-testid="empire-tech-level-max-slider"
                                            aria-label="Maximum tech level slider"
                                            @oninput="HandleTechLevelMaxSliderChanged" />
-                                    <small>@GetTechLevelSliderValueLabel(minimum: false)</small>
-                                </label>
+                                </div>
                             </div>
                         </div>
                         <div class="record-filter-actions">

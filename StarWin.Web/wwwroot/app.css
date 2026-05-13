@@ -1917,102 +1917,130 @@ dd {
     box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
 }
 
-.record-filter-slider-group {
+.record-filter-dual-slider {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 12px;
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    border-radius: 12px;
+    background:
+        linear-gradient(180deg, rgba(8, 16, 31, 0.88), rgba(4, 9, 20, 0.82)),
+        radial-gradient(circle at top center, rgba(34, 211, 238, 0.08), transparent 56%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.03),
+        0 10px 22px rgba(2, 6, 23, 0.14);
+    padding: 12px;
 }
 
-.record-filter-panel .record-filter-slider-field {
-    display: grid;
-    gap: 4px;
-    color: #cbd5e1;
-    font-size: 0.7rem;
-    font-weight: 900;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+.record-filter-dual-slider-readout {
+    justify-self: center;
+    color: #67d6ff;
+    font-size: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    text-align: center;
 }
 
-.record-filter-slider-field small {
-    color: #93c5fd;
-    font-size: 0.68rem;
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    text-transform: none;
+.record-filter-dual-slider-shell {
+    --slider-min-percent: 0%;
+    --slider-max-percent: 100%;
+    position: relative;
+    height: 34px;
+    padding: 0 6px;
 }
 
-.record-filter-slider-field input[type="range"] {
+.record-filter-dual-slider-track,
+.record-filter-dual-slider-range {
+    position: absolute;
+    top: 50%;
+    height: 6px;
+    transform: translateY(-50%);
+    border-radius: 999px;
+    pointer-events: none;
+}
+
+.record-filter-dual-slider-track {
+    left: 6px;
+    right: 6px;
+    border: 1px solid rgba(125, 211, 252, 0.22);
+    background: rgba(226, 232, 240, 0.16);
+    box-shadow: inset 0 1px 2px rgba(2, 6, 23, 0.52);
+}
+
+.record-filter-dual-slider-range {
+    left: calc(6px + var(--slider-min-percent));
+    right: calc(6px + (100% - var(--slider-max-percent)));
+    background: linear-gradient(90deg, rgba(56, 189, 248, 0.9), rgba(14, 165, 233, 0.98));
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.26);
+}
+
+.record-filter-dual-slider-input {
     -webkit-appearance: none;
     appearance: none;
+    position: absolute;
+    inset: 0;
     width: 100%;
     min-height: auto;
     border: none;
     background: transparent;
     box-shadow: none;
+    margin: 0;
     padding: 0;
+    pointer-events: none;
 }
 
-.record-filter-slider-field input[type="range"]::-webkit-slider-runnable-track {
+.record-filter-dual-slider-input::-webkit-slider-runnable-track {
     height: 6px;
-    border-radius: 999px;
-    border: 1px solid rgba(125, 211, 252, 0.28);
-    background:
-        linear-gradient(90deg, rgba(56, 189, 248, 0.24), rgba(14, 165, 233, 0.68)),
-        rgba(2, 6, 23, 0.94);
-    box-shadow: inset 0 1px 2px rgba(2, 6, 23, 0.55);
+    background: transparent;
+    border: none;
 }
 
-.record-filter-slider-field input[type="range"]::-moz-range-track {
+.record-filter-dual-slider-input::-moz-range-track {
     height: 6px;
-    border-radius: 999px;
-    border: 1px solid rgba(125, 211, 252, 0.28);
-    background:
-        linear-gradient(90deg, rgba(56, 189, 248, 0.24), rgba(14, 165, 233, 0.68)),
-        rgba(2, 6, 23, 0.94);
-    box-shadow: inset 0 1px 2px rgba(2, 6, 23, 0.55);
+    background: transparent;
+    border: none;
 }
 
-.record-filter-slider-field input[type="range"]::-webkit-slider-thumb {
+.record-filter-dual-slider-input::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     margin-top: -6px;
-    border: 1px solid rgba(186, 230, 253, 0.82);
+    border: 2px solid rgba(125, 211, 252, 0.82);
     border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #e0f2fe, #38bdf8 55%, #0f172a 100%);
+    background: radial-gradient(circle at 35% 30%, #f8fdff, #a5f3fc 22%, #38bdf8 56%, #0f172a 100%);
     box-shadow:
-        0 0 0 2px rgba(8, 47, 73, 0.56),
-        0 0 16px rgba(56, 189, 248, 0.34);
+        0 0 0 2px rgba(8, 47, 73, 0.34),
+        0 0 16px rgba(56, 189, 248, 0.3);
     cursor: pointer;
+    pointer-events: auto;
 }
 
-.record-filter-slider-field input[type="range"]::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    border: 1px solid rgba(186, 230, 253, 0.82);
+.record-filter-dual-slider-input::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(125, 211, 252, 0.82);
     border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #e0f2fe, #38bdf8 55%, #0f172a 100%);
+    background: radial-gradient(circle at 35% 30%, #f8fdff, #a5f3fc 22%, #38bdf8 56%, #0f172a 100%);
     box-shadow:
-        0 0 0 2px rgba(8, 47, 73, 0.56),
-        0 0 16px rgba(56, 189, 248, 0.34);
+        0 0 0 2px rgba(8, 47, 73, 0.34),
+        0 0 16px rgba(56, 189, 248, 0.3);
     cursor: pointer;
+    pointer-events: auto;
 }
 
-.record-filter-slider-field input[type="range"]:focus-visible {
-    outline: none;
+.record-filter-dual-slider-input.min {
+    z-index: 2;
 }
 
-.record-filter-slider-field input[type="range"]:focus-visible::-webkit-slider-runnable-track {
+.record-filter-dual-slider-input.max {
+    z-index: 3;
+}
+
+.record-filter-dual-slider-shell:focus-within .record-filter-dual-slider-track {
     box-shadow:
         0 0 0 3px rgba(56, 189, 248, 0.18),
-        inset 0 1px 2px rgba(2, 6, 23, 0.55);
-}
-
-.record-filter-slider-field input[type="range"]:focus-visible::-moz-range-track {
-    box-shadow:
-        0 0 0 3px rgba(56, 189, 248, 0.18),
-        inset 0 1px 2px rgba(2, 6, 23, 0.55);
+        inset 0 1px 2px rgba(2, 6, 23, 0.52);
 }
 
 .record-filter-toggle {

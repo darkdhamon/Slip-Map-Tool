@@ -318,19 +318,19 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     protected int GetControlledWorldMaxSliderValue() => GetControlledWorldSliderSelection().MaxValue;
 
-    protected string GetControlledWorldSliderValueLabel(bool minimum)
+    protected string GetControlledWorldSliderSummary()
     {
-        var explicitValue = minimum
-            ? ParseNullableInt(controlledWorldCountMinText)
-            : ParseNullableInt(controlledWorldCountMaxText);
-        if (!explicitValue.HasValue)
-        {
-            return "Any";
-        }
-
-        return (minimum ? GetControlledWorldMinSliderValue() : GetControlledWorldMaxSliderValue())
-            .ToString(CultureInfo.InvariantCulture);
+        var summary = FormatRange(
+            ParseNullableInt(controlledWorldCountMinText),
+            ParseNullableInt(controlledWorldCountMaxText));
+        return string.IsNullOrWhiteSpace(summary) ? "Any" : summary;
     }
+
+    protected string GetControlledWorldSliderStyle() => BuildDualSliderStyle(
+        GetControlledWorldSliderMinimum(),
+        GetControlledWorldSliderMaximum(),
+        GetControlledWorldMinSliderValue(),
+        GetControlledWorldMaxSliderValue());
 
     protected Task HandleControlledWorldMinSliderChanged(ChangeEventArgs args)
     {
@@ -358,18 +358,19 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     protected long GetPopulationMaxSliderValue() => GetPopulationSliderSelection().MaxValue;
 
-    protected string GetPopulationSliderValueLabel(bool minimum)
+    protected string GetPopulationSliderSummary()
     {
-        var explicitValue = minimum
-            ? ParsePopulationAbsolute(nativePopulationMinText)
-            : ParsePopulationAbsolute(nativePopulationMaxText);
-        if (!explicitValue.HasValue)
-        {
-            return "Any";
-        }
-
-        return FormatPopulationFilterMillions(minimum ? GetPopulationMinSliderValue() : GetPopulationMaxSliderValue());
+        var summary = FormatPopulationRange(
+            ToPopulationMillions(ParsePopulationAbsolute(nativePopulationMinText), roundUp: true),
+            ToPopulationMillions(ParsePopulationAbsolute(nativePopulationMaxText), roundUp: false));
+        return string.IsNullOrWhiteSpace(summary) ? "Any" : summary;
     }
+
+    protected string GetPopulationSliderStyle() => BuildDualSliderStyle(
+        GetPopulationSliderMinimum(),
+        GetPopulationSliderMaximum(),
+        GetPopulationMinSliderValue(),
+        GetPopulationMaxSliderValue());
 
     protected Task HandlePopulationMinSliderChanged(ChangeEventArgs args)
     {
@@ -397,19 +398,19 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     protected int GetTechLevelMaxSliderValue() => GetTechLevelSliderSelection().MaxValue;
 
-    protected string GetTechLevelSliderValueLabel(bool minimum)
+    protected string GetTechLevelSliderSummary()
     {
-        var explicitValue = minimum
-            ? ParseNullableInt(techLevelMinText)
-            : ParseNullableInt(techLevelMaxText);
-        if (!explicitValue.HasValue)
-        {
-            return "Any";
-        }
-
-        return (minimum ? GetTechLevelMinSliderValue() : GetTechLevelMaxSliderValue())
-            .ToString(CultureInfo.InvariantCulture);
+        var summary = FormatRange(
+            ParseNullableInt(techLevelMinText),
+            ParseNullableInt(techLevelMaxText));
+        return string.IsNullOrWhiteSpace(summary) ? "Any" : summary;
     }
+
+    protected string GetTechLevelSliderStyle() => BuildDualSliderStyle(
+        GetTechLevelSliderMinimum(),
+        GetTechLevelSliderMaximum(),
+        GetTechLevelMinSliderValue(),
+        GetTechLevelMaxSliderValue());
 
     protected Task HandleTechLevelMinSliderChanged(ChangeEventArgs args)
     {
@@ -1227,6 +1228,25 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         techLevelMaxText = clampedMaxValue >= maximumBound
             ? string.Empty
             : clampedMaxValue.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string BuildDualSliderStyle(long minimumBound, long maximumBound, long minimumValue, long maximumValue)
+    {
+        if (maximumBound <= minimumBound)
+        {
+            return "--slider-min-percent: 0%; --slider-max-percent: 100%;";
+        }
+
+        var range = maximumBound - minimumBound;
+        var minimumPercent = Math.Clamp((minimumValue - minimumBound) * 100m / range, 0m, 100m);
+        var maximumPercent = Math.Clamp((maximumValue - minimumBound) * 100m / range, 0m, 100m);
+        return FormattableString.Invariant(
+            $"--slider-min-percent: {minimumPercent:0.###}%; --slider-max-percent: {maximumPercent:0.###}%;");
+    }
+
+    private static string BuildDualSliderStyle(int minimumBound, int maximumBound, int minimumValue, int maximumValue)
+    {
+        return BuildDualSliderStyle((long)minimumBound, maximumBound, minimumValue, maximumValue);
     }
 
     private static int CompareDescending<TValue>(TValue leftValue, TValue rightValue, ExplorerEmpireListItem left, ExplorerEmpireListItem right)
