@@ -544,6 +544,46 @@ public sealed class StarWinExplorerQueryServiceTests
     }
 
     [Fact]
+    public async Task LoadEmpireListPageAsync_only_attempts_timeout_recovery_once()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var configuration = await seedContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
+            configuration.SectorEmpireStatsInvalidatedAtUtc = DateTime.UtcNow;
+            await seedContext.SaveChangesAsync();
+
+            var interceptor = new ThrowTimeoutOnReaderInvocationInterceptor(readerInvocationNumber: 2);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath, interceptor));
+            var method = typeof(StarWinExplorerQueryService).GetMethod(
+                "LoadEmpireListPageCoreAsync",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method);
+
+            var invocation = Assert.IsType<Task<ExplorerEmpireListPage>>(method!.Invoke(service, [
+                new ExplorerEmpireListPageRequest(1, 0, 30, Query: "Concord"),
+                1,
+                CancellationToken.None])!);
+
+            await Assert.ThrowsAsync<TimeoutException>(async () => await invocation);
+
+            await using var verificationContext = CreateDbContext(databasePath);
+            var refreshedConfiguration = await verificationContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
+            Assert.NotNull(refreshedConfiguration.SectorEmpireStatsInvalidatedAtUtc);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task LoadEmpireDetailAsync_orders_member_races_by_population_descending()
     {
         var databasePath = CreateTempFilePath(".db");
@@ -1148,4 +1188,5 @@ public sealed class StarWinExplorerQueryServiceTests
             return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
         }
     }
+
 }

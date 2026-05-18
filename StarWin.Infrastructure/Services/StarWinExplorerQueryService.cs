@@ -19,6 +19,7 @@ public sealed class StarWinExplorerQueryService(
     ILogger<StarWinExplorerQueryService>? logger = null) : IStarWinExplorerQueryService
 {
     private static readonly TimeSpan SectorEntityUsageCacheDuration = TimeSpan.FromSeconds(20);
+    private const int MaxEmpireFallbackRecoveryAttempts = 1;
     private readonly Dictionary<int, CachedSectorEntityUsage> sectorEntityUsageCache = [];
     private readonly ILogger<StarWinExplorerQueryService> logger = logger ?? NullLogger<StarWinExplorerQueryService>.Instance;
 
@@ -1215,6 +1216,14 @@ public sealed class StarWinExplorerQueryService(
 
     public async Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsAsync(int sectorId, CancellationToken cancellationToken = default)
     {
+        return await LoadEmpireFilterOptionsCoreAsync(sectorId, recoveryAttempt: 0, cancellationToken);
+    }
+
+    private async Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsCoreAsync(
+        int sectorId,
+        int recoveryAttempt,
+        CancellationToken cancellationToken)
+    {
         await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         if (await HasCurrentSectorEmpireStatsAsync(dbContext, sectorId, cancellationToken))
         {
@@ -1284,18 +1293,30 @@ public sealed class StarWinExplorerQueryService(
                 Math.Max(1, maxGurpsTechLevel),
                 Math.Max(1, maxStarWinTechLevel));
         }
-        catch (Exception ex) when (IsRecoverableEmpireFallbackTimeout(ex, cancellationToken))
+        catch (Exception ex) when (recoveryAttempt < MaxEmpireFallbackRecoveryAttempts
+            && IsRecoverableEmpireFallbackTimeout(ex, cancellationToken))
         {
             return await RetryWithRebuiltSectorEmpireStatsAsync(
                 sectorId,
                 nameof(LoadEmpireFilterOptionsAsync),
                 ex,
-                (retryContext, retryCancellationToken) => LoadEmpireFilterOptionsFromStatsAsync(retryContext, sectorId, retryCancellationToken),
+                retryCancellationToken => LoadEmpireFilterOptionsCoreAsync(
+                    sectorId,
+                    recoveryAttempt + 1,
+                    retryCancellationToken),
                 cancellationToken);
         }
     }
 
     public async Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)
+    {
+        return await LoadEmpireListPageCoreAsync(request, recoveryAttempt: 0, cancellationToken);
+    }
+
+    private async Task<ExplorerEmpireListPage> LoadEmpireListPageCoreAsync(
+        ExplorerEmpireListPageRequest request,
+        int recoveryAttempt,
+        CancellationToken cancellationToken)
     {
         if (request.SectorId <= 0)
         {
@@ -1328,18 +1349,31 @@ public sealed class StarWinExplorerQueryService(
                     .ToList(),
                 hasMore);
         }
-        catch (Exception ex) when (IsRecoverableEmpireFallbackTimeout(ex, cancellationToken))
+        catch (Exception ex) when (recoveryAttempt < MaxEmpireFallbackRecoveryAttempts
+            && IsRecoverableEmpireFallbackTimeout(ex, cancellationToken))
         {
             return await RetryWithRebuiltSectorEmpireStatsAsync(
                 request.SectorId,
                 nameof(LoadEmpireListPageAsync),
                 ex,
-                (retryContext, retryCancellationToken) => LoadEmpireListPageFromStatsAsync(retryContext, request, empireId: null, retryCancellationToken),
+                retryCancellationToken => LoadEmpireListPageCoreAsync(
+                    request,
+                    recoveryAttempt + 1,
+                    retryCancellationToken),
                 cancellationToken);
         }
     }
 
     public async Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+    {
+        return await LoadEmpireListItemCoreAsync(sectorId, empireId, recoveryAttempt: 0, cancellationToken);
+    }
+
+    private async Task<ExplorerEmpireListItem?> LoadEmpireListItemCoreAsync(
+        int sectorId,
+        int empireId,
+        int recoveryAttempt,
+        CancellationToken cancellationToken)
     {
         if (sectorId <= 0 || empireId <= 0)
         {
@@ -1380,21 +1414,18 @@ public sealed class StarWinExplorerQueryService(
                 ? null
                 : BuildEmpireListItem(MapEmpireListSqlRow(item));
         }
-        catch (Exception ex) when (IsRecoverableEmpireFallbackTimeout(ex, cancellationToken))
+        catch (Exception ex) when (recoveryAttempt < MaxEmpireFallbackRecoveryAttempts
+            && IsRecoverableEmpireFallbackTimeout(ex, cancellationToken))
         {
             return await RetryWithRebuiltSectorEmpireStatsAsync(
                 sectorId,
                 nameof(LoadEmpireListItemAsync),
                 ex,
-                async (retryContext, retryCancellationToken) =>
-                {
-                    var page = await LoadEmpireListPageFromStatsAsync(
-                        retryContext,
-                        new ExplorerEmpireListPageRequest(sectorId, 0, 1),
-                        empireId,
-                        retryCancellationToken);
-                    return page.Items.FirstOrDefault();
-                },
+                retryCancellationToken => LoadEmpireListItemCoreAsync(
+                    sectorId,
+                    empireId,
+                    recoveryAttempt + 1,
+                    retryCancellationToken),
                 cancellationToken);
         }
     }
@@ -1677,7 +1708,7 @@ public sealed class StarWinExplorerQueryService(
         int sectorId,
         string operationName,
         Exception exception,
-        Func<StarWinDbContext, CancellationToken, Task<T>> retryOperation,
+        Func<CancellationToken, Task<T>> retryOperation,
         CancellationToken cancellationToken)
     {
         logger.LogWarning(
@@ -1689,8 +1720,7 @@ public sealed class StarWinExplorerQueryService(
         await using var rebuildContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await SectorEmpireStatRefreshOperations.RebuildSectorAsync(rebuildContext, sectorId, cancellationToken);
 
-        await using var retryContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await retryOperation(retryContext, cancellationToken);
+        return await retryOperation(cancellationToken);
     }
 
     private static bool IsRecoverableEmpireFallbackTimeout(Exception exception, CancellationToken cancellationToken)
