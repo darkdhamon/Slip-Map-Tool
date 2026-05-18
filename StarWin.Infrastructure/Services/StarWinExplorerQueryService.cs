@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Data.Common;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -1220,66 +1221,78 @@ public sealed class StarWinExplorerQueryService(
             return await LoadEmpireFilterOptionsFromStatsAsync(dbContext, sectorId, cancellationToken);
         }
 
-        var sectorEmpireIds = (await GetCachedSectorEntityUsageAsync(dbContext, sectorId, cancellationToken)).EmpireIds;
-        if (sectorEmpireIds.Count == 0)
+        try
         {
-            return new ExplorerEmpireFilterOptions([]);
+            var sectorEmpireIds = (await GetCachedSectorEntityUsageAsync(dbContext, sectorId, cancellationToken)).EmpireIds;
+            if (sectorEmpireIds.Count == 0)
+            {
+                return new ExplorerEmpireFilterOptions([]);
+            }
+
+            var raceOptions = await (
+                from empire in dbContext.Empires.AsNoTracking()
+                from membership in empire.RaceMemberships
+                join race in dbContext.AlienRaces.AsNoTracking() on membership.RaceId equals race.Id
+                join homeWorld in dbContext.Worlds.AsNoTracking() on race.HomePlanetId equals homeWorld.Id into homeWorlds
+                from homeWorld in homeWorlds.DefaultIfEmpty()
+                where sectorEmpireIds.Contains(empire.Id)
+                orderby race.Name, race.Id
+                select new RaceDisplayProjection(
+                    race.Id,
+                    race.Name,
+                    homeWorld != null ? homeWorld.Name : null))
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            var controlledWorldCounts = await (
+                from colony in dbContext.Colonies.AsNoTracking()
+                join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
+                join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
+                where system.SectorId == sectorId
+                    && colony.ControllingEmpireId.HasValue
+                    && sectorEmpireIds.Contains(colony.ControllingEmpireId.Value)
+                group colony by colony.ControllingEmpireId into grouped
+                select grouped.Count())
+                .ToListAsync(cancellationToken);
+            var maxControlledWorldCount = controlledWorldCounts.Count > 0
+                ? controlledWorldCounts.Max()
+                : 0;
+
+            var sectorEmpires = dbContext.Empires
+                .AsNoTracking()
+                .Where(empire => sectorEmpireIds.Contains(empire.Id));
+            var maxNativePopulationMillions = await sectorEmpires
+                .MaxAsync(empire => (long?)empire.NativePopulationMillions, cancellationToken)
+                ?? 0L;
+            var maxStarWinTechLevel = await sectorEmpires
+                .MaxAsync(empire => (int?)empire.CivilizationProfile.TechLevel, cancellationToken)
+                ?? 0;
+            var maxGurpsTechLevel = await sectorEmpires
+                .MaxAsync(empire => (int?)empire.CivilizationProfile.TechLevel + 2, cancellationToken)
+                ?? 0;
+
+            return new ExplorerEmpireFilterOptions(raceOptions
+                .Select(race => new ExplorerLookupOption(
+                    race.RaceId,
+                    ResolveRaceDisplayName(race.RaceId, race.RaceName, race.HomeWorldName)))
+                .DistinctBy(race => race.Id)
+                .OrderBy(race => race.Name, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(race => race.Id)
+                .ToList(),
+                Math.Max(1, maxControlledWorldCount),
+                Math.Max(1L, maxNativePopulationMillions),
+                Math.Max(1, maxGurpsTechLevel),
+                Math.Max(1, maxStarWinTechLevel));
         }
-
-        var raceOptions = await (
-            from empire in dbContext.Empires.AsNoTracking()
-            from membership in empire.RaceMemberships
-            join race in dbContext.AlienRaces.AsNoTracking() on membership.RaceId equals race.Id
-            join homeWorld in dbContext.Worlds.AsNoTracking() on race.HomePlanetId equals homeWorld.Id into homeWorlds
-            from homeWorld in homeWorlds.DefaultIfEmpty()
-            where sectorEmpireIds.Contains(empire.Id)
-            orderby race.Name, race.Id
-            select new RaceDisplayProjection(
-                race.Id,
-                race.Name,
-                homeWorld != null ? homeWorld.Name : null))
-            .Distinct()
-            .ToListAsync(cancellationToken);
-
-        var controlledWorldCounts = await (
-            from colony in dbContext.Colonies.AsNoTracking()
-            join world in dbContext.Worlds.AsNoTracking() on colony.WorldId equals world.Id
-            join system in dbContext.StarSystems.AsNoTracking() on world.StarSystemId equals system.Id
-            where system.SectorId == sectorId
-                && colony.ControllingEmpireId.HasValue
-                && sectorEmpireIds.Contains(colony.ControllingEmpireId.Value)
-            group colony by colony.ControllingEmpireId into grouped
-            select grouped.Count())
-            .ToListAsync(cancellationToken);
-        var maxControlledWorldCount = controlledWorldCounts.Count > 0
-            ? controlledWorldCounts.Max()
-            : 0;
-
-        var sectorEmpires = dbContext.Empires
-            .AsNoTracking()
-            .Where(empire => sectorEmpireIds.Contains(empire.Id));
-        var maxNativePopulationMillions = await sectorEmpires
-            .MaxAsync(empire => (long?)empire.NativePopulationMillions, cancellationToken)
-            ?? 0L;
-        var maxStarWinTechLevel = await sectorEmpires
-            .MaxAsync(empire => (int?)empire.CivilizationProfile.TechLevel, cancellationToken)
-            ?? 0;
-        var maxGurpsTechLevel = await sectorEmpires
-            .MaxAsync(empire => (int?)empire.CivilizationProfile.TechLevel + 2, cancellationToken)
-            ?? 0;
-
-        return new ExplorerEmpireFilterOptions(raceOptions
-            .Select(race => new ExplorerLookupOption(
-                race.RaceId,
-                ResolveRaceDisplayName(race.RaceId, race.RaceName, race.HomeWorldName)))
-            .DistinctBy(race => race.Id)
-            .OrderBy(race => race.Name, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(race => race.Id)
-            .ToList(),
-            Math.Max(1, maxControlledWorldCount),
-            Math.Max(1L, maxNativePopulationMillions),
-            Math.Max(1, maxGurpsTechLevel),
-            Math.Max(1, maxStarWinTechLevel));
+        catch (Exception ex) when (IsRecoverableEmpireFallbackTimeout(ex, cancellationToken))
+        {
+            return await RetryWithRebuiltSectorEmpireStatsAsync(
+                sectorId,
+                nameof(LoadEmpireFilterOptionsAsync),
+                ex,
+                (retryContext, retryCancellationToken) => LoadEmpireFilterOptionsFromStatsAsync(retryContext, sectorId, retryCancellationToken),
+                cancellationToken);
+        }
     }
 
     public async Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)
@@ -1295,23 +1308,35 @@ public sealed class StarWinExplorerQueryService(
             return await LoadEmpireListPageFromStatsAsync(dbContext, request, empireId: null, cancellationToken);
         }
 
-        var pageRows = await dbContext.Database
-            .SqlQuery<EmpireListSqlRow>(BuildEmpireListSql(
-                request,
-                empireId: null,
-                limit: request.Limit + 1,
-                offset: request.Offset,
-                dbContext.Database.ProviderName))
-            .ToListAsync(cancellationToken);
+        try
+        {
+            var pageRows = await dbContext.Database
+                .SqlQuery<EmpireListSqlRow>(BuildEmpireListSql(
+                    request,
+                    empireId: null,
+                    limit: request.Limit + 1,
+                    offset: request.Offset,
+                    dbContext.Database.ProviderName))
+                .ToListAsync(cancellationToken);
 
-        var hasMore = pageRows.Count > request.Limit;
-        return new ExplorerEmpireListPage(
-            pageRows
-                .Take(request.Limit)
-                .Select(MapEmpireListSqlRow)
-                .Select(BuildEmpireListItem)
-                .ToList(),
-            hasMore);
+            var hasMore = pageRows.Count > request.Limit;
+            return new ExplorerEmpireListPage(
+                pageRows
+                    .Take(request.Limit)
+                    .Select(MapEmpireListSqlRow)
+                    .Select(BuildEmpireListItem)
+                    .ToList(),
+                hasMore);
+        }
+        catch (Exception ex) when (IsRecoverableEmpireFallbackTimeout(ex, cancellationToken))
+        {
+            return await RetryWithRebuiltSectorEmpireStatsAsync(
+                request.SectorId,
+                nameof(LoadEmpireListPageAsync),
+                ex,
+                (retryContext, retryCancellationToken) => LoadEmpireListPageFromStatsAsync(retryContext, request, empireId: null, retryCancellationToken),
+                cancellationToken);
+        }
     }
 
     public async Task<ExplorerEmpireListItem?> LoadEmpireListItemAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
@@ -1340,18 +1365,38 @@ public sealed class StarWinExplorerQueryService(
             return page.Items.FirstOrDefault();
         }
 
-        var item = await dbContext.Database
-            .SqlQuery<EmpireListSqlRow>(BuildEmpireListSql(
-                new ExplorerEmpireListPageRequest(sectorId, 0, 1),
-                empireId,
-                limit: 1,
-                offset: 0,
-                dbContext.Database.ProviderName))
-            .FirstOrDefaultAsync(cancellationToken);
+        try
+        {
+            var item = await dbContext.Database
+                .SqlQuery<EmpireListSqlRow>(BuildEmpireListSql(
+                    new ExplorerEmpireListPageRequest(sectorId, 0, 1),
+                    empireId,
+                    limit: 1,
+                    offset: 0,
+                    dbContext.Database.ProviderName))
+                .FirstOrDefaultAsync(cancellationToken);
 
-        return item is null
-            ? null
-            : BuildEmpireListItem(MapEmpireListSqlRow(item));
+            return item is null
+                ? null
+                : BuildEmpireListItem(MapEmpireListSqlRow(item));
+        }
+        catch (Exception ex) when (IsRecoverableEmpireFallbackTimeout(ex, cancellationToken))
+        {
+            return await RetryWithRebuiltSectorEmpireStatsAsync(
+                sectorId,
+                nameof(LoadEmpireListItemAsync),
+                ex,
+                async (retryContext, retryCancellationToken) =>
+                {
+                    var page = await LoadEmpireListPageFromStatsAsync(
+                        retryContext,
+                        new ExplorerEmpireListPageRequest(sectorId, 0, 1),
+                        empireId,
+                        retryCancellationToken);
+                    return page.Items.FirstOrDefault();
+                },
+                cancellationToken);
+        }
     }
 
     public async Task<ExplorerEmpireDetail?> LoadEmpireDetailAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
@@ -1626,6 +1671,73 @@ public sealed class StarWinExplorerQueryService(
         }
 
         await SectorEmpireStatRefreshOperations.RefreshEmpireAsync(dbContext, sectorId, empireId, cancellationToken);
+    }
+
+    private async Task<T> RetryWithRebuiltSectorEmpireStatsAsync<T>(
+        int sectorId,
+        string operationName,
+        Exception exception,
+        Func<StarWinDbContext, CancellationToken, Task<T>> retryOperation,
+        CancellationToken cancellationToken)
+    {
+        logger.LogWarning(
+            exception,
+            "Explorer empire fallback timed out during {Operation}. sectorId={SectorId}. Rebuilding sector empire stats and retrying with the cache.",
+            operationName,
+            sectorId);
+
+        await using var rebuildContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await SectorEmpireStatRefreshOperations.RebuildSectorAsync(rebuildContext, sectorId, cancellationToken);
+
+        await using var retryContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await retryOperation(retryContext, cancellationToken);
+    }
+
+    private static bool IsRecoverableEmpireFallbackTimeout(Exception exception, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested || exception is OperationCanceledException)
+        {
+            return false;
+        }
+
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is TimeoutException)
+            {
+                return true;
+            }
+
+            if (current is DbException dbException && IsCommandTimeoutMessage(dbException.Message))
+            {
+                return true;
+            }
+
+            if (current.GetType().FullName == "Microsoft.Data.SqlClient.SqlException"
+                && current.GetType().GetProperty("Number")?.GetValue(current) is int sqlErrorNumber
+                && sqlErrorNumber == -2)
+            {
+                return true;
+            }
+
+            if (IsCommandTimeoutMessage(current.Message))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsCommandTimeoutMessage(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("Execution Timeout Expired", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("timeout period elapsed", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("command timeout", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<ExplorerEmpireFilterOptions> LoadEmpireFilterOptionsFromStatsAsync(

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Data.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -495,6 +496,46 @@ public sealed class StarWinExplorerQueryServiceTests
 
             var verificationConfiguration = await verificationContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
             Assert.NotNull(verificationConfiguration.SectorEmpireStatsInvalidatedAtUtc);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task LoadEmpireListPageAsync_rebuilds_sector_empire_stats_and_retries_when_fallback_times_out()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var configuration = await seedContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
+            configuration.SectorEmpireStatsInvalidatedAtUtc = DateTime.UtcNow;
+
+            var deletedStat = await seedContext.Set<SectorEmpireStat>().SingleAsync(item => item.SectorId == 1 && item.EmpireId == 201);
+            seedContext.Remove(deletedStat);
+            await seedContext.SaveChangesAsync();
+
+            var interceptor = new ThrowTimeoutOnReaderInvocationInterceptor(readerInvocationNumber: 2);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath, interceptor));
+
+            var page = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, Query: "Concord"));
+
+            Assert.Single(page.Items);
+            Assert.Equal("Aurelian Concord", page.Items[0].Name);
+
+            await using var verificationContext = CreateDbContext(databasePath);
+            Assert.NotNull(await verificationContext.Set<SectorEmpireStat>().SingleOrDefaultAsync(item => item.SectorId == 1 && item.EmpireId == 201));
+
+            var refreshedConfiguration = await verificationContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
+            Assert.NotNull(refreshedConfiguration.SectorEmpireStatsCalculatedAtUtc);
+            Assert.Null(refreshedConfiguration.SectorEmpireStatsInvalidatedAtUtc);
         }
         finally
         {
@@ -1036,12 +1077,18 @@ public sealed class StarWinExplorerQueryServiceTests
         return Assert.IsAssignableFrom<FormattableString>(method!.Invoke(null, [request, null, 31, 0, providerName]));
     }
 
-    private static IDbContextFactory<StarWinDbContext> CreateFactory(string databasePath)
+    private static IDbContextFactory<StarWinDbContext> CreateFactory(string databasePath, params IInterceptor[] interceptors)
     {
-        var options = new DbContextOptionsBuilder<StarWinDbContext>()
+        var builder = new DbContextOptionsBuilder<StarWinDbContext>()
             .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
-            .UseSqlite($"Data Source={databasePath}")
-            .Options;
+            .UseSqlite($"Data Source={databasePath}");
+
+        if (interceptors.Length > 0)
+        {
+            builder.AddInterceptors(interceptors);
+        }
+
+        var options = builder.Options;
 
         return new OptionsDbContextFactory(options);
     }
@@ -1080,6 +1127,25 @@ public sealed class StarWinExplorerQueryServiceTests
         public Task<StarWinDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(CreateDbContext());
+        }
+    }
+
+    private sealed class ThrowTimeoutOnReaderInvocationInterceptor(int readerInvocationNumber) : DbCommandInterceptor
+    {
+        private int readerExecutionCount;
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref readerExecutionCount) == readerInvocationNumber)
+            {
+                throw new TimeoutException("Simulated command timeout for fallback query recovery.");
+            }
+
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
         }
     }
 }
