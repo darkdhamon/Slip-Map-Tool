@@ -148,6 +148,68 @@ public sealed class EmpiresPageTests : BunitContext
     }
 
     [Fact]
+    public void RendersRangeSlidersAndControlledWorldSliderFiltersEmpires()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(
+            additionalEmpires:
+            [
+                CreateEmpire(
+                    3,
+                    "Zephyr League",
+                    foundingWorldId: 102,
+                    primaryRaceId: 1,
+                    planets: 2,
+                    nativePopulationMillions: 800)
+            ],
+            additionalWorlds:
+            [
+                CreateWorld(
+                    102,
+                    "Zephyria",
+                    colonyId: 202,
+                    colonyName: "Zephyria Prime",
+                    controllingEmpireId: 3,
+                    foundingEmpireId: 3),
+                CreateWorld(
+                    103,
+                    "Orion Reach",
+                    colonyId: 203,
+                    colonyName: "Orion Reach Prime",
+                    controllingEmpireId: 2,
+                    foundingEmpireId: 2),
+                CreateWorld(
+                    104,
+                    "Orion Gate",
+                    colonyId: 204,
+                    colonyName: "Orion Gate Prime",
+                    controllingEmpireId: 2,
+                    foundingEmpireId: 2)
+            ]));
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='empire-controlled-worlds-min-slider']"));
+            Assert.NotNull(cut.Find("[data-testid='empire-population-min-slider']"));
+            Assert.NotNull(cut.Find("[data-testid='empire-tech-level-min-slider']"));
+        });
+
+        cut.Find("[data-testid='empire-controlled-worlds-min-slider']").Input("2");
+
+        cut.WaitForAssertion(() =>
+        {
+            var visibleRows = cut.FindAll(".record-row");
+            Assert.Single(visibleRows);
+            Assert.Contains("Orion Compact", visibleRows[0].TextContent);
+            Assert.Contains("Showing 1 empire", cut.Markup);
+            Assert.Equal("2", cut.Find("[data-testid='empire-controlled-worlds-min-input']").GetAttribute("value"));
+        });
+    }
+
+    [Fact]
     public void FiltersEmpiresByRaceWhenRaceFilterIsApplied()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -594,7 +656,7 @@ public sealed class EmpiresPageTests : BunitContext
     }
 
     [Fact]
-    public void FiltersEmpiresByFallenStatusWhenFilterIsApplied()
+    public void FiltersEmpiresByStatusWhenFallenFilterIsApplied()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -633,7 +695,11 @@ public sealed class EmpiresPageTests : BunitContext
 
         var cut = Render<Empires>();
 
-        cut.Find("[data-testid='fallen-empire-filter-toggle']").Change(true);
+        Assert.Contains("record-filter-tristate-toggle", cut.Markup);
+        Assert.Contains("record-filter-tristate-toggle-track", cut.Markup);
+        Assert.Contains("record-filter-tristate-toggle-energy-rings", cut.Markup);
+
+        cut.Find("[data-testid='empire-status-fallen']").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -642,12 +708,64 @@ public sealed class EmpiresPageTests : BunitContext
             Assert.Contains("Ancient Watchers", visibleRows[0].TextContent);
             Assert.Contains("Showing 1 empire", cut.Markup);
             Assert.DoesNotContain("Orion Compact", visibleRows[0].TextContent);
-            Assert.NotNull(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("checked"));
+            Assert.Contains("active", cut.Find("[data-testid='empire-status-fallen']").ClassName);
         });
     }
 
     [Fact]
-    public void RendersSciFiToggleVisualLayersForFallenEmpireFilter()
+    public void SearchPanelStartsCollapsedAndShowsActiveFilterChipsWhenClosed()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(
+            additionalEmpires:
+            [
+                CreateEmpire(
+                    3,
+                    "Zephyr League",
+                    foundingWorldId: 102,
+                    primaryRaceId: 1,
+                    planets: 2,
+                    nativePopulationMillions: 800)
+            ],
+            additionalWorlds:
+            [
+                CreateWorld(
+                    102,
+                    "Zephyria",
+                    colonyId: 202,
+                    colonyName: "Zephyria Prime",
+                    controllingEmpireId: 3,
+                    foundingEmpireId: 3)
+            ]),
+            new Dictionary<(EntityNoteTargetKind, int), EntityNote>
+            {
+                [(EntityNoteTargetKind.EmpireSummary, 3)] = new()
+                {
+                    TargetKind = EntityNoteTargetKind.EmpireSummary,
+                    TargetId = 3,
+                    Markdown = "Frontier trade coalition"
+                }
+            });
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Null(cut.Find(".record-filter-panel").GetAttribute("open"));
+        });
+
+        cut.Find("input[placeholder='Name, summary, or notes...']").Input("Frontier");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Text: Frontier", cut.Markup);
+            Assert.Contains("record-filter-chip", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void KeepsSortControlOutsideCollapsedFilterPanel()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -657,10 +775,10 @@ public sealed class EmpiresPageTests : BunitContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.NotNull(cut.Find(".record-filter-toggle-thumb-scan"));
-            Assert.Equal(5, cut.FindAll(".record-filter-toggle-thumb-particle").Count);
-            Assert.Equal(3, cut.FindAll(".record-filter-toggle-energy-ring").Count);
-            Assert.NotNull(cut.Find(".record-filter-toggle-track-line"));
+            var filterPanel = cut.Find(".record-filter-panel");
+            Assert.Null(filterPanel.GetAttribute("open"));
+            Assert.Null(filterPanel.QuerySelector("[data-testid='empire-sort-select']"));
+            Assert.NotNull(cut.Find(".record-list-toolbar [data-testid='empire-sort-select']"));
         });
     }
 
@@ -706,14 +824,13 @@ public sealed class EmpiresPageTests : BunitContext
 
         var cut = Render<Empires>();
 
-        cut.Find("[data-testid='fallen-empire-filter-toggle']").Change(true);
+        cut.Find("[data-testid='empire-status-fallen']").Click();
 
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Searching", cut.Markup);
             Assert.Contains("Searching empires with the current filters...", cut.Markup);
-            Assert.Null(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("disabled"));
-            Assert.NotNull(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("checked"));
+            Assert.Contains("active", cut.Find("[data-testid='empire-status-fallen']").ClassName);
             Assert.Null(cut.Find("input[placeholder='Name, summary, or notes...']").GetAttribute("disabled"));
             Assert.Null(cut.Find("input[placeholder='All races']").GetAttribute("disabled"));
         });
@@ -726,7 +843,7 @@ public sealed class EmpiresPageTests : BunitContext
     }
 
     [Fact]
-    public void AllowsFallenToggleToBeClearedWhileResultsAreStillLoading()
+    public void AllowsStatusFilterToReturnToBothWhileResultsAreStillLoading()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
@@ -767,21 +884,20 @@ public sealed class EmpiresPageTests : BunitContext
 
         var cut = Render<Empires>();
 
-        cut.Find("[data-testid='fallen-empire-filter-toggle']").Change(true);
+        cut.Find("[data-testid='empire-status-fallen']").Click();
 
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Searching empires with the current filters...", cut.Markup);
-            Assert.NotNull(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("checked"));
+            Assert.Contains("active", cut.Find("[data-testid='empire-status-fallen']").ClassName);
         });
 
-        cut.Find("[data-testid='fallen-empire-filter-toggle']").Change(false);
+        cut.Find("[data-testid='empire-status-both']").Click();
 
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Searching empires with the current filters...", cut.Markup);
-            Assert.Null(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("disabled"));
-            Assert.Null(cut.Find("[data-testid='fallen-empire-filter-toggle']").GetAttribute("checked"));
+            Assert.Contains("active", cut.Find("[data-testid='empire-status-both']").ClassName);
         });
 
         cut.WaitForAssertion(() =>
@@ -792,6 +908,57 @@ public sealed class EmpiresPageTests : BunitContext
             Assert.Contains("Orion Compact", cut.Markup);
             Assert.DoesNotContain("Searching empires with the current filters...", cut.Markup);
         }, TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public void KeepsSelectedEmpireDetailVisibleWhenFiltersHideItsListRow()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        ConfigureServices(CreateContext(
+            additionalEmpires:
+            [
+                CreateEmpire(
+                    3,
+                    "Ancient Watchers",
+                    foundingWorldId: 102,
+                    primaryRaceId: 1,
+                    planets: 1,
+                    nativePopulationMillions: 950,
+                    isFallen: true)
+            ],
+            additionalWorlds:
+            [
+                CreateWorld(
+                    102,
+                    "Watcher Rest",
+                    colonyId: 202,
+                    colonyName: "Watcher Hold",
+                    controllingEmpireId: 4,
+                    foundingEmpireId: 3)
+            ]));
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer/empires?sectorId=7&empireId=2");
+
+        var cut = Render<Empires>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Homeworld: Helios", cut.Markup);
+            Assert.Contains("Orion Compact", cut.Markup);
+        });
+
+        cut.Find("[data-testid='empire-status-fallen']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var visibleRows = cut.FindAll(".record-row");
+            Assert.Single(visibleRows);
+            Assert.Contains("Ancient Watchers", visibleRows[0].TextContent);
+            Assert.DoesNotContain("Orion Compact", visibleRows[0].TextContent);
+            Assert.Contains("Homeworld: Helios", cut.Markup);
+        });
     }
 
     [Fact]
@@ -963,18 +1130,21 @@ public sealed class EmpiresPageTests : BunitContext
         int primaryRaceId,
         int planets,
         long nativePopulationMillions,
-        bool isFallen = false)
+        bool isFallen = false,
+        int starWinTechLevel = 9,
+        long economicPowerMcr = 0)
     {
         var empire = new Empire
         {
             Id = empireId,
             Name = name,
             Planets = planets,
+            EconomicPowerMcr = economicPowerMcr,
             MilitaryPower = 9,
             NativePopulationMillions = nativePopulationMillions,
             IsFallen = isFallen
         };
-        empire.CivilizationProfile.TechLevel = 9;
+        empire.CivilizationProfile.TechLevel = (byte)starWinTechLevel;
         empire.Founding.FoundingWorldId = foundingWorldId;
         empire.Founding.FoundingRaceId = primaryRaceId;
         empire.RaceMemberships.Add(new EmpireRaceMembership
@@ -1038,27 +1208,79 @@ public sealed class EmpiresPageTests : BunitContext
                 .ThenBy(option => option.Id)
                 .ToList();
 
-            return Task.FromResult(new ExplorerEmpireFilterOptions(races));
+            var sectorEmpires = GetSectorEmpires(sectorId);
+            var maxControlledWorldCount = sectorEmpires
+                .Select(empire => GetEmpireWorldCounts(sectorId, empire.Id).ControlledWorldCount)
+                .DefaultIfEmpty(0)
+                .Max();
+            var maxNativePopulationMillions = sectorEmpires
+                .Select(empire => empire.NativePopulationMillions)
+                .DefaultIfEmpty(0L)
+                .Max();
+            var maxStarWinTechLevel = sectorEmpires
+                .Select(empire => (int)empire.CivilizationProfile.TechLevel)
+                .DefaultIfEmpty(0)
+                .Max();
+            var maxGurpsTechLevel = sectorEmpires
+                .Select(empire => (int)empire.CivilizationProfile.TechLevel + 2)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            return Task.FromResult(new ExplorerEmpireFilterOptions(
+                races,
+                Math.Max(1, maxControlledWorldCount),
+                Math.Max(1L, maxNativePopulationMillions),
+                Math.Max(1, maxGurpsTechLevel),
+                Math.Max(1, maxStarWinTechLevel)));
         }
 
         public virtual Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)
         {
             var items = GetSectorEmpires(request.SectorId)
-                .Where(empire => MatchesEmpireFilters(request, empire))
-                .OrderBy(empire => empire.Name)
-                .ThenBy(empire => empire.Id)
                 .Select(empire =>
                 {
                     var (controlledWorldCount, trackedWorldCount) = GetEmpireWorldCounts(request.SectorId, empire.Id);
-                    return new ExplorerEmpireListItem(
-                        empire.Id,
-                        empire.Name,
+                    return new TestEmpireListRow(
+                        empire,
                         controlledWorldCount,
                         trackedWorldCount,
-                        empire.CivilizationProfile.TechLevel + 2,
-                        empire.IsFallen);
+                        empire.CivilizationProfile.TechLevel + 2);
                 })
+                .Where(item => MatchesEmpireFilters(request, item))
+                .Select(item => new ExplorerEmpireListItem(
+                    item.Empire.Id,
+                    item.Empire.Name,
+                    item.ControlledWorldCount,
+                    item.TrackedWorldCount,
+                    item.GurpsTechLevel,
+                    item.Empire.CivilizationProfile.TechLevel,
+                    item.Empire.NativePopulationMillions,
+                    item.Empire.EconomicPowerMcr,
+                    item.Empire.IsFallen))
                 .ToList();
+
+            items = request.SortOption switch
+            {
+                ExplorerEmpireSortOption.Population => items
+                    .OrderByDescending(item => item.NativePopulationMillions)
+                    .ThenBy(item => item.Name)
+                    .ThenBy(item => item.EmpireId)
+                    .ToList(),
+                ExplorerEmpireSortOption.ControlledWorlds => items
+                    .OrderByDescending(item => item.ControlledWorldCount)
+                    .ThenBy(item => item.Name)
+                    .ThenBy(item => item.EmpireId)
+                    .ToList(),
+                ExplorerEmpireSortOption.EconomicPower => items
+                    .OrderByDescending(item => item.EconomicPowerMcr)
+                    .ThenBy(item => item.Name)
+                    .ThenBy(item => item.EmpireId)
+                    .ToList(),
+                _ => items
+                    .OrderBy(item => item.Name)
+                    .ThenBy(item => item.EmpireId)
+                    .ToList()
+            };
 
             var page = items.Skip(request.Offset).Take(request.Limit + 1).ToList();
             var hasMore = page.Count > request.Limit;
@@ -1079,6 +1301,9 @@ public sealed class EmpiresPageTests : BunitContext
                 GetEmpireWorldCounts(sectorId, empire.Id).ControlledWorldCount,
                 GetEmpireWorldCounts(sectorId, empire.Id).TrackedWorldCount,
                 empire.CivilizationProfile.TechLevel + 2,
+                empire.CivilizationProfile.TechLevel,
+                empire.NativePopulationMillions,
+                empire.EconomicPowerMcr,
                 empire.IsFallen));
         }
 
@@ -1261,14 +1486,53 @@ public sealed class EmpiresPageTests : BunitContext
             return (controlledWorldCount, trackedWorldCount);
         }
 
-        private bool MatchesEmpireFilters(ExplorerEmpireListPageRequest request, Empire empire)
+        private bool MatchesEmpireFilters(ExplorerEmpireListPageRequest request, TestEmpireListRow item)
         {
+            var empire = item.Empire;
             if (request.RaceId is int raceId && !empire.RaceMemberships.Any(membership => membership.RaceId == raceId))
             {
                 return false;
             }
 
-            if (request.FallenOnly && !empire.IsFallen)
+            if (request.StatusFilter == ExplorerEmpireStatusFilter.Active && empire.IsFallen)
+            {
+                return false;
+            }
+
+            if (request.StatusFilter == ExplorerEmpireStatusFilter.Fallen && !empire.IsFallen)
+            {
+                return false;
+            }
+
+            if (request.MinControlledWorldCount is int minControlledWorldCount && item.ControlledWorldCount < minControlledWorldCount)
+            {
+                return false;
+            }
+
+            if (request.MaxControlledWorldCount is int maxControlledWorldCount && item.ControlledWorldCount > maxControlledWorldCount)
+            {
+                return false;
+            }
+
+            if (request.MinNativePopulationMillions is long minNativePopulationMillions && empire.NativePopulationMillions < minNativePopulationMillions)
+            {
+                return false;
+            }
+
+            if (request.MaxNativePopulationMillions is long maxNativePopulationMillions && empire.NativePopulationMillions > maxNativePopulationMillions)
+            {
+                return false;
+            }
+
+            var techLevel = request.TechLevelSystem == ExplorerEmpireTechLevelSystem.Gurps
+                ? item.GurpsTechLevel
+                : empire.CivilizationProfile.TechLevel;
+            if (request.MinTechLevel is int minTechLevel && techLevel < minTechLevel)
+            {
+                return false;
+            }
+
+            if (request.MaxTechLevel is int maxTechLevel && techLevel > maxTechLevel)
             {
                 return false;
             }
@@ -1424,7 +1688,15 @@ public sealed class EmpiresPageTests : BunitContext
     {
         public override async Task<ExplorerEmpireListPage> LoadEmpireListPageAsync(ExplorerEmpireListPageRequest request, CancellationToken cancellationToken = default)
         {
-            if (!string.IsNullOrWhiteSpace(request.Query) || request.RaceId.HasValue || request.FallenOnly)
+            if (!string.IsNullOrWhiteSpace(request.Query)
+                || request.RaceId.HasValue
+                || request.StatusFilter != ExplorerEmpireStatusFilter.Both
+                || request.MinControlledWorldCount.HasValue
+                || request.MaxControlledWorldCount.HasValue
+                || request.MinNativePopulationMillions.HasValue
+                || request.MaxNativePopulationMillions.HasValue
+                || request.MinTechLevel.HasValue
+                || request.MaxTechLevel.HasValue)
             {
                 await Task.Delay(delay, cancellationToken);
             }
@@ -1432,6 +1704,12 @@ public sealed class EmpiresPageTests : BunitContext
             return await base.LoadEmpireListPageAsync(request, cancellationToken);
         }
     }
+
+    private sealed record TestEmpireListRow(
+        Empire Empire,
+        int ControlledWorldCount,
+        int TrackedWorldCount,
+        int GurpsTechLevel);
 
     private sealed record TestEmpireRacePopulationRow(
         int RaceId,

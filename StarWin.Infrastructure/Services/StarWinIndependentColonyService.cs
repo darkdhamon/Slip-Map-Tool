@@ -90,6 +90,15 @@ public sealed class StarWinIndependentColonyService(IDbContextFactory<StarWinDbC
                     ? $"Converted {createdEmpires.Count:N0} independent colonies into empires."
                     : $"Converted {createdEmpires.Count:N0} independent colonies into empires and assigned {assignments.Count:N0} colonies to independent empires."
             });
+            var configuration = await dbContext.Set<SectorConfiguration>()
+                .FirstOrDefaultAsync(item => item.SectorId == sectorId, cancellationToken);
+            if (configuration is null)
+            {
+                configuration = new SectorConfiguration { SectorId = sectorId };
+                dbContext.Set<SectorConfiguration>().Add(configuration);
+            }
+
+            configuration.SectorEmpireStatsInvalidatedAtUtc = DateTime.UtcNow;
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 

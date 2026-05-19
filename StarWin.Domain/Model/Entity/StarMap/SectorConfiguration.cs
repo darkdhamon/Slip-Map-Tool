@@ -50,5 +50,9 @@ public sealed class SectorConfiguration
 
     public decimal Tl10HyperlaneSpeedModifier { get; set; } = 3m;
 
+    public DateTime? SectorEmpireStatsCalculatedAtUtc { get; set; }
+
+    public DateTime? SectorEmpireStatsInvalidatedAtUtc { get; set; }
+
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 }

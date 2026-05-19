@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Data.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -182,6 +184,10 @@ public sealed class StarWinExplorerQueryServiceTests
 
             var options = await service.LoadEmpireFilterOptionsAsync(1);
 
+            Assert.Equal(2, options.MaxControlledWorldCount);
+            Assert.Equal(1200, options.MaxNativePopulationMillions);
+            Assert.Equal(10, options.MaxGurpsTechLevel);
+            Assert.Equal(8, options.MaxStarWinTechLevel);
             Assert.Collection(
                 options.Races.OrderBy(item => item.Id),
                 item =>
@@ -202,7 +208,7 @@ public sealed class StarWinExplorerQueryServiceTests
     }
 
     [Fact]
-    public async Task LoadEmpireListPageAsync_applies_query_and_race_filters_and_marks_fallen_empires()
+    public async Task LoadEmpireListPageAsync_applies_query_race_and_status_filters_and_marks_fallen_empires()
     {
         var databasePath = CreateTempFilePath(".db");
 
@@ -236,7 +242,11 @@ public sealed class StarWinExplorerQueryServiceTests
             Assert.Single(fallenSearch.Items);
             Assert.True(fallenSearch.Items[0].IsFallen);
 
-            var fallenOnlySearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, FallenOnly: true));
+            var fallenOnlySearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                StatusFilter: ExplorerEmpireStatusFilter.Fallen));
             Assert.Single(fallenOnlySearch.Items);
             Assert.Equal("Watcher Remnant", fallenOnlySearch.Items[0].Name);
             Assert.Equal(0, fallenOnlySearch.Items[0].ControlledWorldCount);
@@ -247,6 +257,99 @@ public sealed class StarWinExplorerQueryServiceTests
         {
             DeleteIfExists(databasePath);
         }
+    }
+
+    [Fact]
+    public async Task LoadEmpireListPageAsync_applies_world_population_tl_and_sort_filters_in_database()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var activeOnlySearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                StatusFilter: ExplorerEmpireStatusFilter.Active));
+            Assert.Equal(["Aurelian Concord", "Krell Reach"], activeOnlySearch.Items.Select(item => item.Name).ToArray());
+
+            var controlledWorldRangeSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                MinControlledWorldCount: 2));
+            Assert.Single(controlledWorldRangeSearch.Items);
+            Assert.Equal("Krell Reach", controlledWorldRangeSearch.Items[0].Name);
+
+            var populationRangeSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                MinNativePopulationMillions: 100,
+                MaxNativePopulationMillions: 800));
+            Assert.Single(populationRangeSearch.Items);
+            Assert.Equal("Krell Reach", populationRangeSearch.Items[0].Name);
+
+            var gurpsTechLevelSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                MinTechLevel: 10,
+                MaxTechLevel: 10));
+            Assert.Single(gurpsTechLevelSearch.Items);
+            Assert.Equal("Krell Reach", gurpsTechLevelSearch.Items[0].Name);
+
+            var starWinTechLevelSearch = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                TechLevelSystem: ExplorerEmpireTechLevelSystem.StarWin,
+                MinTechLevel: 8,
+                MaxTechLevel: 8));
+            Assert.Single(starWinTechLevelSearch.Items);
+            Assert.Equal("Krell Reach", starWinTechLevelSearch.Items[0].Name);
+
+            var controlledWorldSort = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                SortOption: ExplorerEmpireSortOption.ControlledWorlds));
+            Assert.Equal("Krell Reach", controlledWorldSort.Items[0].Name);
+
+            var economicPowerSort = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(
+                1,
+                0,
+                30,
+                SortOption: ExplorerEmpireSortOption.EconomicPower));
+            Assert.Equal("Krell Reach", economicPowerSort.Items[0].Name);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public void BuildEmpireListSql_uses_provider_appropriate_paging_and_sort_syntax()
+    {
+        var request = new ExplorerEmpireListPageRequest(1, 0, 30, SortOption: ExplorerEmpireSortOption.Alphabetical);
+
+        var sqliteSql = BuildEmpireListSqlForProvider(request, "Microsoft.EntityFrameworkCore.Sqlite");
+        Assert.Contains("COLLATE NOCASE", sqliteSql.Format);
+        Assert.Contains("LIMIT {15}", sqliteSql.Format);
+        Assert.Contains("OFFSET {16}", sqliteSql.Format);
+        Assert.DoesNotContain("FETCH NEXT", sqliteSql.Format);
+
+        var sqlServerSql = BuildEmpireListSqlForProvider(request, "Microsoft.EntityFrameworkCore.SqlServer");
+        Assert.DoesNotContain("COLLATE NOCASE", sqlServerSql.Format);
+        Assert.Contains("OFFSET {16} ROWS FETCH NEXT {15} ROWS ONLY", sqlServerSql.Format);
+        Assert.DoesNotContain("LIMIT {15}", sqlServerSql.Format);
     }
 
     [Fact]
@@ -356,6 +459,123 @@ public sealed class StarWinExplorerQueryServiceTests
             Assert.False(detail.Colonies[0].IsControlled);
             Assert.Equal("Krell Reach", detail.Colonies[0].ControllingEmpireName);
             Assert.Equal(0, detail.ControlledColonyCount);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task LoadEmpireDetailAsync_refreshes_missing_sector_empire_stat_row_when_cache_is_stale()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var configuration = await seedContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
+            configuration.SectorEmpireStatsInvalidatedAtUtc = DateTime.UtcNow.AddMinutes(5);
+            var staleRow = await seedContext.Set<SectorEmpireStat>().SingleAsync(item => item.SectorId == 1 && item.EmpireId == 201);
+            seedContext.Remove(staleRow);
+            await seedContext.SaveChangesAsync();
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath));
+
+            var detail = await service.LoadEmpireDetailAsync(1, 201);
+
+            Assert.NotNull(detail);
+
+            await using var verificationContext = CreateDbContext(databasePath);
+            var rebuiltRow = await verificationContext.Set<SectorEmpireStat>().SingleAsync(item => item.SectorId == 1 && item.EmpireId == 201);
+            Assert.Equal(1, rebuiltRow.ControlledWorldCount);
+            Assert.Equal(1, rebuiltRow.TrackedWorldCount);
+
+            var verificationConfiguration = await verificationContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
+            Assert.NotNull(verificationConfiguration.SectorEmpireStatsInvalidatedAtUtc);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task LoadEmpireListPageAsync_rebuilds_sector_empire_stats_and_retries_when_fallback_times_out()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var configuration = await seedContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
+            configuration.SectorEmpireStatsInvalidatedAtUtc = DateTime.UtcNow;
+
+            var deletedStat = await seedContext.Set<SectorEmpireStat>().SingleAsync(item => item.SectorId == 1 && item.EmpireId == 201);
+            seedContext.Remove(deletedStat);
+            await seedContext.SaveChangesAsync();
+
+            var interceptor = new ThrowTimeoutOnReaderInvocationInterceptor(readerInvocationNumber: 2);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath, interceptor));
+
+            var page = await service.LoadEmpireListPageAsync(new ExplorerEmpireListPageRequest(1, 0, 30, Query: "Concord"));
+
+            Assert.Single(page.Items);
+            Assert.Equal("Aurelian Concord", page.Items[0].Name);
+
+            await using var verificationContext = CreateDbContext(databasePath);
+            Assert.NotNull(await verificationContext.Set<SectorEmpireStat>().SingleOrDefaultAsync(item => item.SectorId == 1 && item.EmpireId == 201));
+
+            var refreshedConfiguration = await verificationContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
+            Assert.NotNull(refreshedConfiguration.SectorEmpireStatsCalculatedAtUtc);
+            Assert.Null(refreshedConfiguration.SectorEmpireStatsInvalidatedAtUtc);
+        }
+        finally
+        {
+            DeleteIfExists(databasePath);
+        }
+    }
+
+    [Fact]
+    public async Task LoadEmpireListPageAsync_only_attempts_timeout_recovery_once()
+    {
+        var databasePath = CreateTempFilePath(".db");
+
+        try
+        {
+            await using var seedContext = CreateDbContext(databasePath);
+            await seedContext.Database.EnsureCreatedAsync();
+            await SeedExplorerDataAsync(seedContext);
+
+            var configuration = await seedContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
+            configuration.SectorEmpireStatsInvalidatedAtUtc = DateTime.UtcNow;
+            await seedContext.SaveChangesAsync();
+
+            var interceptor = new ThrowTimeoutOnReaderInvocationInterceptor(readerInvocationNumber: 2);
+
+            var service = new StarWinExplorerQueryService(CreateFactory(databasePath, interceptor));
+            var method = typeof(StarWinExplorerQueryService).GetMethod(
+                "LoadEmpireListPageCoreAsync",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(method);
+
+            var invocation = Assert.IsType<Task<ExplorerEmpireListPage>>(method!.Invoke(service, [
+                new ExplorerEmpireListPageRequest(1, 0, 30, Query: "Concord"),
+                1,
+                CancellationToken.None])!);
+
+            await Assert.ThrowsAsync<TimeoutException>(async () => await invocation);
+
+            await using var verificationContext = CreateDbContext(databasePath);
+            var refreshedConfiguration = await verificationContext.Set<SectorConfiguration>().SingleAsync(item => item.SectorId == 1);
+            Assert.NotNull(refreshedConfiguration.SectorEmpireStatsInvalidatedAtUtc);
         }
         finally
         {
@@ -552,7 +772,16 @@ public sealed class StarWinExplorerQueryServiceTests
 
     private static async Task SeedExplorerDataAsync(StarWinDbContext dbContext)
     {
-        var sector = new StarWinSector { Id = 1, Name = "Delcora" };
+        var sector = new StarWinSector
+        {
+            Id = 1,
+            Name = "Delcora",
+            Configuration = new SectorConfiguration
+            {
+                SectorId = 1,
+                SectorEmpireStatsCalculatedAtUtc = new DateTime(2026, 5, 1, 12, 0, 0, DateTimeKind.Utc)
+            }
+        };
         var homeSystem = new StarSystem { Id = 10, SectorId = 1, Name = "Helios", AllegianceId = 201 };
         var remoteSystem = new StarSystem { Id = 20, SectorId = 1, Name = "Nadir", AllegianceId = 201 };
 
@@ -694,6 +923,7 @@ public sealed class StarWinExplorerQueryServiceTests
             Id = 201,
             Name = "Aurelian Concord",
             GovernmentType = "Council",
+            EconomicPowerMcr = 2200,
             NativePopulationMillions = 1200
         };
         aurelianEmpire.CivilizationProfile.TechLevel = 6;
@@ -738,6 +968,7 @@ public sealed class StarWinExplorerQueryServiceTests
             Id = 202,
             Name = "Krell Reach",
             GovernmentType = "Council",
+            EconomicPowerMcr = 5100,
             NativePopulationMillions = 450
         };
         krellEmpire.CivilizationProfile.TechLevel = 8;
@@ -763,6 +994,7 @@ public sealed class StarWinExplorerQueryServiceTests
             Id = 203,
             Name = "Watcher Remnant",
             GovernmentType = "Council",
+            EconomicPowerMcr = 900,
             Planets = 1,
             NativePopulationMillions = 30,
             IsFallen = true
@@ -803,6 +1035,31 @@ public sealed class StarWinExplorerQueryServiceTests
         dbContext.Sectors.Add(sector);
         dbContext.AlienRaces.AddRange(aurelian, krell);
         dbContext.Empires.AddRange(aurelianEmpire, krellEmpire, fallenEmpire);
+        dbContext.Set<SectorEmpireStat>().AddRange(
+            new SectorEmpireStat
+            {
+                SectorId = 1,
+                EmpireId = 201,
+                ControlledWorldCount = 1,
+                TrackedWorldCount = 1,
+                LastCalculatedAtUtc = sector.Configuration.SectorEmpireStatsCalculatedAtUtc!.Value
+            },
+            new SectorEmpireStat
+            {
+                SectorId = 1,
+                EmpireId = 202,
+                ControlledWorldCount = 2,
+                TrackedWorldCount = 2,
+                LastCalculatedAtUtc = sector.Configuration.SectorEmpireStatsCalculatedAtUtc!.Value
+            },
+            new SectorEmpireStat
+            {
+                SectorId = 1,
+                EmpireId = 203,
+                ControlledWorldCount = 0,
+                TrackedWorldCount = 1,
+                LastCalculatedAtUtc = sector.Configuration.SectorEmpireStatsCalculatedAtUtc!.Value
+            });
         dbContext.Religions.AddRange(solarDoctrine, dunePath);
         dbContext.Set<EmpireReligion>().AddRange(
             new EmpireReligion
@@ -849,12 +1106,29 @@ public sealed class StarWinExplorerQueryServiceTests
         await dbContext.SaveChangesAsync();
     }
 
-    private static IDbContextFactory<StarWinDbContext> CreateFactory(string databasePath)
+    private static FormattableString BuildEmpireListSqlForProvider(ExplorerEmpireListPageRequest request, string providerName)
     {
-        var options = new DbContextOptionsBuilder<StarWinDbContext>()
+        var method = typeof(StarWinExplorerQueryService).GetMethod(
+            "BuildEmpireListSql",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+
+        return Assert.IsAssignableFrom<FormattableString>(method!.Invoke(null, [request, null, 31, 0, providerName]));
+    }
+
+    private static IDbContextFactory<StarWinDbContext> CreateFactory(string databasePath, params IInterceptor[] interceptors)
+    {
+        var builder = new DbContextOptionsBuilder<StarWinDbContext>()
             .ConfigureWarnings(warnings => warnings.Ignore(RelationalEventId.PendingModelChangesWarning))
-            .UseSqlite($"Data Source={databasePath}")
-            .Options;
+            .UseSqlite($"Data Source={databasePath}");
+
+        if (interceptors.Length > 0)
+        {
+            builder.AddInterceptors(interceptors);
+        }
+
+        var options = builder.Options;
 
         return new OptionsDbContextFactory(options);
     }
@@ -895,4 +1169,24 @@ public sealed class StarWinExplorerQueryServiceTests
             return Task.FromResult(CreateDbContext());
         }
     }
+
+    private sealed class ThrowTimeoutOnReaderInvocationInterceptor(int readerInvocationNumber) : DbCommandInterceptor
+    {
+        private int readerExecutionCount;
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref readerExecutionCount) == readerInvocationNumber)
+            {
+                throw new TimeoutException("Simulated command timeout for fallback query recovery.");
+            }
+
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
+    }
+
 }

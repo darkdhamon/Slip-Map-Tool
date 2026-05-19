@@ -147,7 +147,10 @@ public sealed record ExplorerSectorConfigurationState(
     StarWin.Domain.Model.Entity.StarMap.SectorConfiguration Configuration,
     int SavedRouteCount,
     StarWin.Domain.Services.SectorHyperlaneNetworkReport SavedRouteReport,
-    int SelectedSystemRouteCount);
+    int SelectedSystemRouteCount,
+    DateTime? SectorEmpireStatsCalculatedAtUtc = null,
+    DateTime? SectorEmpireStatsInvalidatedAtUtc = null,
+    int SectorEmpireStatsEmpireCount = 0);
 
 public sealed record ExplorerHyperlanePageState(
     int SectorId,
@@ -200,7 +203,32 @@ public sealed record ExplorerAlienRaceDetail(
     IReadOnlyList<StarWin.Domain.Model.Entity.Civilization.Empire> Empires);
 
 public sealed record ExplorerEmpireFilterOptions(
-    IReadOnlyList<ExplorerLookupOption> Races);
+    IReadOnlyList<ExplorerLookupOption> Races,
+    int MaxControlledWorldCount = 1,
+    long MaxNativePopulationMillions = 1,
+    int MaxGurpsTechLevel = 1,
+    int MaxStarWinTechLevel = 1);
+
+public enum ExplorerEmpireStatusFilter
+{
+    Both = 0,
+    Active = 1,
+    Fallen = 2
+}
+
+public enum ExplorerEmpireTechLevelSystem
+{
+    Gurps = 0,
+    StarWin = 1
+}
+
+public enum ExplorerEmpireSortOption
+{
+    Alphabetical = 0,
+    Population = 1,
+    ControlledWorlds = 2,
+    EconomicPower = 3
+}
 
 public sealed record ExplorerEmpireListPageRequest(
     int SectorId,
@@ -208,7 +236,15 @@ public sealed record ExplorerEmpireListPageRequest(
     int Limit,
     string? Query = null,
     int? RaceId = null,
-    bool FallenOnly = false);
+    ExplorerEmpireStatusFilter StatusFilter = ExplorerEmpireStatusFilter.Both,
+    int? MinControlledWorldCount = null,
+    int? MaxControlledWorldCount = null,
+    long? MinNativePopulationMillions = null,
+    long? MaxNativePopulationMillions = null,
+    ExplorerEmpireTechLevelSystem TechLevelSystem = ExplorerEmpireTechLevelSystem.Gurps,
+    int? MinTechLevel = null,
+    int? MaxTechLevel = null,
+    ExplorerEmpireSortOption SortOption = ExplorerEmpireSortOption.Alphabetical);
 
 public sealed record ExplorerEmpireListPage(
     IReadOnlyList<ExplorerEmpireListItem> Items,
@@ -220,6 +256,9 @@ public sealed record ExplorerEmpireListItem(
     int ControlledWorldCount,
     int TrackedWorldCount,
     int GurpsTechLevel,
+    int StarWinTechLevel,
+    long NativePopulationMillions,
+    long EconomicPowerMcr,
     bool IsFallen);
 
 public sealed record ExplorerEmpireDetail(
