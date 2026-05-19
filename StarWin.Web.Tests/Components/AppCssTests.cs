@@ -41,7 +41,7 @@ public sealed class AppCssTests
     }
 
     [Fact]
-    public void ExplorerControlStripDefaultsToTabFirstLayoutAndOnlySplitsAtVeryWideBreakpoint()
+    public void ExplorerControlStripUsesWideGridPlacementWithoutVisualReordering()
     {
         var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var cssPath = Path.Combine(repoRoot, "StarWin.Web", "wwwroot", "app.css");
@@ -50,10 +50,10 @@ public sealed class AppCssTests
         Assert.Contains("grid-template-columns: minmax(0, 1fr);", css);
         Assert.Contains(".control-strip-fields {", css);
         Assert.Contains(".control-strip-tabs {", css);
-        Assert.Contains("order: -1;", css);
         Assert.Contains("@media (min-width: 1900px) {", css);
         Assert.Contains("grid-template-columns: minmax(0, 760px) minmax(0, 1fr);", css);
-        Assert.Contains("order: 0;", css);
+        Assert.Contains("grid-column: 2;", css);
+        Assert.Contains("grid-row: 1;", css);
     }
 
     [Fact]

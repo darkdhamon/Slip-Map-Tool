@@ -31,9 +31,12 @@ public sealed class SectorExplorerShellTests : BunitContext
             .Add(component => component.ActiveSection, "Overview")
             .Add(component => component.SectionHrefFactory, section => $"/sector-explorer/{section.ToLowerInvariant()}"));
 
+        var controlStrip = cut.Find(".control-strip");
         var fieldGroup = cut.Find(".control-strip-fields");
         var tabGroup = cut.Find(".control-strip-tabs");
 
+        Assert.Contains("control-strip-tabs", controlStrip.Children[0].ClassName);
+        Assert.Contains("control-strip-fields", controlStrip.Children[1].ClassName);
         Assert.Single(fieldGroup.GetElementsByClassName("sector-field"));
         Assert.Single(fieldGroup.GetElementsByClassName("system-field"));
         Assert.Single(fieldGroup.GetElementsByClassName("archive-search"));

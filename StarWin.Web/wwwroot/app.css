@@ -323,7 +323,6 @@ dd {
 }
 
 .control-strip-tabs {
-    order: -1;
     min-width: 0;
 }
 
@@ -385,7 +384,13 @@ dd {
     }
 
     .control-strip-tabs {
-        order: 0;
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .control-strip-fields {
+        grid-column: 1;
+        grid-row: 1;
     }
 
     .control-strip-tabs .section-tabs {
