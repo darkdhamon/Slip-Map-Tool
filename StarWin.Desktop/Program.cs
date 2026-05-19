@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using StarWin.Application.Services;
+using StarWin.Infrastructure.Services;
 using StarWin.Web;
 
 #if WINDOWS
@@ -30,6 +32,7 @@ internal static class Program
     private const string BackendPortArgument = "--backend-port";
     private const string SmokeTestArgument = "--smoke-test";
     private const string SkipUpdateCheckArgument = "--skip-update-check";
+    private static readonly IStarWinExceptionReporter ExceptionReporter = new StarWinExceptionReporter();
 
     [STAThread]
     public static async Task Main(string[] args)
@@ -69,49 +72,66 @@ internal static class Program
         catch (Exception ex)
         {
             startupReporter.Fail("Starforged Atlas failed to start", ex.GetBaseException().Message);
+            await ReportDesktopExceptionAsync(ex, "Desktop shell startup");
             throw;
         }
     }
 
     private static async Task RunBackendServerAsync(int port, string[] args)
     {
-        var localUrl = $"http://127.0.0.1:{port}";
-        var databasePath = StarWinDesktopPaths.GetDatabasePath();
-        StarWinDesktopLog.Write("desktop-backend", $"Starting backend server on {localUrl} using database '{databasePath}'.");
-
-        var builder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
-        {
-            Args = args,
-            ApplicationName = typeof(StarWinWebHost).Assembly.GetName().Name,
-            ContentRootPath = StarWinDesktopPaths.GetWebContentRoot()
-        });
-
-        builder.WebHost.UseUrls(localUrl);
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["StarWin:DatabaseProvider"] = "Sqlite",
-            ["StarWin:ApplyMigrationsOnStartup"] = "true",
-            ["StarforgedAtlas:HostKind"] = "Desktop",
-            ["ConnectionStrings:StarWin"] = $"Data Source={databasePath}"
-        });
-
-        var app = StarWinWebHost.Build(builder);
-        await StarWinWebHost.InitializeAsync(app);
-
-        using var monitor = new DesktopBackendMonitor(app);
-
-        await app.StartAsync();
-        await monitor.RunAsync();
-
         try
         {
-            await app.WaitForShutdownAsync();
+            var localUrl = $"http://127.0.0.1:{port}";
+            var databasePath = StarWinDesktopPaths.GetDatabasePath();
+            StarWinDesktopLog.Write("desktop-backend", $"Starting backend server on {localUrl} using database '{databasePath}'.");
+
+            var builder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
+            {
+                Args = args,
+                ApplicationName = typeof(StarWinWebHost).Assembly.GetName().Name,
+                ContentRootPath = StarWinDesktopPaths.GetWebContentRoot()
+            });
+
+            builder.WebHost.UseUrls(localUrl);
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["StarWin:DatabaseProvider"] = "Sqlite",
+                ["StarWin:ApplyMigrationsOnStartup"] = "true",
+                ["StarforgedAtlas:HostKind"] = "Desktop",
+                ["ConnectionStrings:StarWin"] = $"Data Source={databasePath}"
+            });
+
+            var app = StarWinWebHost.Build(builder);
+            await StarWinWebHost.InitializeAsync(app);
+
+            using var monitor = new DesktopBackendMonitor(app);
+
+            await app.StartAsync();
+            await monitor.RunAsync();
+
+            try
+            {
+                await app.WaitForShutdownAsync();
+            }
+            finally
+            {
+                await app.StopAsync();
+                await app.DisposeAsync();
+                DesktopBackendCoordinator.TryClearBackendRegistration(Environment.ProcessId);
+            }
         }
-        finally
+        catch (Exception ex)
         {
-            await app.StopAsync();
-            await app.DisposeAsync();
-            DesktopBackendCoordinator.TryClearBackendRegistration(Environment.ProcessId);
+            StarWinDesktopLog.Write("desktop-backend", ex.ToString());
+            await ReportDesktopExceptionAsync(
+                ex,
+                "Desktop backend startup",
+                new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    ["Backend port"] = port.ToString(),
+                    ["Host URL"] = $"http://127.0.0.1:{port}"
+                });
+            throw;
         }
     }
 
@@ -251,6 +271,13 @@ internal static class Program
             {
                 Console.Error.WriteLine(ex);
                 startupReporter.Fail("Starforged Atlas failed to start", ex.GetBaseException().Message);
+                await ReportDesktopExceptionAsync(
+                    ex,
+                    "Desktop shell initialization",
+                    new Dictionary<string, string?>(StringComparer.Ordinal)
+                    {
+                        ["Local URL"] = localUrl
+                    });
                 MessageBox.Show(
                     form,
                     ex.Message,
@@ -338,6 +365,20 @@ internal static class Program
         window.WaitForClose();
     }
 #endif
+
+    private static Task ReportDesktopExceptionAsync(
+        Exception exception,
+        string operation,
+        IReadOnlyDictionary<string, string?>? additionalData = null)
+    {
+        return ExceptionReporter.ReportExceptionAsync(
+            exception,
+            new StarWinExceptionContext(
+                HostKind: "Desktop",
+                Operation: operation,
+                AppVersion: DesktopAppVersion.GetCurrentReleaseTag(),
+                AdditionalData: additionalData));
+    }
 }
 
 internal static class DesktopBackendCoordinator

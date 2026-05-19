@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using System.Runtime.ExceptionServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using StarforgedAtlas.GitHubReporting;
 
 internal sealed class PortableLauncher
 {
@@ -1171,22 +1172,28 @@ internal sealed record PortablePendingUpdateValidation(
 
 internal static class PortableUpdateFailureReporter
 {
-    private const string GitHubOwner = "darkdhamon";
-    private const string GitHubRepo = "Slip-Map-Tool";
-    private const string GitHubProjectTitle = "Starforged Atlas Task Board";
+    private static readonly GitHubIssueTarget IssueTarget = new(
+        "darkdhamon/Starforged-Atlas",
+        "darkdhamon",
+        "Starforged Atlas Task Board");
 
     public static void ReportFailedUpdate(string releaseTag, string previousVersion)
     {
         var title = $"Bugfix: portable update rollback for {releaseTag}";
         var body = BuildIssueBody(releaseTag, previousVersion);
+        var submission = new GitHubIssueSubmission(
+            IssueTarget,
+            title,
+            body,
+            ["bug"]);
+        var publisher = new GitHubIssuePublisher(new ProcessGitHubCommandRunner());
 
-        if (TryCreateIssueWithGh(title, body, out var issueUrl))
+        if (publisher.Publish(submission).IssueCreated)
         {
-            TryAddIssueToProject(issueUrl!);
             return;
         }
 
-        OpenIssueDraftInBrowser(title, body);
+        OpenIssueDraftInBrowser(submission);
     }
 
     internal static string BuildIssueBody(string releaseTag, string previousVersion)
@@ -1200,130 +1207,20 @@ internal static class PortableUpdateFailureReporter
 
     internal static Uri BuildIssueDraftUri(string title, string body)
     {
-        var builder = new UriBuilder($"https://github.com/{GitHubOwner}/{GitHubRepo}/issues/new");
-        builder.Query =
-            $"title={Uri.EscapeDataString(title)}&labels={Uri.EscapeDataString("bug")}&body={Uri.EscapeDataString(body)}";
-        return builder.Uri;
+        return GitHubIssuePublisher.BuildIssueDraftUri(new GitHubIssueSubmission(
+            IssueTarget,
+            title,
+            body,
+            ["bug"]));
     }
 
-    private static bool TryCreateIssueWithGh(string title, string body, out string? issueUrl)
-    {
-        issueUrl = null;
-
-        try
-        {
-            using var process = Process.Start(new ProcessStartInfo
-            {
-                FileName = "gh",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                ArgumentList =
-                {
-                    "issue",
-                    "create",
-                    "--repo",
-                    $"{GitHubOwner}/{GitHubRepo}",
-                    "--label",
-                    "bug",
-                    "--title",
-                    title,
-                    "--body",
-                    body
-                }
-            });
-
-            if (process is null)
-            {
-                return false;
-            }
-
-            issueUrl = process.StandardOutput.ReadToEnd().Trim();
-            process.WaitForExit();
-            return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(issueUrl);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static void TryAddIssueToProject(string issueUrl)
-    {
-        try
-        {
-            using var listProcess = Process.Start(new ProcessStartInfo
-            {
-                FileName = "gh",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                ArgumentList =
-                {
-                    "project",
-                    "list",
-                    "--owner",
-                    GitHubOwner,
-                    "--format",
-                    "json"
-                }
-            });
-
-            if (listProcess is null)
-            {
-                return;
-            }
-
-            var json = listProcess.StandardOutput.ReadToEnd();
-            listProcess.WaitForExit();
-            if (listProcess.ExitCode != 0)
-            {
-                return;
-            }
-
-            var projects = JsonSerializer.Deserialize(json, PortableJsonContext.Default.GitHubProjectSummaryArray);
-            var project = projects?.FirstOrDefault(candidate =>
-                string.Equals(candidate.Title, GitHubProjectTitle, StringComparison.OrdinalIgnoreCase));
-            if (project is null)
-            {
-                return;
-            }
-
-            using var addProcess = Process.Start(new ProcessStartInfo
-            {
-                FileName = "gh",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                ArgumentList =
-                {
-                    "project",
-                    "item-add",
-                    project.Number.ToString(CultureInfo.InvariantCulture),
-                    "--owner",
-                    GitHubOwner,
-                    "--url",
-                    issueUrl
-                }
-            });
-
-            addProcess?.WaitForExit();
-        }
-        catch
-        {
-        }
-    }
-
-    private static void OpenIssueDraftInBrowser(string title, string body)
+    private static void OpenIssueDraftInBrowser(GitHubIssueSubmission submission)
     {
         try
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = BuildIssueDraftUri(title, body).ToString(),
+                FileName = GitHubIssuePublisher.BuildIssueDraftUri(submission).ToString(),
                 UseShellExecute = true
             });
         }
@@ -1336,16 +1233,6 @@ internal static class PortableUpdateFailureReporter
 [JsonSerializable(typeof(PortableUpdateState))]
 [JsonSerializable(typeof(PortablePendingUpdateValidation))]
 [JsonSerializable(typeof(PortableUpdateSourceOverride))]
-[JsonSerializable(typeof(GitHubProjectSummary[]))]
 internal partial class PortableJsonContext : JsonSerializerContext
 {
-}
-
-internal sealed class GitHubProjectSummary
-{
-    [JsonPropertyName("title")]
-    public string? Title { get; set; }
-
-    [JsonPropertyName("number")]
-    public int Number { get; set; }
 }
