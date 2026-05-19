@@ -51,8 +51,8 @@ public sealed class AppCssTests
         Assert.Contains(".control-strip-fields {", css);
         Assert.Contains(".control-strip-tabs {", css);
         Assert.Contains("@media (min-width: 1900px) {", css);
-        Assert.Contains("grid-template-columns: minmax(0, 760px) minmax(0, 1fr);", css);
-        Assert.Contains("grid-column: 2;", css);
+        Assert.Contains("grid-template-columns: minmax(0, 1fr) minmax(0, 760px);", css);
+        Assert.Contains("grid-column: 1;", css);
         Assert.Contains("grid-row: 1;", css);
     }
 
