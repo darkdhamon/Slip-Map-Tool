@@ -304,9 +304,9 @@ dd {
 
 .control-strip {
     display: grid;
-    grid-template-columns: minmax(0, 1.9fr) minmax(320px, 1.15fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 14px 18px;
-    align-items: end;
+    align-items: stretch;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--surface);
@@ -316,18 +316,19 @@ dd {
 
 .control-strip-fields {
     display: grid;
-    grid-template-columns: minmax(160px, 220px) minmax(220px, 360px) minmax(260px, 420px);
+    grid-template-columns: minmax(160px, 180px) minmax(220px, 260px) minmax(240px, 1fr);
     gap: 14px;
     align-items: end;
     min-width: 0;
 }
 
 .control-strip-tabs {
+    order: -1;
     min-width: 0;
 }
 
 .control-strip-tabs .section-tabs {
-    justify-content: flex-end;
+    justify-content: flex-start;
 }
 
 .control-strip label,
@@ -377,26 +378,18 @@ dd {
     box-shadow: 0 0 18px rgba(56, 189, 248, 0.18);
 }
 
-@media (max-width: 1280px) {
+@media (min-width: 1900px) {
     .control-strip {
-        grid-template-columns: 1fr;
-        align-items: stretch;
-    }
-
-    .control-strip-fields {
-        grid-template-columns: minmax(180px, 240px) minmax(220px, 1fr);
-    }
-
-    .control-strip-fields .archive-search {
-        grid-column: 1 / -1;
+        grid-template-columns: minmax(0, 760px) minmax(0, 1fr);
+        align-items: end;
     }
 
     .control-strip-tabs {
-        order: -1;
+        order: 0;
     }
 
     .control-strip-tabs .section-tabs {
-        justify-content: flex-start;
+        justify-content: flex-end;
     }
 }
 

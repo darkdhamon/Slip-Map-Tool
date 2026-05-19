@@ -41,18 +41,19 @@ public sealed class AppCssTests
     }
 
     [Fact]
-    public void ExplorerControlStripPromotesTabsAboveSelectorsAtResponsiveBreakpoint()
+    public void ExplorerControlStripDefaultsToTabFirstLayoutAndOnlySplitsAtVeryWideBreakpoint()
     {
         var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var cssPath = Path.Combine(repoRoot, "StarWin.Web", "wwwroot", "app.css");
         var css = File.ReadAllText(cssPath);
 
+        Assert.Contains("grid-template-columns: minmax(0, 1fr);", css);
         Assert.Contains(".control-strip-fields {", css);
         Assert.Contains(".control-strip-tabs {", css);
-        Assert.Contains("@media (max-width: 1280px) {", css);
-        Assert.Contains(".control-strip-fields .archive-search {", css);
-        Assert.Contains("grid-column: 1 / -1;", css);
         Assert.Contains("order: -1;", css);
+        Assert.Contains("@media (min-width: 1900px) {", css);
+        Assert.Contains("grid-template-columns: minmax(0, 760px) minmax(0, 1fr);", css);
+        Assert.Contains("order: 0;", css);
     }
 
     [Fact]
