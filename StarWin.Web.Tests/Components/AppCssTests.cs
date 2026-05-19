@@ -41,6 +41,21 @@ public sealed class AppCssTests
     }
 
     [Fact]
+    public void ExplorerControlStripPromotesTabsAboveSelectorsAtResponsiveBreakpoint()
+    {
+        var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var cssPath = Path.Combine(repoRoot, "StarWin.Web", "wwwroot", "app.css");
+        var css = File.ReadAllText(cssPath);
+
+        Assert.Contains(".control-strip-fields {", css);
+        Assert.Contains(".control-strip-tabs {", css);
+        Assert.Contains("@media (max-width: 1280px) {", css);
+        Assert.Contains(".control-strip-fields .archive-search {", css);
+        Assert.Contains("grid-column: 1 / -1;", css);
+        Assert.Contains("order: -1;", css);
+    }
+
+    [Fact]
     public void NavigationFocusTargetsMainContentInsteadOfHeading()
     {
         var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
