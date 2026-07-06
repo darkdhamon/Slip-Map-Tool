@@ -1,5 +1,10 @@
 check for Agents.MD and follow rules defined for project
 
+Shared parent guidance:
+- Default to the shared agent file at `C:\Github\AGENTS.md`.
+- Apply this repository file together with the shared parent file.
+- If this repository file conflicts with the shared parent file, this repository file overrides it for work in this repository.
+
 When I start a conversation with an Issue Number, analyse the task and research the current state of the project before doing any coding work.
 
 The first workflow step for an issue-driven conversation is:
@@ -72,3 +77,11 @@ The original Slip Map application code is legacy code. Do not edit it except for
 Legacy projects are reference-only. Keep `WPF SlipMap` and `SlipMap Code Library` visible in the solution for historical reference, but do not include them in default builds for the new Starforged Atlas apps.
 
 New Starforged Atlas projects must not directly reference old app projects or compile/include files from `Legacy`, `WPF SlipMap`, or `SlipMap Code Library`. Migrate behavior into new domain/application/infrastructure code instead.
+
+## Codex Review Usage Limit Backoff
+
+When checking a pull request for review activity from the ChatGPT Codex Connector bot, if the bot posts a comment indicating code-review usage limits are reached (for example, text stating:
+
+`You have reached your Codex usage limits for code reviews...`
+
+or similar messaging with links to usage or code-review settings), pause review polling and wait `5 hours` before the next check.
