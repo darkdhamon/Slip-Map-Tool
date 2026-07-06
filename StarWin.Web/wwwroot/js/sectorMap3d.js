@@ -8,6 +8,9 @@ const slowFrameRatio = 0.32;
 const minimumAdaptiveSystemLimit = 150;
 const compactSystemScale = 0.38;
 const systemCoordinateScale = 8;
+const minimumCameraRadius = 26;
+const maximumCameraRadius = 220;
+const keyboardFrameMilliseconds = 1000 / 60;
 
 async function loadThree() {
     if (!threePromise) {
@@ -131,7 +134,9 @@ function createMap(host, THREE) {
         orbitRotation: new THREE.Quaternion(),
         radius: 116,
         roll: 0,
-        drag: null
+        drag: null,
+        activeKeys: new Set(),
+        lastAnimationTimestamp: 0
     };
 
     canvas.addEventListener("pointerdown", event => {
@@ -154,6 +159,8 @@ function createMap(host, THREE) {
     canvas.addEventListener("pointerup", event => handlePointerUp(state, event));
     canvas.addEventListener("wheel", event => handleWheel(state, event), { passive: false });
     canvas.addEventListener("keydown", event => handleKeyDown(state, event));
+    canvas.addEventListener("keyup", event => handleKeyUp(state, event));
+    canvas.addEventListener("blur", () => clearActiveKeys(state));
     canvas.addEventListener("contextmenu", event => event.preventDefault());
     updateCamera(state);
     animate(state);
@@ -911,7 +918,7 @@ function disposeLabelSprite(label) {
 function handleWheel(state, event) {
     event.preventDefault();
     const direction = event.deltaY > 0 ? 1 : -1;
-    state.radius = Math.max(26, Math.min(220, state.radius * (1 + direction * 0.12)));
+    state.radius = Math.max(minimumCameraRadius, Math.min(maximumCameraRadius, state.radius * (1 + direction * 0.12)));
     updateCamera(state);
 }
 
@@ -920,40 +927,124 @@ function handleKeyDown(state, event) {
         return;
     }
 
-    const key = event.key.toLowerCase();
-    const rotationStep = event.shiftKey ? 0.16 : 0.08;
-    let handled = true;
-
-    switch (key) {
-        case "a":
-            rotateCameraOffset(state, -rotationStep, 0);
-            break;
-        case "d":
-            rotateCameraOffset(state, rotationStep, 0);
-            break;
-        case "w":
-            rotateCameraOffset(state, 0, -rotationStep);
-            break;
-        case "s":
-            rotateCameraOffset(state, 0, rotationStep);
-            break;
-        case "q":
-            state.roll += rotationStep;
-            break;
-        case "e":
-            state.roll -= rotationStep;
-            break;
-        default:
-            handled = false;
-            break;
-    }
-
-    if (!handled) {
+    const key = normalizeKeyboardNavigationKey(event.key);
+    if (!isKeyboardNavigationKey(key)) {
         return;
     }
 
+    state.activeKeys.add(key);
     event.preventDefault();
-    updateCamera(state);
+}
+
+function handleKeyUp(state, event) {
+    const key = normalizeKeyboardNavigationKey(event.key);
+    if (!isKeyboardNavigationKey(key)) {
+        return;
+    }
+
+    state.activeKeys.delete(key);
+    event.preventDefault();
+}
+
+function clearActiveKeys(state) {
+    state.activeKeys.clear();
+}
+
+function normalizeKeyboardNavigationKey(key) {
+    const normalizedKey = key.toLowerCase();
+    switch (normalizedKey) {
+        case "=":
+        case "+":
+        case "add":
+            return "+";
+        case "_":
+        case "-":
+        case "subtract":
+            return "-";
+        default:
+            return normalizedKey;
+    }
+}
+
+function isKeyboardNavigationKey(key) {
+    return [
+        "a",
+        "d",
+        "w",
+        "s",
+        "q",
+        "e",
+        "+",
+        "-",
+        "arrowup",
+        "arrowdown",
+        "arrowleft",
+        "arrowright",
+        "shift"
+    ].includes(key);
+}
+
+function applyKeyboardNavigation(state, frameScale) {
+    if (!state.activeKeys.size) {
+        return false;
+    }
+
+    const speedMultiplier = state.activeKeys.has("shift") ? 2 : 1;
+    const rotationStep = 0.032 * speedMultiplier * frameScale;
+    const panStep = state.radius * 0.012 * speedMultiplier * frameScale;
+    const zoomStep = state.radius * 0.022 * speedMultiplier * frameScale;
+    const yawDirection = getAxisDirection(state.activeKeys, ["a"], ["d"]);
+    const pitchDirection = getAxisDirection(state.activeKeys, ["w"], ["s"]);
+    const rollDirection = getAxisDirection(state.activeKeys, ["e"], ["q"]);
+    const zoomDirection = getAxisDirection(state.activeKeys, ["-"], ["+"]);
+    const panHorizontalDirection = getAxisDirection(state.activeKeys, ["arrowleft"], ["arrowright"]);
+    const panVerticalDirection = getAxisDirection(state.activeKeys, ["arrowdown"], ["arrowup"]);
+
+    if (yawDirection === 0
+        && pitchDirection === 0
+        && rollDirection === 0
+        && zoomDirection === 0
+        && panHorizontalDirection === 0
+        && panVerticalDirection === 0) {
+        return false;
+    }
+
+    rotateCameraOffset(state, yawDirection * rotationStep, pitchDirection * rotationStep);
+    state.roll += rollDirection * rotationStep;
+    adjustCameraRadius(state, -zoomDirection * zoomStep);
+    panCameraTarget(state, panHorizontalDirection * panStep, panVerticalDirection * panStep);
+    return true;
+}
+
+function getAxisDirection(activeKeys, negativeKeys, positiveKeys) {
+    const negativeActive = negativeKeys.some(key => activeKeys.has(key));
+    const positiveActive = positiveKeys.some(key => activeKeys.has(key));
+    if (negativeActive === positiveActive) {
+        return 0;
+    }
+
+    return positiveActive ? 1 : -1;
+}
+
+function adjustCameraRadius(state, radiusDelta) {
+    if (radiusDelta === 0) {
+        return;
+    }
+
+    state.radius = Math.max(minimumCameraRadius, Math.min(maximumCameraRadius, state.radius + radiusDelta));
+}
+
+function panCameraTarget(state, horizontalDelta, verticalDelta) {
+    if (horizontalDelta === 0 && verticalDelta === 0) {
+        return;
+    }
+
+    const forward = new state.THREE.Vector3().subVectors(state.target, state.camera.position).normalize();
+    const right = new state.THREE.Vector3().crossVectors(forward, state.camera.up).normalize();
+    const up = new state.THREE.Vector3().crossVectors(right, forward).normalize();
+
+    state.target.addScaledVector(right, horizontalDelta);
+    state.target.addScaledVector(up, verticalDelta);
 }
 
 function updateCamera(state) {
@@ -997,6 +1088,15 @@ function resize(state) {
 
 function animate(state, timestamp = performance.now()) {
     state.animationFrame = requestAnimationFrame(nextTimestamp => animate(state, nextTimestamp));
+    const frameScale = state.lastAnimationTimestamp === 0
+        ? 1
+        : Math.min(2, Math.max(0.5, (timestamp - state.lastAnimationTimestamp) / keyboardFrameMilliseconds));
+    state.lastAnimationTimestamp = timestamp;
+
+    if (applyKeyboardNavigation(state, frameScale)) {
+        updateCamera(state);
+    }
+
     trackMapPerformance(state, timestamp);
     faceImageMarkers(state);
     state.renderer.render(state.scene, state.camera);
