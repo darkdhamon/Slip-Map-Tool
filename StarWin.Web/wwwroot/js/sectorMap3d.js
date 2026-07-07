@@ -1072,7 +1072,7 @@ function getCameraAxes(state) {
     let up = new THREE.Vector3(0, 1, 0).applyQuaternion(state.orbitRotation).normalize();
 
     if (state.roll) {
-        up.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(forward, state.roll));
+        up.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(offset.clone().normalize(), state.roll));
     }
 
     const right = new THREE.Vector3().crossVectors(forward, up).normalize();
@@ -1096,7 +1096,7 @@ function animate(state, timestamp = performance.now()) {
     state.animationFrame = requestAnimationFrame(nextTimestamp => animate(state, nextTimestamp));
     const frameScale = state.lastAnimationTimestamp === 0
         ? 1
-        : Math.min(2, Math.max(0.5, (timestamp - state.lastAnimationTimestamp) / keyboardFrameMilliseconds));
+        : Math.min(2, Math.max(0, (timestamp - state.lastAnimationTimestamp) / keyboardFrameMilliseconds));
     state.lastAnimationTimestamp = timestamp;
 
     if (applyKeyboardNavigation(state, frameScale)) {

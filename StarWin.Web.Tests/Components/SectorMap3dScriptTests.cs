@@ -53,7 +53,7 @@ public sealed class SectorMap3dScriptTests
         Assert.Contains("const { up: cameraUp, right } = getCameraAxes(state);", script);
         Assert.Contains("const { right, up } = getCameraAxes(state);", script);
         Assert.Contains("if (state.roll) {", script);
-        Assert.Contains("up.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(forward, state.roll));", script);
+        Assert.Contains("up.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(offset.clone().normalize(), state.roll));", script);
         Assert.Contains("state.camera.up.copy(up);", script);
     }
 
@@ -72,5 +72,6 @@ public sealed class SectorMap3dScriptTests
         Assert.Contains("state.radius = Math.max(minimumCameraRadius, Math.min(maximumCameraRadius, state.radius + radiusDelta));", script);
         Assert.Contains("state.target.addScaledVector(right, horizontalDelta);", script);
         Assert.Contains("state.target.addScaledVector(up, verticalDelta);", script);
+        Assert.Contains("Math.min(2, Math.max(0, (timestamp - state.lastAnimationTimestamp) / keyboardFrameMilliseconds))", script);
     }
 }
