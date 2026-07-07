@@ -1039,31 +1039,22 @@ function panCameraTarget(state, horizontalDelta, verticalDelta) {
         return;
     }
 
-    const forward = new state.THREE.Vector3().subVectors(state.target, state.camera.position).normalize();
-    const right = new state.THREE.Vector3().crossVectors(forward, state.camera.up).normalize();
-    const up = new state.THREE.Vector3().crossVectors(right, forward).normalize();
+    const { right, up } = getCameraAxes(state);
 
     state.target.addScaledVector(right, horizontalDelta);
     state.target.addScaledVector(up, verticalDelta);
 }
 
 function updateCamera(state) {
-    const offset = state.baseCameraOffset.clone().setLength(state.radius).applyQuaternion(state.orbitRotation);
-    const up = new state.THREE.Vector3(0, 1, 0).applyQuaternion(state.orbitRotation).normalize();
+    const { offset, up } = getCameraAxes(state);
     state.camera.position.copy(state.target).add(offset);
     state.camera.up.copy(up);
     state.camera.lookAt(state.target);
-    if (state.roll) {
-        state.camera.rotateZ(state.roll);
-    }
 }
 
 function rotateCameraOffset(state, yawDelta, pitchDelta) {
     const THREE = state.THREE;
-    const offset = state.baseCameraOffset.clone().applyQuaternion(state.orbitRotation).normalize();
-    const cameraUp = new THREE.Vector3(0, 1, 0).applyQuaternion(state.orbitRotation).normalize();
-    const forward = offset.clone().multiplyScalar(-1).normalize();
-    const right = new THREE.Vector3().crossVectors(forward, cameraUp).normalize();
+    const { up: cameraUp, right } = getCameraAxes(state);
 
     if (Math.abs(yawDelta) > 0) {
         state.orbitRotation.premultiply(new THREE.Quaternion().setFromAxisAngle(cameraUp, yawDelta));
@@ -1072,6 +1063,21 @@ function rotateCameraOffset(state, yawDelta, pitchDelta) {
     if (Math.abs(pitchDelta) > 0) {
         state.orbitRotation.premultiply(new THREE.Quaternion().setFromAxisAngle(right, pitchDelta));
     }
+}
+
+function getCameraAxes(state) {
+    const THREE = state.THREE;
+    const offset = state.baseCameraOffset.clone().setLength(state.radius).applyQuaternion(state.orbitRotation);
+    const forward = offset.clone().normalize().multiplyScalar(-1);
+    let up = new THREE.Vector3(0, 1, 0).applyQuaternion(state.orbitRotation).normalize();
+
+    if (state.roll) {
+        up.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(forward, state.roll));
+    }
+
+    const right = new THREE.Vector3().crossVectors(forward, up).normalize();
+    up = new THREE.Vector3().crossVectors(right, forward).normalize();
+    return { offset, forward, up, right };
 }
 
 function resize(state) {

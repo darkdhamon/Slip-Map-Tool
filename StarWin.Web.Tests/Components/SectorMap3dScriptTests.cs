@@ -44,6 +44,20 @@ public sealed class SectorMap3dScriptTests
     }
 
     [Fact]
+    public void KeyboardNavigationUsesRollAwareCameraAxes()
+    {
+        var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var scriptPath = Path.Combine(repoRoot, "StarWin.Web", "wwwroot", "js", "sectorMap3d.js");
+        var script = File.ReadAllText(scriptPath);
+
+        Assert.Contains("const { up: cameraUp, right } = getCameraAxes(state);", script);
+        Assert.Contains("const { right, up } = getCameraAxes(state);", script);
+        Assert.Contains("if (state.roll) {", script);
+        Assert.Contains("up.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(forward, state.roll));", script);
+        Assert.Contains("state.camera.up.copy(up);", script);
+    }
+
+    [Fact]
     public void KeyboardNavigationSupportsZoomAndArrowKeyPanning()
     {
         var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
