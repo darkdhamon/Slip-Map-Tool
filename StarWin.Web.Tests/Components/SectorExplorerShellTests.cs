@@ -7,6 +7,85 @@ namespace StarWin.Web.Tests.Components;
 public sealed class SectorExplorerShellTests : BunitContext
 {
     [Fact]
+    public void KeepsOverviewUsableAndHidesDependentTabsWhenNoSectorIsSelected()
+    {
+        var sector = new StarWinSector { Id = 7, Name = "Del Corra" };
+
+        var cut = Render<SectorExplorerShell>(parameters => parameters
+            .Add(component => component.Sectors, [sector])
+            .Add(component => component.SelectedSectorId, 0)
+            .Add(component => component.Sections, ["Overview", "Systems", "Worlds"])
+            .Add(component => component.ActiveSection, "Overview")
+            .Add(component => component.SectionHrefFactory, section => $"/sector-explorer/{section.ToLowerInvariant()}")
+            .AddChildContent("Overview remains available."));
+
+        var sectionLinks = cut.FindAll(".section-tabs a")
+            .Select(link => link.TextContent.Trim())
+            .ToArray();
+
+        Assert.Equal(["Overview"], sectionLinks);
+        Assert.Contains("Overview remains available.", cut.Markup);
+        Assert.DoesNotContain("Select a sector to continue", cut.Markup);
+    }
+
+    [Fact]
+    public void BlocksDependentSectionAndPromptsForSelectionWhenSectorsAreAvailable()
+    {
+        var sector = new StarWinSector { Id = 7, Name = "Del Corra" };
+
+        var cut = Render<SectorExplorerShell>(parameters => parameters
+            .Add(component => component.Sectors, [sector])
+            .Add(component => component.SelectedSectorId, 0)
+            .Add(component => component.Sections, ["Overview", "Systems"])
+            .Add(component => component.ActiveSection, "Systems")
+            .Add(component => component.SectionHrefFactory, section => $"/sector-explorer/{section.ToLowerInvariant()}")
+            .AddChildContent("Dependent loading overlay"));
+
+        Assert.Equal("Overview", cut.Find(".section-tabs a").TextContent.Trim());
+        Assert.Contains("Select a sector to continue", cut.Markup);
+        Assert.Contains("Choose a sector from the Sector list", cut.Markup);
+        Assert.DoesNotContain("Dependent loading overlay", cut.Markup);
+    }
+
+    [Fact]
+    public void ExplainsHowToContinueWhenNoSectorIsAvailable()
+    {
+        var cut = Render<SectorExplorerShell>(parameters => parameters
+            .Add(component => component.Sectors, Array.Empty<StarWinSector>())
+            .Add(component => component.SelectedSectorId, 0)
+            .Add(component => component.Sections, ["Overview", "Systems"])
+            .Add(component => component.ActiveSection, "Systems")
+            .Add(component => component.SectionHrefFactory, section => $"/sector-explorer/{section.ToLowerInvariant()}")
+            .AddChildContent("Dependent loading overlay"));
+
+        Assert.Contains("No sector is currently available", cut.Markup);
+        Assert.Contains("Import or create a sector", cut.Markup);
+        Assert.DoesNotContain("Dependent loading overlay", cut.Markup);
+    }
+
+    [Fact]
+    public void RevealsDependentTabsAndContentAfterSectorLoads()
+    {
+        var sector = new StarWinSector { Id = 7, Name = "Del Corra" };
+
+        var cut = Render<SectorExplorerShell>(parameters => parameters
+            .Add(component => component.Sectors, [sector])
+            .Add(component => component.SelectedSectorId, sector.Id)
+            .Add(component => component.Sections, ["Overview", "Systems"])
+            .Add(component => component.ActiveSection, "Systems")
+            .Add(component => component.SectionHrefFactory, section => $"/sector-explorer/{section.ToLowerInvariant()}")
+            .AddChildContent("Loaded systems content"));
+
+        var sectionLinks = cut.FindAll(".section-tabs a")
+            .Select(link => link.TextContent.Trim())
+            .ToArray();
+
+        Assert.Equal(["Overview", "Systems"], sectionLinks);
+        Assert.Contains("Loaded systems content", cut.Markup);
+        Assert.DoesNotContain("Sector required", cut.Markup);
+    }
+
+    [Fact]
     public void GroupsTabsSeparatelyFromExplorerSelectorsAndSearch()
     {
         var sector = new StarWinSector

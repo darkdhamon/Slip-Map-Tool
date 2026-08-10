@@ -8,7 +8,7 @@
 
 <section class="control-strip">
     <div class="control-strip-tabs">
-        <ExplorerSectionTabs Sections="Sections"
+        <ExplorerSectionTabs Sections="VisibleSections"
                              ActiveSection="@ActiveSection"
                              IsLoading="@IsLoading"
                              LoadingTarget="@LoadingTarget"
@@ -69,6 +69,23 @@
     </div>
 </section>
 
+@if (!CanRenderActiveSection)
+{
+    <article class="timeline-event-card sector-selection-required" role="status">
+        <span class="timeline-century">Sector required</span>
+        @if (Sectors.Count > 0)
+        {
+            <h2>Select a sector to continue</h2>
+            <p>Choose a sector from the Sector list to load this part of Sector Explorer.</p>
+        }
+        else
+        {
+            <h2>No sector is currently available</h2>
+            <p>Import or create a sector, then return to Sector Explorer to use this section.</p>
+        }
+    </article>
+}
+
 @if (!string.IsNullOrWhiteSpace(ErrorMessage))
 {
     <article class="timeline-event-card">
@@ -82,7 +99,10 @@
     @HeaderContent
 }
 
-@ChildContent
+@if (CanRenderActiveSection)
+{
+    @ChildContent
+}
 
 @if (FooterContent is not null)
 {
@@ -155,6 +175,16 @@
 
     [Parameter]
     public Func<StarWinSearchResultType, string>? ResultTypeDisplayFactory { get; set; }
+
+    private bool HasLoadedSector => SelectedSectorId > 0 && Sectors.Any(sector => sector.Id == SelectedSectorId);
+
+    private bool CanRenderActiveSection => IsOverviewActive || HasLoadedSector;
+
+    private bool IsOverviewActive => string.Equals(ActiveSection, "Overview", StringComparison.OrdinalIgnoreCase);
+
+    private IReadOnlyList<string> VisibleSections => HasLoadedSector
+        ? Sections
+        : Sections.Where(section => string.Equals(section, "Overview", StringComparison.OrdinalIgnoreCase)).ToArray();
 
     private Task HandleSectorChanged(ChangeEventArgs args)
     {
