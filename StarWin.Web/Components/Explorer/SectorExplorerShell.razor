@@ -7,62 +7,66 @@
 }
 
 <section class="control-strip">
-    <label class="control-field sector-field">
-        Sector
-        <select value="@SelectedSectorId" @onchange="HandleSectorChanged">
-            @foreach (var item in Sectors)
-            {
-                <option value="@item.Id">@item.Name</option>
-            }
-        </select>
-    </label>
-
-    <label class="control-field system-field">
-        System
-        <input list="sector-system-options"
-               placeholder="Select system..."
-               value="@SelectedSystemText"
-               @onchange="HandleSystemTextChanged" />
-        <datalist id="sector-system-options">
-            @foreach (var system in Systems)
-            {
-                <option value="@FormatSystemOption(system)" />
-            }
-        </datalist>
-    </label>
-
-    <div class="archive-search">
-        <label for="archive-search-input">Archive search</label>
-        <input id="archive-search-input"
-               placeholder="System, world, colony, race, empire..."
-               value="@SearchQuery"
-               @oninput="HandleSearchQueryInput" />
-
-        @if (SearchResults.Count > 0)
-        {
-            <div class="search-results">
-                @foreach (var result in SearchResults)
-                {
-                    <button type="button" class="search-result" @onclick="() => SearchResultSelected.InvokeAsync(result)">
-                        <span>@DisplayResultType(result.Type)</span>
-                        <strong>@result.Title</strong>
-                        <small>@result.Subtitle</small>
-                    </button>
-                }
-            </div>
-        }
-        else if (!string.IsNullOrWhiteSpace(SearchQuery))
-        {
-            <p class="search-empty">No matching systems, worlds, races, colonies, empires, habitats, or history.</p>
-        }
+    <div class="control-strip-tabs">
+        <ExplorerSectionTabs Sections="Sections"
+                             ActiveSection="@ActiveSection"
+                             IsLoading="@IsLoading"
+                             LoadingTarget="@LoadingTarget"
+                             LoadingStatus="@LoadingStatus"
+                             SectionHrefFactory="SectionHrefFactory" />
     </div>
 
-    <ExplorerSectionTabs Sections="Sections"
-                         ActiveSection="@ActiveSection"
-                         IsLoading="@IsLoading"
-                         LoadingTarget="@LoadingTarget"
-                         LoadingStatus="@LoadingStatus"
-                         SectionHrefFactory="SectionHrefFactory" />
+    <div class="control-strip-fields">
+        <label class="control-field sector-field">
+            Sector
+            <select value="@SelectedSectorId" @onchange="HandleSectorChanged">
+                @foreach (var item in Sectors)
+                {
+                    <option value="@item.Id">@item.Name</option>
+                }
+            </select>
+        </label>
+
+        <label class="control-field system-field">
+            System
+            <input list="sector-system-options"
+                   placeholder="Select system..."
+                   value="@SelectedSystemText"
+                   @onchange="HandleSystemTextChanged" />
+            <datalist id="sector-system-options">
+                @foreach (var system in Systems)
+                {
+                    <option value="@FormatSystemOption(system)" />
+                }
+            </datalist>
+        </label>
+
+        <div class="archive-search">
+            <label for="archive-search-input">Archive search</label>
+            <input id="archive-search-input"
+                   placeholder="System, world, colony, race, empire..."
+                   value="@SearchQuery"
+                   @oninput="HandleSearchQueryInput" />
+
+            @if (SearchResults.Count > 0)
+            {
+                <div class="search-results">
+                    @foreach (var result in SearchResults)
+                    {
+                        <button type="button" class="search-result" @onclick="() => SearchResultSelected.InvokeAsync(result)">
+                            <span>@DisplayResultType(result.Type)</span>
+                            <strong>@result.Title</strong>
+                            <small>@result.Subtitle</small>
+                        </button>
+                    }
+                </div>
+            }
+            else if (!string.IsNullOrWhiteSpace(SearchQuery))
+            {
+                <p class="search-empty">No matching systems, worlds, races, colonies, empires, habitats, or history.</p>
+            }
+        </div>
+    </div>
 </section>
 
 @if (!string.IsNullOrWhiteSpace(ErrorMessage))

@@ -33,6 +33,7 @@ public sealed class SectorConfigurationPageTests : BunitContext
             Assert.Contains("Del Corra", cut.Markup);
             Assert.Contains("Save configuration", cut.Markup);
             Assert.Contains("Saved route report", cut.Markup);
+            Assert.Contains("Sector empire stats", cut.Markup);
         });
 
         Assert.Equal(0, queryService.HyperlaneWorkspaceLoadCount);
@@ -78,6 +79,24 @@ public sealed class SectorConfigurationPageTests : BunitContext
     }
 
     [Fact]
+    public void RecalculateSectorEmpireStatsUsesStatsService()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var statsService = new FakeSectorEmpireStatsService();
+        var explorerContextService = new FakeExplorerContextService(CreateContext());
+        ConfigureServices(explorerContextService, statsService: statsService);
+
+        var cut = Render<SectorConfigurationPage>();
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Recalculate sector empire stats").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.True(statsService.RebuildCalled);
+            Assert.Contains("Refreshed 4 sector empire stat rows", cut.Markup);
+        });
+    }
+
+    [Fact]
     public void ConvertIndependentColoniesDisplaysConversionSummary()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -100,13 +119,15 @@ public sealed class SectorConfigurationPageTests : BunitContext
         ContextBackedExplorerQueryService? queryService = null,
         FakeSectorConfigurationService? configService = null,
         FakeSectorRouteService? routeService = null,
-        FakeIndependentColonyService? colonyService = null)
+        FakeIndependentColonyService? colonyService = null,
+        FakeSectorEmpireStatsService? statsService = null)
     {
         Services.AddScoped<SectorExplorerLayoutStateStore>();
         Services.AddSingleton<IStarWinExplorerContextService>(explorerContextService);
         Services.AddSingleton<IStarWinExplorerQueryService>(queryService ?? new ContextBackedExplorerQueryService(explorerContextService.Context));
         Services.AddSingleton<IStarWinSearchService>(new FakeSearchService());
         Services.AddSingleton<IStarWinSectorConfigurationService>(configService ?? new FakeSectorConfigurationService());
+        Services.AddSingleton<IStarWinSectorEmpireStatsService>(statsService ?? new FakeSectorEmpireStatsService());
         Services.AddSingleton<IStarWinSectorRouteService>(routeService ?? new FakeSectorRouteService());
         Services.AddSingleton<IStarWinIndependentColonyService>(colonyService ?? new FakeIndependentColonyService());
     }
@@ -206,6 +227,27 @@ public sealed class SectorConfigurationPageTests : BunitContext
         }
 
         public Task DeleteSavedRouteAsync(int sectorId, int routeId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class FakeSectorEmpireStatsService : IStarWinSectorEmpireStatsService
+    {
+        public bool RebuildCalled { get; private set; }
+
+        public Task<SectorEmpireStatsRefreshResult> RebuildSectorStatsAsync(int sectorId, CancellationToken cancellationToken = default)
+        {
+            RebuildCalled = true;
+            return Task.FromResult(new SectorEmpireStatsRefreshResult(sectorId, 4, DateTime.UtcNow));
+        }
+
+        public Task<SectorEmpireStatRefreshResult?> RefreshEmpireStatsAsync(int sectorId, int empireId, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task MarkSectorStatsStaleAsync(int sectorId, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }

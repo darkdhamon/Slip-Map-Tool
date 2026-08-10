@@ -6,13 +6,13 @@ internal static class SectorExplorerSections
     [
         "Overview",
         "Timeline",
-        "Configuration",
         "Hyperlanes",
         "Systems",
         "Worlds",
         "Colonies",
         "Aliens",
         "Religions",
-        "Empires"
+        "Empires",
+        "Configuration"
     ];
 }

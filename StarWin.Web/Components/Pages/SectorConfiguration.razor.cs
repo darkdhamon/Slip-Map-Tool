@@ -20,6 +20,7 @@ public partial class SectorConfiguration : ComponentBase
     [Inject] protected IStarWinExplorerContextService ExplorerContextService { get; set; } = default!;
     [Inject] protected IStarWinExplorerQueryService ExplorerQueryService { get; set; } = default!;
     [Inject] protected IStarWinSectorConfigurationService SectorConfigurationService { get; set; } = default!;
+    [Inject] protected IStarWinSectorEmpireStatsService SectorEmpireStatsService { get; set; } = default!;
     [Inject] protected IStarWinSectorRouteService SectorRouteService { get; set; } = default!;
     [Inject] protected IStarWinIndependentColonyService IndependentColonyService { get; set; } = default!;
     [Inject] protected NavigationManager NavigationManager { get; set; } = default!;
@@ -66,6 +67,7 @@ public partial class SectorConfiguration : ComponentBase
     protected decimal tl10OffLaneSpeedMultiplier = 32m;
     protected decimal tl10HyperlaneSpeedModifier = 3m;
     protected string sectorConfigurationStatus = string.Empty;
+    protected bool sectorEmpireStatsRefreshLoading;
     protected bool routeSaveLoadingVisible;
     protected string routeSaveLoadingStatus = string.Empty;
     protected string routeSaveLoadingDetail = string.Empty;
@@ -79,6 +81,7 @@ public partial class SectorConfiguration : ComponentBase
     protected IReadOnlyList<StarWinSector> ExplorerSectors => explorerContext.Sectors;
     protected int SavedRouteCount => selectedConfigurationState?.SavedRouteCount ?? 0;
     protected SectorHyperlaneNetworkReport SavedRouteReport => selectedConfigurationState?.SavedRouteReport ?? SectorHyperlaneNetworkReport.Empty;
+    protected bool SectorEmpireStatsNeedRefresh => selectedConfigurationState?.SectorEmpireStatsInvalidatedAtUtc is not null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -241,6 +244,38 @@ public partial class SectorConfiguration : ComponentBase
             : "Not recorded";
     }
 
+    protected string GetSectorEmpireStatsStatus()
+    {
+        if (selectedConfigurationState?.SectorEmpireStatsCalculatedAtUtc is not DateTime)
+        {
+            return "Not calculated";
+        }
+
+        return SectorEmpireStatsNeedRefresh
+            ? "Needs refresh"
+            : "Ready";
+    }
+
+    protected string GetSectorEmpireStatsSummary()
+    {
+        if (selectedConfigurationState is null)
+        {
+            return "No sector selected.";
+        }
+
+        if (selectedConfigurationState.SectorEmpireStatsCalculatedAtUtc is not DateTime calculatedAtUtc)
+        {
+            return "Build the sector empire stats cache before relying on sector-scoped world filters.";
+        }
+
+        if (selectedConfigurationState.SectorEmpireStatsInvalidatedAtUtc is DateTime invalidatedAtUtc)
+        {
+            return $"The cache was last rebuilt {DisplayDateTime(calculatedAtUtc)} and was marked stale {DisplayDateTime(invalidatedAtUtc)}.";
+        }
+
+        return $"The cache currently tracks {selectedConfigurationState.SectorEmpireStatsEmpireCount:N0} empire row{(selectedConfigurationState.SectorEmpireStatsEmpireCount == 1 ? string.Empty : "s")} for this sector.";
+    }
+
     private void LoadSectorConfigurationForm(ExplorerSectorConfigurationState? state)
     {
         if (state is null)
@@ -380,6 +415,33 @@ public partial class SectorConfiguration : ComponentBase
             routeSaveProcessedItems = null;
             routeSaveTotalItems = null;
             StateHasChanged();
+        }
+    }
+
+    private async Task RefreshSectorEmpireStatsAsync()
+    {
+        if (sectorEmpireStatsRefreshLoading)
+        {
+            return;
+        }
+
+        var sector = GetSelectedSector();
+        sectorEmpireStatsRefreshLoading = true;
+        sectorConfigurationStatus = $"Refreshing sector empire stats for {sector.Name}...";
+
+        try
+        {
+            var result = await SectorEmpireStatsService.RebuildSectorStatsAsync(sector.Id);
+            await LoadSelectedConfigurationStateAsync(selectedSectorId, selectedSystemId);
+            sectorConfigurationStatus = $"Refreshed {result.EmpireCount:N0} sector empire stat row{(result.EmpireCount == 1 ? string.Empty : "s")} for {sector.Name}.";
+        }
+        catch (InvalidOperationException ex)
+        {
+            sectorConfigurationStatus = ex.Message;
+        }
+        finally
+        {
+            sectorEmpireStatsRefreshLoading = false;
         }
     }
 

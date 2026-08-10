@@ -22,6 +22,8 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
 
     public DbSet<Empire> Empires => Set<Empire>();
 
+    public DbSet<SectorEmpireStat> SectorEmpireStats => Set<SectorEmpireStat>();
+
     public DbSet<Religion> Religions => Set<Religion>();
 
     public DbSet<Colony> Colonies => Set<Colony>();
@@ -91,6 +93,8 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.Property(configuration => configuration.Tl10MaximumDistanceParsecs).HasPrecision(8, 3);
             entity.Property(configuration => configuration.Tl10OffLaneSpeedMultiplier).HasPrecision(8, 3);
             entity.Property(configuration => configuration.Tl10HyperlaneSpeedModifier).HasPrecision(8, 3);
+            entity.Property(configuration => configuration.SectorEmpireStatsCalculatedAtUtc);
+            entity.Property(configuration => configuration.SectorEmpireStatsInvalidatedAtUtc);
         });
 
         modelBuilder.Entity<SectorSavedRoute>(entity =>
@@ -309,6 +313,13 @@ public sealed class StarWinDbContext(DbContextOptions<StarWinDbContext> options)
             entity.Property(religion => religion.ReligionName).HasMaxLength(160);
             entity.HasKey(religion => new { religion.EmpireId, religion.ReligionId });
             entity.HasOne<Religion>().WithMany().HasForeignKey(religion => religion.ReligionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SectorEmpireStat>(entity =>
+        {
+            entity.ToTable("SectorEmpireStats");
+            entity.HasKey(stat => new { stat.SectorId, stat.EmpireId });
+            entity.HasIndex(stat => new { stat.EmpireId, stat.SectorId });
         });
 
         modelBuilder.Entity<Colony>(entity =>

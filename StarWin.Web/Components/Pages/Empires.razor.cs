@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
@@ -44,12 +45,20 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     protected IReadOnlyList<StarWinSearchResult> searchResults = [];
     protected string empireQuery = string.Empty;
     protected string empireRaceText = string.Empty;
+    protected string controlledWorldCountMinText = string.Empty;
+    protected string controlledWorldCountMaxText = string.Empty;
+    protected string nativePopulationMinText = string.Empty;
+    protected string nativePopulationMaxText = string.Empty;
+    protected string techLevelMinText = string.Empty;
+    protected string techLevelMaxText = string.Empty;
     protected string empireMemberRaceSearch = string.Empty;
     protected string empireColonySearch = string.Empty;
     protected string empireRelationshipSearch = string.Empty;
     protected string empireRelationshipType = string.Empty;
     protected int empireRaceId = ComboAllFilterId;
-    protected bool showOnlyFallenEmpires;
+    protected ExplorerEmpireStatusFilter empireStatusFilter = ExplorerEmpireStatusFilter.Both;
+    protected ExplorerEmpireTechLevelSystem empireTechLevelSystem = ExplorerEmpireTechLevelSystem.Gurps;
+    protected ExplorerEmpireSortOption empireSortOption = ExplorerEmpireSortOption.Alphabetical;
     protected bool empireHasMoreRecords;
     protected bool empireListLoading;
     protected bool empireDetailLoading;
@@ -250,10 +259,174 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         return Task.CompletedTask;
     }
 
-    protected Task ToggleFallenEmpireFilterAsync()
+    protected Task SetEmpireStatusFilterAsync(ExplorerEmpireStatusFilter statusFilter)
     {
-        showOnlyFallenEmpires = !showOnlyFallenEmpires;
+        if (empireStatusFilter == statusFilter)
+        {
+            return Task.CompletedTask;
+        }
+
+        empireStatusFilter = statusFilter;
         RequestEmpireFilterReload(useDebounce: false);
+        return Task.CompletedTask;
+    }
+
+    protected int GetEmpireStatusToggleIndex()
+    {
+        return empireStatusFilter switch
+        {
+            ExplorerEmpireStatusFilter.Active => 0,
+            ExplorerEmpireStatusFilter.Fallen => 2,
+            _ => 1
+        };
+    }
+
+    protected string GetEmpireStatusToggleStateClass()
+    {
+        return empireStatusFilter switch
+        {
+            ExplorerEmpireStatusFilter.Active => "state-active",
+            ExplorerEmpireStatusFilter.Fallen => "state-fallen",
+            _ => "state-both"
+        };
+    }
+
+    protected Task SetEmpireTechLevelSystemAsync(ExplorerEmpireTechLevelSystem techLevelSystem)
+    {
+        if (empireTechLevelSystem == techLevelSystem)
+        {
+            return Task.CompletedTask;
+        }
+
+        empireTechLevelSystem = techLevelSystem;
+        ApplyTechLevelSliderValues(GetTechLevelSliderSelection().MinValue, GetTechLevelSliderSelection().MaxValue);
+        RequestEmpireFilterReload(useDebounce: false);
+        return Task.CompletedTask;
+    }
+
+    protected Task HandleEmpireSortChangedAsync()
+    {
+        RequestEmpireFilterReload(useDebounce: false);
+        return Task.CompletedTask;
+    }
+
+    protected int GetControlledWorldSliderMinimum() => 0;
+
+    protected int GetControlledWorldSliderMaximum() => GetControlledWorldSliderUpperBound();
+
+    protected int GetControlledWorldMinSliderValue() => GetControlledWorldSliderSelection().MinValue;
+
+    protected int GetControlledWorldMaxSliderValue() => GetControlledWorldSliderSelection().MaxValue;
+
+    protected string GetControlledWorldSliderSummary()
+    {
+        var summary = FormatRange(
+            ParseNullableInt(controlledWorldCountMinText),
+            ParseNullableInt(controlledWorldCountMaxText));
+        return string.IsNullOrWhiteSpace(summary) ? "Any" : summary;
+    }
+
+    protected string GetControlledWorldSliderStyle() => BuildDualSliderStyle(
+        GetControlledWorldSliderMinimum(),
+        GetControlledWorldSliderMaximum(),
+        GetControlledWorldMinSliderValue(),
+        GetControlledWorldMaxSliderValue());
+
+    protected Task HandleControlledWorldMinSliderChanged(ChangeEventArgs args)
+    {
+        var nextMinValue = ParseSliderInt(args.Value, GetControlledWorldSliderMinimum());
+        var (_, currentMaxValue) = GetControlledWorldSliderSelection();
+        ApplyControlledWorldSliderValues(nextMinValue, Math.Max(nextMinValue, currentMaxValue));
+        RequestEmpireFilterReload(useDebounce: true);
+        return Task.CompletedTask;
+    }
+
+    protected Task HandleControlledWorldMaxSliderChanged(ChangeEventArgs args)
+    {
+        var nextMaxValue = ParseSliderInt(args.Value, GetControlledWorldSliderMaximum());
+        var (currentMinValue, _) = GetControlledWorldSliderSelection();
+        ApplyControlledWorldSliderValues(Math.Min(currentMinValue, nextMaxValue), nextMaxValue);
+        RequestEmpireFilterReload(useDebounce: true);
+        return Task.CompletedTask;
+    }
+
+    protected long GetPopulationSliderMinimum() => 0;
+
+    protected long GetPopulationSliderMaximum() => GetPopulationSliderUpperBound();
+
+    protected long GetPopulationMinSliderValue() => GetPopulationSliderSelection().MinValue;
+
+    protected long GetPopulationMaxSliderValue() => GetPopulationSliderSelection().MaxValue;
+
+    protected string GetPopulationSliderSummary()
+    {
+        var summary = FormatPopulationRange(
+            ToPopulationMillions(ParsePopulationAbsolute(nativePopulationMinText), roundUp: true),
+            ToPopulationMillions(ParsePopulationAbsolute(nativePopulationMaxText), roundUp: false));
+        return string.IsNullOrWhiteSpace(summary) ? "Any" : summary;
+    }
+
+    protected string GetPopulationSliderStyle() => BuildDualSliderStyle(
+        GetPopulationSliderMinimum(),
+        GetPopulationSliderMaximum(),
+        GetPopulationMinSliderValue(),
+        GetPopulationMaxSliderValue());
+
+    protected Task HandlePopulationMinSliderChanged(ChangeEventArgs args)
+    {
+        var nextMinValue = ParseSliderLong(args.Value, GetPopulationSliderMinimum());
+        var (_, currentMaxValue) = GetPopulationSliderSelection();
+        ApplyPopulationSliderValues(nextMinValue, Math.Max(nextMinValue, currentMaxValue));
+        RequestEmpireFilterReload(useDebounce: true);
+        return Task.CompletedTask;
+    }
+
+    protected Task HandlePopulationMaxSliderChanged(ChangeEventArgs args)
+    {
+        var nextMaxValue = ParseSliderLong(args.Value, GetPopulationSliderMaximum());
+        var (currentMinValue, _) = GetPopulationSliderSelection();
+        ApplyPopulationSliderValues(Math.Min(currentMinValue, nextMaxValue), nextMaxValue);
+        RequestEmpireFilterReload(useDebounce: true);
+        return Task.CompletedTask;
+    }
+
+    protected int GetTechLevelSliderMinimum() => 0;
+
+    protected int GetTechLevelSliderMaximum() => GetTechLevelSliderUpperBound();
+
+    protected int GetTechLevelMinSliderValue() => GetTechLevelSliderSelection().MinValue;
+
+    protected int GetTechLevelMaxSliderValue() => GetTechLevelSliderSelection().MaxValue;
+
+    protected string GetTechLevelSliderSummary()
+    {
+        var summary = FormatRange(
+            ParseNullableInt(techLevelMinText),
+            ParseNullableInt(techLevelMaxText));
+        return string.IsNullOrWhiteSpace(summary) ? "Any" : summary;
+    }
+
+    protected string GetTechLevelSliderStyle() => BuildDualSliderStyle(
+        GetTechLevelSliderMinimum(),
+        GetTechLevelSliderMaximum(),
+        GetTechLevelMinSliderValue(),
+        GetTechLevelMaxSliderValue());
+
+    protected Task HandleTechLevelMinSliderChanged(ChangeEventArgs args)
+    {
+        var nextMinValue = ParseSliderInt(args.Value, GetTechLevelSliderMinimum());
+        var (_, currentMaxValue) = GetTechLevelSliderSelection();
+        ApplyTechLevelSliderValues(nextMinValue, Math.Max(nextMinValue, currentMaxValue));
+        RequestEmpireFilterReload(useDebounce: true);
+        return Task.CompletedTask;
+    }
+
+    protected Task HandleTechLevelMaxSliderChanged(ChangeEventArgs args)
+    {
+        var nextMaxValue = ParseSliderInt(args.Value, GetTechLevelSliderMaximum());
+        var (currentMinValue, _) = GetTechLevelSliderSelection();
+        ApplyTechLevelSliderValues(Math.Min(currentMinValue, nextMaxValue), nextMaxValue);
+        RequestEmpireFilterReload(useDebounce: true);
         return Task.CompletedTask;
     }
 
@@ -261,8 +434,15 @@ public partial class Empires : ComponentBase, IAsyncDisposable
     {
         empireQuery = string.Empty;
         empireRaceText = string.Empty;
+        controlledWorldCountMinText = string.Empty;
+        controlledWorldCountMaxText = string.Empty;
+        nativePopulationMinText = string.Empty;
+        nativePopulationMaxText = string.Empty;
+        techLevelMinText = string.Empty;
+        techLevelMaxText = string.Empty;
         empireRaceId = ComboAllFilterId;
-        showOnlyFallenEmpires = false;
+        empireStatusFilter = ExplorerEmpireStatusFilter.Both;
+        empireTechLevelSystem = ExplorerEmpireTechLevelSystem.Gurps;
         ResetEmpireWindow();
     }
 
@@ -413,7 +593,11 @@ public partial class Empires : ComponentBase, IAsyncDisposable
             loadedEmpireSectorId = selectedSectorId;
             empireHasMoreRecords = false;
             empireObserverConfigured = false;
-            ClearSelectedEmpireDetail();
+            if (sectorChanged)
+            {
+                ClearSelectedEmpireDetail();
+            }
+
             if (sectorChanged || empireFilterOptions.Races.Count == 0)
             {
                 empireFilterOptions = await ExplorerQueryService.LoadEmpireFilterOptionsAsync(selectedSectorId, cancellationToken);
@@ -555,13 +739,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         try
         {
             var page = await ExplorerQueryService.LoadEmpireListPageAsync(
-                new ExplorerEmpireListPageRequest(
-                    selectedSectorId,
-                    loadedEmpireSummaries.Count,
-                    ExplorerListBatchSize,
-                    string.IsNullOrWhiteSpace(empireQuery) ? null : empireQuery.Trim(),
-                    empireRaceId == ComboAllFilterId ? null : empireRaceId,
-                    showOnlyFallenEmpires),
+                BuildEmpireListPageRequest(loadedEmpireSummaries.Count, ExplorerListBatchSize),
                 cancellationToken);
 
             if (IsStaleEmpireFilterRequest(requestVersion))
@@ -611,11 +789,7 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         }
 
         loadedEmpireSummaries.Add(requestedItem);
-        loadedEmpireSummaries.Sort((left, right) =>
-        {
-            var nameComparison = string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
-            return nameComparison != 0 ? nameComparison : left.EmpireId.CompareTo(right.EmpireId);
-        });
+        loadedEmpireSummaries.Sort(CompareEmpireSummaries);
     }
 
     private async Task EnsureSelectedEmpireDetailAsync(CancellationToken cancellationToken = default, int? requestVersion = default)
@@ -695,9 +869,16 @@ public partial class Empires : ComponentBase, IAsyncDisposable
 
     private bool HasActiveEmpireFilters()
     {
-        return !string.IsNullOrWhiteSpace(empireQuery)
-            || empireRaceId != ComboAllFilterId
-            || showOnlyFallenEmpires;
+        var request = BuildEmpireListPageRequest(0, 1);
+        return !string.IsNullOrWhiteSpace(request.Query)
+            || request.RaceId.HasValue
+            || request.StatusFilter != ExplorerEmpireStatusFilter.Both
+            || request.MinControlledWorldCount.HasValue
+            || request.MaxControlledWorldCount.HasValue
+            || request.MinNativePopulationMillions.HasValue
+            || request.MaxNativePopulationMillions.HasValue
+            || request.MinTechLevel.HasValue
+            || request.MaxTechLevel.HasValue;
     }
 
     private bool IsStaleEmpireFilterRequest(int? requestVersion)
@@ -807,6 +988,60 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         return $"GURPS TL {empire.GurpsTechLevel}; {DescribeWorldTracking(empire.ControlledWorldCount, empire.TrackedWorldCount)}";
     }
 
+    protected IReadOnlyList<string> GetActiveEmpireFilterChips()
+    {
+        var request = BuildEmpireListPageRequest(0, 1);
+        var chips = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(request.Query))
+        {
+            chips.Add($"Text: {request.Query}");
+        }
+
+        if (request.RaceId is int raceId)
+        {
+            var raceName = empireFilterOptions.Races.FirstOrDefault(option => option.Id == raceId)?.Name;
+            chips.Add(string.IsNullOrWhiteSpace(raceName)
+                ? $"Race: {empireRaceText.Trim()}"
+                : $"Race: {raceName}");
+        }
+
+        if (request.StatusFilter != ExplorerEmpireStatusFilter.Both)
+        {
+            chips.Add(request.StatusFilter == ExplorerEmpireStatusFilter.Active
+                ? "Status: Active"
+                : "Status: Fallen");
+        }
+
+        if (request.MinControlledWorldCount.HasValue || request.MaxControlledWorldCount.HasValue)
+        {
+            chips.Add($"Controlled worlds: {FormatRange(request.MinControlledWorldCount, request.MaxControlledWorldCount)}");
+        }
+
+        if (request.MinNativePopulationMillions.HasValue || request.MaxNativePopulationMillions.HasValue)
+        {
+            chips.Add($"Population: {FormatPopulationRange(request.MinNativePopulationMillions, request.MaxNativePopulationMillions)}");
+        }
+
+        if (request.MinTechLevel.HasValue || request.MaxTechLevel.HasValue)
+        {
+            var systemLabel = request.TechLevelSystem == ExplorerEmpireTechLevelSystem.Gurps ? "GURPS TL" : "StarWin TL";
+            chips.Add($"{systemLabel}: {FormatRange(request.MinTechLevel, request.MaxTechLevel)}");
+        }
+
+        return chips;
+    }
+
+    protected static string GetPopulationFilterInputTitle(string value)
+    {
+        if (ParsePopulationAbsolute(value) is not decimal absolutePopulation)
+        {
+            return "Enter a full population or use M, B, or T abbreviations.";
+        }
+
+        return $"{absolutePopulation:N0}";
+    }
+
     protected static string GetEmpireColonyRowClass(ExplorerEmpireColonyListing listing)
     {
         return listing.IsControlled
@@ -848,6 +1083,312 @@ public partial class Empires : ComponentBase, IAsyncDisposable
         return relationship.Age > 0
             ? $"{relationship.Relation}; contact age {relationship.Age}"
             : relationship.Relation;
+    }
+
+    private ExplorerEmpireListPageRequest BuildEmpireListPageRequest(int offset, int limit)
+    {
+        var (minControlledWorldCount, maxControlledWorldCount) = NormalizeRange(
+            ParseNullableInt(controlledWorldCountMinText),
+            ParseNullableInt(controlledWorldCountMaxText));
+        var (minTechLevel, maxTechLevel) = NormalizeRange(
+            ParseNullableInt(techLevelMinText),
+            ParseNullableInt(techLevelMaxText));
+        var (minNativePopulationAbsolute, maxNativePopulationAbsolute) = NormalizeRange(
+            ParsePopulationAbsolute(nativePopulationMinText),
+            ParsePopulationAbsolute(nativePopulationMaxText));
+
+        return new ExplorerEmpireListPageRequest(
+            selectedSectorId,
+            offset,
+            limit,
+            string.IsNullOrWhiteSpace(empireQuery) ? null : empireQuery.Trim(),
+            empireRaceId == ComboAllFilterId ? null : empireRaceId,
+            empireStatusFilter,
+            minControlledWorldCount,
+            maxControlledWorldCount,
+            ToPopulationMillions(minNativePopulationAbsolute, roundUp: true),
+            ToPopulationMillions(maxNativePopulationAbsolute, roundUp: false),
+            empireTechLevelSystem,
+            minTechLevel,
+            maxTechLevel,
+            empireSortOption);
+    }
+
+    private int CompareEmpireSummaries(ExplorerEmpireListItem left, ExplorerEmpireListItem right)
+    {
+        return empireSortOption switch
+        {
+            ExplorerEmpireSortOption.Population => CompareDescending(left.NativePopulationMillions, right.NativePopulationMillions, left, right),
+            ExplorerEmpireSortOption.ControlledWorlds => CompareDescending(left.ControlledWorldCount, right.ControlledWorldCount, left, right),
+            ExplorerEmpireSortOption.EconomicPower => CompareDescending(left.EconomicPowerMcr, right.EconomicPowerMcr, left, right),
+            _ => CompareByName(left, right)
+        };
+    }
+
+    private int GetControlledWorldSliderUpperBound()
+    {
+        var currentSelectionMaximum = Math.Max(
+            ParseNullableInt(controlledWorldCountMinText) ?? 0,
+            ParseNullableInt(controlledWorldCountMaxText) ?? 0);
+        return Math.Max(Math.Max(1, empireFilterOptions.MaxControlledWorldCount), currentSelectionMaximum);
+    }
+
+    private (int MinValue, int MaxValue) GetControlledWorldSliderSelection()
+    {
+        var maximumBound = GetControlledWorldSliderUpperBound();
+        var (minValue, maxValue) = NormalizeRange(
+            ParseNullableInt(controlledWorldCountMinText),
+            ParseNullableInt(controlledWorldCountMaxText));
+        return (
+            Math.Clamp(minValue ?? GetControlledWorldSliderMinimum(), GetControlledWorldSliderMinimum(), maximumBound),
+            Math.Clamp(maxValue ?? maximumBound, GetControlledWorldSliderMinimum(), maximumBound));
+    }
+
+    private void ApplyControlledWorldSliderValues(int minValue, int maxValue)
+    {
+        var minimumBound = GetControlledWorldSliderMinimum();
+        var maximumBound = GetControlledWorldSliderUpperBound();
+        var clampedMinValue = Math.Clamp(minValue, minimumBound, maximumBound);
+        var clampedMaxValue = Math.Clamp(Math.Max(maxValue, clampedMinValue), minimumBound, maximumBound);
+
+        controlledWorldCountMinText = clampedMinValue <= minimumBound
+            ? string.Empty
+            : clampedMinValue.ToString(CultureInfo.InvariantCulture);
+        controlledWorldCountMaxText = clampedMaxValue >= maximumBound
+            ? string.Empty
+            : clampedMaxValue.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private long GetPopulationSliderUpperBound()
+    {
+        var currentSelectionMaximum = Math.Max(
+            ToPopulationMillions(ParsePopulationAbsolute(nativePopulationMinText), roundUp: true) ?? 0,
+            ToPopulationMillions(ParsePopulationAbsolute(nativePopulationMaxText), roundUp: false) ?? 0);
+        return Math.Max(Math.Max(1L, empireFilterOptions.MaxNativePopulationMillions), currentSelectionMaximum);
+    }
+
+    private (long MinValue, long MaxValue) GetPopulationSliderSelection()
+    {
+        var maximumBound = GetPopulationSliderUpperBound();
+        var (minValue, maxValue) = NormalizeRange(
+            ToPopulationMillions(ParsePopulationAbsolute(nativePopulationMinText), roundUp: true),
+            ToPopulationMillions(ParsePopulationAbsolute(nativePopulationMaxText), roundUp: false));
+        return (
+            Math.Clamp(minValue ?? GetPopulationSliderMinimum(), GetPopulationSliderMinimum(), maximumBound),
+            Math.Clamp(maxValue ?? maximumBound, GetPopulationSliderMinimum(), maximumBound));
+    }
+
+    private void ApplyPopulationSliderValues(long minValue, long maxValue)
+    {
+        var minimumBound = GetPopulationSliderMinimum();
+        var maximumBound = GetPopulationSliderUpperBound();
+        var clampedMinValue = Math.Clamp(minValue, minimumBound, maximumBound);
+        var clampedMaxValue = Math.Clamp(Math.Max(maxValue, clampedMinValue), minimumBound, maximumBound);
+
+        nativePopulationMinText = clampedMinValue <= minimumBound
+            ? string.Empty
+            : FormatPopulationFilterMillions(clampedMinValue);
+        nativePopulationMaxText = clampedMaxValue >= maximumBound
+            ? string.Empty
+            : FormatPopulationFilterMillions(clampedMaxValue);
+    }
+
+    private int GetTechLevelSliderUpperBound()
+    {
+        var configuredMaximum = empireTechLevelSystem == ExplorerEmpireTechLevelSystem.Gurps
+            ? empireFilterOptions.MaxGurpsTechLevel
+            : empireFilterOptions.MaxStarWinTechLevel;
+        var currentSelectionMaximum = Math.Max(
+            ParseNullableInt(techLevelMinText) ?? 0,
+            ParseNullableInt(techLevelMaxText) ?? 0);
+        return Math.Max(Math.Max(1, configuredMaximum), currentSelectionMaximum);
+    }
+
+    private (int MinValue, int MaxValue) GetTechLevelSliderSelection()
+    {
+        var maximumBound = GetTechLevelSliderUpperBound();
+        var (minValue, maxValue) = NormalizeRange(
+            ParseNullableInt(techLevelMinText),
+            ParseNullableInt(techLevelMaxText));
+        return (
+            Math.Clamp(minValue ?? GetTechLevelSliderMinimum(), GetTechLevelSliderMinimum(), maximumBound),
+            Math.Clamp(maxValue ?? maximumBound, GetTechLevelSliderMinimum(), maximumBound));
+    }
+
+    private void ApplyTechLevelSliderValues(int minValue, int maxValue)
+    {
+        var minimumBound = GetTechLevelSliderMinimum();
+        var maximumBound = GetTechLevelSliderUpperBound();
+        var clampedMinValue = Math.Clamp(minValue, minimumBound, maximumBound);
+        var clampedMaxValue = Math.Clamp(Math.Max(maxValue, clampedMinValue), minimumBound, maximumBound);
+
+        techLevelMinText = clampedMinValue <= minimumBound
+            ? string.Empty
+            : clampedMinValue.ToString(CultureInfo.InvariantCulture);
+        techLevelMaxText = clampedMaxValue >= maximumBound
+            ? string.Empty
+            : clampedMaxValue.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string BuildDualSliderStyle(long minimumBound, long maximumBound, long minimumValue, long maximumValue)
+    {
+        if (maximumBound <= minimumBound)
+        {
+            return "--slider-min-percent: 0%; --slider-max-percent: 100%;";
+        }
+
+        var range = maximumBound - minimumBound;
+        var minimumPercent = Math.Clamp((minimumValue - minimumBound) * 100m / range, 0m, 100m);
+        var maximumPercent = Math.Clamp((maximumValue - minimumBound) * 100m / range, 0m, 100m);
+        return FormattableString.Invariant(
+            $"--slider-min-percent: {minimumPercent:0.###}%; --slider-max-percent: {maximumPercent:0.###}%;");
+    }
+
+    private static string BuildDualSliderStyle(int minimumBound, int maximumBound, int minimumValue, int maximumValue)
+    {
+        return BuildDualSliderStyle((long)minimumBound, maximumBound, minimumValue, maximumValue);
+    }
+
+    private static int CompareDescending<TValue>(TValue leftValue, TValue rightValue, ExplorerEmpireListItem left, ExplorerEmpireListItem right)
+        where TValue : IComparable<TValue>
+    {
+        var valueComparison = rightValue.CompareTo(leftValue);
+        return valueComparison != 0
+            ? valueComparison
+            : CompareByName(left, right);
+    }
+
+    private static int CompareByName(ExplorerEmpireListItem left, ExplorerEmpireListItem right)
+    {
+        var nameComparison = string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase);
+        return nameComparison != 0 ? nameComparison : left.EmpireId.CompareTo(right.EmpireId);
+    }
+
+    private static int? ParseNullableInt(string value)
+    {
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedValue)
+            ? parsedValue
+            : null;
+    }
+
+    private static int ParseSliderInt(object? value, int fallbackValue)
+    {
+        return value is not null
+            && int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedValue)
+            ? parsedValue
+            : fallbackValue;
+    }
+
+    private static long ParseSliderLong(object? value, long fallbackValue)
+    {
+        return value is not null
+            && long.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedValue)
+            ? parsedValue
+            : fallbackValue;
+    }
+
+    private static decimal? ParsePopulationAbsolute(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmedValue = value.Trim().Replace(",", string.Empty, StringComparison.Ordinal);
+        var multiplier = 1m;
+        if (trimmedValue.Length > 0)
+        {
+            var suffix = char.ToUpperInvariant(trimmedValue[^1]);
+            if (suffix is 'M' or 'B' or 'T')
+            {
+                multiplier = suffix switch
+                {
+                    'M' => 1_000_000m,
+                    'B' => 1_000_000_000m,
+                    'T' => 1_000_000_000_000m,
+                    _ => 1m
+                };
+                trimmedValue = trimmedValue[..^1];
+            }
+        }
+
+        return decimal.TryParse(trimmedValue, NumberStyles.Number, CultureInfo.InvariantCulture, out var numericPortion)
+            && numericPortion >= 0m
+            ? numericPortion * multiplier
+            : null;
+    }
+
+    private static long? ToPopulationMillions(decimal? absolutePopulation, bool roundUp)
+    {
+        if (absolutePopulation is not decimal resolvedPopulation)
+        {
+            return null;
+        }
+
+        var populationMillions = resolvedPopulation / 1_000_000m;
+        var roundedMillions = roundUp
+            ? Math.Ceiling(populationMillions)
+            : Math.Floor(populationMillions);
+        return roundedMillions < 0m
+            ? 0
+            : (long)roundedMillions;
+    }
+
+    private static (T? MinValue, T? MaxValue) NormalizeRange<T>(T? minValue, T? maxValue)
+        where T : struct, IComparable<T>
+    {
+        if (minValue.HasValue && maxValue.HasValue && minValue.Value.CompareTo(maxValue.Value) > 0)
+        {
+            return (maxValue, minValue);
+        }
+
+        return (minValue, maxValue);
+    }
+
+    private static string FormatRange<T>(T? minValue, T? maxValue)
+        where T : struct
+    {
+        return (minValue, maxValue) switch
+        {
+            ({ } minimum, { } maximum) when EqualityComparer<T>.Default.Equals(minimum, maximum) => $"{minimum}",
+            ({ } minimum, { } maximum) => $"{minimum}-{maximum}",
+            ({ } minimum, null) => $"{minimum}+",
+            (null, { } maximum) => $"up to {maximum}",
+            _ => string.Empty
+        };
+    }
+
+    private static string FormatPopulationRange(long? minPopulationMillions, long? maxPopulationMillions)
+    {
+        return (minPopulationMillions, maxPopulationMillions) switch
+        {
+            ({ } minimum, { } maximum) when minimum == maximum => FormatPopulationFilterMillions(minimum),
+            ({ } minimum, { } maximum) => $"{FormatPopulationFilterMillions(minimum)}-{FormatPopulationFilterMillions(maximum)}",
+            ({ } minimum, null) => $"{FormatPopulationFilterMillions(minimum)}+",
+            (null, { } maximum) => $"up to {FormatPopulationFilterMillions(maximum)}",
+            _ => string.Empty
+        };
+    }
+
+    private static string FormatPopulationFilterMillions(long populationMillions)
+    {
+        var absolutePopulation = populationMillions * 1_000_000m;
+        if (absolutePopulation >= 1_000_000_000_000m)
+        {
+            return $"{absolutePopulation / 1_000_000_000_000m:0.#}T";
+        }
+
+        if (absolutePopulation >= 1_000_000_000m)
+        {
+            return $"{absolutePopulation / 1_000_000_000m:0.#}B";
+        }
+
+        if (absolutePopulation >= 1_000_000m)
+        {
+            return $"{absolutePopulation / 1_000_000m:0.#}M";
+        }
+
+        return $"{absolutePopulation:0}";
     }
 
     protected static IReadOnlyList<ExplorerEmpireRaceMembershipDetail> FilterMemberRaces(

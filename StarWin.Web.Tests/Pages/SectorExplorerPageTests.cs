@@ -18,6 +18,29 @@ namespace StarWin.Web.Tests.Pages;
 public sealed class SectorExplorerPageTests : BunitContext
 {
     [Fact]
+    public void OverviewRendersConfigurationAsFinalExplorerTab()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var cut = Render<SectorExplorer>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var sectionTabs = cut.FindAll(".section-tabs a")
+                .Select(link => link.TextContent.Trim())
+                .ToArray();
+
+            Assert.Equal(
+                ["Overview", "Timeline", "Hyperlanes", "Systems", "Worlds", "Colonies", "Aliens", "Religions", "Empires", "Configuration"],
+                sectionTabs);
+        });
+    }
+
+    [Fact]
     public void OverviewDefersMapWorkspaceUntilAfterInitialRender()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;

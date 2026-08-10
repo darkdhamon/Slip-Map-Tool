@@ -68,11 +68,11 @@ public sealed class StarWinLegacyImportServiceTests
             Assert.Equal(1, await verificationContext.Empires.CountAsync());
             Assert.Equal(1, await verificationContext.Set<EmpireRaceMembership>().CountAsync());
             Assert.Equal(1, await verificationContext.Set<EmpireContact>().CountAsync());
-
             var race = await verificationContext.AlienRaces.SingleAsync();
             var empire = await verificationContext.Empires
                 .Include(item => item.Religions)
                 .SingleAsync();
+            var sectorConfiguration = await verificationContext.Set<StarWin.Domain.Model.Entity.StarMap.SectorConfiguration>().SingleAsync();
             var membership = await verificationContext.Set<EmpireRaceMembership>().SingleAsync();
             var contact = await verificationContext.Set<EmpireContact>().SingleAsync();
 
@@ -92,6 +92,7 @@ public sealed class StarWinLegacyImportServiceTests
             Assert.Equal("Veloran Tradition", empire.Religions[0].ReligionName);
             Assert.False(string.IsNullOrWhiteSpace(empire.ImportDataJson));
             Assert.True(empire.IsFallen);
+            Assert.NotNull(sectorConfiguration.SectorEmpireStatsCalculatedAtUtc);
             Assert.Equal(1, await verificationContext.Religions.CountAsync());
 
             using var raceImportData = JsonDocument.Parse(race.ImportDataJson!);
@@ -145,7 +146,7 @@ public sealed class StarWinLegacyImportServiceTests
                 Assert.True(secondResult.Success);
             }
 
-            Assert.Equal(2, countingFactory.CreateCount);
+            Assert.Equal(4, countingFactory.CreateCount);
         }
         finally
         {
@@ -200,6 +201,7 @@ public sealed class StarWinLegacyImportServiceTests
             Assert.True(await verificationContext.Worlds.AnyAsync());
             Assert.True(await verificationContext.AlienRaces.AnyAsync());
             Assert.True(await verificationContext.Empires.AnyAsync());
+            Assert.True(await verificationContext.Set<SectorEmpireStat>().AnyAsync());
             Assert.True(await verificationContext.Set<EmpireRaceMembership>().AnyAsync());
             Assert.True(await verificationContext.Set<EmpireContact>().AnyAsync());
         }

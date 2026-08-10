@@ -304,14 +304,30 @@ dd {
 
 .control-strip {
     display: grid;
-    grid-template-columns: minmax(180px, 240px) minmax(260px, 420px) minmax(260px, 460px) 1fr;
-    gap: 14px;
-    align-items: end;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px 18px;
+    align-items: stretch;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--surface);
     padding: 14px;
     box-shadow: var(--shadow);
+}
+
+.control-strip-fields {
+    display: grid;
+    grid-template-columns: minmax(160px, 180px) minmax(220px, 260px) minmax(240px, 1fr);
+    gap: 14px;
+    align-items: end;
+    min-width: 0;
+}
+
+.control-strip-tabs {
+    min-width: 0;
+}
+
+.control-strip-tabs .section-tabs {
+    justify-content: flex-start;
 }
 
 .control-strip label,
@@ -359,6 +375,37 @@ dd {
     background: linear-gradient(135deg, rgba(14, 165, 233, 0.34), rgba(124, 58, 237, 0.24));
     color: #f8fbff;
     box-shadow: 0 0 18px rgba(56, 189, 248, 0.18);
+}
+
+@media (min-width: 1900px) {
+    .control-strip {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 760px);
+        align-items: end;
+    }
+
+    .control-strip-tabs {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .control-strip-fields {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .control-strip-tabs .section-tabs {
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 900px) {
+    .control-strip-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .control-strip-fields .archive-search {
+        grid-column: auto;
+    }
 }
 
 .loading-modal-backdrop {
@@ -1290,6 +1337,13 @@ dd {
     cursor: pointer;
 }
 
+.record-filter-summary-copy {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
 .record-filter-summary::-webkit-details-marker {
     display: none;
 }
@@ -1314,6 +1368,42 @@ dd {
     content: "+";
 }
 
+.record-filter-panel[open] .record-filter-chip-list {
+    display: none;
+}
+
+.record-filter-chip-list {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.record-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    border: 1px solid rgba(125, 211, 252, 0.26);
+    border-radius: 999px;
+    background: rgba(14, 165, 233, 0.12);
+    color: #dbeafe;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.record-list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.record-filter-grid {
+    display: grid;
+    gap: 10px;
+}
+
 .record-filter-panel label {
     display: grid;
     gap: 6px;
@@ -1322,18 +1412,540 @@ dd {
     font-weight: 900;
 }
 
+.record-filter-inline-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+    align-items: end;
+}
+
+.record-filter-fieldset {
+    display: grid;
+    gap: 8px;
+    border: 1px solid rgba(125, 211, 252, 0.16);
+    border-radius: 8px;
+    background: rgba(8, 15, 32, 0.68);
+    padding: 10px;
+}
+
+.record-filter-fieldset-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.record-filter-heading {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.record-filter-segmented-control {
+    margin-bottom: 0;
+}
+
+.record-filter-segmented-control button {
+    min-height: 34px;
+    padding: 6px 10px;
+}
+
+.record-filter-tristate-toggle {
+    --toggle-index: 1;
+    --toggle-glow-x: 50%;
+    --toggle-track-glow: rgba(24, 174, 255, 0.18);
+    --toggle-track-border: rgba(41, 183, 255, 0.4);
+    --toggle-track-inner-glow: rgba(14, 165, 233, 0.14);
+    --toggle-track-outline: rgba(5, 21, 43, 0.65);
+    --toggle-track-ambient-glow: rgba(14, 165, 233, 0.18);
+    --toggle-scan-soft: rgba(69, 188, 255, 0.08);
+    --toggle-scan-strong: rgba(69, 188, 255, 0.36);
+    --toggle-thumb-border: rgba(81, 200, 255, 0.58);
+    --toggle-thumb-outline: rgba(9, 85, 155, 0.44);
+    --toggle-thumb-glow: rgba(38, 180, 255, 0.42);
+    --toggle-thumb-highlight: rgba(166, 231, 255, 0.88);
+    --toggle-thumb-mid: rgba(118, 203, 255, 0.35);
+    --toggle-thumb-deep: rgba(25, 121, 198, 0.94);
+    --toggle-thumb-base: rgba(5, 38, 84, 0.98);
+    --toggle-thumb-shell-top: rgba(7, 26, 54, 0.98);
+    --toggle-thumb-shell-bottom: rgba(5, 17, 35, 0.98);
+    --toggle-thumb-core: rgba(102, 216, 255, 0.7);
+    --toggle-thumb-core-shadow: rgba(56, 189, 248, 0.35);
+    --toggle-thumb-inner-stop: rgba(148, 217, 255, 0.52);
+    --toggle-thumb-inner-shadow: rgba(125, 211, 252, 0.52);
+    --toggle-thumb-scan-accent: rgba(56, 189, 248, 0.34);
+    --toggle-particle: rgba(125, 211, 252, 0.82);
+    --toggle-particle-shadow: rgba(125, 211, 252, 0.7);
+    --toggle-holo-glow: rgba(56, 189, 248, 0.16);
+    --toggle-label-active: #eef6ff;
+    --toggle-label-inactive: rgba(191, 219, 254, 0.78);
+    --toggle-label-glow: rgba(56, 189, 248, 0.42);
+    --toggle-status-dot: rgba(78, 196, 255, 0.94);
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: center;
+    width: min(100%, 17rem);
+    min-height: 52px;
+    padding: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    background:
+        linear-gradient(180deg, rgba(8, 16, 31, 0.98), rgba(4, 9, 20, 0.94)),
+        radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 48%);
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.04),
+        0 16px 30px rgba(2, 6, 23, 0.18);
+    isolation: isolate;
+    transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.record-filter-tristate-toggle.state-active {
+    --toggle-glow-x: 24%;
+    --toggle-track-glow: rgba(34, 197, 94, 0.2);
+    --toggle-track-border: rgba(74, 222, 128, 0.4);
+    --toggle-track-inner-glow: rgba(34, 197, 94, 0.14);
+    --toggle-track-outline: rgba(6, 78, 59, 0.65);
+    --toggle-track-ambient-glow: rgba(34, 197, 94, 0.18);
+    --toggle-scan-soft: rgba(74, 222, 128, 0.08);
+    --toggle-scan-strong: rgba(74, 222, 128, 0.36);
+    --toggle-thumb-border: rgba(110, 231, 183, 0.58);
+    --toggle-thumb-outline: rgba(5, 150, 105, 0.44);
+    --toggle-thumb-glow: rgba(74, 222, 128, 0.42);
+    --toggle-thumb-highlight: rgba(196, 255, 232, 0.9);
+    --toggle-thumb-mid: rgba(112, 255, 196, 0.38);
+    --toggle-thumb-deep: rgba(11, 167, 101, 0.92);
+    --toggle-thumb-base: rgba(3, 59, 40, 0.98);
+    --toggle-thumb-shell-top: rgba(6, 47, 35, 0.98);
+    --toggle-thumb-shell-bottom: rgba(3, 25, 18, 0.98);
+    --toggle-thumb-core: rgba(118, 255, 208, 0.72);
+    --toggle-thumb-core-shadow: rgba(16, 255, 169, 0.36);
+    --toggle-thumb-inner-stop: rgba(168, 255, 223, 0.56);
+    --toggle-thumb-inner-shadow: rgba(83, 255, 193, 0.54);
+    --toggle-thumb-scan-accent: rgba(83, 255, 193, 0.38);
+    --toggle-particle: rgba(110, 255, 206, 0.84);
+    --toggle-particle-shadow: rgba(83, 255, 193, 0.78);
+    --toggle-holo-glow: rgba(16, 255, 169, 0.18);
+    --toggle-label-glow: rgba(83, 255, 193, 0.44);
+    --toggle-status-dot: rgba(103, 255, 194, 0.95);
+}
+
+.record-filter-tristate-toggle:hover {
+    border-color: rgba(125, 211, 252, 0.3);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 18px 34px rgba(2, 6, 23, 0.24);
+}
+
+.record-filter-tristate-toggle.state-both {
+    --toggle-glow-x: 50%;
+    --toggle-track-glow: rgba(24, 174, 255, 0.18);
+    --toggle-track-border: rgba(41, 183, 255, 0.4);
+    --toggle-track-inner-glow: rgba(14, 165, 233, 0.14);
+    --toggle-track-outline: rgba(5, 21, 43, 0.65);
+    --toggle-track-ambient-glow: rgba(14, 165, 233, 0.18);
+    --toggle-scan-soft: rgba(69, 188, 255, 0.08);
+    --toggle-scan-strong: rgba(69, 188, 255, 0.36);
+    --toggle-thumb-border: rgba(81, 200, 255, 0.58);
+    --toggle-thumb-outline: rgba(9, 85, 155, 0.44);
+    --toggle-thumb-glow: rgba(38, 180, 255, 0.42);
+    --toggle-thumb-highlight: rgba(166, 231, 255, 0.88);
+    --toggle-thumb-mid: rgba(118, 203, 255, 0.35);
+    --toggle-thumb-deep: rgba(25, 121, 198, 0.94);
+    --toggle-thumb-base: rgba(5, 38, 84, 0.98);
+    --toggle-thumb-shell-top: rgba(7, 26, 54, 0.98);
+    --toggle-thumb-shell-bottom: rgba(5, 17, 35, 0.98);
+    --toggle-thumb-core: rgba(102, 216, 255, 0.7);
+    --toggle-thumb-core-shadow: rgba(56, 189, 248, 0.35);
+    --toggle-thumb-inner-stop: rgba(148, 217, 255, 0.52);
+    --toggle-thumb-inner-shadow: rgba(125, 211, 252, 0.52);
+    --toggle-thumb-scan-accent: rgba(56, 189, 248, 0.34);
+    --toggle-particle: rgba(125, 211, 252, 0.82);
+    --toggle-particle-shadow: rgba(125, 211, 252, 0.7);
+    --toggle-holo-glow: rgba(56, 189, 248, 0.16);
+    --toggle-label-glow: rgba(56, 189, 248, 0.42);
+    --toggle-status-dot: rgba(78, 196, 255, 0.94);
+}
+
+.record-filter-tristate-toggle.state-fallen {
+    --toggle-glow-x: 76%;
+    --toggle-track-glow: rgba(248, 113, 113, 0.18);
+    --toggle-track-border: rgba(248, 113, 113, 0.42);
+    --toggle-track-inner-glow: rgba(239, 68, 68, 0.16);
+    --toggle-track-outline: rgba(69, 10, 10, 0.72);
+    --toggle-track-ambient-glow: rgba(239, 68, 68, 0.2);
+    --toggle-scan-soft: rgba(248, 113, 113, 0.08);
+    --toggle-scan-strong: rgba(248, 113, 113, 0.34);
+    --toggle-thumb-border: rgba(252, 165, 165, 0.54);
+    --toggle-thumb-outline: rgba(153, 27, 27, 0.42);
+    --toggle-thumb-glow: rgba(248, 113, 113, 0.34);
+    --toggle-thumb-highlight: rgba(254, 202, 202, 0.9);
+    --toggle-thumb-mid: rgba(248, 113, 113, 0.4);
+    --toggle-thumb-deep: rgba(185, 28, 28, 0.92);
+    --toggle-thumb-base: rgba(69, 10, 10, 0.98);
+    --toggle-thumb-shell-top: rgba(63, 12, 17, 0.98);
+    --toggle-thumb-shell-bottom: rgba(31, 6, 8, 0.98);
+    --toggle-thumb-core: rgba(252, 165, 165, 0.68);
+    --toggle-thumb-core-shadow: rgba(248, 113, 113, 0.34);
+    --toggle-thumb-inner-stop: rgba(254, 205, 211, 0.54);
+    --toggle-thumb-inner-shadow: rgba(252, 165, 165, 0.48);
+    --toggle-thumb-scan-accent: rgba(248, 113, 113, 0.34);
+    --toggle-particle: rgba(254, 202, 202, 0.78);
+    --toggle-particle-shadow: rgba(248, 113, 113, 0.68);
+    --toggle-holo-glow: rgba(248, 113, 113, 0.18);
+    --toggle-label-glow: rgba(248, 113, 113, 0.4);
+    --toggle-status-dot: rgba(252, 165, 165, 0.92);
+}
+
+.record-filter-tristate-toggle-track {
+    position: absolute;
+    inset: 4px;
+    border-radius: 999px;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at var(--toggle-glow-x) 50%, var(--toggle-track-glow), transparent 34%),
+        linear-gradient(180deg, #071121, #081a31 58%, #071120);
+    border: 1px solid var(--toggle-track-border);
+    box-shadow:
+        inset 0 3px 10px rgba(2, 6, 23, 0.6),
+        inset 0 0 22px var(--toggle-track-inner-glow),
+        0 0 0 1px var(--toggle-track-outline),
+        0 0 22px var(--toggle-track-ambient-glow);
+    transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.record-filter-tristate-toggle-track-lines {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.record-filter-tristate-toggle-track-line {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    top: 50%;
+    height: 2px;
+    transform: translateY(-50%);
+    border-radius: 999px;
+    background:
+        repeating-linear-gradient(
+            90deg,
+            var(--toggle-scan-soft) 0 6px,
+            var(--toggle-scan-strong) 6px 11px,
+            transparent 11px 18px);
+    opacity: 0.9;
+    animation: record-filter-toggle-scan 2.2s linear infinite;
+    transition: opacity 180ms ease, background 180ms ease, left 180ms ease, right 180ms ease;
+}
+
+.record-filter-tristate-toggle-reflection {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 40%);
+}
+
+.record-filter-tristate-toggle-holo-glow {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: radial-gradient(ellipse at center, var(--toggle-holo-glow) 0%, rgba(2, 6, 23, 0) 72%);
+    filter: blur(10px);
+    opacity: 0.5;
+    transition: background 180ms ease, opacity 180ms ease;
+}
+
+.record-filter-tristate-toggle-thumb {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: calc((100% - 8px) / 3);
+    height: calc(100% - 8px);
+    border-radius: 999px;
+    transform: translateX(calc(var(--toggle-index) * 100%));
+    border: 1px solid var(--toggle-thumb-border);
+    background:
+        radial-gradient(circle at 46% 42%, var(--toggle-thumb-highlight), var(--toggle-thumb-mid) 34%, var(--toggle-thumb-deep) 76%, var(--toggle-thumb-base) 100%),
+        linear-gradient(180deg, var(--toggle-thumb-shell-top), var(--toggle-thumb-shell-bottom));
+    box-shadow:
+        0 0 0 2px var(--toggle-thumb-outline),
+        0 0 18px var(--toggle-thumb-glow),
+        0 8px 18px rgba(2, 6, 23, 0.42),
+        inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.record-filter-tristate-toggle-energy-rings {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 38px;
+    height: 38px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.record-filter-tristate-toggle-energy-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 2px solid transparent;
+    opacity: 0.9;
+}
+
+.record-filter-tristate-toggle-energy-ring:nth-child(1) {
+    width: 36px;
+    height: 36px;
+    border-top-color: color-mix(in srgb, var(--toggle-status-dot) 58%, transparent);
+    border-right-color: color-mix(in srgb, var(--toggle-status-dot) 26%, transparent);
+    animation: record-filter-toggle-spin 3s linear infinite;
+}
+
+.record-filter-tristate-toggle-energy-ring:nth-child(2) {
+    width: 28px;
+    height: 28px;
+    border-bottom-color: color-mix(in srgb, var(--toggle-status-dot) 52%, transparent);
+    border-left-color: color-mix(in srgb, var(--toggle-status-dot) 22%, transparent);
+    animation: record-filter-toggle-spin 2s linear infinite reverse;
+}
+
+.record-filter-tristate-toggle-energy-ring:nth-child(3) {
+    width: 20px;
+    height: 20px;
+    border-left-color: color-mix(in srgb, var(--toggle-status-dot) 44%, transparent);
+    border-top-color: color-mix(in srgb, var(--toggle-status-dot) 18%, transparent);
+    animation: record-filter-toggle-spin 1.4s linear infinite;
+}
+
+.record-filter-tristate-toggle-thumb-core {
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--toggle-thumb-core) 0%, transparent 62%);
+    box-shadow: 0 0 18px var(--toggle-thumb-core-shadow);
+    opacity: 0.9;
+    transition: background 180ms ease, box-shadow 180ms ease;
+}
+
+.record-filter-tristate-toggle-thumb-inner {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.84) 0%, var(--toggle-thumb-inner-stop) 100%);
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--toggle-thumb-inner-shadow);
+    opacity: 0.82;
+    animation: record-filter-toggle-pulse 2s infinite alternate;
+}
+
+.record-filter-tristate-toggle-thumb-scan {
+    position: absolute;
+    width: 100%;
+    height: 5px;
+    top: -7px;
+    left: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        var(--toggle-thumb-scan-accent) 18%,
+        rgba(255, 255, 255, 0.82) 50%,
+        var(--toggle-thumb-scan-accent) 82%,
+        transparent 100%);
+    filter: blur(0.6px);
+    animation: record-filter-toggle-thumb-scan 2s linear infinite;
+    opacity: 0.78;
+}
+
+.record-filter-tristate-toggle-thumb-particles {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.record-filter-tristate-toggle-thumb-particle {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--toggle-particle);
+    box-shadow: 0 0 5px var(--toggle-particle-shadow);
+    opacity: 0;
+    animation: record-filter-toggle-particle-float 3s infinite ease-out;
+}
+
+.record-filter-tristate-toggle-thumb-particle:nth-child(1) {
+    top: 66%;
+    left: 28%;
+    animation-delay: 0.2s;
+}
+
+.record-filter-tristate-toggle-thumb-particle:nth-child(2) {
+    top: 58%;
+    left: 62%;
+    animation-delay: 0.7s;
+}
+
+.record-filter-tristate-toggle-thumb-particle:nth-child(3) {
+    top: 42%;
+    left: 38%;
+    animation-delay: 1.1s;
+}
+
+.record-filter-tristate-toggle-thumb-particle:nth-child(4) {
+    top: 36%;
+    left: 70%;
+    animation-delay: 1.6s;
+}
+
+.record-filter-tristate-toggle-option {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 52px;
+    padding: 0 0.55rem;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--toggle-label-inactive);
+    cursor: pointer;
+    user-select: none;
+    transition: color 180ms ease, text-shadow 180ms ease, opacity 180ms ease;
+}
+
+.record-filter-tristate-toggle-option span {
+    position: relative;
+    z-index: 1;
+    text-shadow: 0 1px 1px rgba(2, 6, 23, 0.8);
+    transition: text-shadow 180ms ease, background 180ms ease, box-shadow 180ms ease, padding 180ms ease;
+}
+
+.record-filter-tristate-toggle-option::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 9px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    transform: translateX(-50%) scale(0.75);
+    background: var(--toggle-status-dot);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--toggle-status-dot) 48%, transparent);
+    opacity: 0;
+    transition: opacity 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+
+.record-filter-tristate-toggle-option input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.record-filter-tristate-toggle-option.active {
+    color: var(--toggle-label-active);
+    text-shadow:
+        0 1px 2px rgba(2, 6, 23, 0.96),
+        0 0 12px var(--toggle-label-glow);
+}
+
+.record-filter-tristate-toggle-option.active span {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0.22), rgba(2, 6, 23, 0.08));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+    text-shadow:
+        0 1px 2px rgba(2, 6, 23, 0.98),
+        0 0 12px var(--toggle-label-glow);
+    -webkit-text-stroke: 0.2px rgba(2, 6, 23, 0.55);
+}
+
+.record-filter-tristate-toggle-option.active::after {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+}
+
+.record-filter-tristate-toggle:focus-within .record-filter-tristate-toggle-track {
+    box-shadow:
+        inset 0 3px 10px rgba(2, 6, 23, 0.6),
+        inset 0 0 22px var(--toggle-track-inner-glow),
+        0 0 0 3px rgba(56, 189, 248, 0.2),
+        0 0 26px rgba(34, 211, 238, 0.26);
+}
+
+.record-filter-range-inputs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.record-filter-range-inputs label {
+    gap: 4px;
+}
+
+.record-filter-range-inputs label span {
+    color: #cbd5e1;
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.record-filter-select-label {
+    align-self: stretch;
+}
+
+.record-list-sort-label {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.record-list-sort-label select {
+    min-width: min(240px, 100%);
+}
+
 .record-filter-actions,
 .record-filter-toggle-row {
     display: flex;
     align-items: stretch;
 }
 
+.record-filter-actions {
+    justify-content: flex-end;
+}
+
 .record-filter-actions .timeline-clear-button {
     justify-self: auto;
 }
 
-.record-filter-panel input,
-.record-filter-panel select {
+.record-filter-panel input:not([type="range"]),
+.record-filter-panel select,
+.record-list-sort-label select {
     width: 100%;
     box-sizing: border-box;
     min-height: 38px;
@@ -1345,10 +1957,137 @@ dd {
     outline: none;
 }
 
-.record-filter-panel input:focus,
-.record-filter-panel select:focus {
+.record-filter-panel input:not([type="range"]):focus,
+.record-filter-panel select:focus,
+.record-list-sort-label select:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
+.record-filter-dual-slider {
+    display: grid;
+    gap: 12px;
+    border: 1px solid rgba(125, 211, 252, 0.18);
+    border-radius: 12px;
+    background:
+        linear-gradient(180deg, rgba(8, 16, 31, 0.88), rgba(4, 9, 20, 0.82)),
+        radial-gradient(circle at top center, rgba(34, 211, 238, 0.08), transparent 56%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.03),
+        0 10px 22px rgba(2, 6, 23, 0.14);
+    padding: 12px;
+}
+
+.record-filter-dual-slider-readout {
+    justify-self: center;
+    color: #67d6ff;
+    font-size: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    text-align: center;
+}
+
+.record-filter-dual-slider-shell {
+    --slider-min-percent: 0%;
+    --slider-max-percent: 100%;
+    position: relative;
+    height: 34px;
+    padding: 0 6px;
+}
+
+.record-filter-dual-slider-track,
+.record-filter-dual-slider-range {
+    position: absolute;
+    top: 50%;
+    height: 6px;
+    transform: translateY(-50%);
+    border-radius: 999px;
+    pointer-events: none;
+}
+
+.record-filter-dual-slider-track {
+    left: 6px;
+    right: 6px;
+    border: 1px solid rgba(125, 211, 252, 0.22);
+    background: rgba(226, 232, 240, 0.16);
+    box-shadow: inset 0 1px 2px rgba(2, 6, 23, 0.52);
+}
+
+.record-filter-dual-slider-range {
+    left: calc(6px + var(--slider-min-percent));
+    right: calc(6px + (100% - var(--slider-max-percent)));
+    background: linear-gradient(90deg, rgba(56, 189, 248, 0.9), rgba(14, 165, 233, 0.98));
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.26);
+}
+
+.record-filter-dual-slider-input {
+    -webkit-appearance: none;
+    appearance: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    min-height: auto;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+}
+
+.record-filter-dual-slider-input::-webkit-slider-runnable-track {
+    height: 6px;
+    background: transparent;
+    border: none;
+}
+
+.record-filter-dual-slider-input::-moz-range-track {
+    height: 6px;
+    background: transparent;
+    border: none;
+}
+
+.record-filter-dual-slider-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin-top: -6px;
+    border: 2px solid rgba(125, 211, 252, 0.82);
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #f8fdff, #a5f3fc 22%, #38bdf8 56%, #0f172a 100%);
+    box-shadow:
+        0 0 0 2px rgba(8, 47, 73, 0.34),
+        0 0 16px rgba(56, 189, 248, 0.3);
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.record-filter-dual-slider-input::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(125, 211, 252, 0.82);
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #f8fdff, #a5f3fc 22%, #38bdf8 56%, #0f172a 100%);
+    box-shadow:
+        0 0 0 2px rgba(8, 47, 73, 0.34),
+        0 0 16px rgba(56, 189, 248, 0.3);
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.record-filter-dual-slider-input.min {
+    z-index: 2;
+}
+
+.record-filter-dual-slider-input.max {
+    z-index: 3;
+}
+
+.record-filter-dual-slider-shell:focus-within .record-filter-dual-slider-track {
+    box-shadow:
+        0 0 0 3px rgba(56, 189, 248, 0.18),
+        inset 0 1px 2px rgba(2, 6, 23, 0.52);
 }
 
 .record-filter-toggle {
@@ -3683,7 +4422,6 @@ dd {
 @media (max-width: 1100px) {
     .explorer-hero,
     .about-grid,
-    .control-strip,
     .overview-layout,
     .timeline-layout,
     .hyperlane-layout,

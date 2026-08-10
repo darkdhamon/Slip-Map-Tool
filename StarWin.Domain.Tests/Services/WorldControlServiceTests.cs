@@ -68,4 +68,15 @@ public sealed class WorldControlServiceTests
         Assert.Null(world.Colony.ControllingEmpireId);
         Assert.Equal(ColonyPoliticalStatus.Independent, world.Colony.PoliticalStatus);
     }
+
+    [Fact]
+    public void TransferControl_WithNullWorld_ThrowsArgumentNullException()
+    {
+        var service = new WorldControlService();
+        var empire = new Empire { Id = 42 };
+
+        var error = Assert.Throws<ArgumentNullException>(() => service.TransferControl(null!, empire));
+
+        Assert.Equal("world", error.ParamName);
+    }
 }

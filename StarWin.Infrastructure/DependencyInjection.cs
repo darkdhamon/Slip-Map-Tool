@@ -59,6 +59,7 @@ public static class DependencyInjection
         services.AddScoped<IStarWinSpaceHabitatService, StarWinSpaceHabitatService>();
         services.AddScoped<IStarWinLegacyImportService, StarWinLegacyImportService>();
         services.AddScoped<IStarWinSectorConfigurationService, StarWinSectorConfigurationService>();
+        services.AddScoped<IStarWinSectorEmpireStatsService, StarWinSectorEmpireStatsService>();
         services.AddScoped<IStarWinSectorRouteService, StarWinSectorRouteService>();
 
         return services;
@@ -182,6 +183,8 @@ public static class DependencyInjection
             await EnsureColumnAsync(connection, "SectorConfigurations", "Tl10MaximumDistanceParsecs", "REAL NOT NULL DEFAULT -1");
             await EnsureColumnAsync(connection, "SectorConfigurations", "Tl10OffLaneSpeedMultiplier", "REAL NOT NULL DEFAULT 32");
             await EnsureColumnAsync(connection, "SectorConfigurations", "Tl10HyperlaneSpeedModifier", "REAL NOT NULL DEFAULT 3");
+            await EnsureColumnAsync(connection, "SectorConfigurations", "SectorEmpireStatsCalculatedAtUtc", "TEXT NULL");
+            await EnsureColumnAsync(connection, "SectorConfigurations", "SectorEmpireStatsInvalidatedAtUtc", "TEXT NULL");
 
             if (await ColumnExistsAsync(connection, "SectorConfigurations", "BasicHyperlaneMaximumLengthParsecs"))
             {
@@ -195,6 +198,26 @@ public static class DependencyInjection
             }
 
             await EnsureAlienEmpireImportParitySqliteAsync(connection);
+
+            await ExecuteNonQueryAsync(
+                connection,
+                """
+                CREATE TABLE IF NOT EXISTS "SectorEmpireStats" (
+                    "SectorId" INTEGER NOT NULL,
+                    "EmpireId" INTEGER NOT NULL,
+                    "ControlledWorldCount" INTEGER NOT NULL,
+                    "TrackedWorldCount" INTEGER NOT NULL,
+                    "LastCalculatedAtUtc" TEXT NOT NULL,
+                    CONSTRAINT "PK_SectorEmpireStats" PRIMARY KEY ("SectorId", "EmpireId")
+                )
+                """);
+
+            await ExecuteNonQueryAsync(
+                connection,
+                """
+                CREATE INDEX IF NOT EXISTS "IX_SectorEmpireStats_EmpireId_SectorId"
+                ON "SectorEmpireStats" ("EmpireId", "SectorId")
+                """);
 
             await ExecuteNonQueryAsync(
                 connection,
