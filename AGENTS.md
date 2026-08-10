@@ -16,6 +16,8 @@ Do not start coding for an issue-driven conversation until I explicitly ask you 
 
 GitHub project workflow uses the `Starforged Atlas Task Board`.
 
+Use the GitHub CLI for GitHub management. Run `gh` in the desktop user's Windows context, outside any isolated sandbox that cannot access the Windows Credential Manager/keyring; sandboxed authentication checks can falsely report an invalid token when the credential is stored there. Do not expose, copy, or pass the stored credential into the sandbox. Use Chrome only when the GitHub CLI cannot perform a required action.
+
 When an issue is in `Backlog`, move it to `Ready` after research is complete.
 
 GitHub release workflow:
