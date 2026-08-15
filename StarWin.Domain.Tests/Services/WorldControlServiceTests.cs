@@ -79,4 +79,14 @@ public sealed class WorldControlServiceTests
 
         Assert.Equal("world", error.ParamName);
     }
+
+    [Fact]
+    public void ClearControl_WithNullWorld_ThrowsArgumentNullException()
+    {
+        var service = new WorldControlService();
+
+        var error = Assert.Throws<ArgumentNullException>(() => service.ClearControl(null!));
+
+        Assert.Equal("world", error.ParamName);
+    }
 }
