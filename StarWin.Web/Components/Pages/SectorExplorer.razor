@@ -312,10 +312,20 @@ else
 
     private async Task HandleMapSystemChangedAsync(int systemId)
     {
-        var sector = GetSelectedSector();
-        if (systemId == selectedSystemId || sector.Systems.All(system => system.Id != systemId))
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId)
+            ?? GetSelectedSector();
+        if (sector.Systems.All(system => system.Id != systemId))
         {
             return;
+        }
+
+        if (Workspace.Sectors.Contains(sector))
+        {
+            explorerContext = explorerContext with
+            {
+                Sectors = Workspace.Sectors,
+                CurrentSector = sector
+            };
         }
 
         selectedSystemId = systemId;
