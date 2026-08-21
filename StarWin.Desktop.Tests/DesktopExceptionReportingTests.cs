@@ -67,6 +67,18 @@ public sealed class DesktopExceptionReportingTests
         Assert.False(DesktopBackendReportSignal.TryConsume(nonce));
     }
 
+    [Fact]
+    public void Backend_child_arguments_identify_report_acknowledgment_nonce()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..",
+            "StarWin.Desktop", "Program.cs"));
+
+        Assert.Contains("args.Contains(BackendServerArgument", source, StringComparison.Ordinal);
+        Assert.Contains("DesktopBackendReportSignal.MarkAttempted(reportNonce)", source, StringComparison.Ordinal);
+    }
+
     private sealed class FakeGitHubIssuePublisher : IGitHubIssuePublisher
     {
         public List<GitHubIssueSubmission> Submissions { get; } = [];

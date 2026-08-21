@@ -58,6 +58,12 @@ internal static class Program
         catch (Exception ex)
         {
             await ReportDesktopExceptionAsync(ex, "Desktop configuration startup");
+            if (args.Contains(BackendServerArgument, StringComparer.OrdinalIgnoreCase)
+                && TryGetArgumentValue(args, BackendReportNonceArgument, out var reportNonce)
+                && !string.IsNullOrWhiteSpace(reportNonce))
+            {
+                DesktopBackendReportSignal.MarkAttempted(reportNonce);
+            }
             throw;
         }
 
