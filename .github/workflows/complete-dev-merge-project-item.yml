@@ -110,6 +110,7 @@ jobs:
                         nodes {
                           databaseId
                           body
+                          updatedAt
                         }
                       }
                     }
@@ -131,7 +132,10 @@ jobs:
                   content: '+1',
                   per_page: 100,
                 });
-                if (reactions.some(reaction => isConnector(reaction.user?.login))) {
+                if (reactions.some(reaction =>
+                  isConnector(reaction.user?.login) &&
+                  Date.parse(reaction.created_at) >= Date.parse(comment.updatedAt)
+                )) {
                   hasHeadConnectorApproval = true;
                   break;
                 }

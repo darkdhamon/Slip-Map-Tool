@@ -67,8 +67,12 @@ function createHarness({
       },
     },
     paginate: async (_method, { comment_id }) => {
+      const normalizeReactions = reactions => reactions.map(reaction => ({
+        created_at: '2026-08-21T01:00:00Z',
+        ...reaction,
+      }));
       if (connectorReactionPages) {
-        return connectorReactionPages.flat();
+        return normalizeReactions(connectorReactionPages.flat());
       }
       const comments = (connectorRequestPages ?? [connectorReviewRequests])
         .flatMap((page, pageIndex) => page.map((node, index) => ({
@@ -76,7 +80,7 @@ function createHarness({
           databaseId: node.databaseId ?? pageIndex * 100 + index + 1,
         })));
       const comment = comments.find(node => node.databaseId === comment_id);
-      return comment?.reactions?.nodes ?? [];
+      return normalizeReactions(comment?.reactions?.nodes ?? []);
     },
     graphql: async (query, variables) => {
       queries.push(query);
@@ -113,6 +117,7 @@ function createHarness({
           nodes: pages[pageIndex].map((node, index) => ({
             ...node,
             databaseId: node.databaseId ?? pageIndex * 100 + index + 1,
+            updatedAt: node.updatedAt ?? '2026-08-21T00:00:00Z',
           })),
         } } } };
       }
@@ -273,6 +278,27 @@ test('does not accept connector approval bound to a stale head', async () => {
     connectorReviewRequests: [{
       body: '@codex review previous-head-sha',
       reactions: { nodes: [{ user: { login: 'chatgpt-codex-connector' } }] },
+    }],
+    projectItems: [issue(119, 'In review')],
+    reviewDecision: null,
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations, []);
+  assert.match(harness.messages.info[0], /does not have a current approval signal/);
+});
+
+test('rejects a Connector reaction that predates the latest review-request edit', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119],
+    connectorReviewRequests: [{
+      body: '@codex review head-sha',
+      reactions: { nodes: [{
+        created_at: '2026-08-21T00:30:00Z',
+        user: { login: 'chatgpt-codex-connector' },
+      }] },
+      updatedAt: '2026-08-21T00:45:00Z',
     }],
     projectItems: [issue(119, 'In review')],
     reviewDecision: null,
