@@ -253,6 +253,20 @@ test('treats changes requested as a veto even when the connector reacted with ap
   assert.match(harness.messages.info[0], /does not have a current approval signal/);
 });
 
+test('treats changes requested as a veto even with an authoritative current-head human approval', async () => {
+  const harness = createHarness({
+    approvedReviewCommitOids: ['head-sha'],
+    closingIssueNumbers: [119],
+    projectItems: [issue(119, 'In review')],
+    reviewDecision: 'CHANGES_REQUESTED',
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations, []);
+  assert.match(harness.messages.info[0], /does not have a current approval signal/);
+});
+
 test('does not accept connector approval bound to a stale head', async () => {
   const harness = createHarness({
     closingIssueNumbers: [119],

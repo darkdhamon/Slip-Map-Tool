@@ -173,11 +173,9 @@ jobs:
                 : null;
             } while (reviewThreadCursor && !hasUnresolvedConnectorThread);
 
-            const isApproved =
-              hasHeadHumanApproval ||
-              (pullRequest.reviewDecision !== 'CHANGES_REQUESTED' &&
-                hasHeadConnectorApproval &&
-                !hasUnresolvedConnectorThread);
+            const isApproved = pullRequest.reviewDecision !== 'CHANGES_REQUESTED' &&
+              (hasHeadHumanApproval ||
+                (hasHeadConnectorApproval && !hasUnresolvedConnectorThread));
 
             if (!isApproved) {
               core.info('The merged pull request does not have a current approval signal; no project items were changed.');
