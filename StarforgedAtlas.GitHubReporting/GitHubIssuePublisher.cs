@@ -123,8 +123,20 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
     {
         ArgumentNullException.ThrowIfNull(submission);
 
-        var issueUrl = await TryFindCreatedIssueAsync(submission, cancellationToken)
-            ?? await TryCreateIssueAsync(submission, cancellationToken);
+        string? issueUrl = null;
+        try
+        {
+            issueUrl = await TryFindCreatedIssueAsync(submission, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+        }
+
+        issueUrl ??= await TryCreateIssueAsync(submission, cancellationToken);
         if (string.IsNullOrWhiteSpace(issueUrl))
         {
             return new GitHubIssueSubmissionResult(

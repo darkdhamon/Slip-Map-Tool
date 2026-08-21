@@ -114,6 +114,17 @@ public sealed class GitHubIssuePublisherTests
     }
 
     [Fact]
+    public async Task PublishAsync_continues_to_creation_when_fingerprint_lookup_fails()
+    {
+        var publisher = new GitHubIssuePublisher(new LookupFailureGitHubCommandRunner());
+        var submission = CreateSubmission() with { Body = "- Fingerprint: `ABC123`" };
+
+        var result = await publisher.PublishAsync(submission);
+
+        Assert.False(result.IssueCreated);
+    }
+
+    [Fact]
     public void BuildIssueDraftUri_includes_title_labels_and_body()
     {
         var uri = GitHubIssuePublisher.BuildIssueDraftUri(new GitHubIssueSubmission(
@@ -195,5 +206,23 @@ public sealed class GitHubIssuePublisherTests
             CancellationToken cancellationToken = default,
             string? standardInput = null)
             => Task.FromException<GitHubCommandResult>(new OperationCanceledException());
+    }
+
+    private sealed class LookupFailureGitHubCommandRunner : IGitHubCommandRunner
+    {
+        private int callCount;
+
+        public Task<GitHubCommandResult> RunAsync(
+            IReadOnlyList<string> arguments,
+            CancellationToken cancellationToken = default,
+            string? standardInput = null)
+        {
+            if (Interlocked.Increment(ref callCount) == 1)
+            {
+                throw new InvalidOperationException("gh unavailable during lookup");
+            }
+
+            return Task.FromResult(new GitHubCommandResult(1, string.Empty, "gh unavailable"));
+        }
     }
 }
