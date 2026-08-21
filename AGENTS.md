@@ -16,6 +16,8 @@ Do not start coding for an issue-driven conversation until I explicitly ask you 
 
 GitHub project workflow uses the `Starforged Atlas Task Board`.
 
+For GitHub CLI operations, reuse the existing machine-wide/global `gh` credential and configuration. Do not initiate or create workspace-specific GitHub CLI authorization. If a restricted sandbox cannot access the global credential or configuration, report that environment restriction instead of asking the user to authenticate again.
+
 When an issue is in `Backlog`, move it to `Ready` after research is complete.
 
 GitHub release workflow:
