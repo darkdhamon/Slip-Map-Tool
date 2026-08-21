@@ -37,11 +37,13 @@ function createHarness({
   connectorReviewRequests = [],
   connectorReactionPages,
   connectorRequestPages,
+  mergedPullRequestPages,
   projectItems = [],
   projectPages,
   reviewDecision = 'APPROVED',
   reviewThreads = [],
   reviewThreadPages,
+  reviewThreadCommentPages,
 } = {}) {
   const mutations = [];
   const queries = [];
@@ -49,17 +51,6 @@ function createHarness({
 
   const github = {
     rest: {
-      repos: {
-        listPullRequestsAssociatedWithCommit: async () => ({
-          data: associatedPullRequests ?? [{
-            base: { ref: 'dev' },
-            body,
-            merge_commit_sha: 'merge-sha',
-            merged_at: '2026-08-21T00:00:00Z',
-            number: 132,
-          }],
-        }),
-      },
       reactions: {
         listForIssueComment: async () => {
           throw new Error('listForIssueComment should be called through paginate');
@@ -84,6 +75,27 @@ function createHarness({
     },
     graphql: async (query, variables) => {
       queries.push(query);
+
+      if (query.includes('query MergedPullRequestsPage')) {
+        const defaultPullRequests = associatedPullRequests ?? [{
+          body,
+          merge_commit_sha: 'merge-sha',
+          merged_at: '2026-08-21T02:00:00Z',
+          number: 132,
+        }];
+        const pages = mergedPullRequestPages ?? [defaultPullRequests];
+        const pageIndex = variables.cursor ? Number(variables.cursor.slice(7)) : 0;
+        const hasNextPage = pageIndex < pages.length - 1;
+        return { repository: { pullRequests: {
+          pageInfo: { hasNextPage, endCursor: hasNextPage ? `cursor-${pageIndex + 1}` : null },
+          nodes: pages[pageIndex].map(pullRequest => ({
+            body: pullRequest.body ?? '',
+            mergeCommit: { oid: pullRequest.merge_commit_sha },
+            mergedAt: pullRequest.merged_at ?? '2026-08-21T02:00:00Z',
+            number: pullRequest.number,
+          })),
+        } } };
+      }
 
       if (query.includes('query ReviewApproval')) {
         return {
@@ -134,11 +146,28 @@ function createHarness({
                   hasNextPage,
                   endCursor: hasNextPage ? `cursor-${pageIndex + 1}` : null,
                 },
-                nodes: pages[pageIndex],
+                nodes: pages[pageIndex].map((thread, index) => ({
+                  ...thread,
+                  id: thread.id ?? `thread-${pageIndex}-${index}`,
+                  comments: {
+                    ...thread.comments,
+                    pageInfo: thread.comments.pageInfo ?? { hasNextPage: false, endCursor: null },
+                  },
+                })),
               },
             },
           },
         };
+      }
+
+      if (query.includes('query ReviewThreadCommentsPage')) {
+        const pages = reviewThreadCommentPages ?? [[]];
+        const pageIndex = Number(variables.cursor.slice(7));
+        const hasNextPage = pageIndex < pages.length - 1;
+        return { node: { comments: {
+          pageInfo: { hasNextPage, endCursor: hasNextPage ? `cursor-${pageIndex + 1}` : null },
+          nodes: pages[pageIndex],
+        } } };
       }
 
       if (query.includes('query ClosingIssuesPage')) {
@@ -225,7 +254,7 @@ test('does not update project items when the merged pull request is unapproved',
 
   await executeWorkflow(harness.github, harness.context, harness.core);
 
-  assert.equal(harness.queries.length, 4);
+  assert.equal(harness.queries.length, 5);
   assert.deepEqual(harness.mutations, []);
   assert.match(harness.messages.info[0], /does not have a current approval signal/);
 });
@@ -235,9 +264,26 @@ test('treats a dev push without an associated merged pull request as a no-op', a
 
   await executeWorkflow(harness.github, harness.context, harness.core);
 
-  assert.deepEqual(harness.queries, []);
+  assert.equal(harness.queries.length, 1);
+  assert.match(harness.queries[0], /query MergedPullRequestsPage/);
   assert.deepEqual(harness.mutations, []);
   assert.match(harness.messages.info[0], /not the merge commit of a pull request/);
+});
+
+test('finds the merged dev pull request on a later result page', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119],
+    mergedPullRequestPages: [
+      [{ merge_commit_sha: 'other-merge', number: 131 }],
+      [{ merge_commit_sha: 'merge-sha', number: 132 }],
+    ],
+    projectItems: [issue(119, 'In review')],
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations.map(mutation => mutation.itemId), ['item-119']);
+  assert.equal(harness.queries.filter(query => query.includes('query MergedPullRequestsPage')).length, 2);
 });
 
 test('treats changes requested as a veto even when the connector reacted with approval', async () => {
@@ -253,7 +299,7 @@ test('treats changes requested as a veto even when the connector reacted with ap
 
   await executeWorkflow(harness.github, harness.context, harness.core);
 
-  assert.equal(harness.queries.length, 4);
+  assert.equal(harness.queries.length, 5);
   assert.deepEqual(harness.mutations, []);
   assert.match(harness.messages.info[0], /does not have a current approval signal/);
 });
@@ -348,6 +394,32 @@ test('rejects a Connector reaction with the same timestamp as the latest request
   assert.match(harness.messages.info[0], /does not have a current approval signal/);
 });
 
+test('rejects a Connector approval added after the pull request was merged', async () => {
+  const harness = createHarness({
+    associatedPullRequests: [{
+      body: '',
+      merge_commit_sha: 'merge-sha',
+      merged_at: '2026-08-21T00:30:00Z',
+      number: 132,
+    }],
+    closingIssueNumbers: [119],
+    connectorReviewRequests: [{
+      body: '@codex review head-sha',
+      reactions: { nodes: [{
+        created_at: '2026-08-21T01:00:00Z',
+        user: { login: 'chatgpt-codex-connector' },
+      }] },
+    }],
+    projectItems: [issue(119, 'In review')],
+    reviewDecision: null,
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations, []);
+  assert.match(harness.messages.info[0], /does not have a current approval signal/);
+});
+
 test('finds an unresolved connector thread on a later review-thread page', async () => {
   const harness = createHarness({
     closingIssueNumbers: [119],
@@ -370,6 +442,32 @@ test('finds an unresolved connector thread on a later review-thread page', async
 
   assert.deepEqual(harness.mutations, []);
   assert.equal(harness.queries.filter(query => query.includes('query ReviewThreadsPage')).length, 2);
+});
+
+test('finds Connector participation on a later comment page of an unresolved thread', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119],
+    connectorReviewRequests: [{
+      body: '@codex review head-sha',
+      reactions: { nodes: [{ user: { login: 'chatgpt-codex-connector' } }] },
+    }],
+    projectItems: [issue(119, 'In review')],
+    reviewDecision: null,
+    reviewThreadCommentPages: [[], [{ author: { login: 'chatgpt-codex-connector' } }]],
+    reviewThreads: [{
+      id: 'thread-1',
+      isResolved: false,
+      comments: {
+        pageInfo: { hasNextPage: true, endCursor: 'cursor-1' },
+        nodes: Array.from({ length: 100 }, () => ({ author: { login: 'someone-else' } })),
+      },
+    }],
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations, []);
+  assert.equal(harness.queries.filter(query => query.includes('query ReviewThreadCommentsPage')).length, 1);
 });
 
 test('allows an authoritative current-head human approval despite connector threads', async () => {

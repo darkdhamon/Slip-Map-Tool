@@ -39,16 +39,33 @@ jobs:
             const targetStatusName = 'Done';
             const repositoryNameWithOwner = `${context.repo.owner}/${context.repo.repo}`;
 
-            const associatedPullRequests = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: context.sha,
-            });
-            const mergedPullRequest = associatedPullRequests.data.find(pullRequest =>
-              pullRequest.merged_at &&
-              pullRequest.base.ref === 'dev' &&
-              pullRequest.merge_commit_sha === context.sha
-            );
+            let mergedPullRequest = null;
+            let mergedPullRequestCursor = null;
+            do {
+              const mergedPullRequestsResult = await github.graphql(
+                `query MergedPullRequestsPage($owner: String!, $repo: String!, $cursor: String) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequests(first: 100, after: $cursor, states: MERGED, baseRefName: "dev", orderBy: { field: UPDATED_AT, direction: DESC }) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes { number body mergedAt mergeCommit { oid } }
+                    }
+                  }
+                }`,
+                { owner: context.repo.owner, repo: context.repo.repo, cursor: mergedPullRequestCursor },
+              );
+              const pullRequests = mergedPullRequestsResult.repository.pullRequests;
+              const match = pullRequests.nodes.find(candidate => candidate.mergeCommit?.oid === context.sha);
+              if (match) {
+                mergedPullRequest = {
+                  body: match.body,
+                  merged_at: match.mergedAt,
+                  number: match.number,
+                };
+              }
+              mergedPullRequestCursor = pullRequests.pageInfo.hasNextPage
+                ? pullRequests.pageInfo.endCursor
+                : null;
+            } while (mergedPullRequestCursor && !mergedPullRequest);
 
             if (!mergedPullRequest) {
               core.info('The dev push is not the merge commit of a pull request; no project items were changed.');
@@ -137,7 +154,8 @@ jobs:
                 });
                 if (reactions.some(reaction =>
                   isConnector(reaction.user?.login) &&
-                  Date.parse(reaction.created_at) > Date.parse(comment.updatedAt)
+                  Date.parse(reaction.created_at) > Date.parse(comment.updatedAt) &&
+                  Date.parse(reaction.created_at) <= Date.parse(mergedPullRequest.merged_at)
                 )) {
                   hasHeadConnectorApproval = true;
                   break;
@@ -156,8 +174,12 @@ jobs:
                       reviewThreads(first: 100, after: $cursor) {
                         pageInfo { hasNextPage endCursor }
                         nodes {
+                          id
                           isResolved
-                          comments(first: 100) { nodes { author { login } } }
+                          comments(first: 100) {
+                            pageInfo { hasNextPage endCursor }
+                            nodes { author { login } }
+                          }
                         }
                       }
                     }
@@ -171,10 +193,39 @@ jobs:
                 },
               );
               const threads = threadResult.repository.pullRequest.reviewThreads;
-              hasUnresolvedConnectorThread ||= threads.nodes.some(thread =>
-                !thread.isResolved &&
-                thread.comments.nodes.some(comment => isConnector(comment.author?.login))
-              );
+              for (const thread of threads.nodes.filter(candidate => !candidate.isResolved)) {
+                if (thread.comments.nodes.some(comment => isConnector(comment.author?.login))) {
+                  hasUnresolvedConnectorThread = true;
+                  break;
+                }
+
+                let threadCommentCursor = thread.comments.pageInfo.hasNextPage
+                  ? thread.comments.pageInfo.endCursor
+                  : null;
+                while (threadCommentCursor && !hasUnresolvedConnectorThread) {
+                  const commentsResult = await github.graphql(
+                    `query ReviewThreadCommentsPage($threadId: ID!, $cursor: String) {
+                      node(id: $threadId) {
+                        ... on PullRequestReviewThread {
+                          comments(first: 100, after: $cursor) {
+                            pageInfo { hasNextPage endCursor }
+                            nodes { author { login } }
+                          }
+                        }
+                      }
+                    }`,
+                    { threadId: thread.id, cursor: threadCommentCursor },
+                  );
+                  const comments = commentsResult.node.comments;
+                  hasUnresolvedConnectorThread ||= comments.nodes.some(comment =>
+                    isConnector(comment.author?.login)
+                  );
+                  threadCommentCursor = comments.pageInfo.hasNextPage
+                    ? comments.pageInfo.endCursor
+                    : null;
+                }
+                if (hasUnresolvedConnectorThread) break;
+              }
               reviewThreadCursor = threads.pageInfo.hasNextPage
                 ? threads.pageInfo.endCursor
                 : null;
