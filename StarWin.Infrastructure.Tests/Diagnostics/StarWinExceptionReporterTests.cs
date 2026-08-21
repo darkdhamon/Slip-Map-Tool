@@ -130,8 +130,25 @@ public sealed class StarWinExceptionReporterTests
         await reporter.ReportExceptionAsync(
             new InvalidOperationException("Boom"),
             new StarWinExceptionContext("Web", "Standalone web host startup"));
+        await reporter.ReportExceptionAsync(
+            new InvalidOperationException("Boom"),
+            new StarWinExceptionContext("Web", "Standalone web host startup"));
 
         Assert.Empty(draftLauncher.Submissions);
+        Assert.Single(publisher.Submissions);
+    }
+
+    [Fact]
+    public async Task ReportExceptionAsync_retries_partial_success_for_project_attachment()
+    {
+        var publisher = new FakeGitHubIssuePublisher(issueCreated: true, addedToProject: false);
+        var reporter = new StarWinExceptionReporter(publisher);
+        var context = new StarWinExceptionContext("Web", "Unhandled web request", Route: "/systems");
+
+        await reporter.ReportExceptionAsync(new InvalidOperationException("Boom"), context);
+        await reporter.ReportExceptionAsync(new InvalidOperationException("Boom"), context);
+
+        Assert.Equal(2, publisher.Submissions.Count);
     }
 
     [Fact]
@@ -255,7 +272,7 @@ public sealed class StarWinExceptionReporterTests
         Assert.IsType<StarWinExceptionReporter>(reporter);
     }
 
-    private sealed class FakeGitHubIssuePublisher(bool issueCreated = true) : IGitHubIssuePublisher
+    private sealed class FakeGitHubIssuePublisher(bool issueCreated = true, bool addedToProject = true) : IGitHubIssuePublisher
     {
         public List<GitHubIssueSubmission> Submissions { get; } = [];
 
@@ -270,7 +287,7 @@ public sealed class StarWinExceptionReporterTests
 
             return Task.FromResult(new GitHubIssueSubmissionResult(
                 issueCreated,
-                issueCreated,
+                issueCreated && addedToProject,
                 issueCreated ? "https://github.com/darkdhamon/Starforged-Atlas/issues/77" : null));
         }
     }

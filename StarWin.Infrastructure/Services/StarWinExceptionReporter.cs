@@ -82,7 +82,8 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
             {
                 var draftOpened = string.Equals(context.HostKind, "Desktop", StringComparison.OrdinalIgnoreCase)
                     && issueDraftLauncher.TryOpen(submission);
-                if (!draftOpened)
+                if (!draftOpened
+                    && !string.Equals(context.HostKind, "Web", StringComparison.OrdinalIgnoreCase))
                 {
                     recentFingerprints.TryRemove(issue.Fingerprint, out _);
                 }
@@ -94,6 +95,7 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
             }
             else if (!result.AddedToProject)
             {
+                recentFingerprints.TryRemove(issue.Fingerprint, out _);
                 logger.LogWarning(
                     "Automatic GitHub exception issue was created but not added to the task board. hostKind={HostKind} issueUrl={IssueUrl}",
                     context.HostKind,
