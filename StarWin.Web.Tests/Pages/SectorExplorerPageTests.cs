@@ -180,6 +180,31 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
+    public async Task MapWorkspaceNotifiesParentWithoutNavigatingDirectly()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer?sectorId=7&systemId=11");
+        var selectedSystemId = 0;
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11)
+            .Add(component => component.SystemIdChanged, systemId => selectedSystemId = systemId));
+
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+        await cut.InvokeAsync(() => cut.Instance.SelectSystemFromMap(12));
+
+        Assert.Equal(12, selectedSystemId);
+        Assert.EndsWith("/sector-explorer?sectorId=7&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task OverviewSystemSelectorRetargetsMapAndPreservesSystemIdInUrl()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
