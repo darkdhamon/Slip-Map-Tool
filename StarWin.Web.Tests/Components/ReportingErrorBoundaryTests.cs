@@ -38,6 +38,21 @@ public sealed class ReportingErrorBoundaryTests : BunitContext
         Assert.Contains("Reload the page", cut.Markup, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Omits_query_and_fragment_from_reported_route()
+    {
+        var reporter = new FakeExceptionReporter();
+        Services.AddSingleton<IStarWinExceptionReporter>(reporter);
+        Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/systems?authorization_code=secret#details");
+
+        Render<ReportingErrorBoundary>(parameters => parameters
+            .AddChildContent<ThrowingComponent>());
+
+        Assert.Equal("/systems", Assert.Single(reporter.Reports).Context.Route);
+    }
+
     private sealed class ThrowingComponent : ComponentBase
     {
         protected override void BuildRenderTree(RenderTreeBuilder builder)

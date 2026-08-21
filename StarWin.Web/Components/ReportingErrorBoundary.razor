@@ -20,7 +20,8 @@ else
 @code {
     protected override Task OnErrorAsync(Exception exception)
     {
-        var relativeRoute = Navigation.ToBaseRelativePath(Navigation.Uri);
+        var routeUri = new Uri(Navigation.Uri).GetLeftPart(UriPartial.Path);
+        var relativeRoute = Navigation.ToBaseRelativePath(routeUri);
         return ExceptionReporter.ReportExceptionAsync(
             exception,
             new StarWinExceptionContext(

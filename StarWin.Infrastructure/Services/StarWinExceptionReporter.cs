@@ -254,7 +254,7 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
         {
             if (now - pair.Value >= duplicateWindow)
             {
-                recentFingerprints.TryRemove(pair.Key, out _);
+                ((ICollection<KeyValuePair<string, DateTimeOffset>>)recentFingerprints).Remove(pair);
             }
         }
 
