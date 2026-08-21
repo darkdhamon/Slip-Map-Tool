@@ -1,6 +1,5 @@
 @layout MainLayout
 @page "/sector-explorer"
-@rendermode InteractiveServer
 @inject IStarWinWorkspace Workspace
 @inject IStarWinExplorerContextService ExplorerContextService
 @inject IStarWinExplorerQueryService ExplorerQueryService
@@ -66,7 +65,7 @@ else
             </article>
         </div>
 
-        <div class="stacked-panels">
+        <div class="stacked-panels route-planner-stack">
             <article class="feature-panel route-planner-panel">
                 <span class="panel-kicker">Route planner</span>
                 <h2>Preparing route-planning workspace</h2>
@@ -84,7 +83,7 @@ else
             </article>
         </div>
 
-        <div class="stacked-panels">
+        <div class="stacked-panels route-planner-stack">
             <article class="feature-panel route-planner-panel">
                 <span class="panel-kicker">Route planner</span>
                 <h2>Preparing route-planning workspace</h2>

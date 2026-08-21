@@ -1,9 +1,18 @@
 using System.IO;
+using Microsoft.Extensions.Hosting;
+using StarWin.Web;
 
 namespace StarWin.Web.Tests.Components;
 
 public sealed class AppCssTests
 {
+    [Fact]
+    public void Design_time_host_abort_is_not_reported_as_startup_failure()
+    {
+        Assert.False(StarWinWebHost.ShouldReportStartupException(new HostAbortedException()));
+        Assert.True(StarWinWebHost.ShouldReportStartupException(new InvalidOperationException()));
+    }
+
     [Fact]
     public void WorkspaceLoadingModalHostStretchesAcrossOverviewRow()
     {
@@ -14,6 +23,18 @@ public sealed class AppCssTests
         Assert.Contains(".workspace-loading-modal-host", css);
         Assert.Contains("align-self: stretch;", css);
         Assert.Contains("justify-self: stretch;", css);
+    }
+
+    [Fact]
+    public void OverviewRoutePlannerDoesNotClipExpandedAvoidFilters()
+    {
+        var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var cssPath = Path.Combine(repoRoot, "StarWin.Web", "wwwroot", "app.css");
+        var css = File.ReadAllText(cssPath);
+
+        Assert.Contains(".route-planner-stack {", css);
+        Assert.Contains("max-height: none;", css);
+        Assert.Contains("overflow: visible;", css);
     }
 
     [Fact]
@@ -71,5 +92,23 @@ public sealed class AppCssTests
         Assert.Contains("<main class=\"site-main\" tabindex=\"-1\">", layoutMarkup);
         Assert.Contains(".site-main:focus,", layoutCss);
         Assert.Contains("outline: none;", layoutCss);
+    }
+
+    [Fact]
+    public void Router_and_error_boundary_share_the_interactive_root()
+    {
+        var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var appMarkup = File.ReadAllText(Path.Combine(repoRoot, "StarWin.Web", "Components", "App.razor"));
+        var routesMarkup = File.ReadAllText(Path.Combine(repoRoot, "StarWin.Web", "Components", "Routes.razor"));
+        var pageMarkups = Directory.GetFiles(
+                Path.Combine(repoRoot, "StarWin.Web", "Components", "Pages"),
+                "*.razor")
+            .Select(File.ReadAllText);
+
+        Assert.Contains("<Routes @rendermode=\"InteractiveServer\" />", appMarkup, StringComparison.Ordinal);
+        Assert.Contains("<HeadOutlet @rendermode=\"InteractiveServer\" />", appMarkup, StringComparison.Ordinal);
+        Assert.Contains("<ReportingErrorBoundary>", routesMarkup, StringComparison.Ordinal);
+        Assert.DoesNotContain(pageMarkups, markup =>
+            markup.Contains("@rendermode InteractiveServer", StringComparison.Ordinal));
     }
 }

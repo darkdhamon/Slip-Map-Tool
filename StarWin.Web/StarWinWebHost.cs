@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.StaticWebAssets;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using StarWin.Application.Services;
 using StarWin.Infrastructure;
 using StarWin.Web.Components;
@@ -10,6 +11,9 @@ namespace StarWin.Web;
 
 public static class StarWinWebHost
 {
+    public static bool ShouldReportStartupException(Exception exception)
+        => exception is not HostAbortedException;
+
     public static WebApplicationBuilder CreateBuilder(string[] args)
     {
         return WebApplication.CreateBuilder(args);
