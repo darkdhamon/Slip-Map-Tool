@@ -31,7 +31,6 @@ public partial class Error
         var request = HttpContext?.Request;
         var additionalData = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
-            ["Query string"] = request?.QueryString.Value,
             ["Request method"] = request?.Method,
             ["Request path"] = request?.Path.Value
         };

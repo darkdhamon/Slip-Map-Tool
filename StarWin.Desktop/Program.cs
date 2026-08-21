@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -33,10 +34,14 @@ internal static class Program
     private const string SmokeTestArgument = "--smoke-test";
     private const string SkipUpdateCheckArgument = "--skip-update-check";
     private static readonly IStarWinExceptionReporter ExceptionReporter = new StarWinExceptionReporter();
+    private static readonly ConcurrentDictionary<Exception, byte> ReportedExceptions =
+        new(ReferenceEqualityComparer.Instance);
 
     [STAThread]
     public static async Task Main(string[] args)
     {
+        RegisterRuntimeExceptionHandlers();
+
         if (args.Contains(BackendServerArgument, StringComparer.OrdinalIgnoreCase))
         {
             var port = TryGetArgumentValue(args, BackendPortArgument, out var portValue) && int.TryParse(portValue, out var parsedPort)
@@ -72,7 +77,10 @@ internal static class Program
         catch (Exception ex)
         {
             startupReporter.Fail("Starforged Atlas failed to start", ex.GetBaseException().Message);
-            await ReportDesktopExceptionAsync(ex, "Desktop shell startup");
+            if (DesktopExceptionObservation.ShouldReportShellStartupException(ex))
+            {
+                await ReportDesktopExceptionAsync(ex, "Desktop shell startup");
+            }
             throw;
         }
     }
@@ -262,7 +270,15 @@ internal static class Program
                         if (!skipUpdateCheck && !checkedForUpdates)
                         {
                             checkedForUpdates = true;
-                            _ = CheckForDesktopReleaseUpdateAsync(form, releaseUpdateService);
+                            _ = DesktopExceptionObservation.ObserveAsync(
+                                CheckForDesktopReleaseUpdateAsync(form, releaseUpdateService),
+                                async ex =>
+                                {
+                                    StarWinDesktopLog.Write("desktop-shell", ex.ToString());
+                                    await ReportDesktopExceptionAsync(
+                                        ex,
+                                        "Desktop release update check");
+                                });
                         }
                     }
                 };
@@ -372,6 +388,11 @@ internal static class Program
         string operation,
         IReadOnlyDictionary<string, string?>? additionalData = null)
     {
+        if (!ReportedExceptions.TryAdd(exception, 0))
+        {
+            return Task.CompletedTask;
+        }
+
         return ExceptionReporter.ReportExceptionAsync(
             exception,
             new StarWinExceptionContext(
@@ -379,6 +400,34 @@ internal static class Program
                 Operation: operation,
                 AppVersion: DesktopAppVersion.GetCurrentReleaseTag(),
                 AdditionalData: additionalData));
+    }
+
+    private static void RegisterRuntimeExceptionHandlers()
+    {
+        AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
+        {
+            if (eventArgs.ExceptionObject is Exception exception)
+            {
+                ReportDesktopExceptionAsync(exception, "Unhandled desktop process exception")
+                    .GetAwaiter()
+                    .GetResult();
+            }
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
+        {
+            ReportDesktopExceptionAsync(eventArgs.Exception, "Unobserved desktop task exception")
+                .GetAwaiter()
+                .GetResult();
+            eventArgs.SetObserved();
+        };
+
+#if WINDOWS
+        Application.ThreadException += async (_, eventArgs) =>
+            await ReportDesktopExceptionAsync(
+                eventArgs.Exception,
+                "Unhandled desktop UI exception");
+#endif
     }
 }
 
@@ -393,6 +442,7 @@ internal static class DesktopBackendCoordinator
         CancellationToken cancellationToken)
     {
         DesktopBackendState state;
+        var launchedBackendProcessId = 0;
 
         using (var mutex = CreateStateMutex())
         {
@@ -415,6 +465,7 @@ internal static class DesktopBackendCoordinator
                     startupReporter.Report("Starting shared backend", "Launching the local server used by all desktop windows.");
                     state.Port = SelectBackendPort(state.Port);
                     state.BackendProcessId = StartBackendProcess(state.Port).Id;
+                    launchedBackendProcessId = state.BackendProcessId;
                 }
                 else
                 {
@@ -430,7 +481,11 @@ internal static class DesktopBackendCoordinator
             }
         }
 
-        await WaitForBackendReadyAsync(state.Port, startupReporter, cancellationToken);
+        await WaitForBackendReadyAsync(
+            state.Port,
+            launchedBackendProcessId,
+            startupReporter,
+            cancellationToken);
         return new DesktopBackendLease($"http://127.0.0.1:{state.Port}");
     }
 
@@ -606,6 +661,7 @@ internal static class DesktopBackendCoordinator
 
     private static async Task WaitForBackendReadyAsync(
         int port,
+        int launchedBackendProcessId,
         IDesktopStartupReporter startupReporter,
         CancellationToken cancellationToken)
     {
@@ -626,6 +682,11 @@ internal static class DesktopBackendCoordinator
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (launchedBackendProcessId > 0 && !IsProcessAlive(launchedBackendProcessId))
+            {
+                throw new DesktopBackendStartupReportedException();
+            }
+
             attempt++;
             startupReporter.Report("Waiting for shared backend", $"The local server is starting up. Attempt {attempt:N0}.");
 

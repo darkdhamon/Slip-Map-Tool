@@ -183,34 +183,51 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
         string issueUrl,
         CancellationToken cancellationToken)
     {
-        try
+        const int maxAttempts = 3;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            var projectNumber = TryResolveProjectNumber(
-                target.ProjectOwner,
-                target.ProjectTitle,
-                cancellationToken);
-            if (!projectNumber.HasValue)
+            try
             {
-                return false;
+                var projectNumber = TryResolveProjectNumber(
+                    target.ProjectOwner,
+                    target.ProjectTitle,
+                    cancellationToken);
+                if (projectNumber.HasValue)
+                {
+                    var result = commandRunner.Run(
+                    [
+                        "project",
+                        "item-add",
+                        projectNumber.Value.ToString(),
+                        "--owner",
+                        target.ProjectOwner,
+                        "--url",
+                        issueUrl
+                    ], cancellationToken);
+
+                    if (result.ExitCode == 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
             }
 
-            var result = commandRunner.Run(
-            [
-                "project",
-                "item-add",
-                projectNumber.Value.ToString(),
-                "--owner",
-                target.ProjectOwner,
-                "--url",
-                issueUrl
-            ], cancellationToken);
+            if (attempt < maxAttempts
+                && cancellationToken.WaitHandle.WaitOne(TimeSpan.FromMilliseconds(250 * attempt)))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
 
-            return result.ExitCode == 0;
-        }
-        catch
-        {
-            return false;
-        }
+        return false;
     }
 
     private int? TryResolveProjectNumber(

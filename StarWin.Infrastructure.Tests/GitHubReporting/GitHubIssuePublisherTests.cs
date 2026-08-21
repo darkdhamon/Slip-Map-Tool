@@ -59,6 +59,35 @@ public sealed class GitHubIssuePublisherTests
     }
 
     [Fact]
+    public void Publish_retries_project_attachment_without_creating_a_second_issue()
+    {
+        var projectList = """{"projects":[{"title":"Starforged Atlas Task Board","number":5}],"totalCount":1}""";
+        var runner = new FakeGitHubCommandRunner(
+        [
+            new GitHubCommandResult(0, "https://github.com/darkdhamon/Starforged-Atlas/issues/9003", string.Empty),
+            new GitHubCommandResult(0, projectList, string.Empty),
+            new GitHubCommandResult(1, string.Empty, "temporary item-add failure"),
+            new GitHubCommandResult(0, projectList, string.Empty),
+            new GitHubCommandResult(0, string.Empty, string.Empty)
+        ]);
+        var publisher = new GitHubIssuePublisher(runner);
+
+        var result = publisher.Publish(new GitHubIssueSubmission(
+            new GitHubIssueTarget(
+                "darkdhamon/Starforged-Atlas",
+                "darkdhamon",
+                "Starforged Atlas Task Board"),
+            "Bug: retry project attachment",
+            "body",
+            ["bug"]));
+
+        Assert.True(result.IssueCreated);
+        Assert.True(result.AddedToProject);
+        Assert.Single(runner.Commands, command => command.Contains("create"));
+        Assert.Equal(2, runner.Commands.Count(command => command.Contains("item-add")));
+    }
+
+    [Fact]
     public void BuildIssueDraftUri_includes_title_labels_and_body()
     {
         var uri = GitHubIssuePublisher.BuildIssueDraftUri(new GitHubIssueSubmission(

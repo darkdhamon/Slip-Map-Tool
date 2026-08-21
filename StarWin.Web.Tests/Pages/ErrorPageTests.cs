@@ -50,6 +50,7 @@ public sealed class ErrorPageTests : BunitContext
             Assert.Equal("trace-123", report.Context.TraceIdentifier);
             Assert.Equal("2026-08-20.0-developer-preview", report.Context.AppVersion);
             Assert.Contains("GET", report.Context.AdditionalData!["Request method"], StringComparison.Ordinal);
+            Assert.DoesNotContain("Query string", report.Context.AdditionalData.Keys);
         });
 
         Assert.Contains("trace-123", cut.Markup);
