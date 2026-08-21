@@ -6,7 +6,7 @@ namespace StarWin.Infrastructure.Tests.GitHubReporting;
 public sealed class GitHubIssuePublisherTests
 {
     [Fact]
-    public void Publish_creates_issue_and_adds_it_to_the_project_board()
+    public async Task Publish_creates_issue_and_adds_it_to_the_project_board()
     {
         var runner = new FakeGitHubCommandRunner(
         [
@@ -16,7 +16,7 @@ public sealed class GitHubIssuePublisherTests
         ]);
         var publisher = new GitHubIssuePublisher(runner);
 
-        var result = publisher.Publish(new GitHubIssueSubmission(
+        var result = await publisher.PublishAsync(new GitHubIssueSubmission(
             new GitHubIssueTarget(
                 "darkdhamon/Starforged-Atlas",
                 "darkdhamon",
@@ -35,7 +35,7 @@ public sealed class GitHubIssuePublisherTests
     }
 
     [Fact]
-    public void Publish_returns_created_issue_when_project_add_fails()
+    public async Task Publish_returns_created_issue_when_project_add_fails()
     {
         var runner = new FakeGitHubCommandRunner(
         [
@@ -44,7 +44,7 @@ public sealed class GitHubIssuePublisherTests
         ]);
         var publisher = new GitHubIssuePublisher(runner);
 
-        var result = publisher.Publish(new GitHubIssueSubmission(
+        var result = await publisher.PublishAsync(new GitHubIssueSubmission(
             new GitHubIssueTarget(
                 "darkdhamon/Starforged-Atlas",
                 "darkdhamon",
@@ -59,7 +59,7 @@ public sealed class GitHubIssuePublisherTests
     }
 
     [Fact]
-    public void Publish_retries_project_attachment_without_creating_a_second_issue()
+    public async Task Publish_retries_project_attachment_without_creating_a_second_issue()
     {
         var projectList = """{"projects":[{"title":"Starforged Atlas Task Board","number":5}],"totalCount":1}""";
         var runner = new FakeGitHubCommandRunner(
@@ -72,7 +72,7 @@ public sealed class GitHubIssuePublisherTests
         ]);
         var publisher = new GitHubIssuePublisher(runner);
 
-        var result = publisher.Publish(new GitHubIssueSubmission(
+        var result = await publisher.PublishAsync(new GitHubIssueSubmission(
             new GitHubIssueTarget(
                 "darkdhamon/Starforged-Atlas",
                 "darkdhamon",
@@ -85,6 +85,29 @@ public sealed class GitHubIssuePublisherTests
         Assert.True(result.AddedToProject);
         Assert.Single(runner.Commands, command => command.Contains("create"));
         Assert.Equal(2, runner.Commands.Count(command => command.Contains("item-add")));
+    }
+
+    [Fact]
+    public async Task PublishAsync_does_not_block_while_the_command_is_running()
+    {
+        var runner = new DeferredGitHubCommandRunner();
+        var publisher = new GitHubIssuePublisher(runner);
+
+        var publishTask = publisher.PublishAsync(CreateSubmission());
+
+        Assert.False(publishTask.IsCompleted);
+        runner.Complete(new GitHubCommandResult(1, string.Empty, "not available"));
+        var result = await publishTask;
+        Assert.False(result.IssueCreated);
+    }
+
+    [Fact]
+    public async Task PublishAsync_propagates_command_cancellation()
+    {
+        var publisher = new GitHubIssuePublisher(new CancelingGitHubCommandRunner());
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            publisher.PublishAsync(CreateSubmission()));
     }
 
     [Fact]
@@ -106,18 +129,51 @@ public sealed class GitHubIssuePublisherTests
         Assert.Contains("Body text", decodedQuery, StringComparison.Ordinal);
     }
 
+    private static GitHubIssueSubmission CreateSubmission()
+    {
+        return new GitHubIssueSubmission(
+            new GitHubIssueTarget(
+                "darkdhamon/Starforged-Atlas",
+                "darkdhamon",
+                "Starforged Atlas Task Board"),
+            "Bug: test submission",
+            "body",
+            ["bug"]);
+    }
+
     private sealed class FakeGitHubCommandRunner(IEnumerable<GitHubCommandResult> results) : IGitHubCommandRunner
     {
         private readonly Queue<GitHubCommandResult> results = new(results);
 
         public List<IReadOnlyList<string>> Commands { get; } = [];
 
-        public GitHubCommandResult Run(
+        public Task<GitHubCommandResult> RunAsync(
             IReadOnlyList<string> arguments,
             CancellationToken cancellationToken = default)
         {
             Commands.Add(arguments.ToArray());
-            return this.results.Dequeue();
+            return Task.FromResult(this.results.Dequeue());
         }
+    }
+
+    private sealed class DeferredGitHubCommandRunner : IGitHubCommandRunner
+    {
+        private readonly TaskCompletionSource<GitHubCommandResult> completion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<GitHubCommandResult> RunAsync(
+            IReadOnlyList<string> arguments,
+            CancellationToken cancellationToken = default)
+            => completion.Task.WaitAsync(cancellationToken);
+
+        public void Complete(GitHubCommandResult result) => completion.SetResult(result);
+    }
+
+    private sealed class CancelingGitHubCommandRunner : IGitHubCommandRunner
+    {
+        public Task<GitHubCommandResult> RunAsync(
+            IReadOnlyList<string> arguments,
+            CancellationToken cancellationToken = default)
+            => Task.FromException<GitHubCommandResult>(new OperationCanceledException());
     }
 }

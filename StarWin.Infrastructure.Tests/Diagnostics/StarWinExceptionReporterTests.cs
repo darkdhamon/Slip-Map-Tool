@@ -168,7 +168,7 @@ public sealed class StarWinExceptionReporterTests
     {
         public List<GitHubIssueSubmission> Submissions { get; } = [];
 
-        public GitHubIssueSubmissionResult Publish(
+        public Task<GitHubIssueSubmissionResult> PublishAsync(
             GitHubIssueSubmission submission,
             CancellationToken cancellationToken = default)
         {
@@ -177,10 +177,10 @@ public sealed class StarWinExceptionReporterTests
                 Submissions.Add(submission);
             }
 
-            return new GitHubIssueSubmissionResult(
+            return Task.FromResult(new GitHubIssueSubmissionResult(
                 issueCreated,
                 issueCreated,
-                issueCreated ? "https://github.com/darkdhamon/Starforged-Atlas/issues/77" : null);
+                issueCreated ? "https://github.com/darkdhamon/Starforged-Atlas/issues/77" : null));
         }
     }
 

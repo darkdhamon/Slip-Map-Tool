@@ -26,14 +26,14 @@ public sealed record GitHubCommandResult(
 
 public interface IGitHubCommandRunner
 {
-    GitHubCommandResult Run(
+    Task<GitHubCommandResult> RunAsync(
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken = default);
 }
 
 public interface IGitHubIssuePublisher
 {
-    GitHubIssueSubmissionResult Publish(
+    Task<GitHubIssueSubmissionResult> PublishAsync(
         GitHubIssueSubmission submission,
         CancellationToken cancellationToken = default);
 }
@@ -42,7 +42,7 @@ public sealed class ProcessGitHubCommandRunner(TimeSpan? timeout = null) : IGitH
 {
     private readonly TimeSpan timeout = timeout ?? TimeSpan.FromSeconds(15);
 
-    public GitHubCommandResult Run(
+    public async Task<GitHubCommandResult> RunAsync(
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken = default)
     {
@@ -76,7 +76,7 @@ public sealed class ProcessGitHubCommandRunner(TimeSpan? timeout = null) : IGitH
 
         try
         {
-            process.WaitForExitAsync(timeoutSource.Token).GetAwaiter().GetResult();
+            await process.WaitForExitAsync(timeoutSource.Token);
         }
         catch (OperationCanceledException)
         {
@@ -85,8 +85,8 @@ public sealed class ProcessGitHubCommandRunner(TimeSpan? timeout = null) : IGitH
             throw new TimeoutException($"GitHub CLI did not finish within {timeout.TotalSeconds:0} seconds.");
         }
 
-        var standardOutput = standardOutputTask.GetAwaiter().GetResult();
-        var standardError = standardErrorTask.GetAwaiter().GetResult();
+        var standardOutput = await standardOutputTask;
+        var standardError = await standardErrorTask;
 
         return new GitHubCommandResult(process.ExitCode, standardOutput, standardError);
     }
@@ -109,13 +109,14 @@ public sealed class ProcessGitHubCommandRunner(TimeSpan? timeout = null) : IGitH
 
 public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : IGitHubIssuePublisher
 {
-    public GitHubIssueSubmissionResult Publish(
+    public async Task<GitHubIssueSubmissionResult> PublishAsync(
         GitHubIssueSubmission submission,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(submission);
 
-        if (!TryCreateIssue(submission, cancellationToken, out var issueUrl))
+        var issueUrl = await TryCreateIssueAsync(submission, cancellationToken);
+        if (string.IsNullOrWhiteSpace(issueUrl))
         {
             return new GitHubIssueSubmissionResult(
                 IssueCreated: false,
@@ -123,7 +124,10 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
                 IssueUrl: null);
         }
 
-        var addedToProject = TryAddIssueToProject(submission.Target, issueUrl!, cancellationToken);
+        var addedToProject = await TryAddIssueToProjectAsync(
+            submission.Target,
+            issueUrl,
+            cancellationToken);
         return new GitHubIssueSubmissionResult(
             IssueCreated: true,
             AddedToProject: addedToProject,
@@ -140,13 +144,10 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
         return builder.Uri;
     }
 
-    private bool TryCreateIssue(
+    private async Task<string?> TryCreateIssueAsync(
         GitHubIssueSubmission submission,
-        CancellationToken cancellationToken,
-        out string? issueUrl)
+        CancellationToken cancellationToken)
     {
-        issueUrl = null;
-
         try
         {
             var arguments = new List<string>
@@ -168,17 +169,23 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
             arguments.Add("--body");
             arguments.Add(submission.Body);
 
-            var result = commandRunner.Run(arguments, cancellationToken);
-            issueUrl = result.StandardOutput.Trim();
-            return result.ExitCode == 0 && !string.IsNullOrWhiteSpace(issueUrl);
+            var result = await commandRunner.RunAsync(arguments, cancellationToken);
+            var issueUrl = result.StandardOutput.Trim();
+            return result.ExitCode == 0 && !string.IsNullOrWhiteSpace(issueUrl)
+                ? issueUrl
+                : null;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch
         {
-            return false;
+            return null;
         }
     }
 
-    private bool TryAddIssueToProject(
+    private async Task<bool> TryAddIssueToProjectAsync(
         GitHubIssueTarget target,
         string issueUrl,
         CancellationToken cancellationToken)
@@ -189,13 +196,13 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
         {
             try
             {
-                var projectNumber = TryResolveProjectNumber(
+                var projectNumber = await TryResolveProjectNumberAsync(
                     target.ProjectOwner,
                     target.ProjectTitle,
                     cancellationToken);
                 if (projectNumber.HasValue)
                 {
-                    var result = commandRunner.Run(
+                    var result = await commandRunner.RunAsync(
                     [
                         "project",
                         "item-add",
@@ -220,22 +227,21 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
             {
             }
 
-            if (attempt < maxAttempts
-                && cancellationToken.WaitHandle.WaitOne(TimeSpan.FromMilliseconds(250 * attempt)))
+            if (attempt < maxAttempts)
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt), cancellationToken);
             }
         }
 
         return false;
     }
 
-    private int? TryResolveProjectNumber(
+    private async Task<int?> TryResolveProjectNumberAsync(
         string owner,
         string projectTitle,
         CancellationToken cancellationToken)
     {
-        var result = commandRunner.Run(
+        var result = await commandRunner.RunAsync(
         [
             "project",
             "list",

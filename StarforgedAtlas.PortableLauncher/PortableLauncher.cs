@@ -630,7 +630,7 @@ internal sealed class PortableLauncher
                     PortablePackageInstaller.RestoreBackup(backupRoot, targetRoot, progress);
                     PortableUpdateStateStore.IgnoreRelease(targetRoot, releaseTag);
                     PortableUpdateStateStore.ClearPendingValidation(targetRoot);
-                    PortableUpdateFailureReporter.ReportFailedUpdate(releaseTag, previousVersion);
+                    await PortableUpdateFailureReporter.ReportFailedUpdateAsync(releaseTag, previousVersion);
 
                     progress.Report(new UpdateProgressInfo("Restarting the previous version...", null, 100));
 
@@ -1177,7 +1177,7 @@ internal static class PortableUpdateFailureReporter
         "darkdhamon",
         "Starforged Atlas Task Board");
 
-    public static void ReportFailedUpdate(string releaseTag, string previousVersion)
+    public static async Task ReportFailedUpdateAsync(string releaseTag, string previousVersion)
     {
         var title = $"Bugfix: portable update rollback for {releaseTag}";
         var body = BuildIssueBody(releaseTag, previousVersion);
@@ -1188,7 +1188,7 @@ internal static class PortableUpdateFailureReporter
             ["bug"]);
         var publisher = new GitHubIssuePublisher(new ProcessGitHubCommandRunner());
 
-        if (publisher.Publish(submission).IssueCreated)
+        if ((await publisher.PublishAsync(submission)).IssueCreated)
         {
             return;
         }

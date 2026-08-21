@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -34,8 +34,8 @@ internal static class Program
     private const string SmokeTestArgument = "--smoke-test";
     private const string SkipUpdateCheckArgument = "--skip-update-check";
     private static readonly IStarWinExceptionReporter ExceptionReporter = new StarWinExceptionReporter();
-    private static readonly ConcurrentDictionary<Exception, byte> ReportedExceptions =
-        new(ReferenceEqualityComparer.Instance);
+    private static readonly ConditionalWeakTable<Exception, object> ReportedExceptions = new();
+    private static readonly object ReportedExceptionsSync = new();
 
     [STAThread]
     public static async Task Main(string[] args)
@@ -388,9 +388,14 @@ internal static class Program
         string operation,
         IReadOnlyDictionary<string, string?>? additionalData = null)
     {
-        if (!ReportedExceptions.TryAdd(exception, 0))
+        lock (ReportedExceptionsSync)
         {
-            return Task.CompletedTask;
+            if (ReportedExceptions.TryGetValue(exception, out _))
+            {
+                return Task.CompletedTask;
+            }
+
+            ReportedExceptions.Add(exception, new object());
         }
 
         return ExceptionReporter.ReportExceptionAsync(

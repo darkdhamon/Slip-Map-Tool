@@ -45,7 +45,7 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
         this.timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    public Task ReportExceptionAsync(
+    public async Task ReportExceptionAsync(
         Exception exception,
         StarWinExceptionContext context,
         CancellationToken cancellationToken = default)
@@ -55,7 +55,7 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
 
         if (!ShouldReport(exception))
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var now = timeProvider.GetUtcNow();
@@ -66,7 +66,7 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
                 "Skipped duplicate exception report for {HostKind}. fingerprint={Fingerprint}",
                 context.HostKind,
                 issue.Fingerprint);
-            return Task.CompletedTask;
+            return;
         }
 
         try
@@ -76,7 +76,7 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
                 issue.Title,
                 issue.Body,
                 ["bug"]);
-            var result = issuePublisher.Publish(submission, cancellationToken);
+            var result = await issuePublisher.PublishAsync(submission, cancellationToken);
 
             if (!result.IssueCreated)
             {
@@ -103,6 +103,11 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
                     result.IssueUrl);
             }
         }
+        catch (OperationCanceledException)
+        {
+            recentFingerprints.TryRemove(issue.Fingerprint, out _);
+            throw;
+        }
         catch (Exception ex)
         {
             recentFingerprints.TryRemove(issue.Fingerprint, out _);
@@ -111,8 +116,6 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
                 "Automatic GitHub exception reporting failed unexpectedly. hostKind={HostKind}",
                 context.HostKind);
         }
-
-        return Task.CompletedTask;
     }
 
     internal static bool ShouldReport(Exception exception)
