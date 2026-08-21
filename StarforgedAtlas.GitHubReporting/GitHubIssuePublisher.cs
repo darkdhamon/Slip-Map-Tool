@@ -209,7 +209,18 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
         }
         catch (TimeoutException)
         {
-            return await TryFindCreatedIssueAsync(submission, cancellationToken);
+            try
+            {
+                return await TryFindCreatedIssueAsync(submission, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                return null;
+            }
         }
         catch
         {

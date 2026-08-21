@@ -773,6 +773,12 @@ internal static class DesktopBackendCoordinator
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!string.IsNullOrWhiteSpace(backendReportNonce)
+                && DesktopBackendReportSignal.TryConsume(backendReportNonce))
+            {
+                throw new DesktopBackendStartupReportedException();
+            }
+
             if (launchedBackendProcessId > 0 && !IsProcessAlive(launchedBackendProcessId))
             {
                 if (!string.IsNullOrWhiteSpace(backendReportNonce)
@@ -801,6 +807,22 @@ internal static class DesktopBackendCoordinator
             }
 
             await Task.Delay(500, cancellationToken);
+        }
+
+        if (launchedBackendProcessId > 0 && IsProcessAlive(launchedBackendProcessId))
+        {
+            var reportingDeadline = DateTime.UtcNow.AddMinutes(2);
+            while (DateTime.UtcNow < reportingDeadline && IsProcessAlive(launchedBackendProcessId))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!string.IsNullOrWhiteSpace(backendReportNonce)
+                    && DesktopBackendReportSignal.TryConsume(backendReportNonce))
+                {
+                    throw new DesktopBackendStartupReportedException();
+                }
+
+                await Task.Delay(500, cancellationToken);
+            }
         }
 
         throw new TimeoutException("The shared desktop backend did not become ready in time.");

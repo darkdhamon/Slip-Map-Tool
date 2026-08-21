@@ -1198,8 +1198,12 @@ internal static class PortableUpdateFailureReporter
 
     internal static string BuildIssueBody(string releaseTag, string previousVersion)
     {
+        var fingerprintSource = $"portable-rollback|{releaseTag}|{previousVersion}";
+        var fingerprint = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(fingerprintSource)))[..16];
         return
             $"A user restored the portable backup after testing release `{releaseTag}`.{Environment.NewLine}{Environment.NewLine}" +
+            $"Fingerprint: `{fingerprint}`{Environment.NewLine}" +
             $"Previous version: `{previousVersion}`{Environment.NewLine}" +
             $"Rolled back at: `{DateTimeOffset.Now:O}`{Environment.NewLine}{Environment.NewLine}" +
             "The updated app exited and the user indicated that the update did not work correctly, so the launcher restored the backup and will ignore this release for future portable update checks.";
