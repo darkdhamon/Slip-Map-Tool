@@ -28,9 +28,11 @@ function issue(number, status, id = `item-${number}`) {
 }
 
 function createHarness({
+  associatedPullRequests,
   body = '',
   closingIssueNumbers = [],
   projectItems = [],
+  projectPages,
   reactions = [],
   reviewDecision = 'APPROVED',
   reviewThreads = [],
@@ -40,6 +42,19 @@ function createHarness({
   const messages = { failures: [], info: [], warnings: [] };
 
   const github = {
+    rest: {
+      repos: {
+        listPullRequestsAssociatedWithCommit: async () => ({
+          data: associatedPullRequests ?? [{
+            base: { ref: 'dev' },
+            body,
+            merge_commit_sha: 'merge-sha',
+            merged_at: '2026-08-21T00:00:00Z',
+            number: 132,
+          }],
+        }),
+      },
+    },
     graphql: async (query, variables) => {
       queries.push(query);
 
@@ -62,6 +77,9 @@ function createHarness({
       }
 
       if (query.includes('projectV2(number:')) {
+        const pages = projectPages ?? [projectItems];
+        const pageIndex = variables.cursor ? Number(variables.cursor.slice(7)) : 0;
+        const hasNextPage = pageIndex < pages.length - 1;
         return {
           user: {
             projectV2: {
@@ -78,8 +96,11 @@ function createHarness({
                 }],
               },
               items: {
-                pageInfo: { hasNextPage: false, endCursor: null },
-                nodes: projectItems,
+                pageInfo: {
+                  hasNextPage,
+                  endCursor: hasNextPage ? `cursor-${pageIndex + 1}` : null,
+                },
+                nodes: pages[pageIndex],
               },
             },
           },
@@ -97,7 +118,7 @@ function createHarness({
 
   const context = {
     repo: { owner: 'DarkDhamon', repo: 'Starforged-Atlas' },
-    payload: { pull_request: { body, number: 132 } },
+    sha: 'merge-sha',
   };
   const core = {
     info: message => messages.info.push(message),
@@ -120,6 +141,16 @@ test('does not update project items when the merged pull request is unapproved',
   assert.equal(harness.queries.length, 1);
   assert.deepEqual(harness.mutations, []);
   assert.match(harness.messages.info[0], /does not have a current approval signal/);
+});
+
+test('treats a dev push without an associated merged pull request as a no-op', async () => {
+  const harness = createHarness({ associatedPullRequests: [] });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.queries, []);
+  assert.deepEqual(harness.mutations, []);
+  assert.match(harness.messages.info[0], /not the merge commit of a pull request/);
 });
 
 test('treats changes requested as a veto even when the connector reacted with approval', async () => {
@@ -171,6 +202,21 @@ test('does not update a partial match when another linked issue is missing from 
   assert.deepEqual(harness.messages.failures, [
     'Linked issue #120 has no existing item on Starforged Atlas Task Board.',
   ]);
+});
+
+test('finds and updates a linked issue on a later project page', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119],
+    projectPages: [
+      [issue(118, 'Done')],
+      [issue(119, 'In review')],
+    ],
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations.map(mutation => mutation.itemId), ['item-119']);
+  assert.equal(harness.queries.filter(query => query.includes('projectV2(number:')).length, 2);
 });
 
 test('updates only In review items and preserves Done or unexpected statuses', async () => {

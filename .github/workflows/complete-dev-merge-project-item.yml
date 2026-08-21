@@ -1,13 +1,12 @@
 name: Complete merged dev issues
 
 on:
-  # This privileged event makes the repository secret available for merged fork
-  # pull requests. This workflow must never check out or execute pull-request code.
-  pull_request_target:
+  # A push workflow is loaded from the updated dev branch, including immediately
+  # after this workflow is first merged. It also keeps secrets available when the
+  # merged pull request originated from a fork.
+  push:
     branches:
       - dev
-    types:
-      - closed
 
 permissions:
   contents: read
@@ -16,7 +15,6 @@ permissions:
 
 jobs:
   move-linked-issues-to-done:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     env:
       PROJECT_V2_TOKEN: ${{ secrets.PROJECT_V2_TOKEN }}
@@ -40,6 +38,22 @@ jobs:
             const sourceStatusName = 'In review';
             const targetStatusName = 'Done';
             const repositoryNameWithOwner = `${context.repo.owner}/${context.repo.repo}`;
+
+            const associatedPullRequests = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha,
+            });
+            const mergedPullRequest = associatedPullRequests.data.find(pullRequest =>
+              pullRequest.merged_at &&
+              pullRequest.base.ref === 'dev' &&
+              pullRequest.merge_commit_sha === context.sha
+            );
+
+            if (!mergedPullRequest) {
+              core.info('The dev push is not the merge commit of a pull request; no project items were changed.');
+              return;
+            }
 
             const pullRequestResult = await github.graphql(
               `query($owner: String!, $repo: String!, $pullRequestNumber: Int!) {
@@ -69,7 +83,7 @@ jobs:
               {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                pullRequestNumber: context.payload.pull_request.number,
+                pullRequestNumber: mergedPullRequest.number,
               },
             );
 
@@ -101,7 +115,7 @@ jobs:
 
             const linkedIssueSectionPattern = /^##\s+(?:(?:Affected|Related)\s+issues?|Issue\s+links?)\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/gim;
             const issueReferencePattern = /(?:^|[\s(])#(\d+)\b/gm;
-            const pullRequestBody = context.payload.pull_request.body ?? '';
+            const pullRequestBody = mergedPullRequest.body ?? '';
             for (const section of pullRequestBody.matchAll(linkedIssueSectionPattern)) {
               for (const match of section[1].matchAll(issueReferencePattern)) {
                 issueNumbers.add(Number(match[1]));
