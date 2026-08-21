@@ -48,7 +48,9 @@ When I tell you to promote the work to `dev`, move the issue from `In progress` 
 
 All code changes promoted into `dev` must go through a pull request. Do not merge or commit changes directly into `dev`.
 
-When a pull request that promotes work to `main` is completed, move all issues connected to that pull request from `In review` to `Done`.
+When a pull request that promotes work into `dev` is approved and merged, move all issues connected to that pull request from `In review` to `Done`.
+
+The `.github/workflows/complete-dev-merge-project-item.yml` workflow automates this transition. It requires a repository Actions secret named `PROJECT_V2_TOKEN` containing a GitHub token with access to this repository and read/write access to the user-owned ProjectV2 board (the `project` scope for a classic personal access token). Do not embed credentials or ProjectV2 node IDs in the workflow.
 
 Use `master` as the protected release branch, `dev` as the shared integration branch, and short-lived feature branches for task work. Do not commit feature work directly to `master` or `dev`.
 

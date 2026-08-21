@@ -1,0 +1,188 @@
+name: Complete merged dev issues
+
+on:
+  pull_request:
+    branches:
+      - dev
+    types:
+      - closed
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  move-linked-issues-to-done:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_V2_TOKEN: ${{ secrets.PROJECT_V2_TOKEN }}
+    steps:
+      - name: Require the ProjectV2 credential
+        shell: bash
+        run: |
+          if [[ -z "${PROJECT_V2_TOKEN}" ]]; then
+            echo "PROJECT_V2_TOKEN must contain a token with repository access and write access to the user-owned ProjectV2 board." >&2
+            exit 1
+          fi
+
+      - name: Move linked issues from In review to Done
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ${{ secrets.PROJECT_V2_TOKEN }}
+          script: |
+            const projectNumber = 5;
+            const projectTitle = 'Starforged Atlas Task Board';
+            const statusFieldName = 'Status';
+            const sourceStatusName = 'In review';
+            const targetStatusName = 'Done';
+            const repositoryNameWithOwner = `${context.repo.owner}/${context.repo.repo}`;
+
+            const linkedIssues = await github.graphql(
+              `query($owner: String!, $repo: String!, $pullRequestNumber: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $pullRequestNumber) {
+                    closingIssuesReferences(first: 100) {
+                      nodes {
+                        number
+                        repository { nameWithOwner }
+                      }
+                    }
+                  }
+                }
+              }`,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pullRequestNumber: context.payload.pull_request.number,
+              },
+            );
+
+            const issueNumbers = new Set(
+              linkedIssues.repository.pullRequest.closingIssuesReferences.nodes
+                .filter(issue => issue.repository.nameWithOwner === repositoryNameWithOwner)
+                .map(issue => issue.number),
+            );
+
+            const issueReferencePattern = /(?:^|[\s(])#(\d+)\b/gm;
+            const pullRequestBody = context.payload.pull_request.body ?? '';
+            for (const match of pullRequestBody.matchAll(issueReferencePattern)) {
+              issueNumbers.add(Number(match[1]));
+            }
+
+            if (issueNumbers.size === 0) {
+              core.setFailed('The merged pull request does not identify a linked repository issue.');
+              return;
+            }
+
+            let cursor = null;
+            let projectId;
+            let statusFieldId;
+            let targetStatusOptionId;
+            const matchingItems = [];
+
+            do {
+              const result = await github.graphql(
+                `query($login: String!, $projectNumber: Int!, $cursor: String) {
+                  user(login: $login) {
+                    projectV2(number: $projectNumber) {
+                      id
+                      title
+                      fields(first: 100) {
+                        nodes {
+                          ... on ProjectV2SingleSelectField {
+                            id
+                            name
+                            options { id name }
+                          }
+                        }
+                      }
+                      items(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes {
+                          id
+                          content {
+                            ... on Issue {
+                              number
+                              repository { nameWithOwner }
+                            }
+                          }
+                          fieldValueByName(name: "Status") {
+                            ... on ProjectV2ItemFieldSingleSelectValue { name }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                {
+                  login: context.repo.owner,
+                  projectNumber,
+                  cursor,
+                },
+              );
+
+              const project = result.user?.projectV2;
+              if (!project || project.title !== projectTitle) {
+                core.setFailed(`Expected user Project #${projectNumber} named "${projectTitle}".`);
+                return;
+              }
+
+              projectId = project.id;
+              const statusField = project.fields.nodes.find(field => field?.name === statusFieldName);
+              statusFieldId = statusField?.id;
+              targetStatusOptionId = statusField?.options.find(option => option.name === targetStatusName)?.id;
+              if (!statusFieldId || !targetStatusOptionId) {
+                core.setFailed(`Project ${statusFieldName} field or ${targetStatusName} option was not found.`);
+                return;
+              }
+
+              matchingItems.push(...project.items.nodes.filter(item =>
+                item.content?.repository?.nameWithOwner === repositoryNameWithOwner &&
+                issueNumbers.has(item.content.number)
+              ));
+
+              cursor = project.items.pageInfo.hasNextPage
+                ? project.items.pageInfo.endCursor
+                : null;
+            } while (cursor);
+
+            if (matchingItems.length === 0) {
+              core.setFailed('None of the linked issues has an existing item on Starforged Atlas Task Board.');
+              return;
+            }
+
+            for (const item of matchingItems) {
+              const currentStatus = item.fieldValueByName?.name;
+              if (currentStatus === targetStatusName) {
+                core.info(`Issue #${item.content.number} is already ${targetStatusName}.`);
+                continue;
+              }
+
+              if (currentStatus !== sourceStatusName) {
+                core.warning(`Issue #${item.content.number} is ${currentStatus ?? 'unset'}; expected ${sourceStatusName}, so it was not changed.`);
+                continue;
+              }
+
+              await github.graphql(
+                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item { id }
+                  }
+                }`,
+                {
+                  projectId,
+                  itemId: item.id,
+                  fieldId: statusFieldId,
+                  optionId: targetStatusOptionId,
+                },
+              );
+
+              core.info(`Moved issue #${item.content.number} from ${sourceStatusName} to ${targetStatusName}.`);
+            }
