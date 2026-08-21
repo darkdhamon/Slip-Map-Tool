@@ -102,7 +102,7 @@ public sealed class StarWinExceptionReporterTests
     }
 
     [Fact]
-    public async Task ReportExceptionAsync_releases_fingerprint_and_opens_draft_when_publication_fails()
+    public async Task ReportExceptionAsync_throttles_duplicate_drafts_when_publication_fails()
     {
         var publisher = new FakeGitHubIssuePublisher(issueCreated: false);
         var draftLauncher = new FakeGitHubIssueDraftLauncher();
@@ -116,8 +116,8 @@ public sealed class StarWinExceptionReporterTests
         await reporter.ReportExceptionAsync(new InvalidOperationException("Boom"), context);
         await reporter.ReportExceptionAsync(new InvalidOperationException("Boom"), context);
 
-        Assert.Equal(2, publisher.Submissions.Count);
-        Assert.Equal(2, draftLauncher.Submissions.Count);
+        Assert.Single(publisher.Submissions);
+        Assert.Single(draftLauncher.Submissions);
     }
 
     [Fact]
@@ -146,6 +146,22 @@ public sealed class StarWinExceptionReporterTests
         var second = ExtractFingerprint(Assert.Single(secondPublisher.Submissions).Body);
 
         Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public async Task BuildIssue_distinguishes_different_wrapped_failures()
+    {
+        var context = new StarWinExceptionContext("Desktop", "Reflection callback");
+        var firstPublisher = new FakeGitHubIssuePublisher();
+        var secondPublisher = new FakeGitHubIssuePublisher();
+        await new StarWinExceptionReporter(firstPublisher).ReportExceptionAsync(
+            new Exception("wrapper", new InvalidOperationException("first")), context);
+        await new StarWinExceptionReporter(secondPublisher).ReportExceptionAsync(
+            new Exception("wrapper", new ArgumentException("second")), context);
+
+        Assert.NotEqual(
+            ExtractFingerprint(Assert.Single(firstPublisher.Submissions).Body),
+            ExtractFingerprint(Assert.Single(secondPublisher.Submissions).Body));
     }
 
     private static string ExtractFingerprint(string body)

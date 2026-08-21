@@ -80,9 +80,12 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
 
             if (!result.IssueCreated)
             {
-                recentFingerprints.TryRemove(issue.Fingerprint, out _);
                 var draftOpened = string.Equals(context.HostKind, "Desktop", StringComparison.OrdinalIgnoreCase)
                     && issueDraftLauncher.TryOpen(submission);
+                if (!draftOpened)
+                {
+                    recentFingerprints.TryRemove(issue.Fingerprint, out _);
+                }
                 logger.LogWarning(
                     "Automatic GitHub exception reporting did not create an issue. hostKind={HostKind} fingerprint={Fingerprint} draftOpened={DraftOpened}",
                     context.HostKind,
@@ -139,9 +142,7 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
             Normalize(context.HostKind),
             context.Operation ?? string.Empty,
             context.Route ?? string.Empty,
-            exception.GetType().FullName ?? exception.GetType().Name,
-            exception.Message,
-            GetTopStackFrameIdentity(exception));
+            BuildFingerprintExceptionIdentity(exception));
         var fingerprint = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(fingerprintSource)))[..16];
 
@@ -155,6 +156,36 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
         return method is null
             ? string.Empty
             : $"{method.DeclaringType?.FullName}.{method.Name}";
+    }
+
+    private static string BuildFingerprintExceptionIdentity(Exception exception)
+    {
+        var identities = new List<string>();
+        var exceptions = new Stack<Exception>();
+        exceptions.Push(exception);
+
+        while (exceptions.TryPop(out var current) && identities.Count < 8)
+        {
+            identities.Add(string.Join(
+                ":",
+                current.GetType().FullName ?? current.GetType().Name,
+                current.Message,
+                GetTopStackFrameIdentity(current)));
+
+            if (current is AggregateException aggregateException)
+            {
+                foreach (var innerException in aggregateException.Flatten().InnerExceptions.Reverse())
+                {
+                    exceptions.Push(innerException);
+                }
+            }
+            else if (current.InnerException is not null)
+            {
+                exceptions.Push(current.InnerException);
+            }
+        }
+
+        return string.Join("|", identities);
     }
 
     private static string BuildIssueBody(

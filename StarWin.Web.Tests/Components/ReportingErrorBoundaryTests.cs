@@ -47,10 +47,11 @@ public sealed class ReportingErrorBoundaryTests : BunitContext
         var navigation = Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("/systems?authorization_code=secret#details");
 
-        Render<ReportingErrorBoundary>(parameters => parameters
+        var cut = Render<ReportingErrorBoundary>(parameters => parameters
             .AddChildContent<ThrowingComponent>());
 
-        Assert.Equal("/systems", Assert.Single(reporter.Reports).Context.Route);
+        cut.WaitForAssertion(() =>
+            Assert.Equal("/systems", Assert.Single(reporter.Reports).Context.Route));
     }
 
     private sealed class ThrowingComponent : ComponentBase

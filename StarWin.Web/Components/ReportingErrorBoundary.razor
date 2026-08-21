@@ -22,13 +22,14 @@ else
     {
         var routeUri = new Uri(Navigation.Uri).GetLeftPart(UriPartial.Path);
         var relativeRoute = Navigation.ToBaseRelativePath(routeUri);
-        return ExceptionReporter.ReportExceptionAsync(
+        _ = Task.Run(() => ExceptionReporter.ReportExceptionAsync(
             exception,
             new StarWinExceptionContext(
                 HostKind: Configuration["StarforgedAtlas:HostKind"] ?? "Web",
                 Operation: "Unhandled interactive component",
                 Route: string.IsNullOrWhiteSpace(relativeRoute) ? "/" : $"/{relativeRoute}",
-                AppVersion: ResolveAppVersion()));
+                AppVersion: ResolveAppVersion())));
+        return Task.CompletedTask;
     }
 
     private string ResolveAppVersion()
