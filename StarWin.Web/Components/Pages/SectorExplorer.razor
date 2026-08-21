@@ -94,7 +94,8 @@ else
     else
     {
         <SectorExplorerMapWorkspace SectorId="selectedSectorId"
-                                    SystemId="selectedSystemId" />
+                                    SystemId="selectedSystemId"
+                                    SystemIdChanged="HandleMapSystemChangedAsync" />
     }
 </section>
 </SectorExplorerFrame>
@@ -306,6 +307,30 @@ else
     {
         selectedSystemText = value;
         await ApplySelectedSystemTextAsync();
+    }
+
+    private async Task HandleMapSystemChangedAsync(int systemId)
+    {
+        var sector = Workspace.Sectors.FirstOrDefault(item => item.Id == selectedSectorId)
+            ?? GetSelectedSector();
+        if (sector.Systems.All(system => system.Id != systemId))
+        {
+            return;
+        }
+
+        if (Workspace.Sectors.Contains(sector))
+        {
+            explorerContext = explorerContext with
+            {
+                Sectors = Workspace.Sectors,
+                CurrentSector = sector
+            };
+        }
+
+        selectedSystemId = systemId;
+        selectedSystemText = FormatSelectedSystem(sector, selectedSystemId);
+        SyncCurrentExplorerRoute(replaceHistory: true);
+        await PersistExplorerSessionAsync();
     }
 
     private async Task RestoreExplorerSessionAsync()

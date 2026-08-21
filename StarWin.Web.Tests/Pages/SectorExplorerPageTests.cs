@@ -202,6 +202,60 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
+    public async Task MapWorkspaceNotifiesParentWithoutNavigatingDirectly()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer?sectorId=7&systemId=11");
+        var selectedSystemId = 0;
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11)
+            .Add(component => component.SystemIdChanged, systemId => selectedSystemId = systemId));
+
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+        await cut.InvokeAsync(() => cut.Instance.SelectSystemFromMap(12));
+
+        Assert.Equal(12, selectedSystemId);
+        Assert.EndsWith("/sector-explorer?sectorId=7&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MapWorkspaceRejectsUnknownSystemWithoutChangingSelection()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer?sectorId=7&systemId=11");
+        var callbackCount = 0;
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11)
+            .Add(component => component.SystemIdChanged, _ => callbackCount++));
+
+        cut.WaitForAssertion(() => Assert.Contains("Load 3D map", cut.Markup));
+        await cut.InvokeAsync(() => cut.Instance.SelectSystemFromMap(999));
+
+        var selectedSystemIdField = typeof(SectorExplorerMapWorkspace)
+            .GetField("selectedSystemId", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(selectedSystemIdField);
+        Assert.Equal(11, selectedSystemIdField!.GetValue(cut.Instance));
+        Assert.Equal(0, callbackCount);
+        Assert.EndsWith("/sector-explorer?sectorId=7&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task OverviewSystemSelectorRetargetsMapAndPreservesSystemIdInUrl()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -256,6 +310,74 @@ public sealed class SectorExplorerPageTests : BunitContext
             Assert.EndsWith("/sector-explorer?sectorId=7&systemId=12", navigationManager.Uri, StringComparison.Ordinal);
             Assert.Equal("12 - Selene", selectedSystemTextField!.GetValue(cut.Instance));
             Assert.Equal(12, cut.FindComponent<SectorExplorerMapWorkspace>().Instance.SystemId);
+            Assert.Contains(JSInterop.Invocations, invocation =>
+                invocation.Identifier == "sessionStorage.setItem"
+                && invocation.Arguments.Count == 2
+                && string.Equals(invocation.Arguments[0]?.ToString(), "starforgedAtlas.explorerSelection", StringComparison.Ordinal)
+                && invocation.Arguments[1]?.ToString()?.Contains("\"SectorId\":7", StringComparison.Ordinal) is true
+                && invocation.Arguments[1]?.ToString()?.Contains("\"SystemId\":12", StringComparison.Ordinal) is true);
+        });
+    }
+
+    [Fact]
+    public async Task ReselectingResolvedSystemRepairsStaleQueryAndSession()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer?sectorId=7&systemId=999");
+
+        var cut = Render<SectorExplorer>();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.FindComponent<SectorExplorerMapWorkspace>()));
+
+        await cut.InvokeAsync(() => cut.FindComponent<SectorExplorerMapWorkspace>().Instance.SelectSystemFromMap(11));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.EndsWith("/sector-explorer?sectorId=7&systemId=11", navigationManager.Uri, StringComparison.Ordinal);
+            Assert.Contains(JSInterop.Invocations, invocation =>
+                invocation.Identifier == "sessionStorage.setItem"
+                && invocation.Arguments.Count == 2
+                && invocation.Arguments[1]?.ToString()?.Contains("\"SystemId\":11", StringComparison.Ordinal) is true);
+        });
+    }
+
+    [Fact]
+    public async Task MapSelectionUsesRefreshedWorkspaceSystemSnapshot()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var shellSector = CreateSector();
+        var workspaceSector = CreateSector();
+        workspaceSector.Systems.Add(new StarSystem
+        {
+            Id = 13,
+            SectorId = workspaceSector.Id,
+            Name = "Nova",
+            Coordinates = new Coordinates(2, 0, 0),
+            AllegianceId = 8
+        });
+        var workspace = new FakeWorkspace(workspaceSector);
+        ConfigureServices(shellSector, workspace);
+
+        var navigationManager = Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("http://localhost/sector-explorer?sectorId=7&systemId=11");
+
+        var cut = Render<SectorExplorer>();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.FindComponent<SectorExplorerMapWorkspace>()));
+
+        await cut.InvokeAsync(() => cut.FindComponent<SectorExplorerMapWorkspace>().Instance.SelectSystemFromMap(13));
+
+        var selectedSystemTextField = typeof(SectorExplorer).GetField("selectedSystemText", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(selectedSystemTextField);
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("13 - Nova", selectedSystemTextField!.GetValue(cut.Instance));
+            Assert.EndsWith("/sector-explorer?sectorId=7&systemId=13", navigationManager.Uri, StringComparison.Ordinal);
         });
     }
 

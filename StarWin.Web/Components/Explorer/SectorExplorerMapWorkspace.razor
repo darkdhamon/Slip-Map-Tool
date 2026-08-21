@@ -378,6 +378,7 @@ else
 
     [Parameter, EditorRequired] public int SectorId { get; set; }
     [Parameter] public int SystemId { get; set; }
+    [Parameter] public EventCallback<int> SystemIdChanged { get; set; }
 
     private ElementReference sectorMapElement;
     private DotNetObjectReference<SectorExplorerMapWorkspace>? dotNetReference;
@@ -771,14 +772,27 @@ else
         await SelectSystemAsync(systemId);
     }
 
-    private Task SelectSystemAsync(int systemId)
+    private async Task SelectSystemAsync(int systemId)
     {
+        var sector = GetMapSector();
+        if (sector.Systems.All(system => system.Id != systemId))
+        {
+            return;
+        }
+
         selectedSystemId = systemId;
         ClearSelectedRoute();
-        SyncCurrentPageQuery();
+        if (SystemIdChanged.HasDelegate)
+        {
+            await SystemIdChanged.InvokeAsync(systemId);
+        }
+        else
+        {
+            SyncCurrentPageQuery();
+        }
+
         renderedOverview = false;
         StateHasChanged();
-        return Task.CompletedTask;
     }
 
     private Task OpenSelectedSystemRecordAsync()
