@@ -37,4 +37,15 @@ public sealed class SpaceHabitatConstructionServiceTests
         Assert.Equal(OrbitTargetKind.World, habitat.OrbitTargetKind);
         Assert.Equal(3401, habitat.OrbitTargetId);
     }
+
+    [Fact]
+    public void BuildOrbitingWorld_WithNullBuilder_ThrowsArgumentNullException()
+    {
+        var service = new SpaceHabitatConstructionService();
+        var world = new World { Id = 3401 };
+
+        var error = Assert.Throws<ArgumentNullException>(() => service.BuildOrbitingWorld(null!, world, "Null Builder"));
+
+        Assert.Equal("builder", error.ParamName);
+    }
 }
