@@ -52,7 +52,11 @@ All code changes promoted into `dev` must go through a pull request. Do not merg
 
 When implementation and all required verification are complete, mark the pull request Ready for review instead of leaving it as a draft. Do not merge the pull request unless explicitly instructed to complete it.
 
-When a pull request that promotes work to `main` is completed, move all issues connected to that pull request from `In review` to `Done`.
+When a pull request that promotes work into `dev` is approved and merged, move all issues connected to that pull request from `In review` to `Done`.
+
+The `.github/workflows/complete-dev-merge-project-item.yml` workflow automates this transition from the merge commit pushed to `dev`, including merges from fork pull requests. It requires a repository Actions secret named `PROJECT_V2_TOKEN` containing a GitHub token with access to this repository and read/write access to the user-owned ProjectV2 board (the `project` scope for a classic personal access token). Do not embed credentials or ProjectV2 node IDs in the workflow.
+
+When requesting a Codex re-review, include the exact current head SHA in the comment, using `@codex review {full-head-sha}`. The post-merge automation treats a Connector thumbs-up as current only when it is attached to that SHA-bound review request.
 
 Use `master` as the protected release branch, `dev` as the shared integration branch, and short-lived feature branches for task work. Do not commit feature work directly to `master` or `dev`.
 

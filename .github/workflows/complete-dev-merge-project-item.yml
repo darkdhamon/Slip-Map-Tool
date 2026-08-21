@@ -1,0 +1,405 @@
+name: Complete merged dev issues
+
+on:
+  # A push workflow is loaded from the updated dev branch, including immediately
+  # after this workflow is first merged. It also keeps secrets available when the
+  # merged pull request originated from a fork.
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  move-linked-issues-to-done:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_V2_TOKEN: ${{ secrets.PROJECT_V2_TOKEN }}
+    steps:
+      - name: Require the ProjectV2 credential
+        shell: bash
+        run: |
+          if [[ -z "${PROJECT_V2_TOKEN}" ]]; then
+            echo "PROJECT_V2_TOKEN must contain a token with repository access and write access to the user-owned ProjectV2 board." >&2
+            exit 1
+          fi
+
+      - name: Move linked issues from In review to Done
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: ${{ secrets.PROJECT_V2_TOKEN }}
+          script: |
+            const projectNumber = 5;
+            const projectTitle = 'Starforged Atlas Task Board';
+            const statusFieldName = 'Status';
+            const sourceStatusName = 'In review';
+            const targetStatusName = 'Done';
+            const repositoryNameWithOwner = `${context.repo.owner}/${context.repo.repo}`;
+
+            let mergedPullRequest = null;
+            let mergedPullRequestCursor = null;
+            do {
+              const mergedPullRequestsResult = await github.graphql(
+                `query MergedPullRequestsPage($owner: String!, $repo: String!, $cursor: String) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequests(first: 100, after: $cursor, states: MERGED, baseRefName: "dev", orderBy: { field: UPDATED_AT, direction: DESC }) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes { number body mergedAt mergeCommit { oid } }
+                    }
+                  }
+                }`,
+                { owner: context.repo.owner, repo: context.repo.repo, cursor: mergedPullRequestCursor },
+              );
+              const pullRequests = mergedPullRequestsResult.repository.pullRequests;
+              const match = pullRequests.nodes.find(candidate => candidate.mergeCommit?.oid === context.sha);
+              if (match) {
+                mergedPullRequest = {
+                  body: match.body,
+                  merged_at: match.mergedAt,
+                  number: match.number,
+                };
+              }
+              mergedPullRequestCursor = pullRequests.pageInfo.hasNextPage
+                ? pullRequests.pageInfo.endCursor
+                : null;
+            } while (mergedPullRequestCursor && !mergedPullRequest);
+
+            if (!mergedPullRequest) {
+              core.info('The dev push is not the merge commit of a pull request; no project items were changed.');
+              return;
+            }
+
+            const pullRequestResult = await github.graphql(
+              `query ReviewApproval($owner: String!, $repo: String!, $pullRequestNumber: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $pullRequestNumber) {
+                    headRefOid
+                    reviewDecision
+                  }
+                }
+              }`,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pullRequestNumber: mergedPullRequest.number,
+              },
+            );
+
+            const pullRequest = pullRequestResult.repository.pullRequest;
+            const isConnector = login =>
+              login === 'chatgpt-codex-connector' ||
+              login === 'chatgpt-codex-connector[bot]';
+            let approvalReviewCursor = null;
+            let hasHeadHumanApproval = false;
+            do {
+              const approvalResult = await github.graphql(
+                `query ApprovalReviewsPage($owner: String!, $repo: String!, $pullRequestNumber: Int!, $cursor: String) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $pullRequestNumber) {
+                      reviews(first: 100, after: $cursor, states: APPROVED) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes { authorCanPushToRepository commit { oid } }
+                      }
+                    }
+                  }
+                }`,
+                { owner: context.repo.owner, repo: context.repo.repo, pullRequestNumber: mergedPullRequest.number, cursor: approvalReviewCursor },
+              );
+              const reviews = approvalResult.repository.pullRequest.reviews;
+              hasHeadHumanApproval ||= reviews.nodes.some(review =>
+                review.authorCanPushToRepository && review.commit?.oid === pullRequest.headRefOid
+              );
+              approvalReviewCursor = reviews.pageInfo.hasNextPage ? reviews.pageInfo.endCursor : null;
+            } while (approvalReviewCursor && !hasHeadHumanApproval);
+
+            let connectorRequestCursor = null;
+            let hasHeadConnectorApproval = false;
+            const headReviewCommand = new RegExp(
+              '(?:^|\\s)@codex\\s+review\\s+' + pullRequest.headRefOid + '(?=\\s|$)',
+              'i',
+            );
+            do {
+              const commentResult = await github.graphql(
+                `query ConnectorRequestsPage($owner: String!, $repo: String!, $pullRequestNumber: Int!, $cursor: String) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $pullRequestNumber) {
+                      comments(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes {
+                          databaseId
+                          body
+                          updatedAt
+                        }
+                      }
+                    }
+                  }
+                }`,
+                { owner: context.repo.owner, repo: context.repo.repo, pullRequestNumber: mergedPullRequest.number, cursor: connectorRequestCursor },
+              );
+              const comments = commentResult.repository.pullRequest.comments;
+              for (const comment of comments.nodes) {
+                if (!headReviewCommand.test(comment.body)) {
+                  continue;
+                }
+
+                const reactions = await github.paginate(github.rest.reactions.listForIssueComment, {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.databaseId,
+                  content: '+1',
+                  per_page: 100,
+                });
+                if (reactions.some(reaction =>
+                  isConnector(reaction.user?.login) &&
+                  Date.parse(reaction.created_at) > Date.parse(comment.updatedAt) &&
+                  Date.parse(reaction.created_at) <= Date.parse(mergedPullRequest.merged_at)
+                )) {
+                  hasHeadConnectorApproval = true;
+                  break;
+                }
+              }
+              connectorRequestCursor = comments.pageInfo.hasNextPage ? comments.pageInfo.endCursor : null;
+            } while (connectorRequestCursor && !hasHeadConnectorApproval);
+
+            let reviewThreadCursor = null;
+            let hasUnresolvedConnectorThread = false;
+            do {
+              const threadResult = await github.graphql(
+                `query ReviewThreadsPage($owner: String!, $repo: String!, $pullRequestNumber: Int!, $cursor: String) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $pullRequestNumber) {
+                      reviewThreads(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes {
+                          id
+                          isResolved
+                          comments(first: 100) {
+                            pageInfo { hasNextPage endCursor }
+                            nodes { author { login } }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pullRequestNumber: mergedPullRequest.number,
+                  cursor: reviewThreadCursor,
+                },
+              );
+              const threads = threadResult.repository.pullRequest.reviewThreads;
+              for (const thread of threads.nodes.filter(candidate => !candidate.isResolved)) {
+                if (thread.comments.nodes.some(comment => isConnector(comment.author?.login))) {
+                  hasUnresolvedConnectorThread = true;
+                  break;
+                }
+
+                let threadCommentCursor = thread.comments.pageInfo.hasNextPage
+                  ? thread.comments.pageInfo.endCursor
+                  : null;
+                while (threadCommentCursor && !hasUnresolvedConnectorThread) {
+                  const commentsResult = await github.graphql(
+                    `query ReviewThreadCommentsPage($threadId: ID!, $cursor: String) {
+                      node(id: $threadId) {
+                        ... on PullRequestReviewThread {
+                          comments(first: 100, after: $cursor) {
+                            pageInfo { hasNextPage endCursor }
+                            nodes { author { login } }
+                          }
+                        }
+                      }
+                    }`,
+                    { threadId: thread.id, cursor: threadCommentCursor },
+                  );
+                  const comments = commentsResult.node.comments;
+                  hasUnresolvedConnectorThread ||= comments.nodes.some(comment =>
+                    isConnector(comment.author?.login)
+                  );
+                  threadCommentCursor = comments.pageInfo.hasNextPage
+                    ? comments.pageInfo.endCursor
+                    : null;
+                }
+                if (hasUnresolvedConnectorThread) break;
+              }
+              reviewThreadCursor = threads.pageInfo.hasNextPage
+                ? threads.pageInfo.endCursor
+                : null;
+            } while (reviewThreadCursor && !hasUnresolvedConnectorThread);
+
+            const isApproved = pullRequest.reviewDecision !== 'CHANGES_REQUESTED' &&
+              (hasHeadHumanApproval ||
+                (hasHeadConnectorApproval && !hasUnresolvedConnectorThread));
+
+            if (!isApproved) {
+              core.info('The merged pull request does not have a current approval signal; no project items were changed.');
+              return;
+            }
+
+            const issueNumbers = new Set();
+            let closingIssueCursor = null;
+            do {
+              const closingIssueResult = await github.graphql(
+                `query ClosingIssuesPage($owner: String!, $repo: String!, $pullRequestNumber: Int!, $cursor: String) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $pullRequestNumber) {
+                      closingIssuesReferences(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes { number repository { nameWithOwner } }
+                      }
+                    }
+                  }
+                }`,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pullRequestNumber: mergedPullRequest.number,
+                  cursor: closingIssueCursor,
+                },
+              );
+              const closingIssues = closingIssueResult.repository.pullRequest.closingIssuesReferences;
+              for (const issue of closingIssues.nodes) {
+                if (issue.repository.nameWithOwner === repositoryNameWithOwner) {
+                  issueNumbers.add(issue.number);
+                }
+              }
+              closingIssueCursor = closingIssues.pageInfo.hasNextPage
+                ? closingIssues.pageInfo.endCursor
+                : null;
+            } while (closingIssueCursor);
+
+            const linkedIssueSectionPattern = /^##\s+(?:(?:Affected|Related)\s+issues?|Issue\s+links?)\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/gim;
+            const issueReferencePattern = /(?:^|[\s(])#(\d+)\b/gm;
+            const pullRequestBody = mergedPullRequest.body ?? '';
+            for (const section of pullRequestBody.matchAll(linkedIssueSectionPattern)) {
+              for (const match of section[1].matchAll(issueReferencePattern)) {
+                issueNumbers.add(Number(match[1]));
+              }
+            }
+
+            if (issueNumbers.size === 0) {
+              core.info('The merged pull request has no linked repository issues; no project items were changed.');
+              return;
+            }
+
+            let cursor = null;
+            let projectId;
+            let statusFieldId;
+            let targetStatusOptionId;
+            const matchingItems = [];
+
+            do {
+              const result = await github.graphql(
+                `query($login: String!, $projectNumber: Int!, $cursor: String) {
+                  user(login: $login) {
+                    projectV2(number: $projectNumber) {
+                      id
+                      title
+                      fields(first: 100) {
+                        nodes {
+                          ... on ProjectV2SingleSelectField {
+                            id
+                            name
+                            options { id name }
+                          }
+                        }
+                      }
+                      items(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes {
+                          id
+                          content {
+                            ... on Issue {
+                              number
+                              repository { nameWithOwner }
+                            }
+                          }
+                          fieldValueByName(name: "Status") {
+                            ... on ProjectV2ItemFieldSingleSelectValue { name }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                {
+                  login: context.repo.owner,
+                  projectNumber,
+                  cursor,
+                },
+              );
+
+              const project = result.user?.projectV2;
+              if (!project || project.title !== projectTitle) {
+                core.setFailed(`Expected user Project #${projectNumber} named "${projectTitle}".`);
+                return;
+              }
+
+              projectId = project.id;
+              const statusField = project.fields.nodes.find(field => field?.name === statusFieldName);
+              statusFieldId = statusField?.id;
+              targetStatusOptionId = statusField?.options.find(option => option.name === targetStatusName)?.id;
+              if (!statusFieldId || !targetStatusOptionId) {
+                core.setFailed(`Project ${statusFieldName} field or ${targetStatusName} option was not found.`);
+                return;
+              }
+
+              matchingItems.push(...project.items.nodes.filter(item =>
+                item.content?.repository?.nameWithOwner === repositoryNameWithOwner &&
+                issueNumbers.has(item.content.number)
+              ));
+
+              cursor = project.items.pageInfo.hasNextPage
+                ? project.items.pageInfo.endCursor
+                : null;
+            } while (cursor);
+
+            const matchedIssueNumbers = new Set(
+              matchingItems.map(item => item.content.number)
+            );
+            const missingIssueNumbers = [...issueNumbers]
+              .filter(issueNumber => !matchedIssueNumbers.has(issueNumber));
+            if (missingIssueNumbers.length > 0) {
+              for (const issueNumber of missingIssueNumbers) {
+                core.setFailed(`Linked issue #${issueNumber} has no existing item on Starforged Atlas Task Board.`);
+              }
+              return;
+            }
+
+            for (const item of matchingItems) {
+              const currentStatus = item.fieldValueByName?.name;
+              if (currentStatus === targetStatusName) {
+                core.info(`Issue #${item.content.number} is already ${targetStatusName}.`);
+                continue;
+              }
+
+              if (currentStatus !== sourceStatusName) {
+                core.warning(`Issue #${item.content.number} is ${currentStatus ?? 'unset'}; expected ${sourceStatusName}, so it was not changed.`);
+                continue;
+              }
+
+              await github.graphql(
+                `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                  updateProjectV2ItemFieldValue(input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { singleSelectOptionId: $optionId }
+                  }) {
+                    projectV2Item { id }
+                  }
+                }`,
+                {
+                  projectId,
+                  itemId: item.id,
+                  fieldId: statusFieldId,
+                  optionId: targetStatusOptionId,
+                },
+              );
+
+              core.info(`Moved issue #${item.content.number} from ${sourceStatusName} to ${targetStatusName}.`);
+            }
