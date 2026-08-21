@@ -158,6 +158,28 @@ public sealed class SectorExplorerPageTests : BunitContext
     }
 
     [Fact]
+    public void MapWorkspaceUsesUnclippedRoutePlannerStack()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+
+        var sector = CreateSector();
+        var workspace = new FakeWorkspace(sector);
+        ConfigureServices(sector, workspace);
+
+        var cut = Render<SectorExplorerMapWorkspace>(parameters => parameters
+            .Add(component => component.SectorId, 7)
+            .Add(component => component.SystemId, 11));
+
+        cut.WaitForAssertion(() =>
+        {
+            var routePlannerStack = cut.Find(".route-planner-stack");
+            Assert.Contains("route-planner-panel", routePlannerStack.InnerHtml);
+            Assert.Contains("Avoid selected empires", routePlannerStack.InnerHtml);
+            Assert.Contains("Avoid selected systems", routePlannerStack.InnerHtml);
+        });
+    }
+
+    [Fact]
     public async Task MapWorkspaceUpdatesOverviewQueryWithoutParentCallback()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
