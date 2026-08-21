@@ -100,6 +100,10 @@ jobs:
 
             let connectorRequestCursor = null;
             let hasHeadConnectorApproval = false;
+            const headReviewCommand = new RegExp(
+              '(?:^|\\s)@codex\\s+review\\s+' + pullRequest.headRefOid + '(?=\\s|$)',
+              'i',
+            );
             do {
               const commentResult = await github.graphql(
                 `query ConnectorRequestsPage($owner: String!, $repo: String!, $pullRequestNumber: Int!, $cursor: String) {
@@ -120,8 +124,7 @@ jobs:
               );
               const comments = commentResult.repository.pullRequest.comments;
               for (const comment of comments.nodes) {
-                if (!comment.body.includes('@codex review') ||
-                    !comment.body.split(/\s+/).includes(pullRequest.headRefOid)) {
+                if (!headReviewCommand.test(comment.body)) {
                   continue;
                 }
 
@@ -134,7 +137,7 @@ jobs:
                 });
                 if (reactions.some(reaction =>
                   isConnector(reaction.user?.login) &&
-                  Date.parse(reaction.created_at) >= Date.parse(comment.updatedAt)
+                  Date.parse(reaction.created_at) > Date.parse(comment.updatedAt)
                 )) {
                   hasHeadConnectorApproval = true;
                   break;

@@ -289,6 +289,23 @@ test('does not accept connector approval bound to a stale head', async () => {
   assert.match(harness.messages.info[0], /does not have a current approval signal/);
 });
 
+test('does not accept a stale review command that mentions the current head elsewhere', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119],
+    connectorReviewRequests: [{
+      body: '@codex review previous-head-sha\nCurrent head: head-sha',
+      reactions: { nodes: [{ user: { login: 'chatgpt-codex-connector' } }] },
+    }],
+    projectItems: [issue(119, 'In review')],
+    reviewDecision: null,
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations, []);
+  assert.match(harness.messages.info[0], /does not have a current approval signal/);
+});
+
 test('rejects a Connector reaction that predates the latest review-request edit', async () => {
   const harness = createHarness({
     closingIssueNumbers: [119],
@@ -296,6 +313,27 @@ test('rejects a Connector reaction that predates the latest review-request edit'
       body: '@codex review head-sha',
       reactions: { nodes: [{
         created_at: '2026-08-21T00:30:00Z',
+        user: { login: 'chatgpt-codex-connector' },
+      }] },
+      updatedAt: '2026-08-21T00:45:00Z',
+    }],
+    projectItems: [issue(119, 'In review')],
+    reviewDecision: null,
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations, []);
+  assert.match(harness.messages.info[0], /does not have a current approval signal/);
+});
+
+test('rejects a Connector reaction with the same timestamp as the latest request edit', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119],
+    connectorReviewRequests: [{
+      body: '@codex review head-sha',
+      reactions: { nodes: [{
+        created_at: '2026-08-21T00:45:00Z',
         user: { login: 'chatgpt-codex-connector' },
       }] },
       updatedAt: '2026-08-21T00:45:00Z',
