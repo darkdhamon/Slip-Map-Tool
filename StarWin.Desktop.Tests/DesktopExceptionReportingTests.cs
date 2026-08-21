@@ -79,6 +79,15 @@ public sealed class DesktopExceptionReportingTests
         Assert.Contains("DesktopBackendReportSignal.MarkAttempted(reportNonce)", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Desktop_only_switches_are_removed_before_configuration_parsing()
+    {
+        var configurationArgs = DesktopConfigurationArguments.Filter(
+            ["--skip-update-check", "--smoke-test", "--backend-server", "--backend-port", "10103"]);
+
+        Assert.Equal(["--backend-port", "10103"], configurationArgs);
+    }
+
     private sealed class FakeGitHubIssuePublisher : IGitHubIssuePublisher
     {
         public List<GitHubIssueSubmission> Submissions { get; } = [];

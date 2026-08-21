@@ -179,7 +179,7 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
 
         if (!string.IsNullOrWhiteSpace(context.Route))
         {
-            builder.AppendLine($"- Route/page: `{SanitizeContextValue(context.Route)}`");
+            builder.AppendLine($"- Route/page: `{SanitizeContextValue(context.Route, allowWebRoute: true)}`");
         }
 
         if (!string.IsNullOrWhiteSpace(context.RequestId))
@@ -206,7 +206,8 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
             {
                 if (!string.IsNullOrWhiteSpace(pair.Value))
                 {
-                    builder.AppendLine($"- {SanitizeContextValue(pair.Key)}: `{SanitizeContextValue(pair.Value)}`");
+                    var allowWebRoute = pair.Key.Equals("Request path", StringComparison.OrdinalIgnoreCase);
+                    builder.AppendLine($"- {SanitizeContextValue(pair.Key)}: `{SanitizeContextValue(pair.Value, allowWebRoute)}`");
                 }
             }
         }
@@ -328,12 +329,13 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
         return builder.ToString().TrimEnd();
     }
 
-    private static string SanitizeContextValue(string value)
+    private static string SanitizeContextValue(string value, bool allowWebRoute = false)
     {
         const int maxLength = 500;
         var normalized = value.Replace('`', '\'').ReplaceLineEndings(" ").Trim();
 
-        if (Path.IsPathFullyQualified(normalized)
+        if ((!allowWebRoute || !normalized.StartsWith("/", StringComparison.Ordinal))
+            && Path.IsPathFullyQualified(normalized)
             || normalized.Contains("password=", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("pwd=", StringComparison.OrdinalIgnoreCase)
             || normalized.Contains("token=", StringComparison.OrdinalIgnoreCase)

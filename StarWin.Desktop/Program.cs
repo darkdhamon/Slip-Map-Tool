@@ -49,7 +49,7 @@ internal static class Program
         {
             var configurationBuilder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
             {
-                Args = args,
+                Args = DesktopConfigurationArguments.Filter(args),
                 ApplicationName = typeof(StarWinWebHost).Assembly.GetName().Name,
                 ContentRootPath = StarWinDesktopPaths.GetWebContentRoot()
             });
@@ -123,7 +123,7 @@ internal static class Program
 
             var builder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
             {
-                Args = args,
+                Args = DesktopConfigurationArguments.Filter(args),
                 ApplicationName = typeof(StarWinWebHost).Assembly.GetName().Name,
                 ContentRootPath = StarWinDesktopPaths.GetWebContentRoot()
             });
@@ -466,6 +466,18 @@ internal static class Program
                 eventArgs.Exception,
                 "Unhandled desktop UI exception");
 #endif
+    }
+}
+
+internal static class DesktopConfigurationArguments
+{
+    public static string[] Filter(string[] args)
+    {
+        return args.Where(argument =>
+                !argument.Equals("--backend-server", StringComparison.OrdinalIgnoreCase)
+                && !argument.Equals("--smoke-test", StringComparison.OrdinalIgnoreCase)
+                && !argument.Equals("--skip-update-check", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
     }
 }
 
