@@ -1,18 +1,17 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Diagnostics;
-using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using StarWin.Application.Services;
-using StarWin.Web.Components.Pages;
+using StarWin.Web.Components;
 
-namespace StarWin.Web.Tests.Pages;
+namespace StarWin.Web.Tests.Components;
 
-public sealed class ErrorPageTests : BunitContext
+public sealed class ReportingErrorBoundaryTests : BunitContext
 {
     [Fact]
-    public void ErrorPage_reports_the_exception_handler_feature_context()
+    public void Reports_unhandled_interactive_component_exceptions()
     {
         var reporter = new FakeExceptionReporter();
         Services.AddSingleton<IStarWinExceptionReporter>(reporter);
@@ -24,35 +23,27 @@ public sealed class ErrorPageTests : BunitContext
             })
             .Build());
 
-        var httpContext = new DefaultHttpContext
-        {
-            TraceIdentifier = "trace-123",
-            RequestServices = Services
-        };
-        httpContext.Request.Method = "GET";
-        httpContext.Request.Path = "/systems";
-        httpContext.Request.QueryString = new QueryString("?focus=1");
-        httpContext.Features.Set<IExceptionHandlerPathFeature>(new ExceptionHandlerFeature
-        {
-            Error = new InvalidOperationException("Boom"),
-            Path = "/systems"
-        });
-
-        var cut = Render<CascadingValue<HttpContext>>(parameters => parameters
-            .Add(component => component.Value, httpContext)
-            .AddChildContent<Error>());
+        var cut = Render<ReportingErrorBoundary>(parameters => parameters
+            .AddChildContent<ThrowingComponent>());
 
         cut.WaitForAssertion(() =>
         {
             var report = Assert.Single(reporter.Reports);
             Assert.Equal("Desktop", report.Context.HostKind);
-            Assert.Equal("/systems", report.Context.Route);
-            Assert.Equal("trace-123", report.Context.TraceIdentifier);
+            Assert.Equal("Unhandled interactive component", report.Context.Operation);
             Assert.Equal("2026-08-20.0-developer-preview", report.Context.AppVersion);
-            Assert.Contains("GET", report.Context.AdditionalData!["Request method"], StringComparison.Ordinal);
+            Assert.IsType<InvalidOperationException>(report.Exception);
         });
 
-        Assert.Contains("trace-123", cut.Markup);
+        Assert.Contains("Reload the page", cut.Markup, StringComparison.Ordinal);
+    }
+
+    private sealed class ThrowingComponent : ComponentBase
+    {
+        protected override void BuildRenderTree(RenderTreeBuilder builder)
+        {
+            throw new InvalidOperationException("Interactive failure");
+        }
     }
 
     private sealed class FakeExceptionReporter : IStarWinExceptionReporter

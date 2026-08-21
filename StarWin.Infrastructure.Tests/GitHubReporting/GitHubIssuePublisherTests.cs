@@ -11,7 +11,7 @@ public sealed class GitHubIssuePublisherTests
         var runner = new FakeGitHubCommandRunner(
         [
             new GitHubCommandResult(0, "https://github.com/darkdhamon/Starforged-Atlas/issues/9001", string.Empty),
-            new GitHubCommandResult(0, """[{"title":"Starforged Atlas Task Board","number":5}]""", string.Empty),
+            new GitHubCommandResult(0, """{"projects":[{"title":"Starforged Atlas Task Board","number":5}],"totalCount":1}""", string.Empty),
             new GitHubCommandResult(0, string.Empty, string.Empty)
         ]);
         var publisher = new GitHubIssuePublisher(runner);
@@ -83,7 +83,9 @@ public sealed class GitHubIssuePublisherTests
 
         public List<IReadOnlyList<string>> Commands { get; } = [];
 
-        public GitHubCommandResult Run(IReadOnlyList<string> arguments)
+        public GitHubCommandResult Run(
+            IReadOnlyList<string> arguments,
+            CancellationToken cancellationToken = default)
         {
             Commands.Add(arguments.ToArray());
             return this.results.Dequeue();

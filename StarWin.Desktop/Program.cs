@@ -98,6 +98,7 @@ internal static class Program
                 ["StarWin:DatabaseProvider"] = "Sqlite",
                 ["StarWin:ApplyMigrationsOnStartup"] = "true",
                 ["StarforgedAtlas:HostKind"] = "Desktop",
+                ["StarforgedAtlas:AppVersion"] = DesktopAppVersion.GetCurrentReleaseTag(),
                 ["ConnectionStrings:StarWin"] = $"Data Source={databasePath}"
             });
 

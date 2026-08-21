@@ -2,11 +2,14 @@ using StarWin.Application.Services;
 using StarWin.Infrastructure.Services;
 using StarWin.Web;
 
-var startupExceptionReporter = new StarWinExceptionReporter();
+var builder = StarWinWebHost.CreateBuilder(args);
+var startupExceptionReporter = new StarWinExceptionReporter(
+    new StarforgedAtlas.GitHubReporting.GitHubIssuePublisher(
+        new StarforgedAtlas.GitHubReporting.ProcessGitHubCommandRunner()),
+    builder.Configuration);
 
 try
 {
-    var builder = StarWinWebHost.CreateBuilder(args);
     var app = StarWinWebHost.Build(builder);
 
     await StarWinWebHost.InitializeAsync(app);

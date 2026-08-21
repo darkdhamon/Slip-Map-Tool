@@ -1,0 +1,46 @@
+@using System.Reflection
+@using Microsoft.AspNetCore.Components.Web
+@using StarWin.Application.Services
+@inherits ErrorBoundaryBase
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+@inject IStarWinExceptionReporter ExceptionReporter
+
+@if (CurrentException is null)
+{
+    @ChildContent
+}
+else
+{
+    <div class="alert alert-danger" role="alert">
+        An unhandled error has occurred. Reload the page to continue.
+    </div>
+}
+
+@code {
+    protected override Task OnErrorAsync(Exception exception)
+    {
+        var relativeRoute = Navigation.ToBaseRelativePath(Navigation.Uri);
+        return ExceptionReporter.ReportExceptionAsync(
+            exception,
+            new StarWinExceptionContext(
+                HostKind: Configuration["StarforgedAtlas:HostKind"] ?? "Web",
+                Operation: "Unhandled interactive component",
+                Route: string.IsNullOrWhiteSpace(relativeRoute) ? "/" : $"/{relativeRoute}",
+                AppVersion: ResolveAppVersion()));
+    }
+
+    private string ResolveAppVersion()
+    {
+        var configuredVersion = Configuration["StarforgedAtlas:AppVersion"];
+        if (!string.IsNullOrWhiteSpace(configuredVersion))
+        {
+            return configuredVersion;
+        }
+
+        var assembly = typeof(ReportingErrorBoundary).Assembly;
+        return assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? assembly.GetName().Version?.ToString()
+            ?? "0.0.0";
+    }
+}

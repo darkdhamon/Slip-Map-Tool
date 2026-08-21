@@ -49,7 +49,9 @@ public sealed class StarWinExceptionReporterTests
         Assert.Contains("Trace identifier: `trace-456`", submission.Body, StringComparison.Ordinal);
         Assert.Contains("App version: `2026-05-19.0-developer-preview`", submission.Body, StringComparison.Ordinal);
         Assert.Contains("Local URL", submission.Body, StringComparison.Ordinal);
-        Assert.Contains("InvalidOperationException: Boom", submission.Body, StringComparison.Ordinal);
+        Assert.Contains("InvalidOperationException", submission.Body, StringComparison.Ordinal);
+        Assert.Contains("Message: [redacted for privacy]", submission.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Boom", submission.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -84,6 +86,65 @@ public sealed class StarWinExceptionReporterTests
     }
 
     [Fact]
+    public async Task ReportExceptionAsync_suppresses_concurrent_duplicates_atomically()
+    {
+        var publisher = new FakeGitHubIssuePublisher();
+        var reporter = new StarWinExceptionReporter(publisher);
+        var context = new StarWinExceptionContext(
+            HostKind: "Web",
+            Operation: "Unhandled interactive component",
+            Route: "/timeline");
+
+        await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => Task.Run(() =>
+            reporter.ReportExceptionAsync(new InvalidOperationException("Boom"), context))));
+
+        Assert.Single(publisher.Submissions);
+    }
+
+    [Fact]
+    public async Task ReportExceptionAsync_releases_fingerprint_and_opens_draft_when_publication_fails()
+    {
+        var publisher = new FakeGitHubIssuePublisher(issueCreated: false);
+        var draftLauncher = new FakeGitHubIssueDraftLauncher();
+        var reporter = new StarWinExceptionReporter(
+            publisher,
+            issueDraftLauncher: draftLauncher);
+        var context = new StarWinExceptionContext(
+            HostKind: "Desktop",
+            Operation: "Desktop startup");
+
+        await reporter.ReportExceptionAsync(new InvalidOperationException("Boom"), context);
+        await reporter.ReportExceptionAsync(new InvalidOperationException("Boom"), context);
+
+        Assert.Equal(2, publisher.Submissions.Count);
+        Assert.Equal(2, draftLauncher.Submissions.Count);
+    }
+
+    [Fact]
+    public async Task ReportExceptionAsync_redacts_paths_secrets_and_raw_messages()
+    {
+        var publisher = new FakeGitHubIssuePublisher();
+        var reporter = new StarWinExceptionReporter(publisher);
+
+        await reporter.ReportExceptionAsync(
+            new InvalidOperationException("User file C:\\Users\\Bronze\\private.sector password=hunter2"),
+            new StarWinExceptionContext(
+                HostKind: "Desktop",
+                Operation: "Import sector",
+                AdditionalData: new Dictionary<string, string?>
+                {
+                    ["Source path"] = "C:\\Users\\Bronze\\private.sector",
+                    ["Connection"] = "password=hunter2"
+                }));
+
+        var body = Assert.Single(publisher.Submissions).Body;
+        Assert.DoesNotContain("Bronze", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("hunter2", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("private.sector", body, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[redacted]", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AddStarWinInfrastructure_registers_the_exception_reporter()
     {
         var services = new ServiceCollection();
@@ -103,14 +164,34 @@ public sealed class StarWinExceptionReporterTests
         Assert.IsType<StarWinExceptionReporter>(reporter);
     }
 
-    private sealed class FakeGitHubIssuePublisher : IGitHubIssuePublisher
+    private sealed class FakeGitHubIssuePublisher(bool issueCreated = true) : IGitHubIssuePublisher
     {
         public List<GitHubIssueSubmission> Submissions { get; } = [];
 
-        public GitHubIssueSubmissionResult Publish(GitHubIssueSubmission submission)
+        public GitHubIssueSubmissionResult Publish(
+            GitHubIssueSubmission submission,
+            CancellationToken cancellationToken = default)
+        {
+            lock (Submissions)
+            {
+                Submissions.Add(submission);
+            }
+
+            return new GitHubIssueSubmissionResult(
+                issueCreated,
+                issueCreated,
+                issueCreated ? "https://github.com/darkdhamon/Starforged-Atlas/issues/77" : null);
+        }
+    }
+
+    private sealed class FakeGitHubIssueDraftLauncher : IGitHubIssueDraftLauncher
+    {
+        public List<GitHubIssueSubmission> Submissions { get; } = [];
+
+        public bool TryOpen(GitHubIssueSubmission submission)
         {
             Submissions.Add(submission);
-            return new GitHubIssueSubmissionResult(true, true, "https://github.com/darkdhamon/Starforged-Atlas/issues/77");
+            return true;
         }
     }
 }

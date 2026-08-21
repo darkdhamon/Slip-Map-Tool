@@ -57,8 +57,15 @@ public partial class Error
             : configuredHostKind;
     }
 
-    private static string ResolveAppVersion()
+    private string ResolveAppVersion()
     {
+        var configuredVersion = HttpContext?.RequestServices
+            .GetService<IConfiguration>()?["StarforgedAtlas:AppVersion"];
+        if (!string.IsNullOrWhiteSpace(configuredVersion))
+        {
+            return configuredVersion;
+        }
+
         var assembly = typeof(Error).Assembly;
         return assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
             ?? assembly.GetName().Version?.ToString()

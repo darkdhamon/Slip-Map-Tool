@@ -26,17 +26,25 @@ public sealed record GitHubCommandResult(
 
 public interface IGitHubCommandRunner
 {
-    GitHubCommandResult Run(IReadOnlyList<string> arguments);
+    GitHubCommandResult Run(
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IGitHubIssuePublisher
 {
-    GitHubIssueSubmissionResult Publish(GitHubIssueSubmission submission);
+    GitHubIssueSubmissionResult Publish(
+        GitHubIssueSubmission submission,
+        CancellationToken cancellationToken = default);
 }
 
-public sealed class ProcessGitHubCommandRunner : IGitHubCommandRunner
+public sealed class ProcessGitHubCommandRunner(TimeSpan? timeout = null) : IGitHubCommandRunner
 {
-    public GitHubCommandResult Run(IReadOnlyList<string> arguments)
+    private readonly TimeSpan timeout = timeout ?? TimeSpan.FromSeconds(15);
+
+    public GitHubCommandResult Run(
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         if (arguments.Count == 0)
@@ -61,21 +69,53 @@ public sealed class ProcessGitHubCommandRunner : IGitHubCommandRunner
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start the GitHub CLI.");
 
-        var standardOutput = process.StandardOutput.ReadToEnd();
-        var standardError = process.StandardError.ReadToEnd();
-        process.WaitForExit();
+        var standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutSource.CancelAfter(timeout);
+
+        try
+        {
+            process.WaitForExitAsync(timeoutSource.Token).GetAwaiter().GetResult();
+        }
+        catch (OperationCanceledException)
+        {
+            TryTerminate(process);
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new TimeoutException($"GitHub CLI did not finish within {timeout.TotalSeconds:0} seconds.");
+        }
+
+        var standardOutput = standardOutputTask.GetAwaiter().GetResult();
+        var standardError = standardErrorTask.GetAwaiter().GetResult();
 
         return new GitHubCommandResult(process.ExitCode, standardOutput, standardError);
+    }
+
+    private static void TryTerminate(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit();
+            }
+        }
+        catch
+        {
+        }
     }
 }
 
 public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : IGitHubIssuePublisher
 {
-    public GitHubIssueSubmissionResult Publish(GitHubIssueSubmission submission)
+    public GitHubIssueSubmissionResult Publish(
+        GitHubIssueSubmission submission,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(submission);
 
-        if (!TryCreateIssue(submission, out var issueUrl))
+        if (!TryCreateIssue(submission, cancellationToken, out var issueUrl))
         {
             return new GitHubIssueSubmissionResult(
                 IssueCreated: false,
@@ -83,7 +123,7 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
                 IssueUrl: null);
         }
 
-        var addedToProject = TryAddIssueToProject(submission.Target, issueUrl!);
+        var addedToProject = TryAddIssueToProject(submission.Target, issueUrl!, cancellationToken);
         return new GitHubIssueSubmissionResult(
             IssueCreated: true,
             AddedToProject: addedToProject,
@@ -100,7 +140,10 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
         return builder.Uri;
     }
 
-    private bool TryCreateIssue(GitHubIssueSubmission submission, out string? issueUrl)
+    private bool TryCreateIssue(
+        GitHubIssueSubmission submission,
+        CancellationToken cancellationToken,
+        out string? issueUrl)
     {
         issueUrl = null;
 
@@ -125,7 +168,7 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
             arguments.Add("--body");
             arguments.Add(submission.Body);
 
-            var result = commandRunner.Run(arguments);
+            var result = commandRunner.Run(arguments, cancellationToken);
             issueUrl = result.StandardOutput.Trim();
             return result.ExitCode == 0 && !string.IsNullOrWhiteSpace(issueUrl);
         }
@@ -135,11 +178,17 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
         }
     }
 
-    private bool TryAddIssueToProject(GitHubIssueTarget target, string issueUrl)
+    private bool TryAddIssueToProject(
+        GitHubIssueTarget target,
+        string issueUrl,
+        CancellationToken cancellationToken)
     {
         try
         {
-            var projectNumber = TryResolveProjectNumber(target.ProjectOwner, target.ProjectTitle);
+            var projectNumber = TryResolveProjectNumber(
+                target.ProjectOwner,
+                target.ProjectTitle,
+                cancellationToken);
             if (!projectNumber.HasValue)
             {
                 return false;
@@ -154,7 +203,7 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
                 target.ProjectOwner,
                 "--url",
                 issueUrl
-            ]);
+            ], cancellationToken);
 
             return result.ExitCode == 0;
         }
@@ -164,7 +213,10 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
         }
     }
 
-    private int? TryResolveProjectNumber(string owner, string projectTitle)
+    private int? TryResolveProjectNumber(
+        string owner,
+        string projectTitle,
+        CancellationToken cancellationToken)
     {
         var result = commandRunner.Run(
         [
@@ -174,21 +226,26 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
             owner,
             "--format",
             "json"
-        ]);
+        ], cancellationToken);
 
         if (result.ExitCode != 0)
         {
             return null;
         }
 
-        var projects = JsonSerializer.Deserialize<GitHubProjectSummary[]>(
+        var response = JsonSerializer.Deserialize<GitHubProjectListResponse>(
             result.StandardOutput,
             new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
-        return projects?.FirstOrDefault(project =>
+        return response?.Projects.FirstOrDefault(project =>
             string.Equals(project.Title, projectTitle, StringComparison.OrdinalIgnoreCase))?.Number;
+    }
+
+    private sealed class GitHubProjectListResponse
+    {
+        public List<GitHubProjectSummary> Projects { get; set; } = [];
     }
 
     private sealed class GitHubProjectSummary
