@@ -16,6 +16,8 @@ Do not start coding for an issue-driven conversation until I explicitly ask you 
 
 GitHub project workflow uses the `Starforged Atlas Task Board`.
 
+For GitHub CLI operations, reuse the existing machine-wide/global `gh` credential and configuration. Do not initiate or create workspace-specific GitHub CLI authorization. If a restricted sandbox cannot access the global credential or configuration, report that environment restriction instead of asking the user to authenticate again.
+
 When an issue is in `Backlog`, move it to `Ready` after research is complete.
 
 GitHub release workflow:
@@ -47,6 +49,8 @@ When I explicitly tell you to implement the changes, move the issue from `Ready`
 When I tell you to promote the work to `dev`, move the issue from `In progress` to `In review`.
 
 All code changes promoted into `dev` must go through a pull request. Do not merge or commit changes directly into `dev`.
+
+When implementation and all required verification are complete, mark the pull request Ready for review instead of leaving it as a draft. Do not merge the pull request unless explicitly instructed to complete it.
 
 When a pull request that promotes work to `main` is completed, move all issues connected to that pull request from `In review` to `Done`.
 

@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\StarWin.Application\StarWin.Application.csproj" />
     <ProjectReference Include="..\StarWin.Domain\StarWin.Domain.csproj" />
+    <ProjectReference Include="..\StarforgedAtlas.GitHubReporting\StarforgedAtlas.GitHubReporting.csproj" />
   </ItemGroup>
 
   <ItemGroup>

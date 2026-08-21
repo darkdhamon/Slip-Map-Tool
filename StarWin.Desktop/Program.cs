@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -10,7 +11,10 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using StarWin.Application.Services;
+using StarWin.Infrastructure.Services;
 using StarWin.Web;
+using StarforgedAtlas.GitHubReporting;
 
 #if WINDOWS
 using System.Drawing;
@@ -28,12 +32,41 @@ internal static class Program
     private const string WebView2Arguments = "--disable-gpu --disable-gpu-compositing --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows";
     private const string BackendServerArgument = "--backend-server";
     private const string BackendPortArgument = "--backend-port";
+    private const string BackendReportNonceArgument = "--backend-report-nonce";
     private const string SmokeTestArgument = "--smoke-test";
     private const string SkipUpdateCheckArgument = "--skip-update-check";
+    private static IStarWinExceptionReporter ExceptionReporter = default!;
+    private static readonly ConditionalWeakTable<Exception, object> ReportedExceptions = new();
+    private static readonly object ReportedExceptionsSync = new();
 
     [STAThread]
     public static async Task Main(string[] args)
     {
+        ExceptionReporter = new StarWinExceptionReporter();
+        RegisterRuntimeExceptionHandlers();
+
+        try
+        {
+            var configurationBuilder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
+            {
+                Args = DesktopConfigurationArguments.Filter(args),
+                ApplicationName = typeof(StarWinWebHost).Assembly.GetName().Name,
+                ContentRootPath = StarWinDesktopPaths.GetWebContentRoot()
+            });
+            ExceptionReporter = DesktopExceptionReporterFactory.Create(configurationBuilder.Configuration);
+        }
+        catch (Exception ex)
+        {
+            await ReportDesktopExceptionAsync(ex, "Desktop configuration startup");
+            if (args.Contains(BackendServerArgument, StringComparer.OrdinalIgnoreCase)
+                && TryGetArgumentValue(args, BackendReportNonceArgument, out var reportNonce)
+                && !string.IsNullOrWhiteSpace(reportNonce))
+            {
+                DesktopBackendReportSignal.MarkAttempted(reportNonce);
+            }
+            throw;
+        }
+
         if (args.Contains(BackendServerArgument, StringComparer.OrdinalIgnoreCase))
         {
             var port = TryGetArgumentValue(args, BackendPortArgument, out var portValue) && int.TryParse(portValue, out var parsedPort)
@@ -69,49 +102,78 @@ internal static class Program
         catch (Exception ex)
         {
             startupReporter.Fail("Starforged Atlas failed to start", ex.GetBaseException().Message);
+            if (DesktopExceptionObservation.ShouldReportShellStartupException(ex))
+            {
+                await ReportDesktopExceptionAsync(ex, "Desktop shell startup");
+            }
             throw;
         }
     }
 
     private static async Task RunBackendServerAsync(int port, string[] args)
     {
-        var localUrl = $"http://127.0.0.1:{port}";
-        var databasePath = StarWinDesktopPaths.GetDatabasePath();
-        StarWinDesktopLog.Write("desktop-backend", $"Starting backend server on {localUrl} using database '{databasePath}'.");
-
-        var builder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
-        {
-            Args = args,
-            ApplicationName = typeof(StarWinWebHost).Assembly.GetName().Name,
-            ContentRootPath = StarWinDesktopPaths.GetWebContentRoot()
-        });
-
-        builder.WebHost.UseUrls(localUrl);
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["StarWin:DatabaseProvider"] = "Sqlite",
-            ["StarWin:ApplyMigrationsOnStartup"] = "true",
-            ["StarforgedAtlas:HostKind"] = "Desktop",
-            ["ConnectionStrings:StarWin"] = $"Data Source={databasePath}"
-        });
-
-        var app = StarWinWebHost.Build(builder);
-        await StarWinWebHost.InitializeAsync(app);
-
-        using var monitor = new DesktopBackendMonitor(app);
-
-        await app.StartAsync();
-        await monitor.RunAsync();
-
+        var reportNonce = TryGetArgumentValue(args, BackendReportNonceArgument, out var nonceValue)
+            ? nonceValue
+            : null;
         try
         {
-            await app.WaitForShutdownAsync();
+            var localUrl = $"http://127.0.0.1:{port}";
+            var databasePath = StarWinDesktopPaths.GetDatabasePath();
+            StarWinDesktopLog.Write("desktop-backend", $"Starting backend server on {localUrl} using database '{databasePath}'.");
+
+            var builder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
+            {
+                Args = DesktopConfigurationArguments.Filter(args),
+                ApplicationName = typeof(StarWinWebHost).Assembly.GetName().Name,
+                ContentRootPath = StarWinDesktopPaths.GetWebContentRoot()
+            });
+
+            builder.WebHost.UseUrls(localUrl);
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["StarWin:DatabaseProvider"] = "Sqlite",
+                ["StarWin:ApplyMigrationsOnStartup"] = "true",
+                ["StarforgedAtlas:HostKind"] = "Desktop",
+                ["StarforgedAtlas:AppVersion"] = DesktopAppVersion.GetCurrentReleaseTag(),
+                ["ConnectionStrings:StarWin"] = $"Data Source={databasePath}"
+            });
+            ExceptionReporter = DesktopExceptionReporterFactory.Create(builder.Configuration);
+
+            var app = StarWinWebHost.Build(builder);
+            await StarWinWebHost.InitializeAsync(app);
+
+            using var monitor = new DesktopBackendMonitor(app);
+
+            await app.StartAsync();
+            await monitor.RunAsync();
+
+            try
+            {
+                await app.WaitForShutdownAsync();
+            }
+            finally
+            {
+                await app.StopAsync();
+                await app.DisposeAsync();
+                DesktopBackendCoordinator.TryClearBackendRegistration(Environment.ProcessId);
+            }
         }
-        finally
+        catch (Exception ex)
         {
-            await app.StopAsync();
-            await app.DisposeAsync();
-            DesktopBackendCoordinator.TryClearBackendRegistration(Environment.ProcessId);
+            StarWinDesktopLog.Write("desktop-backend", ex.ToString());
+            await ReportDesktopExceptionAsync(
+                ex,
+                "Desktop backend startup",
+                new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    ["Backend port"] = port.ToString(),
+                    ["Host URL"] = $"http://127.0.0.1:{port}"
+                });
+            if (!string.IsNullOrWhiteSpace(reportNonce))
+            {
+                DesktopBackendReportSignal.MarkAttempted(reportNonce);
+            }
+            throw;
         }
     }
 
@@ -241,7 +303,15 @@ internal static class Program
                         if (!skipUpdateCheck && !checkedForUpdates)
                         {
                             checkedForUpdates = true;
-                            _ = CheckForDesktopReleaseUpdateAsync(form, releaseUpdateService);
+                            _ = DesktopExceptionObservation.ObserveAsync(
+                                CheckForDesktopReleaseUpdateAsync(form, releaseUpdateService),
+                                async ex =>
+                                {
+                                    StarWinDesktopLog.Write("desktop-shell", ex.ToString());
+                                    await ReportDesktopExceptionAsync(
+                                        ex,
+                                        "Desktop release update check");
+                                });
                         }
                     }
                 };
@@ -251,6 +321,13 @@ internal static class Program
             {
                 Console.Error.WriteLine(ex);
                 startupReporter.Fail("Starforged Atlas failed to start", ex.GetBaseException().Message);
+                await ReportDesktopExceptionAsync(
+                    ex,
+                    "Desktop shell initialization",
+                    new Dictionary<string, string?>(StringComparer.Ordinal)
+                    {
+                        ["Local URL"] = localUrl
+                    });
                 MessageBox.Show(
                     form,
                     ex.Message,
@@ -338,6 +415,107 @@ internal static class Program
         window.WaitForClose();
     }
 #endif
+
+    private static Task ReportDesktopExceptionAsync(
+        Exception exception,
+        string operation,
+        IReadOnlyDictionary<string, string?>? additionalData = null)
+    {
+        lock (ReportedExceptionsSync)
+        {
+            if (ReportedExceptions.TryGetValue(exception, out _))
+            {
+                return Task.CompletedTask;
+            }
+
+            ReportedExceptions.Add(exception, new object());
+        }
+
+        return ExceptionReporter.ReportExceptionAsync(
+            exception,
+            new StarWinExceptionContext(
+                HostKind: "Desktop",
+                Operation: operation,
+                AppVersion: DesktopAppVersion.GetCurrentReleaseTag(),
+                AdditionalData: additionalData));
+    }
+
+    private static void RegisterRuntimeExceptionHandlers()
+    {
+        AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
+        {
+            if (eventArgs.ExceptionObject is Exception exception
+                && DesktopExceptionObservation.ShouldReportShellStartupException(exception))
+            {
+                ReportDesktopExceptionAsync(exception, "Unhandled desktop process exception")
+                    .GetAwaiter()
+                    .GetResult();
+            }
+        };
+
+        TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
+        {
+            eventArgs.SetObserved();
+            _ = Task.Run(() => ReportDesktopExceptionAsync(
+                eventArgs.Exception,
+                "Unobserved desktop task exception"));
+        };
+
+#if WINDOWS
+        Application.ThreadException += async (_, eventArgs) =>
+            await ReportDesktopExceptionAsync(
+                eventArgs.Exception,
+                "Unhandled desktop UI exception");
+#endif
+    }
+}
+
+internal static class DesktopConfigurationArguments
+{
+    public static string[] Filter(string[] args)
+    {
+        return args.Where(argument =>
+                !argument.Equals("--backend-server", StringComparison.OrdinalIgnoreCase)
+                && !argument.Equals("--smoke-test", StringComparison.OrdinalIgnoreCase)
+                && !argument.Equals("--skip-update-check", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+    }
+}
+
+internal static class DesktopExceptionReporterFactory
+{
+    public static IStarWinExceptionReporter Create(
+        IConfiguration configuration,
+        IGitHubIssuePublisher? issuePublisher = null)
+    {
+        return new StarWinExceptionReporter(
+            issuePublisher ?? new GitHubIssuePublisher(new ProcessGitHubCommandRunner()),
+            configuration,
+            issueDraftLauncher: new ProcessGitHubIssueDraftLauncher());
+    }
+}
+
+internal static class DesktopBackendReportSignal
+{
+    public static void MarkAttempted(string nonce)
+    {
+        File.WriteAllText(GetPath(nonce), DateTimeOffset.UtcNow.ToString("O"));
+    }
+
+    public static bool TryConsume(string nonce)
+    {
+        var path = GetPath(nonce);
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        File.Delete(path);
+        return true;
+    }
+
+    private static string GetPath(string nonce)
+        => Path.Combine(StarWinDesktopPaths.GetApplicationDataRoot(), $"backend-report-{nonce}.signal");
 }
 
 internal static class DesktopBackendCoordinator
@@ -345,12 +523,15 @@ internal static class DesktopBackendCoordinator
     private const string StateMutexName = @"Local\StarforgedAtlas.Desktop.BackendState";
     private const string BackendServerArgument = "--backend-server";
     private const string BackendPortArgument = "--backend-port";
+    private const string BackendReportNonceArgument = "--backend-report-nonce";
 
     public static async Task<DesktopBackendLease> AcquireAsync(
         IDesktopStartupReporter startupReporter,
         CancellationToken cancellationToken)
     {
         DesktopBackendState state;
+        var launchedBackendProcessId = 0;
+        var backendReportNonce = string.Empty;
 
         using (var mutex = CreateStateMutex())
         {
@@ -372,7 +553,9 @@ internal static class DesktopBackendCoordinator
                 {
                     startupReporter.Report("Starting shared backend", "Launching the local server used by all desktop windows.");
                     state.Port = SelectBackendPort(state.Port);
-                    state.BackendProcessId = StartBackendProcess(state.Port).Id;
+                    backendReportNonce = Guid.NewGuid().ToString("N");
+                    state.BackendProcessId = StartBackendProcess(state.Port, backendReportNonce).Id;
+                    launchedBackendProcessId = state.BackendProcessId;
                 }
                 else
                 {
@@ -388,7 +571,12 @@ internal static class DesktopBackendCoordinator
             }
         }
 
-        await WaitForBackendReadyAsync(state.Port, startupReporter, cancellationToken);
+        await WaitForBackendReadyAsync(
+            state.Port,
+            launchedBackendProcessId,
+            backendReportNonce,
+            startupReporter,
+            cancellationToken);
         return new DesktopBackendLease($"http://127.0.0.1:{state.Port}");
     }
 
@@ -506,7 +694,7 @@ internal static class DesktopBackendCoordinator
         File.WriteAllText(statePath, json);
     }
 
-    private static Process StartBackendProcess(int port)
+    private static Process StartBackendProcess(int port, string reportNonce)
     {
         var executablePath = Environment.ProcessPath
             ?? throw new InvalidOperationException("Unable to determine the current desktop executable path.");
@@ -516,7 +704,7 @@ internal static class DesktopBackendCoordinator
         var startInfo = new ProcessStartInfo
         {
             FileName = executablePath,
-            Arguments = $"{BackendServerArgument} {BackendPortArgument} {port}",
+            Arguments = $"{BackendServerArgument} {BackendPortArgument} {port} {BackendReportNonceArgument} {reportNonce}",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -564,6 +752,8 @@ internal static class DesktopBackendCoordinator
 
     private static async Task WaitForBackendReadyAsync(
         int port,
+        int launchedBackendProcessId,
+        string backendReportNonce,
         IDesktopStartupReporter startupReporter,
         CancellationToken cancellationToken)
     {
@@ -584,6 +774,23 @@ internal static class DesktopBackendCoordinator
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!string.IsNullOrWhiteSpace(backendReportNonce)
+                && DesktopBackendReportSignal.TryConsume(backendReportNonce))
+            {
+                throw new DesktopBackendStartupReportedException();
+            }
+
+            if (launchedBackendProcessId > 0 && !IsProcessAlive(launchedBackendProcessId))
+            {
+                if (!string.IsNullOrWhiteSpace(backendReportNonce)
+                    && DesktopBackendReportSignal.TryConsume(backendReportNonce))
+                {
+                    throw new DesktopBackendStartupReportedException();
+                }
+
+                throw new InvalidOperationException("The shared desktop backend exited before reporting its startup failure.");
+            }
+
             attempt++;
             startupReporter.Report("Waiting for shared backend", $"The local server is starting up. Attempt {attempt:N0}.");
 
@@ -601,6 +808,41 @@ internal static class DesktopBackendCoordinator
             }
 
             await Task.Delay(500, cancellationToken);
+        }
+
+        if (launchedBackendProcessId > 0 && IsProcessAlive(launchedBackendProcessId))
+        {
+            var reportingDeadline = DateTime.UtcNow.AddMinutes(2);
+            while (DateTime.UtcNow < reportingDeadline && IsProcessAlive(launchedBackendProcessId))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!string.IsNullOrWhiteSpace(backendReportNonce)
+                    && DesktopBackendReportSignal.TryConsume(backendReportNonce))
+                {
+                    throw new DesktopBackendStartupReportedException();
+                }
+
+                try
+                {
+                    using var response = await client.GetAsync(healthUrl, cancellationToken);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        startupReporter.Report("Shared backend ready", $"Connected to local server on port {port}.");
+                        return;
+                    }
+                }
+                catch
+                {
+                }
+
+                await Task.Delay(500, cancellationToken);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(backendReportNonce)
+            && DesktopBackendReportSignal.TryConsume(backendReportNonce))
+        {
+            throw new DesktopBackendStartupReportedException();
         }
 
         throw new TimeoutException("The shared desktop backend did not become ready in time.");
@@ -1324,7 +1566,7 @@ internal static class StarWinDesktopPaths
             : null;
     }
 
-    private static string GetApplicationDataRoot()
+    internal static string GetApplicationDataRoot()
     {
         var atlasRoot = Path.Combine(AppContext.BaseDirectory, "data");
         Directory.CreateDirectory(atlasRoot);

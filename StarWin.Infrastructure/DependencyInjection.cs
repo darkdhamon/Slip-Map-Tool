@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 using StarWin.Application.Services.LegacyImport;
 using StarWin.Application.Services;
+using StarforgedAtlas.GitHubReporting;
 using StarWin.Infrastructure.Data;
 using StarWin.Infrastructure.Services;
 
@@ -47,7 +48,10 @@ public static class DependencyInjection
             optionsLifetime: ServiceLifetime.Singleton);
         services.AddDbContextFactory<StarWinDbContext>(ConfigureDatabase);
 
+        services.AddSingleton<IGitHubCommandRunner, ProcessGitHubCommandRunner>();
+        services.AddSingleton<IGitHubIssuePublisher, GitHubIssuePublisher>();
         services.AddSingleton<IStarWinWorkspace, StarWinDatabaseWorkspace>();
+        services.AddSingleton<IStarWinExceptionReporter, StarWinExceptionReporter>();
         services.AddScoped<IStarWinAppConfigurationService, StarWinAppConfigurationService>();
         services.AddScoped<IStarWinExplorerContextService, StarWinExplorerContextService>();
         services.AddScoped<IStarWinExplorerQueryService, StarWinExplorerQueryService>();
