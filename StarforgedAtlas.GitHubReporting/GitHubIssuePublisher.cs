@@ -76,6 +76,8 @@ public sealed class ProcessGitHubCommandRunner(TimeSpan? timeout = null) : IGitH
         var standardOutputTask = process.StandardOutput.ReadToEndAsync(timeoutSource.Token);
         var standardErrorTask = process.StandardError.ReadToEndAsync(timeoutSource.Token);
 
+        string standardOutput;
+        string standardError;
         try
         {
             if (standardInput is not null)
@@ -85,6 +87,8 @@ public sealed class ProcessGitHubCommandRunner(TimeSpan? timeout = null) : IGitH
             }
 
             await process.WaitForExitAsync(timeoutSource.Token);
+            standardOutput = await standardOutputTask;
+            standardError = await standardErrorTask;
         }
         catch (OperationCanceledException)
         {
@@ -92,9 +96,6 @@ public sealed class ProcessGitHubCommandRunner(TimeSpan? timeout = null) : IGitH
             cancellationToken.ThrowIfCancellationRequested();
             throw new TimeoutException($"GitHub CLI did not finish within {timeout.TotalSeconds:0} seconds.");
         }
-
-        var standardOutput = await standardOutputTask;
-        var standardError = await standardErrorTask;
 
         return new GitHubCommandResult(process.ExitCode, standardOutput, standardError);
     }

@@ -822,6 +822,19 @@ internal static class DesktopBackendCoordinator
                     throw new DesktopBackendStartupReportedException();
                 }
 
+                try
+                {
+                    using var response = await client.GetAsync(healthUrl, cancellationToken);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        startupReporter.Report("Shared backend ready", $"Connected to local server on port {port}.");
+                        return;
+                    }
+                }
+                catch
+                {
+                }
+
                 await Task.Delay(500, cancellationToken);
             }
         }
