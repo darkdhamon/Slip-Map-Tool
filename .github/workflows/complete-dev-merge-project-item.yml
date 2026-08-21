@@ -61,17 +61,6 @@ jobs:
                   pullRequest(number: $pullRequestNumber) {
                     headRefOid
                     reviewDecision
-                    reviews(last: 100, states: APPROVED) {
-                      nodes { commit { oid } }
-                    }
-                    comments(last: 100) {
-                      nodes {
-                        body
-                        reactions(content: THUMBS_UP, first: 100) {
-                          nodes { user { login } }
-                        }
-                      }
-                    }
                   }
                 }
               }`,
@@ -86,14 +75,54 @@ jobs:
             const isConnector = login =>
               login === 'chatgpt-codex-connector' ||
               login === 'chatgpt-codex-connector[bot]';
-            const hasHeadHumanApproval = pullRequest.reviews.nodes.some(review =>
-              review.commit?.oid === pullRequest.headRefOid
-            );
-            const hasHeadConnectorApproval = pullRequest.comments.nodes.some(comment =>
-              comment.body.includes('@codex review') &&
-              comment.body.split(/\s+/).includes(pullRequest.headRefOid) &&
-              comment.reactions.nodes.some(reaction => isConnector(reaction.user?.login))
-            );
+            let approvalReviewCursor = null;
+            let hasHeadHumanApproval = false;
+            do {
+              const approvalResult = await github.graphql(
+                `query ApprovalReviewsPage($owner: String!, $repo: String!, $pullRequestNumber: Int!, $cursor: String) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $pullRequestNumber) {
+                      reviews(first: 100, after: $cursor, states: APPROVED) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes { commit { oid } }
+                      }
+                    }
+                  }
+                }`,
+                { owner: context.repo.owner, repo: context.repo.repo, pullRequestNumber: mergedPullRequest.number, cursor: approvalReviewCursor },
+              );
+              const reviews = approvalResult.repository.pullRequest.reviews;
+              hasHeadHumanApproval ||= reviews.nodes.some(review => review.commit?.oid === pullRequest.headRefOid);
+              approvalReviewCursor = reviews.pageInfo.hasNextPage ? reviews.pageInfo.endCursor : null;
+            } while (approvalReviewCursor && !hasHeadHumanApproval);
+
+            let connectorRequestCursor = null;
+            let hasHeadConnectorApproval = false;
+            do {
+              const commentResult = await github.graphql(
+                `query ConnectorRequestsPage($owner: String!, $repo: String!, $pullRequestNumber: Int!, $cursor: String) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $pullRequestNumber) {
+                      comments(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes {
+                          body
+                          reactions(content: THUMBS_UP, first: 100) { nodes { user { login } } }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                { owner: context.repo.owner, repo: context.repo.repo, pullRequestNumber: mergedPullRequest.number, cursor: connectorRequestCursor },
+              );
+              const comments = commentResult.repository.pullRequest.comments;
+              hasHeadConnectorApproval ||= comments.nodes.some(comment =>
+                comment.body.includes('@codex review') &&
+                comment.body.split(/\s+/).includes(pullRequest.headRefOid) &&
+                comment.reactions.nodes.some(reaction => isConnector(reaction.user?.login))
+              );
+              connectorRequestCursor = comments.pageInfo.hasNextPage ? comments.pageInfo.endCursor : null;
+            } while (connectorRequestCursor && !hasHeadConnectorApproval);
 
             let reviewThreadCursor = null;
             let hasUnresolvedConnectorThread = false;
@@ -129,9 +158,11 @@ jobs:
                 : null;
             } while (reviewThreadCursor && !hasUnresolvedConnectorThread);
 
-            const isApproved = pullRequest.reviewDecision !== 'CHANGES_REQUESTED' &&
-              !hasUnresolvedConnectorThread &&
-              (hasHeadHumanApproval || hasHeadConnectorApproval);
+            const isApproved =
+              (pullRequest.reviewDecision === 'APPROVED' && hasHeadHumanApproval) ||
+              (pullRequest.reviewDecision !== 'CHANGES_REQUESTED' &&
+                hasHeadConnectorApproval &&
+                !hasUnresolvedConnectorThread);
 
             if (!isApproved) {
               core.info('The merged pull request does not have a current approval signal; no project items were changed.');

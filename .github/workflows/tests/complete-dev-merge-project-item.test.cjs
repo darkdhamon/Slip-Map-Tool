@@ -30,10 +30,12 @@ function issue(number, status, id = `item-${number}`) {
 function createHarness({
   associatedPullRequests,
   approvedReviewCommitOids,
+  approvedReviewPages,
   body = '',
   closingIssuePages,
   closingIssueNumbers = [],
   connectorReviewRequests = [],
+  connectorRequestPages,
   projectItems = [],
   projectPages,
   reviewDecision = 'APPROVED',
@@ -67,14 +69,29 @@ function createHarness({
             pullRequest: {
               headRefOid: 'head-sha',
               reviewDecision,
-              reviews: {
-                nodes: (approvedReviewCommitOids ?? (reviewDecision === 'APPROVED' ? ['head-sha'] : []))
-                  .map(oid => ({ commit: { oid } })),
-              },
-              comments: { nodes: connectorReviewRequests },
             },
           },
         };
+      }
+
+      if (query.includes('query ApprovalReviewsPage')) {
+        const pages = approvedReviewPages ?? [approvedReviewCommitOids ?? (reviewDecision === 'APPROVED' ? ['head-sha'] : [])];
+        const pageIndex = variables.cursor ? Number(variables.cursor.slice(7)) : 0;
+        const hasNextPage = pageIndex < pages.length - 1;
+        return { repository: { pullRequest: { reviews: {
+          pageInfo: { hasNextPage, endCursor: hasNextPage ? `cursor-${pageIndex + 1}` : null },
+          nodes: pages[pageIndex].map(oid => ({ commit: { oid } })),
+        } } } };
+      }
+
+      if (query.includes('query ConnectorRequestsPage')) {
+        const pages = connectorRequestPages ?? [connectorReviewRequests];
+        const pageIndex = variables.cursor ? Number(variables.cursor.slice(7)) : 0;
+        const hasNextPage = pageIndex < pages.length - 1;
+        return { repository: { pullRequest: { comments: {
+          pageInfo: { hasNextPage, endCursor: hasNextPage ? `cursor-${pageIndex + 1}` : null },
+          nodes: pages[pageIndex],
+        } } } };
       }
 
       if (query.includes('query ReviewThreadsPage')) {
@@ -180,7 +197,7 @@ test('does not update project items when the merged pull request is unapproved',
 
   await executeWorkflow(harness.github, harness.context, harness.core);
 
-  assert.equal(harness.queries.length, 2);
+  assert.equal(harness.queries.length, 4);
   assert.deepEqual(harness.mutations, []);
   assert.match(harness.messages.info[0], /does not have a current approval signal/);
 });
@@ -208,7 +225,7 @@ test('treats changes requested as a veto even when the connector reacted with ap
 
   await executeWorkflow(harness.github, harness.context, harness.core);
 
-  assert.equal(harness.queries.length, 2);
+  assert.equal(harness.queries.length, 4);
   assert.deepEqual(harness.mutations, []);
   assert.match(harness.messages.info[0], /does not have a current approval signal/);
 });
@@ -252,6 +269,51 @@ test('finds an unresolved connector thread on a later review-thread page', async
 
   assert.deepEqual(harness.mutations, []);
   assert.equal(harness.queries.filter(query => query.includes('query ReviewThreadsPage')).length, 2);
+});
+
+test('allows an authoritative current-head human approval despite connector threads', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119],
+    projectItems: [issue(119, 'In review')],
+    reviewThreads: [{
+      isResolved: false,
+      comments: { nodes: [{ author: { login: 'chatgpt-codex-connector' } }] },
+    }],
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations.map(mutation => mutation.itemId), ['item-119']);
+});
+
+test('rejects a raw current-head approval that GitHub did not count', async () => {
+  const harness = createHarness({
+    approvedReviewCommitOids: ['head-sha'],
+    closingIssueNumbers: [119],
+    projectItems: [issue(119, 'In review')],
+    reviewDecision: 'REVIEW_REQUIRED',
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations, []);
+});
+
+test('finds a SHA-bound Connector approval on a later comment page', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119],
+    connectorRequestPages: [[], [{
+      body: '@codex review head-sha',
+      reactions: { nodes: [{ user: { login: 'chatgpt-codex-connector' } }] },
+    }]],
+    projectItems: [issue(119, 'In review')],
+    reviewDecision: null,
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations.map(mutation => mutation.itemId), ['item-119']);
+  assert.equal(harness.queries.filter(query => query.includes('query ConnectorRequestsPage')).length, 2);
 });
 
 test('uses only explicit issue sections when falling back to pull request body references', async () => {
