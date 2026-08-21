@@ -50,6 +50,8 @@ When I tell you to promote the work to `dev`, move the issue from `In progress` 
 
 All code changes promoted into `dev` must go through a pull request. Do not merge or commit changes directly into `dev`.
 
+When implementation and all required verification are complete, mark the pull request Ready for review instead of leaving it as a draft. Do not merge the pull request unless explicitly instructed to complete it.
+
 When a pull request that promotes work to `main` is completed, move all issues connected to that pull request from `In review` to `Done`.
 
 Use `master` as the protected release branch, `dev` as the shared integration branch, and short-lived feature branches for task work. Do not commit feature work directly to `master` or `dev`.
