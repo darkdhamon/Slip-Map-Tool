@@ -84,8 +84,9 @@ jobs:
               !thread.isResolved &&
               thread.comments.nodes.some(comment => isConnector(comment.author?.login))
             );
-            const isApproved = pullRequest.reviewDecision === 'APPROVED' ||
-              (hasConnectorApproval && !hasUnresolvedConnectorThread);
+            const isApproved = pullRequest.reviewDecision !== 'CHANGES_REQUESTED' &&
+              (pullRequest.reviewDecision === 'APPROVED' ||
+                (hasConnectorApproval && !hasUnresolvedConnectorThread));
 
             if (!isApproved) {
               core.info('The merged pull request does not have a current approval signal; no project items were changed.');
@@ -184,8 +185,15 @@ jobs:
                 : null;
             } while (cursor);
 
-            if (matchingItems.length === 0) {
-              core.setFailed('None of the linked issues has an existing item on Starforged Atlas Task Board.');
+            const matchedIssueNumbers = new Set(
+              matchingItems.map(item => item.content.number)
+            );
+            const missingIssueNumbers = [...issueNumbers]
+              .filter(issueNumber => !matchedIssueNumbers.has(issueNumber));
+            if (missingIssueNumbers.length > 0) {
+              for (const issueNumber of missingIssueNumbers) {
+                core.setFailed(`Linked issue #${issueNumber} has no existing item on Starforged Atlas Task Board.`);
+              }
               return;
             }
 

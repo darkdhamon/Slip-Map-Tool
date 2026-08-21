@@ -122,6 +122,21 @@ test('does not update project items when the merged pull request is unapproved',
   assert.match(harness.messages.info[0], /does not have a current approval signal/);
 });
 
+test('treats changes requested as a veto even when the connector reacted with approval', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119],
+    projectItems: [issue(119, 'In review')],
+    reactions: [{ user: { login: 'chatgpt-codex-connector' } }],
+    reviewDecision: 'CHANGES_REQUESTED',
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.equal(harness.queries.length, 1);
+  assert.deepEqual(harness.mutations, []);
+  assert.match(harness.messages.info[0], /does not have a current approval signal/);
+});
+
 test('uses only explicit issue sections when falling back to pull request body references', async () => {
   const harness = createHarness({
     body: '## Affected issues\n- #119\n\n## Notes\nDepends on #123',
@@ -140,7 +155,21 @@ test('reports a linked issue that has no existing project item', async () => {
 
   assert.deepEqual(harness.mutations, []);
   assert.deepEqual(harness.messages.failures, [
-    'None of the linked issues has an existing item on Starforged Atlas Task Board.',
+    'Linked issue #119 has no existing item on Starforged Atlas Task Board.',
+  ]);
+});
+
+test('does not update a partial match when another linked issue is missing from the board', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119, 120],
+    projectItems: [issue(119, 'In review')],
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations, []);
+  assert.deepEqual(harness.messages.failures, [
+    'Linked issue #120 has no existing item on Starforged Atlas Task Board.',
   ]);
 });
 
