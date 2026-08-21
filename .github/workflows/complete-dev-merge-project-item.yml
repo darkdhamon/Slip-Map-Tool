@@ -1,7 +1,9 @@
 name: Complete merged dev issues
 
 on:
-  pull_request:
+  # This privileged event makes the repository secret available for merged fork
+  # pull requests. This workflow must never check out or execute pull-request code.
+  pull_request_target:
     branches:
       - dev
     types:
@@ -39,10 +41,22 @@ jobs:
             const targetStatusName = 'Done';
             const repositoryNameWithOwner = `${context.repo.owner}/${context.repo.repo}`;
 
-            const linkedIssues = await github.graphql(
+            const pullRequestResult = await github.graphql(
               `query($owner: String!, $repo: String!, $pullRequestNumber: Int!) {
                 repository(owner: $owner, name: $repo) {
                   pullRequest(number: $pullRequestNumber) {
+                    reviewDecision
+                    reactions(content: THUMBS_UP, first: 100) {
+                      nodes { user { login } }
+                    }
+                    reviewThreads(first: 100) {
+                      nodes {
+                        isResolved
+                        comments(first: 10) {
+                          nodes { author { login } }
+                        }
+                      }
+                    }
                     closingIssuesReferences(first: 100) {
                       nodes {
                         number
@@ -59,20 +73,42 @@ jobs:
               },
             );
 
+            const pullRequest = pullRequestResult.repository.pullRequest;
+            const isConnector = login =>
+              login === 'chatgpt-codex-connector' ||
+              login === 'chatgpt-codex-connector[bot]';
+            const hasConnectorApproval = pullRequest.reactions.nodes.some(reaction =>
+              isConnector(reaction.user?.login)
+            );
+            const hasUnresolvedConnectorThread = pullRequest.reviewThreads.nodes.some(thread =>
+              !thread.isResolved &&
+              thread.comments.nodes.some(comment => isConnector(comment.author?.login))
+            );
+            const isApproved = pullRequest.reviewDecision === 'APPROVED' ||
+              (hasConnectorApproval && !hasUnresolvedConnectorThread);
+
+            if (!isApproved) {
+              core.info('The merged pull request does not have a current approval signal; no project items were changed.');
+              return;
+            }
+
             const issueNumbers = new Set(
-              linkedIssues.repository.pullRequest.closingIssuesReferences.nodes
+              pullRequest.closingIssuesReferences.nodes
                 .filter(issue => issue.repository.nameWithOwner === repositoryNameWithOwner)
                 .map(issue => issue.number),
             );
 
+            const linkedIssueSectionPattern = /^##\s+(?:(?:Affected|Related)\s+issues?|Issue\s+links?)\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/gim;
             const issueReferencePattern = /(?:^|[\s(])#(\d+)\b/gm;
             const pullRequestBody = context.payload.pull_request.body ?? '';
-            for (const match of pullRequestBody.matchAll(issueReferencePattern)) {
-              issueNumbers.add(Number(match[1]));
+            for (const section of pullRequestBody.matchAll(linkedIssueSectionPattern)) {
+              for (const match of section[1].matchAll(issueReferencePattern)) {
+                issueNumbers.add(Number(match[1]));
+              }
             }
 
             if (issueNumbers.size === 0) {
-              core.setFailed('The merged pull request does not identify a linked repository issue.');
+              core.info('The merged pull request has no linked repository issues; no project items were changed.');
               return;
             }
 
