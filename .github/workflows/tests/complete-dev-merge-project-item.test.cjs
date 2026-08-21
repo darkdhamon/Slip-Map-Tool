@@ -29,13 +29,16 @@ function issue(number, status, id = `item-${number}`) {
 
 function createHarness({
   associatedPullRequests,
+  approvedReviewCommitOids,
   body = '',
+  closingIssuePages,
   closingIssueNumbers = [],
+  connectorReviewRequests = [],
   projectItems = [],
   projectPages,
-  reactions = [],
   reviewDecision = 'APPROVED',
   reviewThreads = [],
+  reviewThreadPages,
 } = {}) {
   const mutations = [];
   const queries = [];
@@ -58,15 +61,54 @@ function createHarness({
     graphql: async (query, variables) => {
       queries.push(query);
 
-      if (query.includes('pullRequest(number:')) {
+      if (query.includes('query ReviewApproval')) {
         return {
           repository: {
             pullRequest: {
+              headRefOid: 'head-sha',
               reviewDecision,
-              reactions: { nodes: reactions },
-              reviewThreads: { nodes: reviewThreads },
+              reviews: {
+                nodes: (approvedReviewCommitOids ?? (reviewDecision === 'APPROVED' ? ['head-sha'] : []))
+                  .map(oid => ({ commit: { oid } })),
+              },
+              comments: { nodes: connectorReviewRequests },
+            },
+          },
+        };
+      }
+
+      if (query.includes('query ReviewThreadsPage')) {
+        const pages = reviewThreadPages ?? [reviewThreads];
+        const pageIndex = variables.cursor ? Number(variables.cursor.slice(7)) : 0;
+        const hasNextPage = pageIndex < pages.length - 1;
+        return {
+          repository: {
+            pullRequest: {
+              reviewThreads: {
+                pageInfo: {
+                  hasNextPage,
+                  endCursor: hasNextPage ? `cursor-${pageIndex + 1}` : null,
+                },
+                nodes: pages[pageIndex],
+              },
+            },
+          },
+        };
+      }
+
+      if (query.includes('query ClosingIssuesPage')) {
+        const pages = closingIssuePages ?? [closingIssueNumbers];
+        const pageIndex = variables.cursor ? Number(variables.cursor.slice(7)) : 0;
+        const hasNextPage = pageIndex < pages.length - 1;
+        return {
+          repository: {
+            pullRequest: {
               closingIssuesReferences: {
-                nodes: closingIssueNumbers.map(number => ({
+                pageInfo: {
+                  hasNextPage,
+                  endCursor: hasNextPage ? `cursor-${pageIndex + 1}` : null,
+                },
+                nodes: pages[pageIndex].map(number => ({
                   number,
                   repository: { nameWithOwner: 'DarkDhamon/Starforged-Atlas' },
                 })),
@@ -138,7 +180,7 @@ test('does not update project items when the merged pull request is unapproved',
 
   await executeWorkflow(harness.github, harness.context, harness.core);
 
-  assert.equal(harness.queries.length, 1);
+  assert.equal(harness.queries.length, 2);
   assert.deepEqual(harness.mutations, []);
   assert.match(harness.messages.info[0], /does not have a current approval signal/);
 });
@@ -156,16 +198,60 @@ test('treats a dev push without an associated merged pull request as a no-op', a
 test('treats changes requested as a veto even when the connector reacted with approval', async () => {
   const harness = createHarness({
     closingIssueNumbers: [119],
+    connectorReviewRequests: [{
+      body: '@codex review head-sha',
+      reactions: { nodes: [{ user: { login: 'chatgpt-codex-connector' } }] },
+    }],
     projectItems: [issue(119, 'In review')],
-    reactions: [{ user: { login: 'chatgpt-codex-connector' } }],
     reviewDecision: 'CHANGES_REQUESTED',
   });
 
   await executeWorkflow(harness.github, harness.context, harness.core);
 
-  assert.equal(harness.queries.length, 1);
+  assert.equal(harness.queries.length, 2);
   assert.deepEqual(harness.mutations, []);
   assert.match(harness.messages.info[0], /does not have a current approval signal/);
+});
+
+test('does not accept connector approval bound to a stale head', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119],
+    connectorReviewRequests: [{
+      body: '@codex review previous-head-sha',
+      reactions: { nodes: [{ user: { login: 'chatgpt-codex-connector' } }] },
+    }],
+    projectItems: [issue(119, 'In review')],
+    reviewDecision: null,
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations, []);
+  assert.match(harness.messages.info[0], /does not have a current approval signal/);
+});
+
+test('finds an unresolved connector thread on a later review-thread page', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119],
+    connectorReviewRequests: [{
+      body: '@codex review head-sha',
+      reactions: { nodes: [{ user: { login: 'chatgpt-codex-connector' } }] },
+    }],
+    projectItems: [issue(119, 'In review')],
+    reviewDecision: null,
+    reviewThreadPages: [
+      [{ isResolved: true, comments: { nodes: [] } }],
+      [{
+        isResolved: false,
+        comments: { nodes: [{ author: { login: 'chatgpt-codex-connector' } }] },
+      }],
+    ],
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations, []);
+  assert.equal(harness.queries.filter(query => query.includes('query ReviewThreadsPage')).length, 2);
 });
 
 test('uses only explicit issue sections when falling back to pull request body references', async () => {
@@ -217,6 +303,21 @@ test('finds and updates a linked issue on a later project page', async () => {
 
   assert.deepEqual(harness.mutations.map(mutation => mutation.itemId), ['item-119']);
   assert.equal(harness.queries.filter(query => query.includes('projectV2(number:')).length, 2);
+});
+
+test('collects linked issues from every closing-issue page', async () => {
+  const harness = createHarness({
+    closingIssuePages: [[119], [120]],
+    projectItems: [issue(119, 'In review'), issue(120, 'In review')],
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(
+    harness.mutations.map(mutation => mutation.itemId),
+    ['item-119', 'item-120'],
+  );
+  assert.equal(harness.queries.filter(query => query.includes('query ClosingIssuesPage')).length, 2);
 });
 
 test('updates only In review items and preserves Done or unexpected statuses', async () => {

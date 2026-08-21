@@ -56,25 +56,20 @@ jobs:
             }
 
             const pullRequestResult = await github.graphql(
-              `query($owner: String!, $repo: String!, $pullRequestNumber: Int!) {
+              `query ReviewApproval($owner: String!, $repo: String!, $pullRequestNumber: Int!) {
                 repository(owner: $owner, name: $repo) {
                   pullRequest(number: $pullRequestNumber) {
+                    headRefOid
                     reviewDecision
-                    reactions(content: THUMBS_UP, first: 100) {
-                      nodes { user { login } }
+                    reviews(last: 100, states: APPROVED) {
+                      nodes { commit { oid } }
                     }
-                    reviewThreads(first: 100) {
+                    comments(last: 100) {
                       nodes {
-                        isResolved
-                        comments(first: 10) {
-                          nodes { author { login } }
+                        body
+                        reactions(content: THUMBS_UP, first: 100) {
+                          nodes { user { login } }
                         }
-                      }
-                    }
-                    closingIssuesReferences(first: 100) {
-                      nodes {
-                        number
-                        repository { nameWithOwner }
                       }
                     }
                   }
@@ -91,27 +86,89 @@ jobs:
             const isConnector = login =>
               login === 'chatgpt-codex-connector' ||
               login === 'chatgpt-codex-connector[bot]';
-            const hasConnectorApproval = pullRequest.reactions.nodes.some(reaction =>
-              isConnector(reaction.user?.login)
+            const hasHeadHumanApproval = pullRequest.reviews.nodes.some(review =>
+              review.commit?.oid === pullRequest.headRefOid
             );
-            const hasUnresolvedConnectorThread = pullRequest.reviewThreads.nodes.some(thread =>
-              !thread.isResolved &&
-              thread.comments.nodes.some(comment => isConnector(comment.author?.login))
+            const hasHeadConnectorApproval = pullRequest.comments.nodes.some(comment =>
+              comment.body.includes('@codex review') &&
+              comment.body.split(/\s+/).includes(pullRequest.headRefOid) &&
+              comment.reactions.nodes.some(reaction => isConnector(reaction.user?.login))
             );
+
+            let reviewThreadCursor = null;
+            let hasUnresolvedConnectorThread = false;
+            do {
+              const threadResult = await github.graphql(
+                `query ReviewThreadsPage($owner: String!, $repo: String!, $pullRequestNumber: Int!, $cursor: String) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $pullRequestNumber) {
+                      reviewThreads(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes {
+                          isResolved
+                          comments(first: 100) { nodes { author { login } } }
+                        }
+                      }
+                    }
+                  }
+                }`,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pullRequestNumber: mergedPullRequest.number,
+                  cursor: reviewThreadCursor,
+                },
+              );
+              const threads = threadResult.repository.pullRequest.reviewThreads;
+              hasUnresolvedConnectorThread ||= threads.nodes.some(thread =>
+                !thread.isResolved &&
+                thread.comments.nodes.some(comment => isConnector(comment.author?.login))
+              );
+              reviewThreadCursor = threads.pageInfo.hasNextPage
+                ? threads.pageInfo.endCursor
+                : null;
+            } while (reviewThreadCursor && !hasUnresolvedConnectorThread);
+
             const isApproved = pullRequest.reviewDecision !== 'CHANGES_REQUESTED' &&
-              (pullRequest.reviewDecision === 'APPROVED' ||
-                (hasConnectorApproval && !hasUnresolvedConnectorThread));
+              !hasUnresolvedConnectorThread &&
+              (hasHeadHumanApproval || hasHeadConnectorApproval);
 
             if (!isApproved) {
               core.info('The merged pull request does not have a current approval signal; no project items were changed.');
               return;
             }
 
-            const issueNumbers = new Set(
-              pullRequest.closingIssuesReferences.nodes
-                .filter(issue => issue.repository.nameWithOwner === repositoryNameWithOwner)
-                .map(issue => issue.number),
-            );
+            const issueNumbers = new Set();
+            let closingIssueCursor = null;
+            do {
+              const closingIssueResult = await github.graphql(
+                `query ClosingIssuesPage($owner: String!, $repo: String!, $pullRequestNumber: Int!, $cursor: String) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequest(number: $pullRequestNumber) {
+                      closingIssuesReferences(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes { number repository { nameWithOwner } }
+                      }
+                    }
+                  }
+                }`,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pullRequestNumber: mergedPullRequest.number,
+                  cursor: closingIssueCursor,
+                },
+              );
+              const closingIssues = closingIssueResult.repository.pullRequest.closingIssuesReferences;
+              for (const issue of closingIssues.nodes) {
+                if (issue.repository.nameWithOwner === repositoryNameWithOwner) {
+                  issueNumbers.add(issue.number);
+                }
+              }
+              closingIssueCursor = closingIssues.pageInfo.hasNextPage
+                ? closingIssues.pageInfo.endCursor
+                : null;
+            } while (closingIssueCursor);
 
             const linkedIssueSectionPattern = /^##\s+(?:(?:Affected|Related)\s+issues?|Issue\s+links?)\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/gim;
             const issueReferencePattern = /(?:^|[\s(])#(\d+)\b/gm;
