@@ -169,7 +169,6 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
             identities.Add(string.Join(
                 ":",
                 current.GetType().FullName ?? current.GetType().Name,
-                current.Message,
                 GetTopStackFrameIdentity(current)));
 
             if (current is AggregateException aggregateException)

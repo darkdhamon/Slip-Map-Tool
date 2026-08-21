@@ -444,7 +444,8 @@ internal static class Program
     {
         AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
         {
-            if (eventArgs.ExceptionObject is Exception exception)
+            if (eventArgs.ExceptionObject is Exception exception
+                && DesktopExceptionObservation.ShouldReportShellStartupException(exception))
             {
                 ReportDesktopExceptionAsync(exception, "Unhandled desktop process exception")
                     .GetAwaiter()
@@ -823,6 +824,12 @@ internal static class DesktopBackendCoordinator
 
                 await Task.Delay(500, cancellationToken);
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(backendReportNonce)
+            && DesktopBackendReportSignal.TryConsume(backendReportNonce))
+        {
+            throw new DesktopBackendStartupReportedException();
         }
 
         throw new TimeoutException("The shared desktop backend did not become ready in time.");

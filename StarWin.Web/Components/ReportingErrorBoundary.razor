@@ -5,6 +5,7 @@
 @inject IConfiguration Configuration
 @inject NavigationManager Navigation
 @inject IStarWinExceptionReporter ExceptionReporter
+@using Microsoft.AspNetCore.Http
 
 @if (CurrentException is null)
 {
@@ -20,6 +21,11 @@ else
 @code {
     protected override Task OnErrorAsync(Exception exception)
     {
+        if (HttpContext is not null && !HttpContext.Response.HasStarted)
+        {
+            HttpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        }
+
         var routeUri = new Uri(Navigation.Uri).GetLeftPart(UriPartial.Path);
         var relativeRoute = Navigation.ToBaseRelativePath(routeUri);
         _ = Task.Run(() => ExceptionReporter.ReportExceptionAsync(
@@ -31,6 +37,9 @@ else
                 AppVersion: ResolveAppVersion())));
         return Task.CompletedTask;
     }
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
 
     private string ResolveAppVersion()
     {

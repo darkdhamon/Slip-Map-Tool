@@ -164,6 +164,26 @@ public sealed class StarWinExceptionReporterTests
             ExtractFingerprint(Assert.Single(secondPublisher.Submissions).Body));
     }
 
+    [Fact]
+    public async Task BuildIssue_ignores_volatile_exception_messages()
+    {
+        var context = new StarWinExceptionContext("Web", "Query", Route: "/systems");
+        var firstPublisher = new FakeGitHubIssuePublisher();
+        var secondPublisher = new FakeGitHubIssuePublisher();
+        await new StarWinExceptionReporter(firstPublisher).ReportExceptionAsync(CaptureVolatile("record-1"), context);
+        await new StarWinExceptionReporter(secondPublisher).ReportExceptionAsync(CaptureVolatile("record-2"), context);
+
+        Assert.Equal(
+            ExtractFingerprint(Assert.Single(firstPublisher.Submissions).Body),
+            ExtractFingerprint(Assert.Single(secondPublisher.Submissions).Body));
+    }
+
+    private static Exception CaptureVolatile(string value)
+    {
+        try { throw new InvalidOperationException(value); }
+        catch (Exception ex) { return ex; }
+    }
+
     private static string ExtractFingerprint(string body)
     {
         const string marker = "Fingerprint: `";
