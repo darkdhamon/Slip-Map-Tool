@@ -35,16 +35,15 @@ public partial class Error
             ["Request path"] = feature.Path
         };
 
-        await ExceptionReporter.ReportExceptionAsync(
-            feature.Error,
-            new StarWinExceptionContext(
+        var context = new StarWinExceptionContext(
                 HostKind: ResolveHostKind(),
                 Operation: "Unhandled web request",
                 Route: feature.Path,
                 RequestId: RequestId,
                 TraceIdentifier: HttpContext?.TraceIdentifier,
                 AppVersion: ResolveAppVersion(),
-                AdditionalData: additionalData));
+                AdditionalData: additionalData);
+        _ = Task.Run(() => ExceptionReporter.ReportExceptionAsync(feature.Error, context));
     }
 
     private string ResolveHostKind()

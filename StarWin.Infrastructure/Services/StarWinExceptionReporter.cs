@@ -81,7 +81,8 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
             if (!result.IssueCreated)
             {
                 recentFingerprints.TryRemove(issue.Fingerprint, out _);
-                var draftOpened = issueDraftLauncher.TryOpen(submission);
+                var draftOpened = string.Equals(context.HostKind, "Desktop", StringComparison.OrdinalIgnoreCase)
+                    && issueDraftLauncher.TryOpen(submission);
                 logger.LogWarning(
                     "Automatic GitHub exception reporting did not create an issue. hostKind={HostKind} fingerprint={Fingerprint} draftOpened={DraftOpened}",
                     context.HostKind,
@@ -139,12 +140,21 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
             context.Operation ?? string.Empty,
             context.Route ?? string.Empty,
             exception.GetType().FullName ?? exception.GetType().Name,
-            exception.Message);
+            exception.Message,
+            GetTopStackFrameIdentity(exception));
         var fingerprint = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(fingerprintSource)))[..16];
 
         var body = BuildIssueBody(exception, context, occurredAtUtc, fingerprint);
         return new StarWinExceptionIssue(title, body, fingerprint);
+    }
+
+    private static string GetTopStackFrameIdentity(Exception exception)
+    {
+        var method = new StackTrace(exception, fNeedFileInfo: false).GetFrame(0)?.GetMethod();
+        return method is null
+            ? string.Empty
+            : $"{method.DeclaringType?.FullName}.{method.Name}";
     }
 
     private static string BuildIssueBody(

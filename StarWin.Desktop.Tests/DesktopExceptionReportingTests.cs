@@ -59,12 +59,12 @@ public sealed class DesktopExceptionReportingTests
     [Fact]
     public void Backend_report_signal_is_suppressed_only_after_explicit_acknowledgment()
     {
-        var processId = -Math.Abs(Random.Shared.Next(1, int.MaxValue));
+        var nonce = Guid.NewGuid().ToString("N");
 
-        Assert.False(DesktopBackendReportSignal.TryConsume(processId));
-        DesktopBackendReportSignal.MarkAttempted(processId);
-        Assert.True(DesktopBackendReportSignal.TryConsume(processId));
-        Assert.False(DesktopBackendReportSignal.TryConsume(processId));
+        Assert.False(DesktopBackendReportSignal.TryConsume(nonce));
+        DesktopBackendReportSignal.MarkAttempted(nonce);
+        Assert.True(DesktopBackendReportSignal.TryConsume(nonce));
+        Assert.False(DesktopBackendReportSignal.TryConsume(nonce));
     }
 
     private sealed class FakeGitHubIssuePublisher : IGitHubIssuePublisher

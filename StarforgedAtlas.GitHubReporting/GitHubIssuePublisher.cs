@@ -194,10 +194,46 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
         {
             throw;
         }
+        catch (TimeoutException)
+        {
+            return await TryFindCreatedIssueAsync(submission, cancellationToken);
+        }
         catch
         {
             return null;
         }
+    }
+
+    private async Task<string?> TryFindCreatedIssueAsync(
+        GitHubIssueSubmission submission,
+        CancellationToken cancellationToken)
+    {
+        const string marker = "Fingerprint: `";
+        var start = submission.Body.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0)
+        {
+            return null;
+        }
+
+        start += marker.Length;
+        var end = submission.Body.IndexOf('`', start);
+        if (end <= start)
+        {
+            return null;
+        }
+
+        var fingerprint = submission.Body[start..end];
+        var result = await commandRunner.RunAsync(
+            ["issue", "list", "--repo", submission.Target.RepositoryFullName, "--search", $"{fingerprint} in:body", "--json", "url", "--limit", "1"],
+            cancellationToken);
+        if (result.ExitCode != 0)
+        {
+            return null;
+        }
+
+        return JsonSerializer.Deserialize<List<GitHubIssueLookup>>(
+            result.StandardOutput,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })?.FirstOrDefault()?.Url;
     }
 
     private async Task<bool> TryAddIssueToProjectAsync(
@@ -262,6 +298,8 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
             "list",
             "--owner",
             owner,
+            "--limit",
+            "1000",
             "--format",
             "json"
         ], cancellationToken);
@@ -284,6 +322,11 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
     private sealed class GitHubProjectListResponse
     {
         public List<GitHubProjectSummary> Projects { get; set; } = [];
+    }
+
+    private sealed class GitHubIssueLookup
+    {
+        public string? Url { get; set; }
     }
 
     private sealed class GitHubProjectSummary

@@ -32,6 +32,7 @@ internal static class Program
     private const string WebView2Arguments = "--disable-gpu --disable-gpu-compositing --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows";
     private const string BackendServerArgument = "--backend-server";
     private const string BackendPortArgument = "--backend-port";
+    private const string BackendReportNonceArgument = "--backend-report-nonce";
     private const string SmokeTestArgument = "--smoke-test";
     private const string SkipUpdateCheckArgument = "--skip-update-check";
     private static IStarWinExceptionReporter ExceptionReporter = default!;
@@ -105,6 +106,9 @@ internal static class Program
 
     private static async Task RunBackendServerAsync(int port, string[] args)
     {
+        var reportNonce = TryGetArgumentValue(args, BackendReportNonceArgument, out var nonceValue)
+            ? nonceValue
+            : null;
         try
         {
             var localUrl = $"http://127.0.0.1:{port}";
@@ -159,7 +163,10 @@ internal static class Program
                     ["Backend port"] = port.ToString(),
                     ["Host URL"] = $"http://127.0.0.1:{port}"
                 });
-            DesktopBackendReportSignal.MarkAttempted(Environment.ProcessId);
+            if (!string.IsNullOrWhiteSpace(reportNonce))
+            {
+                DesktopBackendReportSignal.MarkAttempted(reportNonce);
+            }
             throw;
         }
     }
@@ -441,10 +448,10 @@ internal static class Program
 
         TaskScheduler.UnobservedTaskException += (_, eventArgs) =>
         {
-            ReportDesktopExceptionAsync(eventArgs.Exception, "Unobserved desktop task exception")
-                .GetAwaiter()
-                .GetResult();
             eventArgs.SetObserved();
+            _ = Task.Run(() => ReportDesktopExceptionAsync(
+                eventArgs.Exception,
+                "Unobserved desktop task exception"));
         };
 
 #if WINDOWS
@@ -471,14 +478,14 @@ internal static class DesktopExceptionReporterFactory
 
 internal static class DesktopBackendReportSignal
 {
-    public static void MarkAttempted(int processId)
+    public static void MarkAttempted(string nonce)
     {
-        File.WriteAllText(GetPath(processId), DateTimeOffset.UtcNow.ToString("O"));
+        File.WriteAllText(GetPath(nonce), DateTimeOffset.UtcNow.ToString("O"));
     }
 
-    public static bool TryConsume(int processId)
+    public static bool TryConsume(string nonce)
     {
-        var path = GetPath(processId);
+        var path = GetPath(nonce);
         if (!File.Exists(path))
         {
             return false;
@@ -488,8 +495,8 @@ internal static class DesktopBackendReportSignal
         return true;
     }
 
-    private static string GetPath(int processId)
-        => Path.Combine(StarWinDesktopPaths.GetApplicationDataRoot(), $"backend-report-{processId}.signal");
+    private static string GetPath(string nonce)
+        => Path.Combine(StarWinDesktopPaths.GetApplicationDataRoot(), $"backend-report-{nonce}.signal");
 }
 
 internal static class DesktopBackendCoordinator
@@ -497,6 +504,7 @@ internal static class DesktopBackendCoordinator
     private const string StateMutexName = @"Local\StarforgedAtlas.Desktop.BackendState";
     private const string BackendServerArgument = "--backend-server";
     private const string BackendPortArgument = "--backend-port";
+    private const string BackendReportNonceArgument = "--backend-report-nonce";
 
     public static async Task<DesktopBackendLease> AcquireAsync(
         IDesktopStartupReporter startupReporter,
@@ -504,6 +512,7 @@ internal static class DesktopBackendCoordinator
     {
         DesktopBackendState state;
         var launchedBackendProcessId = 0;
+        var backendReportNonce = string.Empty;
 
         using (var mutex = CreateStateMutex())
         {
@@ -525,7 +534,8 @@ internal static class DesktopBackendCoordinator
                 {
                     startupReporter.Report("Starting shared backend", "Launching the local server used by all desktop windows.");
                     state.Port = SelectBackendPort(state.Port);
-                    state.BackendProcessId = StartBackendProcess(state.Port).Id;
+                    backendReportNonce = Guid.NewGuid().ToString("N");
+                    state.BackendProcessId = StartBackendProcess(state.Port, backendReportNonce).Id;
                     launchedBackendProcessId = state.BackendProcessId;
                 }
                 else
@@ -545,6 +555,7 @@ internal static class DesktopBackendCoordinator
         await WaitForBackendReadyAsync(
             state.Port,
             launchedBackendProcessId,
+            backendReportNonce,
             startupReporter,
             cancellationToken);
         return new DesktopBackendLease($"http://127.0.0.1:{state.Port}");
@@ -664,7 +675,7 @@ internal static class DesktopBackendCoordinator
         File.WriteAllText(statePath, json);
     }
 
-    private static Process StartBackendProcess(int port)
+    private static Process StartBackendProcess(int port, string reportNonce)
     {
         var executablePath = Environment.ProcessPath
             ?? throw new InvalidOperationException("Unable to determine the current desktop executable path.");
@@ -674,7 +685,7 @@ internal static class DesktopBackendCoordinator
         var startInfo = new ProcessStartInfo
         {
             FileName = executablePath,
-            Arguments = $"{BackendServerArgument} {BackendPortArgument} {port}",
+            Arguments = $"{BackendServerArgument} {BackendPortArgument} {port} {BackendReportNonceArgument} {reportNonce}",
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -688,7 +699,6 @@ internal static class DesktopBackendCoordinator
 
         var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to launch the shared desktop backend process.");
-        DesktopBackendReportSignal.TryConsume(process.Id);
         process.EnableRaisingEvents = true;
         process.Exited += (_, _) =>
         {
@@ -724,6 +734,7 @@ internal static class DesktopBackendCoordinator
     private static async Task WaitForBackendReadyAsync(
         int port,
         int launchedBackendProcessId,
+        string backendReportNonce,
         IDesktopStartupReporter startupReporter,
         CancellationToken cancellationToken)
     {
@@ -746,7 +757,8 @@ internal static class DesktopBackendCoordinator
             cancellationToken.ThrowIfCancellationRequested();
             if (launchedBackendProcessId > 0 && !IsProcessAlive(launchedBackendProcessId))
             {
-                if (DesktopBackendReportSignal.TryConsume(launchedBackendProcessId))
+                if (!string.IsNullOrWhiteSpace(backendReportNonce)
+                    && DesktopBackendReportSignal.TryConsume(backendReportNonce))
                 {
                     throw new DesktopBackendStartupReportedException();
                 }

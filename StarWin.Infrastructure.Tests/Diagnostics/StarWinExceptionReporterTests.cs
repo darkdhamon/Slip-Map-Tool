@@ -121,6 +121,41 @@ public sealed class StarWinExceptionReporterTests
     }
 
     [Fact]
+    public async Task ReportExceptionAsync_does_not_open_browser_fallback_for_web_host()
+    {
+        var publisher = new FakeGitHubIssuePublisher(issueCreated: false);
+        var draftLauncher = new FakeGitHubIssueDraftLauncher();
+        var reporter = new StarWinExceptionReporter(publisher, issueDraftLauncher: draftLauncher);
+
+        await reporter.ReportExceptionAsync(
+            new InvalidOperationException("Boom"),
+            new StarWinExceptionContext("Web", "Standalone web host startup"));
+
+        Assert.Empty(draftLauncher.Submissions);
+    }
+
+    [Fact]
+    public async Task BuildIssue_distinguishes_identical_exceptions_from_different_throw_sites()
+    {
+        var context = new StarWinExceptionContext("Web", "Query", Route: "/systems");
+        var firstPublisher = new FakeGitHubIssuePublisher();
+        var secondPublisher = new FakeGitHubIssuePublisher();
+        await new StarWinExceptionReporter(firstPublisher).ReportExceptionAsync(CaptureFirst(), context);
+        await new StarWinExceptionReporter(secondPublisher).ReportExceptionAsync(CaptureSecond(), context);
+        var first = ExtractFingerprint(Assert.Single(firstPublisher.Submissions).Body);
+        var second = ExtractFingerprint(Assert.Single(secondPublisher.Submissions).Body);
+
+        Assert.NotEqual(first, second);
+    }
+
+    private static string ExtractFingerprint(string body)
+    {
+        const string marker = "Fingerprint: `";
+        var start = body.IndexOf(marker, StringComparison.Ordinal) + marker.Length;
+        return body[start..body.IndexOf('`', start)];
+    }
+
+    [Fact]
     public async Task ReportExceptionAsync_redacts_paths_secrets_and_raw_messages()
     {
         var publisher = new FakeGitHubIssuePublisher();
@@ -202,6 +237,18 @@ public sealed class StarWinExceptionReporterTests
                 issueCreated,
                 issueCreated ? "https://github.com/darkdhamon/Starforged-Atlas/issues/77" : null));
         }
+    }
+
+    private static Exception CaptureFirst()
+    {
+        try { throw new InvalidOperationException("same"); }
+        catch (Exception ex) { return ex; }
+    }
+
+    private static Exception CaptureSecond()
+    {
+        try { throw new InvalidOperationException("same"); }
+        catch (Exception ex) { return ex; }
     }
 
     private sealed class FakeGitHubIssueDraftLauncher : IGitHubIssueDraftLauncher
