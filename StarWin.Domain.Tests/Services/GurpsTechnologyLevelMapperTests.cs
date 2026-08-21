@@ -13,4 +13,17 @@ public sealed class GurpsTechnologyLevelMapperTests
         Assert.Equal(14, baseTechLevel);
         Assert.True(isSuperscience);
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void TryParseDisplay_WithNullEmptyOrWhitespaceValue_ReturnsFalse(string? value)
+    {
+        var result = GurpsTechnologyLevelMapper.TryParseDisplay(value, out var baseTechLevel, out var isSuperscience);
+
+        Assert.False(result);
+        Assert.Equal(0, baseTechLevel);
+        Assert.False(isSuperscience);
+    }
 }
