@@ -18,7 +18,7 @@ try
     await StarWinWebHost.InitializeAsync(app);
     await app.RunAsync();
 }
-catch (Exception ex)
+catch (Exception ex) when (StarWinWebHost.ShouldReportStartupException(ex))
 {
     await startupExceptionReporter.ReportExceptionAsync(
         ex,

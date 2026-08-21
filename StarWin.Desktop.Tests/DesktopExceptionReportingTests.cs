@@ -56,6 +56,17 @@ public sealed class DesktopExceptionReportingTests
         Assert.Equal("Configured board", target.ProjectTitle);
     }
 
+    [Fact]
+    public void Backend_report_signal_is_suppressed_only_after_explicit_acknowledgment()
+    {
+        var processId = -Math.Abs(Random.Shared.Next(1, int.MaxValue));
+
+        Assert.False(DesktopBackendReportSignal.TryConsume(processId));
+        DesktopBackendReportSignal.MarkAttempted(processId);
+        Assert.True(DesktopBackendReportSignal.TryConsume(processId));
+        Assert.False(DesktopBackendReportSignal.TryConsume(processId));
+    }
+
     private sealed class FakeGitHubIssuePublisher : IGitHubIssuePublisher
     {
         public List<GitHubIssueSubmission> Submissions { get; } = [];

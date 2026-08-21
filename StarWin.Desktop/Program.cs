@@ -41,14 +41,24 @@ internal static class Program
     [STAThread]
     public static async Task Main(string[] args)
     {
-        var configurationBuilder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
-        {
-            Args = args,
-            ApplicationName = typeof(StarWinWebHost).Assembly.GetName().Name,
-            ContentRootPath = StarWinDesktopPaths.GetWebContentRoot()
-        });
-        ExceptionReporter = DesktopExceptionReporterFactory.Create(configurationBuilder.Configuration);
+        ExceptionReporter = new StarWinExceptionReporter();
         RegisterRuntimeExceptionHandlers();
+
+        try
+        {
+            var configurationBuilder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
+            {
+                Args = args,
+                ApplicationName = typeof(StarWinWebHost).Assembly.GetName().Name,
+                ContentRootPath = StarWinDesktopPaths.GetWebContentRoot()
+            });
+            ExceptionReporter = DesktopExceptionReporterFactory.Create(configurationBuilder.Configuration);
+        }
+        catch (Exception ex)
+        {
+            await ReportDesktopExceptionAsync(ex, "Desktop configuration startup");
+            throw;
+        }
 
         if (args.Contains(BackendServerArgument, StringComparer.OrdinalIgnoreCase))
         {
@@ -149,6 +159,7 @@ internal static class Program
                     ["Backend port"] = port.ToString(),
                     ["Host URL"] = $"http://127.0.0.1:{port}"
                 });
+            DesktopBackendReportSignal.MarkAttempted(Environment.ProcessId);
             throw;
         }
     }
@@ -458,6 +469,29 @@ internal static class DesktopExceptionReporterFactory
     }
 }
 
+internal static class DesktopBackendReportSignal
+{
+    public static void MarkAttempted(int processId)
+    {
+        File.WriteAllText(GetPath(processId), DateTimeOffset.UtcNow.ToString("O"));
+    }
+
+    public static bool TryConsume(int processId)
+    {
+        var path = GetPath(processId);
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        File.Delete(path);
+        return true;
+    }
+
+    private static string GetPath(int processId)
+        => Path.Combine(StarWinDesktopPaths.GetApplicationDataRoot(), $"backend-report-{processId}.signal");
+}
+
 internal static class DesktopBackendCoordinator
 {
     private const string StateMutexName = @"Local\StarforgedAtlas.Desktop.BackendState";
@@ -654,6 +688,7 @@ internal static class DesktopBackendCoordinator
 
         var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to launch the shared desktop backend process.");
+        DesktopBackendReportSignal.TryConsume(process.Id);
         process.EnableRaisingEvents = true;
         process.Exited += (_, _) =>
         {
@@ -711,7 +746,12 @@ internal static class DesktopBackendCoordinator
             cancellationToken.ThrowIfCancellationRequested();
             if (launchedBackendProcessId > 0 && !IsProcessAlive(launchedBackendProcessId))
             {
-                throw new DesktopBackendStartupReportedException();
+                if (DesktopBackendReportSignal.TryConsume(launchedBackendProcessId))
+                {
+                    throw new DesktopBackendStartupReportedException();
+                }
+
+                throw new InvalidOperationException("The shared desktop backend exited before reporting its startup failure.");
             }
 
             attempt++;
@@ -1454,7 +1494,7 @@ internal static class StarWinDesktopPaths
             : null;
     }
 
-    private static string GetApplicationDataRoot()
+    internal static string GetApplicationDataRoot()
     {
         var atlasRoot = Path.Combine(AppContext.BaseDirectory, "data");
         Directory.CreateDirectory(atlasRoot);

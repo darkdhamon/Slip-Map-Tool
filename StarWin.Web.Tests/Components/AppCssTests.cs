@@ -1,9 +1,18 @@
 using System.IO;
+using Microsoft.Extensions.Hosting;
+using StarWin.Web;
 
 namespace StarWin.Web.Tests.Components;
 
 public sealed class AppCssTests
 {
+    [Fact]
+    public void Design_time_host_abort_is_not_reported_as_startup_failure()
+    {
+        Assert.False(StarWinWebHost.ShouldReportStartupException(new HostAbortedException()));
+        Assert.True(StarWinWebHost.ShouldReportStartupException(new InvalidOperationException()));
+    }
+
     [Fact]
     public void WorkspaceLoadingModalHostStretchesAcrossOverviewRow()
     {
@@ -85,6 +94,7 @@ public sealed class AppCssTests
             .Select(File.ReadAllText);
 
         Assert.Contains("<Routes @rendermode=\"InteractiveServer\" />", appMarkup, StringComparison.Ordinal);
+        Assert.Contains("<HeadOutlet @rendermode=\"InteractiveServer\" />", appMarkup, StringComparison.Ordinal);
         Assert.Contains("<ReportingErrorBoundary>", routesMarkup, StringComparison.Ordinal);
         Assert.DoesNotContain(pageMarkups, markup =>
             markup.Contains("@rendermode InteractiveServer", StringComparison.Ordinal));
