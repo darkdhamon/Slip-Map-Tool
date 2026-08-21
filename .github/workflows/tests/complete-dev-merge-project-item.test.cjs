@@ -35,6 +35,7 @@ function createHarness({
   closingIssuePages,
   closingIssueNumbers = [],
   connectorReviewRequests = [],
+  connectorReactionPages,
   connectorRequestPages,
   projectItems = [],
   projectPages,
@@ -59,6 +60,23 @@ function createHarness({
           }],
         }),
       },
+      reactions: {
+        listForIssueComment: async () => {
+          throw new Error('listForIssueComment should be called through paginate');
+        },
+      },
+    },
+    paginate: async (_method, { comment_id }) => {
+      if (connectorReactionPages) {
+        return connectorReactionPages.flat();
+      }
+      const comments = (connectorRequestPages ?? [connectorReviewRequests])
+        .flatMap((page, pageIndex) => page.map((node, index) => ({
+          ...node,
+          databaseId: node.databaseId ?? pageIndex * 100 + index + 1,
+        })));
+      const comment = comments.find(node => node.databaseId === comment_id);
+      return comment?.reactions?.nodes ?? [];
     },
     graphql: async (query, variables) => {
       queries.push(query);
@@ -80,7 +98,9 @@ function createHarness({
         const hasNextPage = pageIndex < pages.length - 1;
         return { repository: { pullRequest: { reviews: {
           pageInfo: { hasNextPage, endCursor: hasNextPage ? `cursor-${pageIndex + 1}` : null },
-          nodes: pages[pageIndex].map(oid => ({ commit: { oid } })),
+          nodes: pages[pageIndex].map(review => typeof review === 'string'
+            ? { authorCanPushToRepository: true, commit: { oid: review } }
+            : review),
         } } } };
       }
 
@@ -90,7 +110,10 @@ function createHarness({
         const hasNextPage = pageIndex < pages.length - 1;
         return { repository: { pullRequest: { comments: {
           pageInfo: { hasNextPage, endCursor: hasNextPage ? `cursor-${pageIndex + 1}` : null },
-          nodes: pages[pageIndex],
+          nodes: pages[pageIndex].map((node, index) => ({
+            ...node,
+            databaseId: node.databaseId ?? pageIndex * 100 + index + 1,
+          })),
         } } } };
       }
 
@@ -288,7 +311,10 @@ test('allows an authoritative current-head human approval despite connector thre
 
 test('rejects a raw current-head approval that GitHub did not count', async () => {
   const harness = createHarness({
-    approvedReviewCommitOids: ['head-sha'],
+    approvedReviewPages: [[{
+      authorCanPushToRepository: false,
+      commit: { oid: 'head-sha' },
+    }]],
     closingIssueNumbers: [119],
     projectItems: [issue(119, 'In review')],
     reviewDecision: 'REVIEW_REQUIRED',
@@ -297,6 +323,23 @@ test('rejects a raw current-head approval that GitHub did not count', async () =
   await executeWorkflow(harness.github, harness.context, harness.core);
 
   assert.deepEqual(harness.mutations, []);
+});
+
+test('does not combine a stale authoritative approval with an unauthorized current-head review', async () => {
+  const harness = createHarness({
+    approvedReviewPages: [[
+      { authorCanPushToRepository: true, commit: { oid: 'previous-head-sha' } },
+      { authorCanPushToRepository: false, commit: { oid: 'head-sha' } },
+    ]],
+    closingIssueNumbers: [119],
+    projectItems: [issue(119, 'In review')],
+    reviewDecision: 'APPROVED',
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations, []);
+  assert.match(harness.messages.info[0], /does not have a current approval signal/);
 });
 
 test('finds a SHA-bound Connector approval on a later comment page', async () => {
@@ -314,6 +357,23 @@ test('finds a SHA-bound Connector approval on a later comment page', async () =>
 
   assert.deepEqual(harness.mutations.map(mutation => mutation.itemId), ['item-119']);
   assert.equal(harness.queries.filter(query => query.includes('query ConnectorRequestsPage')).length, 2);
+});
+
+test('finds the Connector approval after the first reaction page', async () => {
+  const harness = createHarness({
+    closingIssueNumbers: [119],
+    connectorReactionPages: [
+      Array.from({ length: 100 }, () => ({ user: { login: 'someone-else' } })),
+      [{ user: { login: 'chatgpt-codex-connector' } }],
+    ],
+    connectorReviewRequests: [{ body: '@codex review head-sha' }],
+    projectItems: [issue(119, 'In review')],
+    reviewDecision: null,
+  });
+
+  await executeWorkflow(harness.github, harness.context, harness.core);
+
+  assert.deepEqual(harness.mutations.map(mutation => mutation.itemId), ['item-119']);
 });
 
 test('uses only explicit issue sections when falling back to pull request body references', async () => {

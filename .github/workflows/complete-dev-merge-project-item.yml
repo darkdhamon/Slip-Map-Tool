@@ -84,7 +84,7 @@ jobs:
                     pullRequest(number: $pullRequestNumber) {
                       reviews(first: 100, after: $cursor, states: APPROVED) {
                         pageInfo { hasNextPage endCursor }
-                        nodes { commit { oid } }
+                        nodes { authorCanPushToRepository commit { oid } }
                       }
                     }
                   }
@@ -92,7 +92,9 @@ jobs:
                 { owner: context.repo.owner, repo: context.repo.repo, pullRequestNumber: mergedPullRequest.number, cursor: approvalReviewCursor },
               );
               const reviews = approvalResult.repository.pullRequest.reviews;
-              hasHeadHumanApproval ||= reviews.nodes.some(review => review.commit?.oid === pullRequest.headRefOid);
+              hasHeadHumanApproval ||= reviews.nodes.some(review =>
+                review.authorCanPushToRepository && review.commit?.oid === pullRequest.headRefOid
+              );
               approvalReviewCursor = reviews.pageInfo.hasNextPage ? reviews.pageInfo.endCursor : null;
             } while (approvalReviewCursor && !hasHeadHumanApproval);
 
@@ -106,8 +108,8 @@ jobs:
                       comments(first: 100, after: $cursor) {
                         pageInfo { hasNextPage endCursor }
                         nodes {
+                          databaseId
                           body
-                          reactions(content: THUMBS_UP, first: 100) { nodes { user { login } } }
                         }
                       }
                     }
@@ -116,11 +118,24 @@ jobs:
                 { owner: context.repo.owner, repo: context.repo.repo, pullRequestNumber: mergedPullRequest.number, cursor: connectorRequestCursor },
               );
               const comments = commentResult.repository.pullRequest.comments;
-              hasHeadConnectorApproval ||= comments.nodes.some(comment =>
-                comment.body.includes('@codex review') &&
-                comment.body.split(/\s+/).includes(pullRequest.headRefOid) &&
-                comment.reactions.nodes.some(reaction => isConnector(reaction.user?.login))
-              );
+              for (const comment of comments.nodes) {
+                if (!comment.body.includes('@codex review') ||
+                    !comment.body.split(/\s+/).includes(pullRequest.headRefOid)) {
+                  continue;
+                }
+
+                const reactions = await github.paginate(github.rest.reactions.listForIssueComment, {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.databaseId,
+                  content: '+1',
+                  per_page: 100,
+                });
+                if (reactions.some(reaction => isConnector(reaction.user?.login))) {
+                  hasHeadConnectorApproval = true;
+                  break;
+                }
+              }
               connectorRequestCursor = comments.pageInfo.hasNextPage ? comments.pageInfo.endCursor : null;
             } while (connectorRequestCursor && !hasHeadConnectorApproval);
 
@@ -159,7 +174,7 @@ jobs:
             } while (reviewThreadCursor && !hasUnresolvedConnectorThread);
 
             const isApproved =
-              (pullRequest.reviewDecision === 'APPROVED' && hasHeadHumanApproval) ||
+              hasHeadHumanApproval ||
               (pullRequest.reviewDecision !== 'CHANGES_REQUESTED' &&
                 hasHeadConnectorApproval &&
                 !hasUnresolvedConnectorThread);
