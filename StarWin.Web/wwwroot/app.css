@@ -1312,6 +1312,11 @@ dd {
     overflow: auto;
 }
 
+.route-planner-stack {
+    max-height: none;
+    overflow: visible;
+}
+
 .record-filter-panel {
     position: sticky;
     top: 0;
