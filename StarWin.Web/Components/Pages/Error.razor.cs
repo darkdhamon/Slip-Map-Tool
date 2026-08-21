@@ -32,7 +32,7 @@ public partial class Error
         var additionalData = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Request method"] = request?.Method,
-            ["Request path"] = request?.Path.Value
+            ["Request path"] = feature.Path
         };
 
         await ExceptionReporter.ReportExceptionAsync(

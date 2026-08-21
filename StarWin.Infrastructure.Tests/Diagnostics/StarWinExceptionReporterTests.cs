@@ -145,6 +145,26 @@ public sealed class StarWinExceptionReporterTests
     }
 
     [Fact]
+    public async Task ReportExceptionAsync_includes_each_aggregate_exception_branch()
+    {
+        var publisher = new FakeGitHubIssuePublisher();
+        var reporter = new StarWinExceptionReporter(publisher);
+        var exception = new AggregateException(
+            new InvalidOperationException("First secret message"),
+            new ArgumentException("Second secret message"));
+
+        await reporter.ReportExceptionAsync(
+            exception,
+            new StarWinExceptionContext("Desktop", "Unobserved desktop task exception"));
+
+        var body = Assert.Single(publisher.Submissions).Body;
+        Assert.Contains(typeof(InvalidOperationException).FullName!, body, StringComparison.Ordinal);
+        Assert.Contains(typeof(ArgumentException).FullName!, body, StringComparison.Ordinal);
+        Assert.DoesNotContain("First secret message", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("Second secret message", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AddStarWinInfrastructure_registers_the_exception_reporter()
     {
         var services = new ServiceCollection();

@@ -72,4 +72,21 @@ public sealed class AppCssTests
         Assert.Contains(".site-main:focus,", layoutCss);
         Assert.Contains("outline: none;", layoutCss);
     }
+
+    [Fact]
+    public void Router_and_error_boundary_share_the_interactive_root()
+    {
+        var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+        var appMarkup = File.ReadAllText(Path.Combine(repoRoot, "StarWin.Web", "Components", "App.razor"));
+        var routesMarkup = File.ReadAllText(Path.Combine(repoRoot, "StarWin.Web", "Components", "Routes.razor"));
+        var pageMarkups = Directory.GetFiles(
+                Path.Combine(repoRoot, "StarWin.Web", "Components", "Pages"),
+                "*.razor")
+            .Select(File.ReadAllText);
+
+        Assert.Contains("<Routes @rendermode=\"InteractiveServer\" />", appMarkup, StringComparison.Ordinal);
+        Assert.Contains("<ReportingErrorBoundary>", routesMarkup, StringComparison.Ordinal);
+        Assert.DoesNotContain(pageMarkups, markup =>
+            markup.Contains("@rendermode InteractiveServer", StringComparison.Ordinal));
+    }
 }

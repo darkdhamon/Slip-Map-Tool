@@ -264,11 +264,13 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
     private static string BuildSafeExceptionDetails(Exception exception)
     {
         var builder = new StringBuilder();
-        var depth = 0;
+        var exceptions = new Stack<Exception>();
+        exceptions.Push(exception);
+        var count = 0;
 
-        for (var current = exception; current is not null && depth < 8; current = current.InnerException)
+        while (exceptions.TryPop(out var current) && count < 8)
         {
-            if (depth > 0)
+            if (count > 0)
             {
                 builder.AppendLine("Caused by:");
             }
@@ -298,7 +300,19 @@ public sealed class StarWinExceptionReporter : IStarWinExceptionReporter
                 }
             }
 
-            depth++;
+            count++;
+
+            if (current is AggregateException aggregateException)
+            {
+                foreach (var innerException in aggregateException.Flatten().InnerExceptions.Reverse())
+                {
+                    exceptions.Push(innerException);
+                }
+            }
+            else if (current.InnerException is not null)
+            {
+                exceptions.Push(current.InnerException);
+            }
         }
 
         return builder.ToString().TrimEnd();

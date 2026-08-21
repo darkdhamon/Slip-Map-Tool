@@ -1,3 +1,7 @@
+using Microsoft.Extensions.Configuration;
+using StarWin.Application.Services;
+using StarforgedAtlas.GitHubReporting;
+
 namespace StarWin.Desktop.Tests;
 
 public sealed class DesktopExceptionReportingTests
@@ -26,5 +30,42 @@ public sealed class DesktopExceptionReportingTests
             });
 
         Assert.Same(failure, reported);
+    }
+
+    [Fact]
+    public async Task Desktop_reporter_uses_configured_issue_target()
+    {
+        var publisher = new FakeGitHubIssuePublisher();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["StarforgedAtlas:IssueReporting:RepositoryFullName"] = "owner/configured-repo",
+                ["StarforgedAtlas:IssueReporting:ProjectOwner"] = "configured-owner",
+                ["StarforgedAtlas:IssueReporting:ProjectTitle"] = "Configured board"
+            })
+            .Build();
+        var reporter = DesktopExceptionReporterFactory.Create(configuration, publisher);
+
+        await reporter.ReportExceptionAsync(
+            new InvalidOperationException("Boom"),
+            new StarWinExceptionContext("Desktop", "Desktop shell startup"));
+
+        var target = Assert.Single(publisher.Submissions).Target;
+        Assert.Equal("owner/configured-repo", target.RepositoryFullName);
+        Assert.Equal("configured-owner", target.ProjectOwner);
+        Assert.Equal("Configured board", target.ProjectTitle);
+    }
+
+    private sealed class FakeGitHubIssuePublisher : IGitHubIssuePublisher
+    {
+        public List<GitHubIssueSubmission> Submissions { get; } = [];
+
+        public Task<GitHubIssueSubmissionResult> PublishAsync(
+            GitHubIssueSubmission submission,
+            CancellationToken cancellationToken = default)
+        {
+            Submissions.Add(submission);
+            return Task.FromResult(new GitHubIssueSubmissionResult(true, true, "https://example.test/issues/1"));
+        }
     }
 }

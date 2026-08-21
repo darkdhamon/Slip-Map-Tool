@@ -14,6 +14,7 @@ using Microsoft.Extensions.Hosting;
 using StarWin.Application.Services;
 using StarWin.Infrastructure.Services;
 using StarWin.Web;
+using StarforgedAtlas.GitHubReporting;
 
 #if WINDOWS
 using System.Drawing;
@@ -33,13 +34,20 @@ internal static class Program
     private const string BackendPortArgument = "--backend-port";
     private const string SmokeTestArgument = "--smoke-test";
     private const string SkipUpdateCheckArgument = "--skip-update-check";
-    private static readonly IStarWinExceptionReporter ExceptionReporter = new StarWinExceptionReporter();
+    private static IStarWinExceptionReporter ExceptionReporter = default!;
     private static readonly ConditionalWeakTable<Exception, object> ReportedExceptions = new();
     private static readonly object ReportedExceptionsSync = new();
 
     [STAThread]
     public static async Task Main(string[] args)
     {
+        var configurationBuilder = StarWinWebHost.CreateBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            ApplicationName = typeof(StarWinWebHost).Assembly.GetName().Name,
+            ContentRootPath = StarWinDesktopPaths.GetWebContentRoot()
+        });
+        ExceptionReporter = DesktopExceptionReporterFactory.Create(configurationBuilder.Configuration);
         RegisterRuntimeExceptionHandlers();
 
         if (args.Contains(BackendServerArgument, StringComparer.OrdinalIgnoreCase))
@@ -109,6 +117,7 @@ internal static class Program
                 ["StarforgedAtlas:AppVersion"] = DesktopAppVersion.GetCurrentReleaseTag(),
                 ["ConnectionStrings:StarWin"] = $"Data Source={databasePath}"
             });
+            ExceptionReporter = DesktopExceptionReporterFactory.Create(builder.Configuration);
 
             var app = StarWinWebHost.Build(builder);
             await StarWinWebHost.InitializeAsync(app);
@@ -433,6 +442,19 @@ internal static class Program
                 eventArgs.Exception,
                 "Unhandled desktop UI exception");
 #endif
+    }
+}
+
+internal static class DesktopExceptionReporterFactory
+{
+    public static IStarWinExceptionReporter Create(
+        IConfiguration configuration,
+        IGitHubIssuePublisher? issuePublisher = null)
+    {
+        return new StarWinExceptionReporter(
+            issuePublisher ?? new GitHubIssuePublisher(new ProcessGitHubCommandRunner()),
+            configuration,
+            issueDraftLauncher: new ProcessGitHubIssueDraftLauncher());
     }
 }
 

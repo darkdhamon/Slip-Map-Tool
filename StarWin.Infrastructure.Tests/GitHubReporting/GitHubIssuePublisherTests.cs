@@ -31,6 +31,9 @@ public sealed class GitHubIssuePublisherTests
         Assert.Equal(3, runner.Commands.Count);
         Assert.Contains("--repo", runner.Commands[0]);
         Assert.Contains("darkdhamon/Starforged-Atlas", runner.Commands[0]);
+        Assert.Contains("--body-file", runner.Commands[0]);
+        Assert.DoesNotContain("body", runner.Commands[0]);
+        Assert.Equal("body", runner.StandardInputs[0]);
         Assert.Contains("item-add", runner.Commands[2]);
     }
 
@@ -129,6 +132,18 @@ public sealed class GitHubIssuePublisherTests
         Assert.Contains("Body text", decodedQuery, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void BuildIssueDraftUri_truncates_oversized_fallback_body()
+    {
+        var submission = CreateSubmission() with { Body = new string('x', 40_000) };
+
+        var uri = GitHubIssuePublisher.BuildIssueDraftUri(submission);
+        var decodedQuery = Uri.UnescapeDataString(uri.Query);
+
+        Assert.True(uri.AbsoluteUri.Length < 2_000);
+        Assert.Contains("Body truncated for browser fallback", decodedQuery, StringComparison.Ordinal);
+    }
+
     private static GitHubIssueSubmission CreateSubmission()
     {
         return new GitHubIssueSubmission(
@@ -146,12 +161,15 @@ public sealed class GitHubIssuePublisherTests
         private readonly Queue<GitHubCommandResult> results = new(results);
 
         public List<IReadOnlyList<string>> Commands { get; } = [];
+        public List<string?> StandardInputs { get; } = [];
 
         public Task<GitHubCommandResult> RunAsync(
             IReadOnlyList<string> arguments,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            string? standardInput = null)
         {
             Commands.Add(arguments.ToArray());
+            StandardInputs.Add(standardInput);
             return Task.FromResult(this.results.Dequeue());
         }
     }
@@ -163,7 +181,8 @@ public sealed class GitHubIssuePublisherTests
 
         public Task<GitHubCommandResult> RunAsync(
             IReadOnlyList<string> arguments,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            string? standardInput = null)
             => completion.Task.WaitAsync(cancellationToken);
 
         public void Complete(GitHubCommandResult result) => completion.SetResult(result);
@@ -173,7 +192,8 @@ public sealed class GitHubIssuePublisherTests
     {
         public Task<GitHubCommandResult> RunAsync(
             IReadOnlyList<string> arguments,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            string? standardInput = null)
             => Task.FromException<GitHubCommandResult>(new OperationCanceledException());
     }
 }

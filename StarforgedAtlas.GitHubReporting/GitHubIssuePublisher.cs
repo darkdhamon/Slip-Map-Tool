@@ -28,7 +28,8 @@ public interface IGitHubCommandRunner
 {
     Task<GitHubCommandResult> RunAsync(
         IReadOnlyList<string> arguments,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? standardInput = null);
 }
 
 public interface IGitHubIssuePublisher
@@ -44,7 +45,8 @@ public sealed class ProcessGitHubCommandRunner(TimeSpan? timeout = null) : IGitH
 
     public async Task<GitHubCommandResult> RunAsync(
         IReadOnlyList<string> arguments,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? standardInput = null)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         if (arguments.Count == 0)
@@ -56,6 +58,7 @@ public sealed class ProcessGitHubCommandRunner(TimeSpan? timeout = null) : IGitH
         {
             FileName = "gh",
             UseShellExecute = false,
+            RedirectStandardInput = standardInput is not null,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true
@@ -68,14 +71,19 @@ public sealed class ProcessGitHubCommandRunner(TimeSpan? timeout = null) : IGitH
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start the GitHub CLI.");
-
-        var standardOutputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var standardErrorTask = process.StandardError.ReadToEndAsync(cancellationToken);
         using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutSource.CancelAfter(timeout);
+        var standardOutputTask = process.StandardOutput.ReadToEndAsync(timeoutSource.Token);
+        var standardErrorTask = process.StandardError.ReadToEndAsync(timeoutSource.Token);
 
         try
         {
+            if (standardInput is not null)
+            {
+                await process.StandardInput.WriteAsync(standardInput.AsMemory(), timeoutSource.Token);
+                process.StandardInput.Close();
+            }
+
             await process.WaitForExitAsync(timeoutSource.Token);
         }
         catch (OperationCanceledException)
@@ -139,8 +147,12 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
         ArgumentNullException.ThrowIfNull(submission);
 
         var builder = new UriBuilder($"https://github.com/{submission.Target.RepositoryFullName}/issues/new");
+        const int maximumDraftBodyLength = 1_000;
+        var draftBody = submission.Body.Length <= maximumDraftBodyLength
+            ? submission.Body
+            : $"{submission.Body[..maximumDraftBodyLength]}\n\n[Body truncated for browser fallback; use automatic CLI publication for the complete report.]";
         builder.Query =
-            $"title={Uri.EscapeDataString(submission.Title)}&labels={Uri.EscapeDataString(string.Join(",", submission.Labels))}&body={Uri.EscapeDataString(submission.Body)}";
+            $"title={Uri.EscapeDataString(submission.Title)}&labels={Uri.EscapeDataString(string.Join(",", submission.Labels))}&body={Uri.EscapeDataString(draftBody)}";
         return builder.Uri;
     }
 
@@ -166,10 +178,13 @@ public sealed class GitHubIssuePublisher(IGitHubCommandRunner commandRunner) : I
 
             arguments.Add("--title");
             arguments.Add(submission.Title);
-            arguments.Add("--body");
-            arguments.Add(submission.Body);
+            arguments.Add("--body-file");
+            arguments.Add("-");
 
-            var result = await commandRunner.RunAsync(arguments, cancellationToken);
+            var result = await commandRunner.RunAsync(
+                arguments,
+                cancellationToken,
+                standardInput: submission.Body);
             var issueUrl = result.StandardOutput.Trim();
             return result.ExitCode == 0 && !string.IsNullOrWhiteSpace(issueUrl)
                 ? issueUrl

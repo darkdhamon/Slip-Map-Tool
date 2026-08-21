@@ -30,7 +30,7 @@ public sealed class ErrorPageTests : BunitContext
             RequestServices = Services
         };
         httpContext.Request.Method = "GET";
-        httpContext.Request.Path = "/systems";
+        httpContext.Request.Path = "/Error";
         httpContext.Request.QueryString = new QueryString("?focus=1");
         httpContext.Features.Set<IExceptionHandlerPathFeature>(new ExceptionHandlerFeature
         {
@@ -47,9 +47,10 @@ public sealed class ErrorPageTests : BunitContext
             var report = Assert.Single(reporter.Reports);
             Assert.Equal("Desktop", report.Context.HostKind);
             Assert.Equal("/systems", report.Context.Route);
+            Assert.Equal("/systems", report.Context.AdditionalData!["Request path"]);
             Assert.Equal("trace-123", report.Context.TraceIdentifier);
             Assert.Equal("2026-08-20.0-developer-preview", report.Context.AppVersion);
-            Assert.Contains("GET", report.Context.AdditionalData!["Request method"], StringComparison.Ordinal);
+            Assert.Contains("GET", report.Context.AdditionalData["Request method"], StringComparison.Ordinal);
             Assert.DoesNotContain("Query string", report.Context.AdditionalData.Keys);
         });
 
