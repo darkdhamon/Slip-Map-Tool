@@ -89,4 +89,15 @@ public sealed class WorldControlServiceTests
 
         Assert.Equal("world", error.ParamName);
     }
+
+    [Fact]
+    public void TransferControl_WithNullControllingEmpire_ThrowsArgumentNullException()
+    {
+        var service = new WorldControlService();
+        var world = new World();
+
+        var error = Assert.Throws<ArgumentNullException>(() => service.TransferControl(world, null!));
+
+        Assert.Equal("controllingEmpire", error.ParamName);
+    }
 }
